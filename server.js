@@ -15,6 +15,15 @@ const io     = new Server(server, {
   pingTimeout: 20000, pingInterval: 10000
 });
 
+// Allow cross-origin requests from any domain (needed for Wix embedding)
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") { res.sendStatus(204); return; }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get("/api/serverinfo", (_req, res) => {
