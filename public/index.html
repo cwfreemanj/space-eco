@@ -601,7 +601,7 @@ function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKe
 /* ══════════════════════════════════════
    SOCKET.IO
 ══════════════════════════════════════ */
-const SERVER_URL=""; // ← Replace with your Railway URL when deployed
+const SERVER_URL="space-eco-production.up.railway.app"; // ← Replace with your Railway URL when deployed
 const socket=SERVER_URL?io(SERVER_URL):io();
 
 let joined=false;
