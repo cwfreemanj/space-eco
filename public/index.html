@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Space Eco — Multiplayer</title>
+  <style>
+    html,body{margin:0;height:100%;background:#05060a;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial;overflow:hidden}
+    #wrap{display:flex;flex-direction:column;height:100%}
+    #hud{padding:5px 8px;font-size:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#080c18;border-bottom:1px solid #1a2a44}
+    #hud b{color:#fff}
+    canvas{flex:1;width:100%;image-rendering:pixelated;display:block}
+    .pill{padding:2px 7px;border:1px solid #2a3a66;border-radius:999px;background:#0b1020;white-space:nowrap}
+    .hint{opacity:.75;font-size:10px}
+    #bar-wrap{display:flex;align-items:center;gap:4px}
+    .bar-outer{height:10px;border-radius:999px;background:#0b1020;overflow:hidden}
+    #hp-bar-outer{width:70px;border:1px solid #5a2a2a}
+    #shield-bar-outer{width:60px;border:1px solid #2a4a7a}
+    #energy-bar-outer{width:70px;border:1px solid #2a5a2a}
+    #hp-bar-inner{height:100%;background:linear-gradient(90deg,#ff4422,#ff7755);transition:width .15s}
+    #shield-bar-inner{height:100%;background:linear-gradient(90deg,#2266ff,#55aaff);transition:width .15s}
+    #energy-bar-inner{height:100%;background:linear-gradient(90deg,#3aff6a,#78ff8a);transition:width .15s}
+    #xp-bar-outer{width:80px;border:1px solid #6a4a8a}
+    #xp-bar-inner{height:100%;background:linear-gradient(90deg,#aa44ff,#cc88ff);transition:width .15s}
+
+    /* Chat overlay */
+    #chat-wrap{position:fixed;bottom:8px;left:8px;width:280px;pointer-events:none;z-index:20}
+    #chat-log{max-height:120px;overflow:hidden;display:flex;flex-direction:column-reverse;gap:2px;margin-bottom:4px}
+    .chat-msg{font-size:10px;background:rgba(5,8,20,0.75);padding:2px 6px;border-radius:4px;pointer-events:none;animation:fadeChat 8s forwards}
+    @keyframes fadeChat{0%{opacity:1}80%{opacity:1}100%{opacity:0}}
+    #chat-input-wrap{display:flex;gap:4px;pointer-events:all}
+    #chat-input{flex:1;background:#0b1020;border:1px solid #2a3a66;border-radius:4px;color:#d6e1ff;font-size:10px;padding:2px 6px;outline:none}
+    #chat-input:focus{border-color:#5a7aaa}
+
+    /* Join screen */
+    #join-screen{position:fixed;inset:0;background:#05060a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:100}
+    #join-screen h1{color:#7be6ff;font-size:28px;margin:0;letter-spacing:2px}
+    #join-screen p{color:#8fa3cc;margin:0;font-size:13px}
+    #join-name{background:#0b1020;border:1px solid #3a5a8a;border-radius:6px;color:#fff;font-size:14px;padding:8px 14px;width:200px;outline:none;text-align:center}
+    #join-name:focus{border-color:#7be6ff}
+    #join-btn{background:#1a3a5a;border:2px solid #7be6ff;border-radius:6px;color:#7be6ff;font-size:14px;font-weight:bold;padding:8px 24px;cursor:pointer;transition:background .2s}
+    #join-btn:hover{background:#2a5a8a}
+    #join-status{color:#8fa3cc;font-size:12px;min-height:18px}
+
+    /* Player count badge */
+    #player-count{position:fixed;top:46px;right:8px;font-size:10px;background:rgba(5,8,20,0.8);border:1px solid #2a3a66;border-radius:4px;padding:2px 6px;color:#7be6ff;z-index:10}
+
+    /* Kill feed */
+    #kill-feed{position:fixed;top:50px;right:8px;width:220px;display:flex;flex-direction:column;gap:2px;z-index:10;margin-top:18px}
+    .kill-entry{font-size:10px;background:rgba(5,8,20,0.8);border:1px solid #3a1a1a;border-radius:4px;padding:2px 6px;color:#ff9966;animation:fadeChat 5s forwards}
+  </style>
+</head>
+<body>
+
+<!-- Join Screen -->
+<div id="join-screen">
+  <h1>⭐ SPACE ECO</h1>
+  <p>Multiplayer — Mine, trade, fight across a shared galaxy</p>
+  <input id="join-name" type="text" maxlength="16" placeholder="Your pilot name" autocomplete="off"/>
+  <button id="join-btn">LAUNCH</button>
+  <div id="join-status">Connecting to server…</div>
+</div>
+
+<!-- Game HUD -->
+<div id="wrap" style="display:none">
+  <div id="hud">
+    <span class="pill"><b>Mode:</b> <span id="mode">SPACE</span></span>
+    <span class="pill"><b>Cr:</b> <span id="credits">300</span></span>
+    <span class="pill"><b>Lv:</b> <span id="lvl">1</span>
+      <div id="xp-bar-outer" class="bar-outer" style="display:inline-block;vertical-align:middle;margin-left:3px">
+        <div id="xp-bar-inner" style="width:0%"></div>
+      </div>
+    </span>
+    <span id="bar-wrap" class="pill">
+      <b>HP</b><div id="hp-bar-outer" class="bar-outer"><div id="hp-bar-inner" style="width:100%"></div></div>
+      <b>SH</b><div id="shield-bar-outer" class="bar-outer"><div id="shield-bar-inner" style="width:100%"></div></div>
+      <b>⚡</b><div id="energy-bar-outer" class="bar-outer"><div id="energy-bar-inner" style="width:100%"></div></div>
+      <span id="energy-text" style="font-size:10px">100%</span>
+    </span>
+    <span class="pill"><b>Inv:</b> <span id="inv">(empty)</span></span>
+    <span class="pill hint"><b>WASD</b>:fly <b>L</b>:land <b>O</b>:shop <b>G</b>:gas <b>I</b>:inv <b>P</b>:attrs <b>Click</b>:fire <b>T</b>:chat</span>
+  </div>
+  <canvas id="c" width="540" height="300"></canvas>
+</div>
+
+<!-- Player count -->
+<div id="player-count" style="display:none">👥 1</div>
+
+<!-- Chat -->
+<div id="chat-wrap" style="display:none">
+  <div id="chat-log"></div>
+  <div id="chat-input-wrap" style="display:none">
+    <input id="chat-input" type="text" maxlength="120" placeholder="Press Enter to send…" autocomplete="off"/>
+  </div>
+</div>
+
+<!-- Kill feed -->
+<div id="kill-feed"></div>
+
+<!-- Socket.io (loaded from server) -->
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   SPACE ECO — MULTIPLAYER CLIENT  v3-MP
+   Built on top of v3 single-player.
+   Key additions:
+   - Socket.io connection + join flow
+   - Server-authoritative ship physics (input → server)
+   - Dead-reckoning for other players
+   - PvP projectile sync
+   - Shared economy prices from server
+   - Chat overlay (T to open)
+   - Kill feed
+   - Spawn proximity (handled server-side)
+═══════════════════════════════════════════════════════ */
+
+/* ── Utilities (identical to SP) ── */
+function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=(h<<13)|(h>>>19);}return function(){h=Math.imul(h^(h>>>16),2246822507);h=Math.imul(h^(h>>>13),3266489909);return(h^=h>>>16)>>>0;}}
+function sfc32(a,b,c,d){return function(){a|=0;b|=0;c|=0;d|=0;let t=(a+b|0)+d|0;d=d+1|0;a=b^b>>>9;b=c+(c<<3)|0;c=(c<<21|c>>>11);c=c+t|0;return(t>>>0)/4294967296;}}
+function makeRng(s){const seed=xmur3(s);return sfc32(seed(),seed(),seed(),seed());}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+function dist(ax,ay,bx,by){return Math.hypot(ax-bx,ay-by);}
+function randInt(r,a,b){return Math.floor(r()*(b-a+1))+a;}
+function pickWeighted(r,items){let s=0;for(const i of items)s+=i.w;let t=r()*s;for(const i of items){t-=i.w;if(t<=0)return i.v;}return items[items.length-1].v;}
+function angleToward(ax,ay,bx,by){return Math.atan2(by-ay,bx-ax);}
+function angleLerp(a,b,t){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+d*t;}
+
+const canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
+
+/* ── Input ── */
+const keys=new Set();
+let chatFocused=false;
+window.addEventListener("keydown",e=>{
+  if(chatFocused)return;
+  keys.add(e.key.toLowerCase());
+  if([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(e.key.toLowerCase()))e.preventDefault();
+  if(e.key.toLowerCase()==="t"&&!chatFocused){openChat();e.preventDefault();}
+});
+window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
+
+let mouse={x:0,y:0,down:false,clicked:false};
+canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;mouse.x=(e.clientX-r.left)*sx;mouse.y=(e.clientY-r.top)*sy;});
+canvas.addEventListener("mousedown",e=>{
+  if(chatFocused)return;
+  mouse.down=true;mouse.clicked=true;
+  const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;
+  const mx=(e.clientX-r.left)*sx,my=(e.clientY-r.top)*sy;
+  if(shopOpen)handleShopClick(mx,my);
+  else if(inventoryOpen)handleInventoryClick(mx,my);
+  else if(attrOpen)handleAttrClick(mx,my);
+  else if(gameOver)requestRespawn();
+});
+window.addEventListener("mouseup",()=>{mouse.down=false;});
+
+/* ── Resources ── */
+const RES={
+  dirt:{name:"Dirt",rarity:1,color:"#5b3a2a",base:1},
+  stone:{name:"Stone",rarity:2,color:"#70757a",base:3},
+  copper:{name:"Copper",rarity:3,color:"#c27a3a",base:9},
+  iron:{name:"Iron",rarity:3,color:"#b2b2b2",base:10},
+  gold:{name:"Gold",rarity:5,color:"#ffd15c",base:40},
+  crystal:{name:"Crystal",rarity:6,color:"#7be6ff",base:60},
+  fuel:{name:"Battery Pack",rarity:4,color:"#78ff8a",base:25},
+  gas_canister:{name:"Gas Canister",rarity:2,color:"#aaff44",base:30},
+  ice_block:{name:"Ice Block",rarity:2,color:"#b9f3ff",base:4},
+  lava_rock:{name:"Lava Rock",rarity:3,color:"#ff4d1a",base:12},
+  magma_core:{name:"Magma Core",rarity:4,color:"#d63810",base:22},
+  toxic_sludge:{name:"Toxic Sludge",rarity:3,color:"#a3d15c",base:8},
+  sand:{name:"Sand",rarity:1,color:"#f4d68f",base:2},
+  grass_tuft:{name:"Grass",rarity:1,color:"#4db357",base:1}
+};
+const GAS_COST=40,GAS_REFUEL=30,ENERGY_DRAIN=1.8,ENERGY_IDLE=0.15;
+
+/* ── Economy (prices come from server) ── */
+let serverPrices={};
+function price(k){return serverPrices[k]||RES[k]?.base||1;}
+
+/* ── Player (local) ── */
+const player={
+  id:null, name:"",
+  credits:300,
+  invSlots:Array(24).fill(null).map(()=>({type:null,count:0})),
+  maxSlots:24,
+  xp:0, level:1, xpToNext:100,
+  attrs:{damage:1,speed:1,cargoMax:1,armor:1,gasEfficiency:1,shieldRegen:1},
+  attrPoints:0,
+  color:"#7be6ff"
+};
+function xpForLevel(l){return Math.floor(100*Math.pow(1.4,l-1));}
+
+/* ── Ship (local, server is authoritative) ── */
+const ship={
+  x:0,y:0,vx:0,vy:0,angle:0,
+  hp:100,maxHp:100,
+  shield:60,maxShield:60,shieldRegenTimer:0,
+  energy:{current:100,max:100},
+  get speedStat(){return 1+((player.attrs.speed-1)*0.3);},
+  get damageStat(){return 1+((player.attrs.damage-1)*0.4);},
+  get armorStat(){return 1+((player.attrs.armor-1)*0.2);},
+  get cargoMax(){return 80+player.attrs.cargoMax*20;},
+  get gasEfficiency(){return 1/Math.max(0.3,1+((player.attrs.gasEfficiency-1)*0.15));},
+  get shieldRegenRate(){return 3*(1+((player.attrs.shieldRegen-1)*0.4));}
+};
+const energy=ship.energy;
+function cargoUsed(){let n=0;for(const s of player.invSlots)if(s.type)n+=s.count;return n;}
+
+/* ── Other players (received from server) ── */
+// Map of id → { ...snapshot, renderX, renderY, renderAngle } for dead reckoning
+const otherPlayers=new Map();
+
+/* ── PvP projectiles from server ── */
+const pvpProjectiles=[];
+
+/* ── Local projectiles (NPC only — sent to server for validation vs other players) ── */
+const localPlayerProjectiles=[];
+const enemyProjectiles=[];
+let shootCooldown=0;
+const SHOOT_CD=0.22;
+
+/* ── Game state ── */
+let gameOver=false,inventoryOpen=false,shopOpen=false,attrOpen=false;
+let shopTab="sell",shopSelectedSlot=null,shopSellQty=1,shopBuyItem=null,shopBuyQty=1;
+let selectedSlot=null;
+const MAX_STACK=24,SLOT_COST=1000,MAX_TOTAL_SLOTS=48;
+const spaceDrops=[];
+const floatingTexts=[];
+
+/* ── Station tiers ── */
+const STATION_TIERS={
+  outpost:{name:"Outpost",color:"#88aacc",glowColor:"rgba(100,160,200,0.3)",size:14,spawnChance:0.35,shipCount:2,shipConfig:{hp:30,speed:65,damage:6,cargo:8,color:"#88aacc",size:4},priceMultSell:0.85,priceMultBuy:1.3,factionName:"Frontier Corps",factionColor:"#88aacc",itemPool:["dirt","stone","copper","iron","sand"],stockMin:5,stockMax:20,xpReward:15},
+  standard:{name:"Standard",color:"#66ccaa",glowColor:"rgba(80,200,160,0.35)",size:18,spawnChance:0.18,shipCount:3,shipConfig:{hp:55,speed:80,damage:12,cargo:14,color:"#66ccaa",size:5},priceMultSell:0.9,priceMultBuy:1.25,factionName:"Trade Guild",factionColor:"#66ccaa",itemPool:["stone","copper","iron","gold","ice_block","lava_rock","toxic_sludge"],stockMin:8,stockMax:30,xpReward:30},
+  advanced:{name:"Advanced",color:"#cc88ff",glowColor:"rgba(180,100,255,0.35)",size:22,spawnChance:0.09,shipCount:4,shipConfig:{hp:100,speed:95,damage:20,cargo:22,color:"#cc88ff",size:6},priceMultSell:0.95,priceMultBuy:1.2,factionName:"Nova Syndicate",factionColor:"#cc88ff",itemPool:["iron","gold","crystal","magma_core","fuel"],stockMin:15,stockMax:40,xpReward:60},
+  capital:{name:"Capital",color:"#ffcc44",glowColor:"rgba(255,200,50,0.4)",size:28,spawnChance:0.04,shipCount:6,shipConfig:{hp:200,speed:110,damage:35,cargo:36,color:"#ffcc44",size:8},priceMultSell:1.0,priceMultBuy:1.15,factionName:"Galactic Empire",factionColor:"#ffcc44",itemPool:["gold","crystal","magma_core","fuel","gas_canister"],stockMin:20,stockMax:60,xpReward:120}
+};
+const TIER_ORDER=["outpost","standard","advanced","capital"];
+
+/* ── Procedural world (same seed as server) ── */
+const CHUNK_SIZE=900,PLANETS_PER_CHUNK=5,CHUNK_RADIUS=3;
+const generatedPlanets=new Map(),generatedStations=new Map();
+let visiblePlanets=[],visibleStations=[];
+let GALAXY_SEED="GALAXY-01"; // overwritten by server welcome
+
+function chunkKey(cx,cy){return `${cx},${cy}`;}
+
+function generateChunk(cx,cy){
+  const key=chunkKey(cx,cy);
+  if(!generatedPlanets.has(key)){
+    const rng=makeRng(GALAXY_SEED+"|chunk|"+key);
+    const planets=[];
+    const baseX=cx*CHUNK_SIZE,baseY=cy*CHUNK_SIZE;
+    const skipCenter=(cx===0&&cy===0);
+    for(let i=0;i<PLANETS_PER_CHUNK;i++){
+      let px=baseX+(rng()-0.5)*CHUNK_SIZE*0.85;
+      let py=baseY+(rng()-0.5)*CHUNK_SIZE*0.85;
+      if(skipCenter&&Math.hypot(px,py)<300)continue;
+      let tooClose=false;
+      for(const ep of planets){if(dist(px,py,ep.x,ep.y)<110){tooClose=true;break;}}
+      if(tooClose)continue;
+      const id=key+"|"+i;
+      const prng=makeRng(GALAXY_SEED+"|planet|"+id);
+      const radius=randInt(prng,26,65);
+      const type=pickWeighted(prng,[{v:"lush",w:3},{v:"desert",w:3},{v:"ice",w:2},{v:"toxic",w:2},{v:"volcanic",w:1}]);
+      const palettes={lush:{a:"#2bff88",b:"#166b3f",sky:"#071324"},desert:{a:"#ffd27a",b:"#b9772d",sky:"#120d07"},ice:{a:"#b9f3ff",b:"#4fa8c8",sky:"#071021"},toxic:{a:"#b3ff4e",b:"#3d7b20",sky:"#0b1206"},volcanic:{a:"#ff6b5e",b:"#6b1d1a",sky:"#160707"}};
+      const pal=palettes[type];
+      const resTableByType={lush:["dirt","grass_tuft","stone","copper","iron","crystal"],desert:["sand","dirt","stone","copper","gold"],ice:["ice_block","stone","iron","crystal"],toxic:["toxic_sludge","dirt","stone","copper","crystal"],volcanic:["lava_rock","magma_core","stone","iron","gold","crystal"]};
+      const preview=document.createElement("canvas");preview.width=32;preview.height=32;
+      const pctx=preview.getContext("2d");pctx.imageSmoothingEnabled=false;
+      for(let y=0;y<32;y++)for(let x=0;x<32;x++){const dx=x-16,dy=y-16;if(Math.hypot(dx,dy)<=15){pctx.fillStyle=prng()<0.5?pal.a:pal.b;pctx.fillRect(x,y,1,1);}}
+      for(let c=0;c<randInt(prng,2,5);c++){const cx2=randInt(prng,8,24),cy2=randInt(prng,8,24),rr=randInt(prng,2,5);pctx.fillStyle="#00000055";for(let y=-rr;y<=rr;y++)for(let x=-rr;x<=rr;x++){if(x*x+y*y<=rr*rr)pctx.fillRect(cx2+x,cy2+y,1,1);}}
+      planets.push({id,seed:GALAXY_SEED+"|planet|"+id,x:px,y:py,radius,type,pal,preview,resList:resTableByType[type]});
+    }
+    generatedPlanets.set(key,planets);
+
+    const srng=makeRng(GALAXY_SEED+"|stations|"+key);
+    const stations=[];
+    for(const tierKey of TIER_ORDER){
+      const tier=STATION_TIERS[tierKey];
+      if(srng()<tier.spawnChance){
+        let sx=baseX+(srng()-0.5)*CHUNK_SIZE*0.7;
+        let sy=baseY+(srng()-0.5)*CHUNK_SIZE*0.7;
+        if(skipCenter&&Math.hypot(sx,sy)<350)continue;
+        const nearbyPlanets=planets.filter(p=>dist(sx,sy,p.x,p.y)<600).length;
+        const densityMult=0.9+nearbyPlanets*0.04;
+        const stationId=key+"|st|"+tierKey;
+        const st={id:stationId,x:sx,y:sy,tier:tierKey,tierDef:tier,r:tier.size+6,faction:tier.factionName,factionColor:tier.factionColor,nearbyPlanets,densityMult,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300};
+        stations.push(st);
+        initTradeShips(st,planets);
+        refreshBuyStock(st);
+      }
+    }
+    generatedStations.set(key,stations);
+  }
+  return{planets:generatedPlanets.get(key),stations:generatedStations.get(key)};
+}
+
+function refreshBuyStock(station){
+  const tier=station.tierDef;
+  const rng=makeRng(GALAXY_SEED+"|stock|"+station.id+"|"+Math.floor(Date.now()/300000));
+  station.buyStock=[];
+  const pool=[...tier.itemPool];
+  const count=Math.min(pool.length,randInt(rng,4,7));
+  for(let i=0;i<count;i++){
+    const idx=randInt(rng,0,pool.length-1);
+    const resKey=pool.splice(idx,1)[0];
+    const qty=randInt(rng,tier.stockMin,tier.stockMax);
+    const buyPrice=Math.ceil(price(resKey)*tier.priceMultBuy*(1/station.densityMult)*(0.85+rng()*0.3));
+    station.buyStock.push({type:resKey,qty,maxQty:qty,price:buyPrice});
+  }
+}
+
+/* ── Trade ships (NPC, client-side simulation) ── */
+const TRADE_SHIP_ALERT_RANGE=300;
+function initTradeShips(station,localPlanets){
+  const tier=station.tierDef,cfg=tier.shipConfig;
+  station.tradeShips=[];
+  for(let i=0;i<tier.shipCount;i++){
+    const angle=Math.PI*2*(i/tier.shipCount);
+    station.tradeShips.push({id:station.id+"|ship|"+i,stationId:station.id,faction:station.faction,factionColor:station.factionColor,x:station.x+Math.cos(angle)*60,y:station.y+Math.sin(angle)*60,vx:0,vy:0,angle,hp:cfg.hp+(Math.random()-0.5)*cfg.hp*0.3,maxHp:cfg.hp,speed:cfg.speed,damage:cfg.damage,size:cfg.size,tier:station.tier,state:"idle",stateTimer:1+Math.random()*2,targetPlanet:null,lootCarried:{},shootTimer:0});
+  }
+}
+
+function updateTradeShip(ts,station,allPlanets,dt){
+  ts.stateTimer=Math.max(0,ts.stateTimer-dt);
+  ts.shootTimer=Math.max(0,ts.shootTimer-dt);
+  const playerDist=dist(ts.x,ts.y,ship.x,ship.y);
+
+  if(ts.state==="combat"){
+    const ang=angleToward(ts.x,ts.y,ship.x,ship.y);
+    ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.06);
+    ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.06);
+    ts.angle=ang;
+    if(ts.shootTimer<=0&&playerDist<280){
+      ts.shootTimer=0.6+(1-Math.min(1,ts.speed/130))*0.8;
+      const bAng=ang+(Math.random()-0.5)*0.18;
+      enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(bAng)*200,vy:Math.sin(bAng)*200,damage:ts.damage,life:2.5});
+    }
+    if(ts.hp<ts.maxHp*0.2){ts.state="flee";ts.stateTimer=5;}
+    if(playerDist>600){ts.state="return";ts.stateTimer=3;}
+    ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;
+  }
+  if(ts.state==="flee"){
+    const ang=angleToward(ts.x,ts.y,ship.x,ship.y)+Math.PI;
+    ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed*1.3,0.08);
+    ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed*1.3,0.08);
+    if(ts.stateTimer<=0)ts.state="return";
+    ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;
+  }
+  if(ts.state==="idle"&&ts.stateTimer<=0){
+    const candidates=allPlanets.filter(p=>dist(ts.x,ts.y,p.x,p.y)<700);
+    if(candidates.length>0){ts.targetPlanet=candidates[Math.floor(Math.random()*candidates.length)];ts.state="travel";}
+  }
+  if(ts.state==="travel"&&ts.targetPlanet){
+    const d=dist(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);
+    if(d<ts.targetPlanet.radius+20){ts.state="mining";ts.stateTimer=3+Math.random()*4;}
+    else{const ang=angleToward(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.05);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.05);ts.angle=ang;}
+  }
+  if(ts.state==="mining"&&ts.stateTimer<=0){
+    if(ts.targetPlanet){const rl=ts.targetPlanet.resList,col=Math.min(ts.maxCargo||14,randInt(makeRng(ts.id+Date.now()),2,14));ts.lootCarried={};for(let i=0;i<col;i++){const r=rl[Math.floor(Math.random()*rl.length)];ts.lootCarried[r]=(ts.lootCarried[r]||0)+1;}}
+    ts.state="return";
+  }
+  if(ts.state==="return"){
+    const d=dist(ts.x,ts.y,station.x,station.y);
+    if(d<station.r+15){for(const[res,qty]of Object.entries(ts.lootCarried)){const ex=station.buyStock.find(s=>s.type===res);if(ex)ex.qty=Math.min(ex.maxQty+20,ex.qty+qty);}ts.lootCarried={};ts.state="idle";ts.stateTimer=2+Math.random()*3;}
+    else{const ang=angleToward(ts.x,ts.y,station.x,station.y);ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.05);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.05);ts.angle=ang;}
+  }
+  ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;
+  ts.vx*=Math.pow(0.97,dt*60);ts.vy*=Math.pow(0.97,dt*60);
+}
+
+/* ── Chunk management ── */
+let chunkTimer=0;
+function updateChunks(){
+  const cx0=Math.round(ship.x/CHUNK_SIZE),cy0=Math.round(ship.y/CHUNK_SIZE);
+  visiblePlanets=[];visibleStations=[];
+  for(let dcx=-CHUNK_RADIUS;dcx<=CHUNK_RADIUS;dcx++)
+    for(let dcy=-CHUNK_RADIUS;dcy<=CHUNK_RADIUS;dcy++){
+      const{planets,stations}=generateChunk(cx0+dcx,cy0+dcy);
+      for(const p of planets)visiblePlanets.push(p);
+      for(const s of stations)visibleStations.push(s);
+    }
+}
+
+/* ── Planet mode ── */
+const TILE={EMPTY:0,DIRT:1,STONE:2,ORE1:3,ORE2:4,RARE:5,ICE:6,PACKED_ICE:7,LAVA:8,MAGMA:9,TOXIC_SLUDGE:10,SAND:11,SANDSTONE:12,GRASS:13};
+const TILECOLORS={[TILE.DIRT]:"#5b3a2a",[TILE.STONE]:"#6b7075",[TILE.ORE1]:"#c27a3a",[TILE.ORE2]:"#b2b2b2",[TILE.RARE]:"#7be6ff",[TILE.ICE]:"#b9f3ff",[TILE.PACKED_ICE]:"#8dc9e6",[TILE.LAVA]:"#ff4d1a",[TILE.MAGMA]:"#d63810",[TILE.TOXIC_SLUDGE]:"#a3d15c",[TILE.SAND]:"#f4d68f",[TILE.SANDSTONE]:"#d9a84e",[TILE.GRASS]:"#4db357"};
+const MODE={SPACE:"space",PLANET:"planet"};
+let mode=MODE.SPACE,activePlanet=null,planetMap=null;
+const astronaut={x:0,y:0,vx:0,vy:0,w:10,h:14,onGround:false};
+let landedShip={x:0,y:0};
+const drops=[];
+let nearStation=null;
+
+function genPlanetMap(planet){
+  const rng=makeRng(planet.seed+"|map");
+  const W=320,H=140,surfaceY=45+randInt(rng,-6,6);
+  const heights=new Array(W).fill(0).map((_,x)=>Math.floor(surfaceY+Math.sin((x/28)+rng()*10)*6+Math.sin((x/9)+rng()*10)*2+(rng()-0.5)*2));
+  const tiles=new Uint8Array(W*H),hp=new Uint8Array(W*H),idx=(x,y)=>y*W+x;
+  const tileConfig={lush:{surface:TILE.GRASS,shallow:TILE.DIRT,deep:TILE.STONE,surfaceHP:20,shallowHP:25,deepHP:55},desert:{surface:TILE.SAND,shallow:TILE.SAND,deep:TILE.SANDSTONE,surfaceHP:18,shallowHP:22,deepHP:50},ice:{surface:TILE.ICE,shallow:TILE.ICE,deep:TILE.PACKED_ICE,surfaceHP:30,shallowHP:35,deepHP:65},toxic:{surface:TILE.TOXIC_SLUDGE,shallow:TILE.DIRT,deep:TILE.STONE,surfaceHP:22,shallowHP:28,deepHP:60},volcanic:{surface:TILE.MAGMA,shallow:TILE.LAVA,deep:TILE.STONE,surfaceHP:40,shallowHP:50,deepHP:70}};
+  const cfg=tileConfig[planet.type];
+  for(let x=0;x<W;x++){const h=clamp(heights[x],18,H-10);for(let y=h;y<H;y++){let t=cfg.surface,th=cfg.surfaceHP;if(y>h+8){t=cfg.shallow;th=cfg.shallowHP;}if(y>h+20&&rng()<0.35){t=cfg.deep;th=cfg.deepHP;}if(y>h+35&&rng()<0.45){t=cfg.deep;th=cfg.deepHP;}tiles[idx(x,y)]=t;hp[idx(x,y)]=th;}}
+  for(let i=0;i<7;i++){let cx2=randInt(rng,10,W-11),cy2=randInt(rng,35,H-20);const steps=randInt(rng,120,220);for(let s=0;s<steps;s++){const r=randInt(rng,2,4);for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++){const x=cx2+xx,y=cy2+yy;if(x>1&&y>1&&x<W-2&&y<H-2&&xx*xx+yy*yy<=r*r){tiles[idx(x,y)]=TILE.EMPTY;hp[idx(x,y)]=0;}}cx2+=randInt(rng,-1,1);cy2=clamp(cy2+randInt(rng,-1,1),25,H-10);cx2=clamp(cx2,2,W-3);}}
+  const placeC=(t,count,minY)=>{for(let n=0;n<count;n++){const cx3=randInt(rng,10,W-11),cy3=randInt(rng,minY,H-10),rr=randInt(rng,3,8);for(let y=-rr;y<=rr;y++)for(let x=-rr;x<=rr;x++){if(x*x+y*y<=rr*rr){const px2=cx3+x,py2=cy3+y;if(px2>1&&py2>1&&px2<W-2&&py2<H-2){const id=idx(px2,py2);if(tiles[id]!==TILE.EMPTY){tiles[id]=t;hp[id]=t===TILE.RARE?95:70;}}}}}};
+  placeC(TILE.ORE1,randInt(rng,10,16),55);placeC(TILE.ORE2,randInt(rng,8,14),65);placeC(TILE.RARE,randInt(rng,3,6),85);
+  return{W,H,tiles,hp,heights,rng,planet};
+}
+function resourceForTile(planet,t,y,H){const d=y/H,l=planet.resList;if(t===TILE.DIRT)return"dirt";if(t===TILE.GRASS)return Math.random()<0.3?"grass_tuft":"dirt";if(t===TILE.SAND)return"sand";if(t===TILE.ICE)return"ice_block";if(t===TILE.PACKED_ICE)return Math.random()<0.6?"ice_block":"stone";if(t===TILE.LAVA)return"lava_rock";if(t===TILE.MAGMA)return Math.random()<0.7?"magma_core":"lava_rock";if(t===TILE.TOXIC_SLUDGE)return"toxic_sludge";if(t===TILE.STONE||t===TILE.SANDSTONE)return"stone";if(t===TILE.ORE1){const m=l.filter(k=>["copper","iron"].includes(k));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===TILE.ORE2){if(l.includes("gold")&&Math.random()<0.55)return"gold";if(l.includes("crystal")&&Math.random()<0.65)return"crystal";return l[Math.floor(Math.random()*l.length)];}if(t===TILE.RARE){if(l.includes("crystal")&&Math.random()<0.6+d*0.3)return"crystal";if(l.includes("gold")&&Math.random()<0.4+d*0.3)return"gold";return l[l.length-1];}return"stone";}
+function tileAt(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return TILE.EMPTY;return planetMap.tiles[y*planetMap.W+x];}
+function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.tiles[y*planetMap.W+x]=t;}
+function tileHP(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.hp[y*planetMap.W+x];}
+function setTileHP(x,y,h){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.hp[y*planetMap.W+x]=clamp(h,0,255);}
+function collidePlanet(a,horiz){const TILEPX=16,left=Math.floor((a.x-a.w/2)/TILEPX),right=Math.floor((a.x+a.w/2)/TILEPX),top=Math.floor((a.y-a.h)/TILEPX),bottom=Math.floor(a.y/TILEPX);for(let ty=top;ty<=bottom;ty++)for(let tx=left;tx<=right;tx++){const t=tileAt(tx,ty);if(t===TILE.EMPTY)continue;const tl=tx*TILEPX,tt=ty*TILEPX,tr=tl+TILEPX,tb=tt+TILEPX,ax1=a.x-a.w/2,ax2=a.x+a.w/2,ay1=a.y-a.h,ay2=a.y;if(ax2>tl&&ax1<tr&&ay2>tt&&ay1<tb){if(horiz){if(a.vx>0){a.x=tl-a.w/2;a.vx=0;}else if(a.vx<0){a.x=tr+a.w/2;a.vx=0;}}else{if(a.vy>0){a.y=tt;a.vy=0;a.onGround=true;}else if(a.vy<0){a.y=tb+a.h;a.vy=0;}}}}}
+function itemCollide(it){const TILEPX=16,tx=Math.floor(it.x/TILEPX),ty=Math.floor(it.y/TILEPX),t=tileAt(tx,ty);if(t!==TILE.EMPTY){it.y=ty*TILEPX-1;return true;}return false;}
+let mineCooldown=0;
+function doMining(dt){
+  mineCooldown-=dt;if(mineCooldown>0)return;
+  const TILEPX=16,cam=planetCamera();
+  const wx=mouse.x+cam.x,wy=mouse.y+cam.y;
+  const tx=Math.floor(wx/TILEPX),ty=Math.floor(wy/TILEPX);
+  if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)>72)return;
+  const t=tileAt(tx,ty);if(t===TILE.EMPTY)return;
+  let hpv=tileHP(tx,ty);hpv-=18;setTileHP(tx,ty,hpv);mineCooldown=0.06;
+  if(hpv<=0){const kind=resourceForTile(activePlanet,t,ty,planetMap.H);setTile(tx,ty,TILE.EMPTY);setTileHP(tx,ty,0);let qty=1;if(t===TILE.ORE1||t===TILE.ORE2)qty=Math.random()<0.35?2:1;if(t===TILE.RARE)qty=Math.random()<0.55?2:1;for(let i=0;i<qty;i++)drops.push({kind,x:tx*TILEPX+8+(Math.random()-0.5)*6,y:ty*TILEPX+8,vx:(Math.random()-0.5)*40,vy:-80-Math.random()*60});socket.emit("gainXp",{amount:RES[kind].rarity*2});}
+}
+function planetCamera(){return{x:clamp(astronaut.x-canvas.width/2,0,planetMap.W*16-canvas.width),y:clamp(astronaut.y-canvas.height/2,0,planetMap.H*16-canvas.height)};}
+
+/* ── HUD elements ── */
+const modeEl=document.getElementById("mode"),creditsEl=document.getElementById("credits"),
+      invEl=document.getElementById("inv"),lvlEl=document.getElementById("lvl"),
+      xpBarInner=document.getElementById("xp-bar-inner"),
+      hpBarInner=document.getElementById("hp-bar-inner"),
+      shieldBarInner=document.getElementById("shield-bar-inner"),
+      energyBarInner=document.getElementById("energy-bar-inner"),
+      energyText=document.getElementById("energy-text"),
+      playerCountEl=document.getElementById("player-count");
+
+function updateHud(){
+  modeEl.textContent=mode===MODE.SPACE?"SPACE":"PLANET:"+(activePlanet?activePlanet.type.toUpperCase():"");
+  creditsEl.textContent=player.credits;
+  lvlEl.textContent=player.level;
+  const xpPct=Math.min(100,(player.xp/player.xpToNext)*100);
+  xpBarInner.style.width=xpPct+"%";
+  const hpPct=clamp((ship.hp/ship.maxHp)*100,0,100);
+  hpBarInner.style.width=hpPct+"%";
+  hpBarInner.style.background=hpPct>50?"linear-gradient(90deg,#ff4422,#ff7755)":hpPct>25?"linear-gradient(90deg,#ff8800,#ffbb44)":"linear-gradient(90deg,#ff1100,#ff3300)";
+  const shPct=clamp((ship.shield/ship.maxShield)*100,0,100);
+  shieldBarInner.style.width=shPct+"%";
+  const ePct=clamp((energy.current/energy.max)*100,0,100);
+  energyBarInner.style.width=ePct+"%";
+  energyBarInner.style.background=ePct>50?"linear-gradient(90deg,#3aff6a,#78ff8a)":ePct>25?"linear-gradient(90deg,#ffaa00,#ffdd55)":"linear-gradient(90deg,#ff3322,#ff6644)";
+  energyText.textContent=Math.ceil(ePct)+"%";
+  const entries=[];for(const s of player.invSlots)if(s.type&&s.count>0)entries.push(`${RES[s.type].name}:${s.count}`);
+  invEl.textContent=entries.length?entries.slice(0,4).join(" • "):"(empty)";
+}
+
+/* ── Starfield ── */
+const STARS=Array.from({length:220},()=>({x:Math.random()*2200-1100,y:Math.random()*1400-700,r:Math.random()*1.5+0.2,bri:0.3+Math.random()*0.7}));
+
+/* ── Inventory helpers ── */
+function addToInventory(type,amount=1){let rem=amount;for(let i=0;i<player.maxSlots;i++){if(player.invSlots[i].type===type&&player.invSlots[i].count<MAX_STACK){const sp=MAX_STACK-player.invSlots[i].count,add=Math.min(sp,rem);player.invSlots[i].count+=add;rem-=add;if(rem<=0)return true;}}for(let i=0;i<player.maxSlots;i++){if(!player.invSlots[i].type||player.invSlots[i].count===0){player.invSlots[i].type=type;const add=Math.min(MAX_STACK,rem);player.invSlots[i].count=add;rem-=add;if(rem<=0)return true;}}return rem===0;}
+function removeFromInventory(type,amount){let rem=amount;for(let i=player.maxSlots-1;i>=0;i--){if(player.invSlots[i].type===type){const rm=Math.min(player.invSlots[i].count,rem);player.invSlots[i].count-=rm;if(player.invSlots[i].count===0)player.invSlots[i].type=null;rem-=rm;if(rem<=0)return true;}}return rem===0;}
+function getTotalResource(type){let n=0;for(const s of player.invSlots)if(s.type===type)n+=s.count;return n;}
+function buyInventorySlot(){if(player.credits<SLOT_COST||player.maxSlots>=MAX_TOTAL_SLOTS)return false;player.credits-=SLOT_COST;player.maxSlots++;player.invSlots.push({type:null,count:0});return true;}
+
+/* ── Floating text ── */
+function showFloatingText(text,x,y,color="#ffffff",size=11){floatingTexts.push({text,x,y,color,size,life:1.8,vy:-25});}
+
+/* ── Combat helpers ── */
+function damageShip(amount){
+  const effArmor=ship.armorStat;let dmg=amount/effArmor;
+  if(ship.shield>0){const abs=Math.min(ship.shield,dmg);ship.shield-=abs;dmg-=abs;}
+  ship.hp=clamp(ship.hp-dmg,0,ship.maxHp);ship.shieldRegenTimer=4;
+  if(ship.hp<=0){gameOver=true;}
+}
+function killTradeShip(ts,station){
+  for(const[res,qty]of Object.entries(ts.lootCarried))for(let i=0;i<qty;i++)spaceDrops.push({type:res,x:ts.x+(Math.random()-0.5)*20,y:ts.y+(Math.random()-0.5)*20,vx:(Math.random()-0.5)*30,vy:(Math.random()-0.5)*30,life:25});
+  const pool=station.tierDef.itemPool,dc=randInt(makeRng(ts.id+Date.now()),1,4);
+  for(let i=0;i<dc;i++)spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ts.x+(Math.random()-0.5)*30,y:ts.y+(Math.random()-0.5)*30,vx:(Math.random()-0.5)*40,vy:(Math.random()-0.5)*40,life:25});
+  socket.emit("gainXp",{amount:station.tierDef.xpReward});
+  showFloatingText(`+${station.tierDef.xpReward} XP`,ts.x,ts.y,"#cc88ff");
+  for(const other of station.tradeShips){if(other!==ts&&dist(other.x,other.y,ts.x,ts.y)<TRADE_SHIP_ALERT_RANGE){other.state="combat";other.stateTimer=999;}}
+  const idx=station.tradeShips.indexOf(ts);if(idx>-1)station.tradeShips.splice(idx,1);
+}
+
+/* ── Chat ── */
+const chatLog=document.getElementById("chat-log");
+const chatInputWrap=document.getElementById("chat-input-wrap");
+const chatInput=document.getElementById("chat-input");
+
+function addChatMessage(from,message,color="#d6e1ff"){
+  const div=document.createElement("div");div.className="chat-msg";
+  div.innerHTML=`<span style="color:${color};font-weight:bold">${from}:</span> ${message}`;
+  chatLog.prepend(div);
+  // Remove old messages
+  while(chatLog.children.length>20)chatLog.removeChild(chatLog.lastChild);
+}
+function openChat(){
+  chatFocused=true;chatInputWrap.style.display="flex";chatInput.focus();
+}
+chatInput.addEventListener("keydown",e=>{
+  if(e.key==="Enter"){
+    const msg=chatInput.value.trim();
+    if(msg){socket.emit("chat",{message:msg});}
+    chatInput.value="";chatFocused=false;chatInputWrap.style.display="none";chatInput.blur();
+  }
+  if(e.key==="Escape"){chatFocused=false;chatInputWrap.style.display="none";chatInput.blur();}
+  e.stopPropagation();
+});
+
+/* ── Kill feed ── */
+const killFeedEl=document.getElementById("kill-feed");
+function addKillFeedEntry(text){
+  const div=document.createElement("div");div.className="kill-entry";div.textContent=text;
+  killFeedEl.prepend(div);setTimeout(()=>div.remove(),5000);
+}
+
+/* ════════════════════════════════════════════
+   SOCKET.IO CONNECTION
+════════════════════════════════════════════ */
+// SERVER_URL: replace with your Railway/Render URL when deployed
+// In development, leave empty to connect to same origin
+const SERVER_URL = "";   // ← REPLACE with "https://your-app.railway.app" when deployed
+
+const socket = SERVER_URL ? io(SERVER_URL) : io();
+
+let connected=false,joined=false;
+const joinStatusEl=document.getElementById("join-status");
+const joinScreen=document.getElementById("join-screen");
+const gameWrap=document.getElementById("wrap");
+const joinBtn=document.getElementById("join-btn");
+const joinNameEl=document.getElementById("join-name");
+
+socket.on("connect",()=>{
+  connected=true;
+  joinStatusEl.textContent="Connected! Enter your name and launch.";
+  joinStatusEl.style.color="#78ff8a";
+});
+socket.on("disconnect",()=>{
+  connected=false;joined=false;
+  joinStatusEl.textContent="Disconnected from server. Reload to reconnect.";
+  joinStatusEl.style.color="#ff4422";
+  joinScreen.style.display="flex";gameWrap.style.display="none";
+  document.getElementById("chat-wrap").style.display="none";
+  playerCountEl.style.display="none";
+});
+socket.on("connect_error",()=>{
+  joinStatusEl.textContent="Cannot reach server. Check SERVER_URL in index.html.";
+  joinStatusEl.style.color="#ff4422";
+});
+socket.on("serverFull",()=>{
+  joinStatusEl.textContent="Server is full. Try again later.";
+  joinStatusEl.style.color="#ffcc44";
+});
+
+// ── Welcome (spawn confirmed) ──
+socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount})=>{
+  player.id=id;
+  player.color=color;
+  GALAXY_SEED=seed;
+  serverPrices=prices||{};
+  ship.x=x;ship.y=y;
+  joined=true;
+
+  // Boot the game UI
+  joinScreen.style.display="none";
+  gameWrap.style.display="flex";
+  document.getElementById("chat-wrap").style.display="block";
+  playerCountEl.style.display="block";
+  playerCountEl.textContent=`👥 ${playerCount}`;
+
+  updateChunks();
+  updateHud();
+  requestAnimationFrame(tick);
+});
+
+// ── World state tick (20Hz from server) ──
+socket.on("worldState",({self,others,pvpProjectiles:serverProj})=>{
+  // Apply authoritative self state
+  if(self){
+    // Smooth reconcile — don't teleport unless far off
+    const dx=self.x-ship.x,dy=self.y-ship.y;
+    if(Math.hypot(dx,dy)>80){ship.x=self.x;ship.y=self.y;}
+    else{ship.x=lerp(ship.x,self.x,0.3);ship.y=lerp(ship.y,self.y,0.3);}
+    ship.vx=self.vx;ship.vy=self.vy;
+    ship.angle=self.angle;
+    ship.hp=self.hp;ship.maxHp=self.maxHp;
+    ship.shield=self.shield;ship.maxShield=self.maxShield;
+  }
+
+  // Update other players with dead reckoning
+  const now=performance.now();
+  const seen=new Set();
+  for(const s of others){
+    seen.add(s.id);
+    if(!otherPlayers.has(s.id)){
+      otherPlayers.set(s.id,{...s,renderX:s.x,renderY:s.y,renderAngle:s.angle,lastUpdate:now});
+    } else {
+      const op=otherPlayers.get(s.id);
+      Object.assign(op,s);op.lastUpdate=now;
+    }
+  }
+  // Remove players no longer in range
+  for(const [id] of otherPlayers)if(!seen.has(id))otherPlayers.delete(id);
+
+  // Sync PvP projectiles
+  pvpProjectiles.length=0;
+  if(serverProj)for(const p of serverProj)pvpProjectiles.push(p);
+});
+
+// ── Economy update ──
+socket.on("economyUpdate",(prices)=>{serverPrices=prices;});
+
+// ── Player events ──
+socket.on("playerJoined",({id,name,color})=>{
+  addChatMessage("Server",`${name} entered the galaxy`,"#78ff8a");
+  playerCountEl.textContent=`👥 ${(parseInt(playerCountEl.textContent.replace(/\D/g,""))||1)+1}`;
+});
+socket.on("playerLeft",({id})=>{
+  otherPlayers.delete(id);
+  playerCountEl.textContent=`👥 ${Math.max(1,(parseInt(playerCountEl.textContent.replace(/\D/g,""))||2)-1)}`;
+});
+
+// ── Combat ──
+socket.on("hit",({damage,hp,shield,by})=>{
+  ship.hp=hp;ship.shield=shield;
+  const byPlayer=otherPlayers.get(by);
+  showFloatingText(`-${Math.round(damage)} PvP`,ship.x,ship.y-14,"#ff4422",10);
+  if(hp<=0)gameOver=true;
+});
+socket.on("hitConfirm",({targetId,damage})=>{
+  const op=otherPlayers.get(targetId);
+  if(op)showFloatingText(`-${Math.round(damage)}`,op.renderX||op.x,op.renderY||op.y,"#ffff44",9);
+});
+socket.on("killConfirm",({name})=>{
+  addKillFeedEntry(`☠ You destroyed ${name} (+100cr)`);
+  player.credits+=100;updateHud();
+});
+socket.on("playerKilled",({victimName,killerName})=>{
+  addKillFeedEntry(`☠ ${killerName} destroyed ${victimName}`);
+});
+socket.on("youDied",({killedBy})=>{
+  gameOver=true;
+  showFloatingText(`Destroyed by ${killedBy}!`,ship.x,ship.y,"#ff4422",14);
+});
+socket.on("respawn",({x,y})=>{
+  ship.x=x;ship.y=y;ship.hp=ship.maxHp;ship.shield=ship.maxShield;energy.current=energy.max;gameOver=false;
+  updateChunks();
+});
+
+// ── Credit/XP sync ──
+socket.on("creditUpdate",({credits})=>{player.credits=credits;updateHud();});
+socket.on("xpUpdate",({xp,level})=>{player.xp=xp;player.level=level;player.xpToNext=xpForLevel(level);updateHud();});
+socket.on("levelUp",({level,attrPoints})=>{player.level=level;player.attrPoints=attrPoints;showFloatingText("LEVEL UP! +2 Attr Points",canvas.width/2,canvas.height/2,"#cc88ff",18);});
+
+// ── Sell / buy confirm ──
+socket.on("sellConfirm",({resourceType,quantity,earned,credits,prices})=>{serverPrices=prices;player.credits=credits;showFloatingText(`+${earned}cr`,ship.x,ship.y-15,"#ffd15c");});
+socket.on("buyConfirm",({resourceType,quantity,cost,credits,prices})=>{serverPrices=prices;player.credits=credits;addToInventory(resourceType,quantity);showFloatingText(`Bought ${quantity}x ${RES[resourceType].name}`,ship.x,ship.y-15,"#78ff8a");});
+socket.on("buyDenied",({reason})=>{showFloatingText(reason,ship.x,ship.y-15,"#ff5544");});
+
+// ── Attr upgrades ──
+socket.on("attrConfirm",({attr,val,attrPoints})=>{player.attrs[attr]=val;player.attrPoints=attrPoints;showFloatingText(`${attr} → Lv${val}`,canvas.width/2,canvas.height/2-20,"#cc88ff",10);});
+socket.on("upgradeDenied",({reason})=>{showFloatingText(reason,canvas.width/2,canvas.height/2,"#ff5544",10);});
+
+// ── Chat ──
+socket.on("chat",({from,message})=>{
+  const op=from==="Server"?null:[...otherPlayers.values()].find(p=>p.name===from);
+  const color=from==="Server"?"#78ff8a":op?op.color:"#7be6ff";
+  addChatMessage(from,message,color);
+});
+
+// ── Join button ──
+joinBtn.addEventListener("click",doJoin);
+joinNameEl.addEventListener("keydown",e=>{if(e.key==="Enter")doJoin();});
+function doJoin(){
+  if(!connected){joinStatusEl.textContent="Still connecting…";return;}
+  if(joined)return;
+  const name=joinNameEl.value.trim()||"Pilot";
+  player.name=name;
+  joinStatusEl.textContent="Launching…";
+  joinStatusEl.style.color="#ffcc44";
+  socket.emit("join",{name});
+}
+
+/* ════════════════════════════════════════════
+   INPUT SENDER  — send every frame
+════════════════════════════════════════════ */
+let inputSendTimer=0;
+function sendInput(){
+  if(!joined||mode!==MODE.SPACE)return;
+  const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
+  // Shoot: send world coords of mouse if clicking
+  const shootData=mouse.clicked&&!shopOpen&&!inventoryOpen&&!attrOpen&&shootCooldown<=0
+    ?{shootX:mouse.x+camX,shootY:mouse.y+camY}
+    :{shootX:undefined,shootY:undefined};
+  if(shootData.shootX!==undefined){shootCooldown=SHOOT_CD;}
+  socket.emit("input",{
+    rotLeft:keys.has("a"),rotRight:keys.has("d"),
+    thrust:keys.has("w"),brake:keys.has("s"),
+    ...shootData
+  });
+  mouse.clicked=false;
+}
+
+/* ════════════════════════════════════════════
+   SPACE UPDATE
+════════════════════════════════════════════ */
+let chunkUpdateTimer2=0;
+function updateSpace(dt){
+  if(gameOver)return;
+  chunkUpdateTimer2-=dt;
+  if(chunkUpdateTimer2<=0){updateChunks();chunkUpdateTimer2=2;}
+
+  // Local shield regen visual (server is authoritative but we smooth locally)
+  ship.shieldRegenTimer=Math.max(0,ship.shieldRegenTimer-dt);
+  if(ship.shieldRegenTimer<=0&&ship.shield<ship.maxShield){
+    ship.shield=Math.min(ship.maxShield,ship.shield+ship.shieldRegenRate*dt);
+  }
+
+  // Local energy drain (cosmetic — server is authoritative)
+  const isThrust=keys.has("w"),isBrake=keys.has("s");
+  const spd=Math.hypot(ship.vx,ship.vy);
+  if(isThrust)energy.current=Math.max(0,energy.current-ENERGY_DRAIN*ship.gasEfficiency*dt);
+  else if(spd>5)energy.current=Math.max(0,energy.current-ENERGY_IDLE*ship.gasEfficiency*dt);
+  if(energy.current<=0){gameOver=true;return;}
+
+  // Shoot cooldown (local, also enforced server-side)
+  shootCooldown=Math.max(0,shootCooldown-dt);
+
+  // Dead reckoning for other players
+  const now=performance.now();
+  for(const[,op]of otherPlayers){
+    const age=(now-op.lastUpdate)/1000;
+    op.renderX=lerp(op.renderX||op.x,op.x+op.vx*age,0.25);
+    op.renderY=lerp(op.renderY||op.y,op.y+op.vy*age,0.25);
+    op.renderAngle=angleLerp(op.renderAngle||op.angle,op.angle,0.2);
+  }
+
+  // NPC enemy projectiles
+  for(let i=enemyProjectiles.length-1;i>=0;i--){
+    const p=enemyProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
+    if(p.life<=0){enemyProjectiles.splice(i,1);continue;}
+    if(dist(p.x,p.y,ship.x,ship.y)<10){damageShip(p.damage);showFloatingText("-"+Math.round(p.damage),ship.x,ship.y-14,"#ff4422",10);enemyProjectiles.splice(i,1);}
+  }
+
+  // Local NPC projectiles (player firing at NPCs)
+  for(let i=localPlayerProjectiles.length-1;i>=0;i--){
+    const p=localPlayerProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
+    if(p.life<=0){localPlayerProjectiles.splice(i,1);continue;}
+    let hit=false;
+    for(const st of visibleStations){
+      for(let j=st.tradeShips.length-1;j>=0;j--){
+        const ts=st.tradeShips[j];
+        if(dist(p.x,p.y,ts.x,ts.y)<ts.size+3){
+          if(st.playerRep==="neutral"){st.playerRep="warned";showFloatingText("WARNING: Attack again and we retaliate!",ship.x,ship.y-20,"#ffcc44",9);}
+          else{ts.hp-=p.damage;showFloatingText("-"+Math.round(p.damage),ts.x,ts.y,"#ff4422",9);if(ts.hp<=0){killTradeShip(ts,st);}else{ts.state="combat";ts.stateTimer=999;for(const ots of st.tradeShips)if(ots!==ts&&dist(ots.x,ots.y,ts.x,ts.y)<TRADE_SHIP_ALERT_RANGE){ots.state="combat";ots.stateTimer=999;}}}
+          localPlayerProjectiles.splice(i,1);hit=true;break;
+        }
+      }
+      if(hit)break;
+    }
+  }
+
+  // NPC fire at player click (local only vs NPCs)
+  if(mouse.clicked&&!shopOpen&&!inventoryOpen&&!attrOpen&&shootCooldown<=0){
+    const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
+    const wx=mouse.x+camX,wy=mouse.y+camY;
+    const ang=angleToward(ship.x,ship.y,wx,wy);
+    localPlayerProjectiles.push({x:ship.x,y:ship.y,vx:Math.cos(ang)*280,vy:Math.sin(ang)*280,damage:18*ship.damageStat,life:2.2});
+    // (server also spawns PvP projectile via input event)
+  }
+
+  // Trade ship NPC update
+  for(const st of visibleStations){
+    st.buyStockTimer-=dt;
+    if(st.buyStockTimer<=0){refreshBuyStock(st);st.buyStockTimer=300;}
+    for(const ts of st.tradeShips)updateTradeShip(ts,st,visiblePlanets,dt);
+  }
+
+  // Space drops
+  for(let i=spaceDrops.length-1;i>=0;i--){
+    const d=spaceDrops[i];d.x+=d.vx*dt;d.y+=d.vy*dt;d.vx*=Math.pow(0.96,dt*60);d.vy*=Math.pow(0.96,dt*60);d.life-=dt;
+    if(d.life<=0){spaceDrops.splice(i,1);continue;}
+    if(dist(d.x,d.y,ship.x,ship.y)<18&&addToInventory(d.type,1)){showFloatingText("+1 "+RES[d.type].name,ship.x,ship.y,"#78ff8a",9);spaceDrops.splice(i,1);}
+  }
+
+  // Floating texts
+  for(let i=floatingTexts.length-1;i>=0;i--){const ft=floatingTexts[i];ft.y+=ft.vy*dt;ft.life-=dt;if(ft.life<=0)floatingTexts.splice(i,1);}
+
+  // Nearest station
+  nearStation=null;
+  for(const st of visibleStations){if(dist(ship.x,ship.y,st.x,st.y)<st.r+70){nearStation=st;break;}}
+
+  // Keys
+  if(keys.has("l")){keys.delete("l");const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<nearest.p.radius+60){activePlanet=nearest.p;planetMap=genPlanetMap(activePlanet);mode=MODE.PLANET;const cx=Math.floor(planetMap.W/2),sh2=planetMap.heights[cx];astronaut.x=cx*16;astronaut.y=sh2*16-10;astronaut.vx=0;astronaut.vy=0;landedShip.x=(cx-20)*16;landedShip.y=sh2*16-4;drops.length=0;socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});}}
+  if(keys.has("g")){keys.delete("g");useGasCanister();}
+  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;if(!inventoryOpen)selectedSlot=null;}
+  if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;}
+  if(keys.has("o")){keys.delete("o");if(nearStation){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;}}}
+  if(inventoryOpen&&keys.has("b")){keys.delete("b");buyInventorySlot();}
+}
+
+function useGasCanister(){
+  if(energy.current>=energy.max)return;
+  const idx=player.invSlots.findIndex(s=>s.type==="gas_canister"&&s.count>0);
+  if(idx===-1)return;
+  removeFromInventory("gas_canister",1);
+  refuelEnergy(GAS_REFUEL);
+  socket.emit("useGas");
+  showFloatingText("+"+GAS_REFUEL+"% Energy",ship.x,ship.y-10,"#aaff44",10);
+}
+function refuelEnergy(amt){energy.current=clamp(energy.current+amt,0,energy.max);}
+function requestRespawn(){socket.emit("respawn");}
+
+/* ════════════════════════════════════════════
+   DRAW SPACE
+════════════════════════════════════════════ */
+function drawSpace(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#05060a";ctx.fillRect(0,0,canvas.width,canvas.height);
+  const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
+
+  // Stars
+  ctx.fillStyle="#fff";
+  for(const s of STARS){const sx=((s.x-camX*0.12)%canvas.width+canvas.width)%canvas.width,sy=((s.y-camY*0.12)%canvas.height+canvas.height)%canvas.height;ctx.globalAlpha=s.bri;ctx.beginPath();ctx.arc(sx,sy,s.r,0,Math.PI*2);ctx.fill();}
+  ctx.globalAlpha=1;
+
+  // Planets
+  for(const p of visiblePlanets){const px=p.x-camX,py=p.y-camY;if(px<-80||py<-80||px>canvas.width+80||py>canvas.height+80)continue;ctx.drawImage(p.preview,px-16,py-16);if(dist(ship.x,ship.y,p.x,p.y)<p.radius+70){ctx.fillStyle="#b9f3ff";ctx.font="8px monospace";ctx.fillText("L: Land",px-14,py-p.radius/2-4);}}
+
+  // Stations (body pass)
+  for(const st of visibleStations){
+    const sx=st.x-camX,sy=st.y-camY;
+    if(sx<-100||sy<-100||sx>canvas.width+100||sy>canvas.height+100)continue;
+    const tier=st.tierDef;
+    const grad=ctx.createRadialGradient(sx,sy,0,sx,sy,tier.size*2.5);grad.addColorStop(0,tier.glowColor);grad.addColorStop(1,"transparent");ctx.fillStyle=grad;ctx.beginPath();ctx.arc(sx,sy,tier.size*2.5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=tier.color;ctx.strokeStyle=st.playerRep==="neutral"?"#ffffff55":"#ff444466";ctx.lineWidth=2;ctx.beginPath();
+    if(st.tier==="outpost"){ctx.rect(sx-tier.size/2,sy-tier.size/2,tier.size,tier.size);}
+    else if(st.tier==="standard"){ctx.arc(sx,sy,tier.size,0,Math.PI*2);}
+    else if(st.tier==="advanced"){for(let k=0;k<6;k++){const a=k*Math.PI/3-Math.PI/6;k===0?ctx.moveTo(sx+Math.cos(a)*tier.size,sy+Math.sin(a)*tier.size):ctx.lineTo(sx+Math.cos(a)*tier.size,sy+Math.sin(a)*tier.size);}ctx.closePath();}
+    else{for(let k=0;k<10;k++){const a=k*Math.PI/5-Math.PI/2,r2=k%2===0?tier.size:tier.size*0.5;k===0?ctx.moveTo(sx+Math.cos(a)*r2,sy+Math.sin(a)*r2):ctx.lineTo(sx+Math.cos(a)*r2,sy+Math.sin(a)*r2);}ctx.closePath();}
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle="#fff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(tier.name,sx,sy-tier.size-4);ctx.fillStyle=tier.factionColor;ctx.font="7px monospace";ctx.fillText(st.faction,sx,sy-tier.size-13);ctx.textAlign="left";
+    if(dist(ship.x,ship.y,st.x,st.y)<st.r+70){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("O: Trade",sx,sy+tier.size+12);ctx.textAlign="left";}
+  }
+
+  // Trade ships (separate pass — no station culling)
+  for(const st of visibleStations){
+    for(const ts of st.tradeShips){
+      const tsx=ts.x-camX,tsy=ts.y-camY;
+      if(tsx<-(ts.size+30)||tsy<-(ts.size+30)||tsx>canvas.width+(ts.size+30)||tsy>canvas.height+(ts.size+30))continue;
+      ctx.globalAlpha=1;
+      if(ts.state==="travel"&&ts.targetPlanet){const tpx=ts.targetPlanet.x-camX,tpy=ts.targetPlanet.y-camY;ctx.save();ctx.globalAlpha=0.18;ctx.strokeStyle=ts.factionColor;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(tpx,tpy);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
+      else if(ts.state==="return"){const stx=st.x-camX,sty=st.y-camY;ctx.save();ctx.globalAlpha=0.18;ctx.strokeStyle=ts.factionColor;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(stx,sty);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
+      else if(ts.state==="combat"||ts.state==="flee"){ctx.save();ctx.globalAlpha=ts.state==="combat"?0.35:0.15;ctx.strokeStyle=ts.state==="combat"?"#ff4422":"#ff8844";ctx.lineWidth=1;ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(canvas.width/2,canvas.height/2);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
+      ctx.save();ctx.globalAlpha=1;ctx.translate(tsx,tsy);ctx.rotate(ts.angle);
+      ctx.fillStyle=ts.state==="combat"?"#ff4422":ts.state==="flee"?"#ff8844":ts.factionColor;
+      ctx.beginPath();ctx.moveTo(ts.size,0);ctx.lineTo(-ts.size,-ts.size*0.6);ctx.lineTo(-ts.size,ts.size*0.6);ctx.closePath();ctx.fill();
+      if(ts.state==="travel"||ts.state==="return"||ts.state==="combat"){ctx.globalAlpha=ts.state==="combat"?0.7:0.45;ctx.fillStyle=ts.state==="combat"?"#ff2200":"#ff8833";ctx.beginPath();ctx.arc(-ts.size-2,0,ts.size*0.5,0,Math.PI*2);ctx.fill();}
+      ctx.restore();ctx.globalAlpha=1;
+      const hpPct=ts.hp/ts.maxHp,bw=ts.size*3,bh=2,bx=tsx-bw/2,by=tsy-ts.size-5;
+      ctx.fillStyle="#300";ctx.fillRect(bx,by,bw,bh);ctx.fillStyle=hpPct>0.5?"#3f3":"#f80";ctx.fillRect(bx,by,bw*hpPct,bh);
+      ctx.save();ctx.globalAlpha=0.7;ctx.fillStyle=ts.state==="combat"?"#ff6644":ts.factionColor;ctx.font="6px monospace";ctx.textAlign="center";ctx.fillText(ts.state,tsx,tsy+ts.size+8);ctx.restore();ctx.globalAlpha=1;
+      if(Object.keys(ts.lootCarried).length>0){ctx.fillStyle="#ffcc44";ctx.font="7px monospace";ctx.textAlign="center";ctx.fillText("▲",tsx,tsy-ts.size-7);ctx.textAlign="left";}
+    }
+  }
+
+  // OTHER PLAYERS (dead-reckoned)
+  for(const[,op]of otherPlayers){
+    if(op.mode!=="space")continue;
+    const ox=(op.renderX||op.x)-camX,oy=(op.renderY||op.y)-camY;
+    if(ox<-30||oy<-30||ox>canvas.width+30||oy>canvas.height+30)continue;
+    ctx.save();ctx.translate(ox,oy);ctx.rotate(op.renderAngle||op.angle);
+    ctx.fillStyle=op.color||"#7be6ff";
+    ctx.fillRect(-6,-4,12,8);
+    ctx.fillStyle="#ff7744";ctx.fillRect(-8,-2,2,4);
+    ctx.restore();
+    // Name tag
+    ctx.fillStyle=op.color||"#7be6ff";ctx.font="bold 8px monospace";ctx.textAlign="center";
+    ctx.fillText(op.name,ox,oy-10);
+    // HP bar
+    const hpPct=op.hp/op.maxHp;
+    ctx.fillStyle="#300";ctx.fillRect(ox-15,oy-16,30,3);
+    ctx.fillStyle=hpPct>0.5?"#3f3":"#f80";ctx.fillRect(ox-15,oy-16,30*hpPct,3);
+    // Shield bar
+    if(op.shield>0){const shPct=op.shield/op.maxShield;ctx.fillStyle="#005";ctx.fillRect(ox-15,oy-20,30,2);ctx.fillStyle="#44f";ctx.fillRect(ox-15,oy-20,30*shPct,2);}
+    // Level badge
+    ctx.fillStyle="#6a4a9a";ctx.font="7px monospace";ctx.fillText(`Lv${op.level}`,ox,oy-22);
+    ctx.textAlign="left";
+  }
+
+  // PvP projectiles (from server)
+  for(const p of pvpProjectiles){
+    const px2=p.x-camX,py2=p.y-camY;
+    const isOurs=p.ownerId===player.id;
+    ctx.fillStyle=isOurs?"#ffff44":"#ff6622";
+    ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=4;
+    ctx.beginPath();ctx.arc(px2,py2,2.5,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // Local NPC projectiles
+  for(const p of localPlayerProjectiles){ctx.fillStyle="#ffff44";ctx.shadowColor="#ffff44";ctx.shadowBlur=4;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
+  for(const p of enemyProjectiles){ctx.fillStyle="#ff4422";ctx.shadowColor="#ff4422";ctx.shadowBlur=4;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
+
+  // Space drops
+  for(const d of spaceDrops){ctx.fillStyle=RES[d.type].color;ctx.fillRect(d.x-camX-2,d.y-camY-2,4,4);}
+
+  // Local ship
+  {const sx=canvas.width/2,sy=canvas.height/2;ctx.save();ctx.translate(sx,sy);ctx.rotate(ship.angle);ctx.fillStyle="#aabbcc";ctx.fillRect(-6,-4,12,8);ctx.fillStyle="#ff7744";ctx.fillRect(-8,-2,2,4);if(keys.has("w")){ctx.fillStyle="rgba(255,140,40,0.7)";ctx.beginPath();ctx.arc(-9,0,5,0,Math.PI*2);ctx.fill();}ctx.restore();}
+  // Player name above own ship
+  ctx.fillStyle=player.color;ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(player.name,canvas.width/2,canvas.height/2-12);ctx.textAlign="left";
+
+  // Low energy warning
+  if(energy.current/energy.max<0.2&&Math.floor(Date.now()/400)%2===0){ctx.fillStyle="rgba(255,40,20,0.1)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#ff4422";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText("⚠ LOW FUEL — G: use canister  O: buy at station",canvas.width/2,18);ctx.textAlign="left";}
+
+  // Floating texts
+  for(const ft of floatingTexts){const camFtX=ft.x-camX,camFtY=ft.y-camY;ctx.save();ctx.globalAlpha=clamp(ft.life,0,1);ctx.fillStyle=ft.color;ctx.font=`bold ${ft.size}px monospace`;ctx.textAlign="center";ctx.fillText(ft.text,camFtX,camFtY);ctx.restore();}
+  ctx.globalAlpha=1;
+
+  drawMinimap();
+  if(shopOpen&&nearStation)drawShop(nearStation);
+  if(inventoryOpen)drawInventory();
+  if(attrOpen)drawAttrScreen();
+  if(gameOver)drawGameOver();
+}
+
+/* ── Minimap ── */
+function drawMinimap(){
+  const mmW=100,mmH=75,mmX=canvas.width-mmW-5,mmY=5,mmRange=2500;
+  ctx.fillStyle="rgba(4,7,18,0.85)";ctx.fillRect(mmX,mmY,mmW,mmH);ctx.strokeStyle="#1a3a5a";ctx.lineWidth=1;ctx.strokeRect(mmX,mmY,mmW,mmH);ctx.fillStyle="#4a6a8a";ctx.font="6px monospace";ctx.fillText("RADAR",mmX+3,mmY+8);
+  const wm=(wx,wy)=>({x:mmX+mmW/2+(wx-ship.x)/mmRange*mmW/2,y:mmY+mmH/2+(wy-ship.y)/mmRange*mmH/2});
+  for(const p of visiblePlanets){const m=wm(p.x,p.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=p.pal.a;ctx.beginPath();ctx.arc(m.x,m.y,clamp(p.radius/18,1.5,4),0,Math.PI*2);ctx.fill();}
+  for(const st of visibleStations){const m=wm(st.x,st.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=st.factionColor;ctx.fillRect(m.x-2,m.y-2,4,4);}
+  // Other players on minimap
+  for(const[,op]of otherPlayers){const m=wm(op.x,op.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=op.color||"#7be6ff";ctx.beginPath();ctx.arc(m.x,m.y,2,0,Math.PI*2);ctx.fill();}
+  const cx=mmX+mmW/2,cy=mmY+mmH/2;ctx.fillStyle="#78ff8a";ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#78ff8a";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(ship.angle)*7,cy+Math.sin(ship.angle)*7);ctx.stroke();
+}
+
+/* ── Shop, inventory, attr screens (same as v3, wired to socket for sell/buy) ── */
+function drawShop(st){
+  if(!st)return;
+  ctx.fillStyle="rgba(0,0,0,0.82)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  ctx.fillStyle="#111620";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle=st.tierDef.color;ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
+  ctx.fillStyle=st.tierDef.color;ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText(st.tierDef.name+" Station — "+st.faction,px+pw/2,py+16);
+  ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(`Credits: ${player.credits} | ${st.nearbyPlanets} planets nearby`,px+pw/2,py+28);ctx.textAlign="left";
+  const tabs=["sell","buy"];tabs.forEach((t,i)=>{const tx=px+10+i*80,ty=py+34,tw=75,th=18;ctx.fillStyle=shopTab===t?"#1a2a3e":"#0b1020";ctx.fillRect(tx,ty,tw,th);ctx.strokeStyle=shopTab===t?st.tierDef.color:"#2a3a5a";ctx.lineWidth=1;ctx.strokeRect(tx,ty,tw,th);ctx.fillStyle=shopTab===t?"#fff":"#6a8a9a";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(t.toUpperCase(),tx+tw/2,ty+13);ctx.textAlign="left";});
+  const secLeft=Math.ceil(st.buyStockTimer);ctx.fillStyle="#5a7a6a";ctx.font="8px monospace";ctx.fillText(`Restock: ${Math.floor(secLeft/60)}:${String(secLeft%60).padStart(2,"0")}`,px+180,py+48);
+  ctx.strokeStyle="#1a2a3e";ctx.beginPath();ctx.moveTo(px+5,py+55);ctx.lineTo(px+pw-5,py+55);ctx.stroke();
+  if(shopTab==="sell")drawShopSell(st,px,py,pw,ph);else drawShopBuy(st,px,py,pw,ph);
+  const gx=px+10,gy=py+ph-28,gw=130,gh=20,can1=player.credits>=GAS_COST;
+  ctx.fillStyle=can1?"#1a3a1a":"#2a1a1a";ctx.fillRect(gx,gy,gw,gh);ctx.strokeStyle=can1?"#4a8a4a":"#5a3a3a";ctx.lineWidth=1;ctx.strokeRect(gx,gy,gw,gh);ctx.fillStyle=can1?"#aaff44":"#6a6a6a";ctx.font="bold 8px monospace";ctx.fillText(`Buy Gas: ${GAS_COST}cr (+${GAS_REFUEL}%)`,gx+5,gy+14);
+  ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText("O: close | T: chat",px+160,py+ph-15);
+}
+
+function drawShopSell(st,px,py,pw,ph){
+  const ss=30,sg=3,cols=6,sx=px+10,sy=py+58;
+  for(let i=0;i<player.maxSlots;i++){const slot=player.invSlots[i];if(!slot.type||slot.count===0)continue;const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(by+ss>py+ph-35)break;const isSel=shopSelectedSlot===i;ctx.fillStyle=isSel?"#2a3a4a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#78ff8a":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);ctx.fillStyle=RES[slot.type].color;ctx.fillRect(bx+4,by+4,ss-8,ss-8);ctx.fillStyle="#fff";ctx.font="bold 8px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-2,by+ss-2);ctx.textAlign="left";}
+  const dx=px+260,dy=py+58,dw=170,dh=175;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
+  if(shopSelectedSlot!==null&&player.invSlots[shopSelectedSlot]?.type){
+    const slot=player.invSlots[shopSelectedSlot],res=RES[slot.type];ctx.fillStyle=res.color;ctx.fillRect(dx+8,dy+8,38,38);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=2;ctx.strokeRect(dx+8,dy+8,38,38);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+52,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Have: ${slot.count}`,dx+52,dy+30);
+    const sellPricePer=Math.floor(price(slot.type)*st.tierDef.priceMultSell*st.densityMult);ctx.fillStyle="#ffd15c";ctx.font="bold 9px monospace";ctx.fillText(`${sellPricePer}cr each`,dx+8,dy+58);
+    ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+8,dy+68);ctx.lineTo(dx+dw-8,dy+68);ctx.stroke();ctx.fillStyle="#aabbcc";ctx.font="bold 8px monospace";ctx.fillText("SELL QTY",dx+8,dy+82);
+    const bw=28,bh=18,my2=dy+90,mx2=dx+20;ctx.fillStyle=shopSellQty>1?"#3a4a5a":"#1a1a1a";ctx.fillRect(mx2,my2,bw,bh);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=1;ctx.strokeRect(mx2,my2,bw,bh);ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText("-",mx2+bw/2,my2+13);ctx.fillText(shopSellQty,dx+dw/2,my2+13);const plusX=dx+dw-52;ctx.fillStyle=shopSellQty<slot.count?"#3a4a5a":"#1a1a1a";ctx.fillRect(plusX,my2,bw,bh);ctx.strokeRect(plusX,my2,bw,bh);ctx.fillText("+",plusX+bw/2,my2+13);ctx.textAlign="left";
+    const total=sellPricePer*shopSellQty;ctx.fillStyle="#78ff8a";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(`Total: ${total}cr`,dx+dw/2,dy+124);ctx.textAlign="left";
+    const saX=dx+8,saY=dy+132,saW=68,btnH=18;ctx.fillStyle="#3a4a2a";ctx.fillRect(saX,saY,saW,btnH);ctx.strokeStyle="#5a7a3a";ctx.strokeRect(saX,saY,saW,btnH);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText("Sell All",saX+12,saY+13);
+    const sellX=dx+88,sellW=70;ctx.fillStyle="#2a4a3a";ctx.fillRect(sellX,saY,sellW,btnH);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(sellX,saY,sellW,btnH);ctx.fillStyle="#78ff8a";ctx.font="bold 8px monospace";ctx.fillText("SELL",sellX+22,saY+13);
+  }else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to sell",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
+}
+
+function drawShopBuy(st,px,py,pw,ph){
+  ctx.fillStyle="#7a9aaa";ctx.font="bold 9px monospace";ctx.fillText("AVAILABLE STOCK",px+10,py+66);
+  const stock=st.buyStock;if(stock.length===0){ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("No stock (trade ships en route…)",px+10,py+90);return;}
+  const iw=195,ih=20,ig=3,startY=py+70;
+  for(let i=0;i<stock.length;i++){const item=stock[i],res=RES[item.type],isSel=shopBuyItem===i,bx=px+10,by=startY+i*(ih+ig);if(by+ih>py+ph-35)break;ctx.fillStyle=isSel?"#1a2a3e":"#0f1419";ctx.fillRect(bx,by,iw,ih);ctx.strokeStyle=isSel?st.tierDef.color:"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,iw,ih);ctx.fillStyle=res.color;ctx.fillRect(bx+3,by+3,14,14);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText(`${res.name} x${item.qty}`,bx+22,by+13);ctx.fillStyle="#ffd15c";ctx.textAlign="right";ctx.fillText(`${item.price}cr`,bx+iw-5,by+13);ctx.textAlign="left";}
+  const dx=px+215,dy=py+58,dw=215,dh=175;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
+  if(shopBuyItem!==null&&stock[shopBuyItem]){
+    const item=stock[shopBuyItem],res=RES[item.type];ctx.fillStyle=res.color;ctx.fillRect(dx+8,dy+8,36,36);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=2;ctx.strokeRect(dx+8,dy+8,36,36);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+50,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Stock: ${item.qty}`,dx+50,dy+30);ctx.fillText(`Price: ${item.price}cr each`,dx+8,dy+56);
+    ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+8,dy+64);ctx.lineTo(dx+dw-8,dy+64);ctx.stroke();ctx.fillStyle="#aabbcc";ctx.font="bold 8px monospace";ctx.fillText("BUY QTY",dx+8,dy+78);
+    const bw=28,bh=18,my2=dy+84,mx2=dx+12;ctx.fillStyle=shopBuyQty>1?"#3a4a5a":"#1a1a1a";ctx.fillRect(mx2,my2,bw,bh);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=1;ctx.strokeRect(mx2,my2,bw,bh);ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText("-",mx2+bw/2,my2+13);ctx.fillText(shopBuyQty,dx+dw/2,my2+13);const plusX2=dx+dw-44;ctx.fillStyle=shopBuyQty<item.qty?"#3a4a5a":"#1a1a1a";ctx.fillRect(plusX2,my2,bw,bh);ctx.strokeRect(plusX2,my2,bw,bh);ctx.fillText("+",plusX2+bw/2,my2+13);ctx.textAlign="left";
+    const total=item.price*shopBuyQty,canAfford=player.credits>=total,hasSpace=cargoUsed()+shopBuyQty<=ship.cargoMax;ctx.fillStyle=canAfford&&hasSpace?"#78ff8a":"#ff5544";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(`Cost: ${total}cr`,dx+dw/2,dy+118);ctx.textAlign="left";
+    if(!canAfford){ctx.fillStyle="#ff5544";ctx.font="8px monospace";ctx.fillText("Not enough credits",dx+8,dy+132);}
+    else if(!hasSpace){ctx.fillStyle="#ff5544";ctx.font="8px monospace";ctx.fillText("Cargo full",dx+8,dy+132);}
+    else{const buyX=dx+8,buyY=dy+136,buyW=dw-16,buyH=20;ctx.fillStyle="#1a3a2a";ctx.fillRect(buyX,buyY,buyW,buyH);ctx.strokeStyle="#4a9a6a";ctx.strokeRect(buyX,buyY,buyW,buyH);ctx.fillStyle="#78ff8a";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(`BUY ${shopBuyQty}x`,dx+dw/2,buyY+14);ctx.textAlign="left";}
+  }else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to buy",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
+}
+
+function handleShopClick(mx,my){
+  if(!nearStation)return;const st=nearStation;
+  const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  const tabs=["sell","buy"];for(let i=0;i<tabs.length;i++){const tx=px+10+i*80,ty=py+34,tw=75,th=18;if(mx>=tx&&mx<=tx+tw&&my>=ty&&my<=ty+th){shopTab=tabs[i];shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;return;}}
+  const gx=px+10,gy=py+ph-28,gw=130,gh=20;if(mx>=gx&&mx<=gx+gw&&my>=gy&&my<=gy+gh){if(player.credits>=GAS_COST){player.credits-=GAS_COST;addToInventory("gas_canister",1);showFloatingText("Bought gas canister",ship.x,ship.y-15,"#aaff44");socket.emit("buy",{resourceType:"gas_canister",quantity:1,pricePerUnit:GAS_COST});}return;}
+  if(shopTab==="sell")handleSellClick(st,mx,my,px,py,pw,ph);else handleBuyClick(st,mx,my,px,py,pw,ph);
+}
+
+function handleSellClick(st,mx,my,px,py,pw,ph){
+  const ss=30,sg=3,cols=6,sx=px+10,sy=py+58;
+  for(let i=0;i<player.maxSlots;i++){const slot=player.invSlots[i];if(!slot.type||slot.count===0)continue;const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(by+ss>py+ph-35)break;if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){shopSelectedSlot=i;shopSellQty=1;return;}}
+  if(shopSelectedSlot!==null&&player.invSlots[shopSelectedSlot]?.type){
+    const slot=player.invSlots[shopSelectedSlot],dx=px+260,dy=py+58,dw=170,bw=28,bh=18,my2=dy+90,mx2=dx+20;
+    if(mx>=mx2&&mx<=mx2+bw&&my>=my2&&my<=my2+bh){shopSellQty=Math.max(1,shopSellQty-1);return;}
+    const plusX=dx+dw-52;if(mx>=plusX&&mx<=plusX+bw&&my>=my2&&my<=my2+bh){shopSellQty=Math.min(slot.count,shopSellQty+1);return;}
+    const saX=dx+8,saY=dy+132,saW=68,btnH=18;if(mx>=saX&&mx<=saX+saW&&my>=saY&&my<=saY+btnH){shopSellQty=slot.count;return;}
+    const sellX=dx+88,sellY=dy+132,sellW=70;
+    if(mx>=sellX&&mx<=sellX+sellW&&my>=sellY&&my<=sellY+btnH){
+      const actualQty=Math.min(shopSellQty,slot.count),type=slot.type;
+      removeFromInventory(type,actualQty);
+      if(player.invSlots[shopSelectedSlot]?.count===0)shopSelectedSlot=null;
+      shopSellQty=1;
+      socket.emit("sell",{resourceType:type,quantity:actualQty,stationId:nearStation.id});
+      return;
+    }
+  }
+}
+
+function handleBuyClick(st,mx,my,px,py,pw,ph){
+  const stock=st.buyStock,iw=195,ih=20,ig=3,startY=py+70;
+  for(let i=0;i<stock.length;i++){const by=startY+i*(ih+ig);if(by+ih>py+ph-35)break;if(mx>=px+10&&mx<=px+10+iw&&my>=by&&my<=by+ih){shopBuyItem=i;shopBuyQty=1;return;}}
+  if(shopBuyItem!==null&&stock[shopBuyItem]){
+    const item=stock[shopBuyItem],dx=px+215,dy=py+58,dw=215,bw=28,bh=18,my2=dy+84,mx2=dx+12;
+    if(mx>=mx2&&mx<=mx2+bw&&my>=my2&&my<=my2+bh){shopBuyQty=Math.max(1,shopBuyQty-1);return;}
+    const plusX2=dx+dw-44;if(mx>=plusX2&&mx<=plusX2+bw&&my>=my2&&my<=my2+bh){shopBuyQty=Math.min(item.qty,shopBuyQty+1);return;}
+    const buyX=dx+8,buyY=dy+136,buyW=dw-16,buyH=20;
+    if(mx>=buyX&&mx<=buyX+buyW&&my>=buyY&&my<=buyY+buyH){
+      socket.emit("buy",{resourceType:item.type,quantity:shopBuyQty,pricePerUnit:item.price});
+      item.qty=Math.max(0,item.qty-shopBuyQty);if(item.qty===0){st.buyStock.splice(shopBuyItem,1);shopBuyItem=null;}shopBuyQty=1;return;
+    }
+  }
+}
+
+/* ── Attribute screen ── */
+const ATTRS=[{key:"damage",name:"Weapon Damage",desc:"Increases projectile damage",icon:"⚔"},{key:"speed",name:"Engine Thrust",desc:"Ship speed & acceleration",icon:"🚀"},{key:"cargoMax",name:"Cargo Hold",desc:"Maximum cargo capacity",icon:"📦"},{key:"armor",name:"Hull Armor",desc:"Reduces incoming damage",icon:"🛡"},{key:"gasEfficiency",name:"Fuel Efficiency",desc:"Reduces energy consumption",icon:"⚡"},{key:"shieldRegen",name:"Shield Regen",desc:"Shield regeneration rate",icon:"🔵"}];
+function drawAttrScreen(){
+  ctx.fillStyle="rgba(0,0,0,0.85)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  const pw=400,ph=260,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#0e1424";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#aa44ff";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
+  ctx.fillStyle="#cc88ff";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("SHIP ATTRIBUTES",px+pw/2,py+16);ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(`Attr Points: ${player.attrPoints} | Level: ${player.level} | XP: ${player.xp}/${player.xpToNext}`,px+pw/2,py+28);ctx.textAlign="left";
+  const rowH=32,startY=py+38;
+  ATTRS.forEach((attr,i)=>{const curVal=player.attrs[attr.key],ry=startY+i*rowH;ctx.fillStyle=i%2===0?"#0f1824":"#111e2e";ctx.fillRect(px+8,ry,pw-16,rowH-2);ctx.fillStyle="#ccd8ff";ctx.font="bold 9px monospace";ctx.fillText(`${attr.icon} ${attr.name}`,px+14,ry+12);ctx.fillStyle="#7a9abb";ctx.font="8px monospace";ctx.fillText(attr.desc,px+14,ry+23);for(let p=0;p<10;p++){const pipX=px+pw-160+p*14,pipY=ry+8;ctx.fillStyle=p<curVal?"#aa44ff":"#1a1a2a";ctx.fillRect(pipX,pipY,11,14);ctx.strokeStyle=p<curVal?"#cc88ff":"#2a2a4a";ctx.lineWidth=1;ctx.strokeRect(pipX,pipY,11,14);}ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.textAlign="right";ctx.fillText(`Lv ${curVal}`,px+pw-165,ry+18);ctx.textAlign="left";const canUp=player.attrPoints>0&&curVal<10;if(canUp){const btnX=px+pw-162+curVal*14;ctx.fillStyle="#2a4a2a";ctx.fillRect(btnX,ry+8,11,14);ctx.strokeStyle="#4aaa4a";ctx.lineWidth=1;ctx.strokeRect(btnX,ry+8,11,14);ctx.fillStyle="#78ff8a";ctx.font="bold 10px monospace";ctx.textAlign="center";ctx.fillText("+",btnX+5.5,ry+19);ctx.textAlign="left";}});
+  ctx.fillStyle="#5a6a8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("Gain points by leveling up via combat & mining | P to close",px+pw/2,py+ph-8);ctx.textAlign="left";
+}
+function handleAttrClick(mx,my){
+  const pw=400,ph=260,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,rowH=32,startY=py+38;
+  ATTRS.forEach((attr,i)=>{const curVal=player.attrs[attr.key],ry=startY+i*rowH,canUp=player.attrPoints>0&&curVal<10;if(canUp){const btnX=px+pw-162+curVal*14;if(mx>=btnX&&mx<=btnX+11&&my>=ry+8&&my<=ry+22){socket.emit("upgradeAttr",{attr:attr.key});}}});
+}
+
+/* ── Inventory UI ── */
+function handleInventoryClick(mx,my){
+  const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,ss=32,sg=4,cols=6,sx=px+10,sy=py+28;
+  for(let i=0;i<player.maxSlots;i++){const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){const slot=player.invSlots[i];selectedSlot=(slot.type&&slot.count>0)?i:null;return;}}
+  if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){buyInventorySlot();return;}}
+  selectedSlot=null;
+}
+function drawInventory(){
+  if(!inventoryOpen)return;
+  ctx.fillStyle="rgba(0,0,0,0.75)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#1a1f2e";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#4a5f8a";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
+  ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.fillText("INVENTORY",px+10,py+16);ctx.fillStyle="#8fa3cc";ctx.font="10px monospace";ctx.fillText(`Slots:${player.maxSlots}/${MAX_TOTAL_SLOTS} Cargo:${cargoUsed()}/${ship.cargoMax}`,px+110,py+16);
+  const ss=32,sg=4,cols=6,sx=px+10,sy=py+28;
+  for(let i=0;i<player.maxSlots;i++){const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg),slot=player.invSlots[i],isSel=selectedSlot===i;ctx.fillStyle=isSel?"#1a2a3a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#5a9aff":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);if(slot.type&&slot.count>0){ctx.fillStyle=RES[slot.type].color;ctx.fillRect(bx+4,by+4,ss-8,ss-8);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-3,by+ss-3);ctx.textAlign="left";}}
+  const dx=px+250,dy=py+28,dw=140,dh=140;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
+  if(selectedSlot!==null&&player.invSlots[selectedSlot]?.type){const slot=player.invSlots[selectedSlot],res=RES[slot.type];ctx.fillStyle=res.color;ctx.fillRect(dx+10,dy+10,46,46);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=2;ctx.strokeRect(dx+10,dy+10,46,46);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+62,dy+20);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Qty:${slot.count}`,dx+62,dy+33);const rarN=["","Common","Uncommon","Rare","Epic","Legendary","Exotic"],rarC=["","#9a9a9a","#7aa37a","#5a8adf","#ba5adf","#dfaa5a","#ff5adf"];ctx.fillStyle=rarC[res.rarity]||"#9a9a9a";ctx.fillText(rarN[res.rarity],dx+62,dy+46);ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+10,dy+62);ctx.lineTo(dx+dw-10,dy+62);ctx.stroke();if(slot.type==="gas_canister"){ctx.fillStyle="#aaff44";ctx.font="bold 9px monospace";ctx.fillText("G: Use canister",dx+10,dy+80);ctx.fillStyle="#7a9a5a";ctx.font="8px monospace";ctx.fillText(`+${GAS_REFUEL}% energy each`,dx+10,dy+93);}else{ctx.fillStyle="#7a8fa0";ctx.font="bold 9px monospace";ctx.fillText("Market Value",dx+10,dy+78);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText(`${price(slot.type)}cr each`,dx+10,dy+92);ctx.fillStyle="#78ff8a";ctx.fillText(`${price(slot.type)*slot.count}cr total`,dx+10,dy+105);ctx.fillStyle="#5a6a7a";ctx.fillText("(O at station)",dx+10,dy+120);}}
+  else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to view",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
+  if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24,canB=player.credits>=SLOT_COST;ctx.fillStyle=canB?"#2d4a3e":"#3a2a2a";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=canB?"#4a8a6a":"#6a4a4a";ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=canB?"#7be6ff":"#8a7a7a";ctx.font="9px monospace";ctx.fillText(`Buy Slot:${SLOT_COST}cr`,bx+8,by+15);}
+  ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("I:close  G:use gas  B:buy slot",px+10,py+ph-10);
+}
+
+/* ── Planet mode ── */
+function updatePlanet(dt){
+  const grav=400,move=90,jump=200;let ax=0;if(keys.has("a"))ax-=move;if(keys.has("d"))ax+=move;astronaut.vx=lerp(astronaut.vx,ax,0.15);if(keys.has("w")&&astronaut.onGround){astronaut.vy=-jump;astronaut.onGround=false;}astronaut.vy+=grav*dt;astronaut.x+=astronaut.vx*dt;collidePlanet(astronaut,true);astronaut.y+=astronaut.vy*dt;astronaut.onGround=false;collidePlanet(astronaut,false);
+  if(keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<28){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;ship.vx*=0.2;ship.vy*=0.2;mode=MODE.SPACE;socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});return;}}
+  if(mouse.down)doMining(dt);
+  for(let i=drops.length-1;i>=0;i--){const it=drops[i];it.vy+=grav*dt;it.x+=it.vx*dt;it.y+=it.vy*dt;if(itemCollide(it)){it.vx*=0.6;it.vy=0;}if(dist(astronaut.x,astronaut.y,it.x,it.y)<18&&addToInventory(it.kind,1))drops.splice(i,1);}
+  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;if(!inventoryOpen)selectedSlot=null;}if(keys.has("b")&&inventoryOpen){keys.delete("b");buyInventorySlot();}
+}
+function drawPlanet(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle=activePlanet.pal.sky;ctx.fillRect(0,0,canvas.width,canvas.height);
+  const cam=planetCamera(),TILEPX=16,x0=Math.floor(cam.x/TILEPX),y0=Math.floor(cam.y/TILEPX),x1=Math.ceil((cam.x+canvas.width)/TILEPX),y1=Math.ceil((cam.y+canvas.height)/TILEPX);
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=tileAt(x,y);if(t===TILE.EMPTY)continue;const px2=x*TILEPX-cam.x,py2=y*TILEPX-cam.y;ctx.fillStyle=TILECOLORS[t]||"#6b7075";ctx.fillRect(px2,py2,TILEPX,TILEPX);ctx.globalAlpha=0.3;ctx.fillStyle="#fff";ctx.fillRect(px2+3,py2+3,1,1);ctx.globalAlpha=1;}
+  const sx2=landedShip.x-cam.x,sy2=landedShip.y-cam.y;ctx.fillStyle="#ccc";ctx.fillRect(sx2-6,sy2-10,12,10);ctx.fillRect(sx2-2,sy2-14,4,4);ctx.fillStyle="#78ff8a";ctx.font="9px monospace";ctx.fillText("Ship (L)",sx2-12,sy2-18);
+  const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle="#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle="#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
+  for(const it of drops){ctx.fillStyle=RES[it.kind].color;ctx.fillRect((it.x-cam.x)-2,(it.y-cam.y)-2,4,4);}
+  if(mouse.down){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
+  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText("I:inventory  L:near ship to takeoff  Mine with mouse",6,canvas.height-8);ctx.globalAlpha=1;
+  if(inventoryOpen)drawInventory();
+}
+
+/* ── Game over ── */
+function drawGameOver(){
+  ctx.fillStyle="rgba(0,0,0,0.85)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  const cx=canvas.width/2,cy=canvas.height/2;
+  ctx.fillStyle="#ff3322";ctx.font="bold 22px monospace";ctx.textAlign="center";ctx.fillText("SHIP DESTROYED",cx,cy-30);
+  ctx.fillStyle="#cc9944";ctx.font="11px monospace";ctx.fillText("Respawning in 3 seconds near the galaxy…",cx,cy-8);
+  ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(`Level ${player.level} | Credits: ${player.credits} cr`,cx,cy+10);
+  ctx.fillStyle="#78ff8a";ctx.font="bold 10px monospace";ctx.fillText("[ Click to respawn early ]",cx,cy+32);ctx.textAlign="left";
+}
+
+/* ════════════════════════════════════════════
+   MAIN LOOP
+════════════════════════════════════════════ */
+let last=performance.now();
+function tick(now){
+  if(!joined){requestAnimationFrame(tick);return;}
+  const dt=Math.min(0.033,(now-last)/1000);last=now;
+
+  // Send input to server every frame
+  sendInput();
+
+  if(gameOver){drawSpace();updateHud();requestAnimationFrame(tick);return;}
+
+  if(mode===MODE.SPACE){
+    if(activePlanet||planetMap){activePlanet=null;planetMap=null;}
+    updateSpace(dt);drawSpace();
+  } else {
+    updatePlanet(dt);
+    if(mode===MODE.SPACE){activePlanet=null;planetMap=null;updateSpace(dt);drawSpace();}
+    else drawPlanet();
+  }
+  updateHud();
+  requestAnimationFrame(tick);
+}
+// tick is started by socket "welcome" event
+</script>
+</body>
+</html>
