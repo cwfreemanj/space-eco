@@ -1,4 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Space Eco — Multiplayer</title>
 <style>
+html,body{margin:0;height:100%;background:#05060a;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial;overflow:hidden}
+#wrap{display:flex;flex-direction:column;height:100%}
+#hud{padding:4px 8px;font-size:11px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#080c18;border-bottom:1px solid #1a2a44}
+#hud b{color:#fff}
+canvas{flex:1;width:100%;image-rendering:pixelated;display:block}
+.pill{padding:2px 6px;border:1px solid #2a3a66;border-radius:999px;background:#0b1020;white-space:nowrap}
+.hint{opacity:.7;font-size:10px}
+#bar-wrap{display:flex;align-items:center;gap:3px}
+.bar-outer{height:9px;border-radius:999px;background:#0b1020;overflow:hidden}
+#hp-bar-outer{width:65px;border:1px solid #5a2a2a}
+#shield-bar-outer{width:55px;border:1px solid #2a4a7a}
+#energy-bar-outer{width:65px;border:1px solid #2a5a2a}
+#hp-bar-inner{height:100%;background:linear-gradient(90deg,#ff4422,#ff7755);transition:width .15s}
+#shield-bar-inner{height:100%;background:linear-gradient(90deg,#2266ff,#55aaff);transition:width .15s}
+#energy-bar-inner{height:100%;background:linear-gradient(90deg,#3aff6a,#78ff8a);transition:width .15s}
+#xp-bar-outer{width:70px;border:1px solid #6a4a8a}
+#xp-bar-inner{height:100%;background:linear-gradient(90deg,#aa44ff,#cc88ff);transition:width .15s}
+
+/* Chat */
 #chat-wrap{position:fixed;bottom:8px;left:8px;width:270px;pointer-events:none;z-index:20}
 #chat-log{max-height:110px;overflow:hidden;display:flex;flex-direction:column-reverse;gap:2px;margin-bottom:4px}
 .chat-msg{font-size:10px;background:rgba(5,8,20,0.78);padding:2px 6px;border-radius:4px;pointer-events:none;animation:fadeChat 9s forwards}
