@@ -146,9 +146,8 @@ tr:hover td{background:#1a2a3a}
   </div>
 </div>
 
-<!-- socket.io loaded after SERVER_URL is known, see inline script below -->
+<script src="/socket.io/socket.io.js"></script>
 <script>
-(async function() {
 /* ═══════════════════════════════════════════
    SPACE ECO — Multiplayer Client v2
    Additions: coords · server list · leaderboard
@@ -188,6 +187,8 @@ window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 let mouse={x:0,y:0,down:false,clicked:false};
 canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;mouse.x=(e.clientX-r.left)*sx;mouse.y=(e.clientY-r.top)*sy;});
 canvas.addEventListener("mousedown",e=>{
+  // If the click originated inside an overlay panel, ignore it on the canvas
+  if(e.target !== canvas && e.target.closest && e.target.closest(".overlay-panel")) return;
   if(chatFocused)return;
   mouse.down=true;mouse.clicked=true;
   const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;
@@ -494,7 +495,7 @@ function addKillFeed(text){const div=document.createElement("div");div.className
 
 /* ── Leaderboard ── */
 function toggleLeaderboard(){const el=document.getElementById("lb-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestLeaderboard");}
-// socket initialized below after SERVER_URL is set
+socket.on||(window.socket=null); // placeholder until socket defined below
 
 /* ── Server list ── */
 function toggleServerList(){const el=document.getElementById("sl-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestServerList");}
@@ -525,7 +526,7 @@ function renderShipShop(){
       </div>
       <div style="margin-top:8px;text-align:right">
         ${owned?'<span style="color:#78ff8a;font-size:11px">Currently flying</span>'
-          :`<button onclick="buyShip('${key}')" style="background:${canAfford?"#1a3a2a":"#2a1a1a"};border:1px solid ${canAfford?"#4a8a6a":"#5a3a3a"};border-radius:4px;color:${canAfford?"#78ff8a":"#6a6a6a"};padding:4px 10px;cursor:${canAfford?"pointer":"default"};font-size:11px">${def.price===0?"FREE":def.price+"cr"}</button>`}
+          :`<button onclick="buyShip('${key}')" style="background:#1a3a2a;border:1px solid #4a8a6a;border-radius:4px;color:${canAfford?"#78ff8a":"#aa9944"};padding:4px 10px;cursor:pointer;font-size:11px">${def.price===0?"FREE":def.price+"cr"}${canAfford?"":" ✗"}</button>`}
       </div>`;
     list.appendChild(div);
     // Draw ship preview
@@ -548,7 +549,9 @@ function drawShipPreview(key,def){
 }
 function buyShip(key){
   const def=SHIP_TYPES[key];if(!def)return;
-  if(player.credits<def.price&&def.price>0){showFT("Not enough credits",ship.x,ship.y-15,"#ff5544");return;}
+  // Don't do a local credit check — let the server validate and reply with shipBuyDenied if needed.
+  // The local check used a stale player.credits value and silently blocked valid purchases.
+  if(player.shipType===key){showFT("Already flying this ship!",canvas.width/2,canvas.height/2-10,"#ffcc44",10);return;}
   socket.emit("buyShip",{shipTypeKey:key});
   document.getElementById("ship-panel").style.display="none";
 }
@@ -566,12 +569,13 @@ function renderBuildPanel(){
     div.style.cssText=`background:#0f1824;border:1px solid #2a3a5a;border-radius:6px;padding:10px;`;
     div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center">
       <div><b style="color:#ffcc44">${def.name}</b><br><span style="font-size:10px;color:#8fa3cc">Max ${def.maxShips} ships · Range: ${def.collectRange}u · Hire: ${def.shipHireCost}cr/ship</span></div>
-      <button onclick="buyStation('${key}')" style="background:${canAfford?"#1a3a2a":"#2a1a1a"};border:1px solid ${canAfford?"#4a8a6a":"#5a3a3a"};border-radius:4px;color:${canAfford?"#ffcc44":"#6a6a6a"};padding:4px 12px;cursor:${canAfford?"pointer":"default"};font-size:11px;white-space:nowrap">${def.price}cr</button>
+      <button onclick="buyStation('${key}')" style="background:#1a3a2a;border:1px solid #4a8a6a;border-radius:4px;color:${canAfford?"#ffcc44":"#aa8833"};padding:4px 12px;cursor:pointer;font-size:11px;white-space:nowrap">${def.price}cr${canAfford?"":" (need more)"}</button>
     </div>`;
     list.appendChild(div);
   }
 }
 function buyStation(tier){
+  // Let server validate credits — local player.credits can be stale
   socket.emit("buyStation",{x:Math.round(ship.x),y:Math.round(ship.y),tier});
   document.getElementById("build-panel").style.display="none";
 }
@@ -603,17 +607,7 @@ function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKe
    SOCKET.IO
 ══════════════════════════════════════ */
 const SERVER_URL="https://space-eco-production.up.railway.app"; // ← Replace with your Railway URL when deployed
-
-// Dynamically load socket.io from the server so it works from any domain (Wix, etc.)
-await new Promise((resolve, reject) => {
-  const script = document.createElement("script");
-  script.src = (SERVER_URL || "") + "/socket.io/socket.io.js";
-  script.onload = resolve;
-  script.onerror = () => { joinStatusEl.textContent = "Failed to load game client. Check SERVER_URL."; joinStatusEl.style.color="#ff4422"; reject(); };
-  document.head.appendChild(script);
-});
-
-const socket=io(SERVER_URL||undefined);
+const socket=SERVER_URL?io(SERVER_URL):io();
 
 let joined=false;
 const joinStatusEl=document.getElementById("join-status"),joinScreen=document.getElementById("join-screen"),gameWrap=document.getElementById("wrap");
@@ -672,13 +666,17 @@ socket.on("serverPong",()=>{}); // ping handled server-side
 
 socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield})=>{
   player.shipType=shipTypeKey;player.credits=credits;ship.hp=hp;ship.maxHp=maxHp;ship.shield=shield;ship.maxShield=maxShield;
-  showFT(`Now flying: ${SHIP_TYPES[shipTypeKey]?.name}!`,ship.x,ship.y-15,"#ffdd44",12);updateHud();renderShipShop();
+  // Show at ship world position so it appears center-screen
+  showFT(`✓ Now flying: ${SHIP_TYPES[shipTypeKey]?.name}!`,ship.x,ship.y,"#ffdd44",13);
+  updateHud();
+  // Reopen shop UI refreshed so you can see the new active ship
+  setTimeout(()=>renderShipShop&&renderShipShop(),100);
 });
-socket.on("shipBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
+socket.on("shipBuyDenied",({reason})=>{showFT("✗ "+reason,ship.x,ship.y,"#ff5544",11);});
 
-socket.on("stationBuyConfirm",({key,x,y,tier,credits})=>{player.credits=credits;showFT(`Station built!`,ship.x,ship.y-15,"#ffcc44",12);updateHud();});
-socket.on("stationBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
-socket.on("hireConfirm",({stationKey,shipCount,credits})=>{player.credits=credits;showFT(`Ship hired! Fleet: ${shipCount}`,ship.x,ship.y-15,"#78ff8a");updateHud();});
+socket.on("stationBuyConfirm",({key,x,y,tier,credits})=>{player.credits=credits;showFT(`✓ Station built!`,ship.x,ship.y,"#ffcc44",13);updateHud();});
+socket.on("stationBuyDenied",({reason})=>{showFT("✗ "+reason,ship.x,ship.y,"#ff5544",11);});
+socket.on("hireConfirm",({stationKey,shipCount,credits})=>{player.credits=credits;showFT(`✓ Ship hired! Fleet: ${shipCount}`,ship.x,ship.y,"#78ff8a",11);updateHud();});
 socket.on("hireDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
 socket.on("ownedStationsList",(list)=>{ownedStationsList=list;renderOwnedStations&&renderOwnedStations();});
 socket.on("ownedStationUpdate",({stationKey,goodsCount,shipCount})=>{showFT(`Station: ${goodsCount} goods ready`,ship.x,ship.y,"#ffcc44",9);});
@@ -1145,7 +1143,6 @@ function tick(now){
   else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;updateSpace(dt);drawSpace();}else drawPlanet();}
   updateHud();requestAnimationFrame(tick);
 }
-})(); // end async IIFE
 </script>
 </body>
 </html>
