@@ -146,8 +146,9 @@ tr:hover td{background:#1a2a3a}
   </div>
 </div>
 
-<script src="/socket.io/socket.io.js"></script>
+<!-- socket.io loaded after SERVER_URL is known, see inline script below -->
 <script>
+(async function() {
 /* ═══════════════════════════════════════════
    SPACE ECO — Multiplayer Client v2
    Additions: coords · server list · leaderboard
@@ -493,7 +494,7 @@ function addKillFeed(text){const div=document.createElement("div");div.className
 
 /* ── Leaderboard ── */
 function toggleLeaderboard(){const el=document.getElementById("lb-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestLeaderboard");}
-socket.on||(window.socket=null); // placeholder until socket defined below
+// socket initialized below after SERVER_URL is set
 
 /* ── Server list ── */
 function toggleServerList(){const el=document.getElementById("sl-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestServerList");}
@@ -602,7 +603,17 @@ function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKe
    SOCKET.IO
 ══════════════════════════════════════ */
 const SERVER_URL="https://space-eco-production.up.railway.app"; // ← Replace with your Railway URL when deployed
-const socket=SERVER_URL?io(SERVER_URL):io();
+
+// Dynamically load socket.io from the server so it works from any domain (Wix, etc.)
+await new Promise((resolve, reject) => {
+  const script = document.createElement("script");
+  script.src = (SERVER_URL || "") + "/socket.io/socket.io.js";
+  script.onload = resolve;
+  script.onerror = () => { joinStatusEl.textContent = "Failed to load game client. Check SERVER_URL."; joinStatusEl.style.color="#ff4422"; reject(); };
+  document.head.appendChild(script);
+});
+
+const socket=io(SERVER_URL||undefined);
 
 let joined=false;
 const joinStatusEl=document.getElementById("join-status"),joinScreen=document.getElementById("join-screen"),gameWrap=document.getElementById("wrap");
@@ -1134,6 +1145,7 @@ function tick(now){
   else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;updateSpace(dt);drawSpace();}else drawPlanet();}
   updateHud();requestAnimationFrame(tick);
 }
+})(); // end async IIFE
 </script>
 </body>
 </html>
