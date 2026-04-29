@@ -146,8 +146,8 @@ tr:hover td{background:#1a2a3a}
   </div>
 </div>
 
-<script src="/socket.io/socket.io.js"></script>
 <script>
+/* socket.io loaded dynamically from the server so it works from any domain */
 /* ═══════════════════════════════════════════
    SPACE ECO — Multiplayer Client v2
    Additions: coords · server list · leaderboard
@@ -495,7 +495,7 @@ function addKillFeed(text){const div=document.createElement("div");div.className
 
 /* ── Leaderboard ── */
 function toggleLeaderboard(){const el=document.getElementById("lb-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestLeaderboard");}
-socket.on||(window.socket=null); // placeholder until socket defined below
+// socket is initialized below inside loadSocketIO callback
 
 /* ── Server list ── */
 function toggleServerList(){const el=document.getElementById("sl-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestServerList");}
@@ -549,10 +549,8 @@ function drawShipPreview(key,def){
 }
 function buyShip(key){
   const def=SHIP_TYPES[key];if(!def)return;
-  // Don't do a local credit check — let the server validate and reply with shipBuyDenied if needed.
-  // The local check used a stale player.credits value and silently blocked valid purchases.
-  if(player.shipType===key){showFT("Already flying this ship!",canvas.width/2,canvas.height/2-10,"#ffcc44",10);return;}
-  socket.emit("buyShip",{shipTypeKey:key});
+  if(player.shipType===key){if(window.socket)window.socket.emit("buyShip",{shipTypeKey:key});return;}
+  if(window.socket)window.socket.emit("buyShip",{shipTypeKey:key});
   document.getElementById("ship-panel").style.display="none";
 }
 
@@ -575,8 +573,7 @@ function renderBuildPanel(){
   }
 }
 function buyStation(tier){
-  // Let server validate credits — local player.credits can be stale
-  socket.emit("buyStation",{x:Math.round(ship.x),y:Math.round(ship.y),tier});
+  if(window.socket)window.socket.emit("buyStation",{x:Math.round(ship.x),y:Math.round(ship.y),tier});
   document.getElementById("build-panel").style.display="none";
 }
 function renderOwnedStations(){
@@ -600,14 +597,31 @@ function renderOwnedStations(){
     el.appendChild(div);
   }
 }
-function hireShip(stationKey){socket.emit("hireShip",{stationKey});}
-function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKey});}
+function hireShip(stationKey){if(window.socket)window.socket.emit("hireShip",{stationKey});}
+function collectStation(stationKey){if(window.socket)window.socket.emit("collectOwnedStation",{stationKey});}
 
 /* ══════════════════════════════════════
    SOCKET.IO
 ══════════════════════════════════════ */
-const SERVER_URL="https://space-eco-production.up.railway.app"; // ← Replace with your Railway URL when deployed
-const socket=SERVER_URL?io(SERVER_URL):io();
+const SERVER_URL="https://space-eco-production.up.railway.app"; // ← Your Railway URL
+
+// Load socket.io FROM the server so it works when embedded in Wix or any other domain.
+// The old <script src="/socket.io/..."> only worked when opening Railway directly.
+function loadSocketIO(callback){
+  if(typeof io !== "undefined"){ callback(); return; }
+  const s=document.createElement("script");
+  s.src=SERVER_URL+"/socket.io/socket.io.js";
+  s.onload=callback;
+  s.onerror=()=>{
+    joinStatusEl.textContent="Cannot load game client from server. Check SERVER_URL in index.html.";
+    joinStatusEl.style.color="#ff4422";
+  };
+  document.head.appendChild(s);
+}
+
+// Boot everything once socket.io is loaded
+loadSocketIO(function(){
+  var socket=window.socket=io(SERVER_URL);
 
 let joined=false;
 const joinStatusEl=document.getElementById("join-status"),joinScreen=document.getElementById("join-screen"),gameWrap=document.getElementById("wrap");
@@ -1143,6 +1157,7 @@ function tick(now){
   else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;updateSpace(dt);drawSpace();}else drawPlanet();}
   updateHud();requestAnimationFrame(tick);
 }
+}); // end loadSocketIO callback
 </script>
 </body>
 </html>
