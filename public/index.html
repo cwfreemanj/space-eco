@@ -768,6 +768,9 @@ socket.on("worldState",({self,others,pvpProjectiles:sp})=>{
     const dx=self.x-ship.x,dy=self.y-ship.y;
     if(Math.hypot(dx,dy)>80){ship.x=self.x;ship.y=self.y;}else{ship.x=lerp(ship.x,self.x,0.3);ship.y=lerp(ship.y,self.y,0.3);}
     ship.vx=self.vx;ship.vy=self.vy;ship.angle=self.angle;ship.hp=self.hp;ship.maxHp=self.maxHp;ship.shield=self.shield;ship.maxShield=self.maxShield;
+    // Keep the client regen lock in sync with server-authoritative combat.
+    // Without this, the client can visually regen immediately after NPC hits.
+    if(self.shieldRegenTimer!==undefined)ship.shieldRegenTimer=Math.max(ship.shieldRegenTimer,self.shieldRegenTimer);
   }
   const now=performance.now(),seen=new Set();
   for(const s of others){seen.add(s.id);if(!otherPlayers.has(s.id)){otherPlayers.set(s.id,{...s,renderX:s.x,renderY:s.y,renderAngle:s.angle,lastUpdate:now});}else{const op=otherPlayers.get(s.id);Object.assign(op,s);op.lastUpdate=now;}}
@@ -778,7 +781,14 @@ socket.on("worldState",({self,others,pvpProjectiles:sp})=>{
 socket.on("economyUpdate",prices=>{serverPrices=prices;});
 socket.on("playerJoined",({name})=>{addChat("Server",`${name} entered the galaxy`,"#78ff8a");pcEl.textContent=`👥 ${(parseInt(pcEl.textContent.replace(/\D/g,""))||1)+1}`;});
 socket.on("playerLeft",({id})=>{otherPlayers.delete(id);pcEl.textContent=`👥 ${Math.max(1,(parseInt(pcEl.textContent.replace(/\D/g,""))||2)-1)}`;});
-socket.on("hit",({damage,hp,shield})=>{ship.hp=hp;ship.shield=shield;showFT(`-${Math.round(damage)} PvP`,ship.x,ship.y-14,"#ff4422",10);if(hp<=0)gameOver=true;});
+socket.on("hit",({damage,hp,shield,by})=>{
+  ship.hp=hp;
+  ship.shield=shield;
+  // Any authoritative hit should delay local visual shield regen too.
+  ship.shieldRegenTimer=4;
+  showFT(`-${Math.round(damage)} ${by||"Hit"}`,ship.x,ship.y-14,"#ff4422",10);
+  if(hp<=0)gameOver=true;
+});
 socket.on("hitConfirm",({targetId,damage})=>{const op=otherPlayers.get(targetId);if(op)showFT(`-${Math.round(damage)}`,op.renderX||op.x,op.renderY||op.y,"#ffff44",9);});
 socket.on("killConfirm",({name})=>{addKillFeed(`☠ You destroyed ${name} (+150cr)`);player.credits+=150;updateHud();});
 socket.on("playerKilled",({victimName,killerName})=>{addKillFeed(`☠ ${killerName} destroyed ${victimName}`);});
@@ -870,7 +880,13 @@ function updateSpace(dt){
   for(let i=enemyProjectiles.length-1;i>=0;i--){
     const p=enemyProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
     if(p.life<=0){enemyProjectiles.splice(i,1);continue;}
-    if(dist(p.x,p.y,ship.x,ship.y)<10){damageShip(p.damage);socket.emit("npcHitPlayer",{damage:p.damage,source:p.source||"tradeShip"});showFT("-"+Math.round(p.damage),ship.x,ship.y-14,"#ff4422",10);enemyProjectiles.splice(i,1);}
+    if(dist(p.x,p.y,ship.x,ship.y)<10){
+      // Let the server apply NPC/trade-ship damage.
+      // Applying local damage here first can get overwritten by the next worldState,
+      // which looks like instant shield recharge.
+      socket.emit("npcHitPlayer",{damage:p.damage,source:p.source||"Trade Ship"});
+      enemyProjectiles.splice(i,1);
+    }
   }
 
   // ══════════════════════════════════════════
