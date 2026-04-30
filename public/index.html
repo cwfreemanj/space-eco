@@ -147,31 +147,23 @@ tr:hover td{background:#1a2a3a}
 </div>
 
 <script>
-// Load socket.io from the server first, THEN start the game.
-// Using a relative path (/socket.io/...) only works on Railway directly —
-// this approach works from any domain including Wix embeds.
+/* ── Socket.io dynamic loader ──
+   Loads socket.io FROM the server so this page works from any domain
+   (Railway direct, Wix embed, anywhere). Then starts the game.        */
 const SERVER_URL = "https://space-eco-production.up.railway.app"; // ← Your Railway URL
-(function(){
-  var s = document.createElement("script");
-  s.src = SERVER_URL + "/socket.io/socket.io.js";
-  s.onload = startGame;   // startGame() defined in next script block
-  s.onerror = function(){
-    document.getElementById("join-status").textContent =
-      "Cannot load game client. Is the server running? Check SERVER_URL.";
-    document.getElementById("join-status").style.color = "#ff4422";
-  };
-  document.head.appendChild(s);
-})();
-</script>
-<script>
-function startGame(){
-/* socket.io is now loaded — safe to call io() */
-/* ═══════════════════════════════════════════
-   SPACE ECO — Multiplayer Client v2
-   Additions: coords · server list · leaderboard
-   scores · ship shop (6 ships) · station builder
-   owned stations with hired ships · NPC damage fix
-═══════════════════════════════════════════ */
+
+var _socketScript = document.createElement("script");
+_socketScript.src = SERVER_URL + "/socket.io/socket.io.js";
+_socketScript.onerror = function(){
+  document.getElementById("join-status").textContent =
+    "Cannot reach server. Is it running? Check SERVER_URL in index.html.";
+  document.getElementById("join-status").style.color = "#ff4422";
+};
+_socketScript.onload = function(){
+  /* ═══════════════════════════════════════════
+     SPACE ECO — Multiplayer Client
+     socket.io is now loaded — safe to call io()
+  ═══════════════════════════════════════════ */
 
 /* ── Utils ── */
 function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=(h<<13)|(h>>>19);}return function(){h=Math.imul(h^(h>>>16),2246822507);h=Math.imul(h^(h>>>13),3266489909);return(h^=h>>>16)>>>0;}}
@@ -617,8 +609,9 @@ function hireShip(stationKey){socket.emit("hireShip",{stationKey});}
 function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKey});}
 
 /* ══════════════════════════════════════
-   SOCKET.IO  — SERVER_URL declared above in loader block
+   SOCKET.IO
 ══════════════════════════════════════ */
+/* socket — SERVER_URL declared in loader above */
 const socket = io(SERVER_URL);
 
 let joined=false;
@@ -1151,7 +1144,9 @@ function tick(now){
   else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;updateSpace(dt);drawSpace();}else drawPlanet();}
   updateHud();requestAnimationFrame(tick);
 }
-} // end startGame()
+}; // end _socketScript.onload
+
+document.head.appendChild(_socketScript);
 </script>
 </body>
 </html>
