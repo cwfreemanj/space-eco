@@ -197,7 +197,7 @@ function tickPlayers(dt){
 }
 
 /* ── Broadcast ── */
-function snap(p){return{id:p.id,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield,color:p.color,level:p.level,mode:p.mode,score:p.score||0,kills:p.kills||0,shipType:p.shipType||"scout",ping:p.ping||0};}
+function snap(p){return{id:p.id,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield,shieldRegenTimer:p.shieldRegenTimer||0,color:p.color,level:p.level,mode:p.mode,score:p.score||0,kills:p.kills||0,shipType:p.shipType||"scout",ping:p.ping||0};}
 function serverListSnap(p){return{id:p.id,name:p.name,x:Math.round(p.x),y:Math.round(p.y),level:p.level,score:p.score||0,kills:p.kills||0,deaths:p.deaths||0,shipType:p.shipType||"scout",ping:p.ping||0,mode:p.mode};}
 
 function broadcastWorldState(){
@@ -216,6 +216,25 @@ function broadcastChat(from,message,color){io.emit("chat",{from,message:String(m
 
 /* ── Owned stations ── */
 const ownedStations=new Map();
+
+function ownedStationListFor(socketId){
+  return [...ownedStations.values()].map(st=>({
+    key:st.key,
+    x:st.x,
+    y:st.y,
+    tier:st.tier,
+    ownerName:st.ownerName,
+    shipCount:st.hiredShips.length,
+    ships:st.hiredShips.map(sh=>({id:sh.id,state:sh.state||"collecting"})),
+    isOwn:st.ownerId===socketId
+  }));
+}
+function emitOwnedStationsList(socket){
+  socket.emit("ownedStationsList",ownedStationListFor(socket.id));
+}
+function broadcastOwnedStationsList(){
+  for(const [,s] of io.sockets.sockets)emitOwnedStationsList(s);
+}
 
 setInterval(()=>{
   const RESOURCES=["stone","copper","iron","gold","crystal","lava_rock","ice_block"];
@@ -253,7 +272,7 @@ io.on("connection",socket=>{
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
     broadcastLeaderboard();broadcastServerList();
     // Send owned stations list
-    socket.emit("ownedStationsList",[...ownedStations.values()].map(s=>({key:s.key,x:s.x,y:s.y,tier:s.tier,ownerName:s.ownerName,shipCount:s.hiredShips.length,isOwn:s.ownerId===socket.id})));
+    emitOwnedStationsList(socket);
   });
 
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
@@ -305,7 +324,7 @@ io.on("connection",socket=>{
     const st={key,ownerId:p.id,ownerName:p.name,x,y,tier,hiredShips:[],accumulatedGoods:{}};
     ownedStations.set(key,st);addScore(p,1000,"Station Built");
     socket.emit("stationBuyConfirm",{key,x,y,tier,credits:p.credits});
-    io.emit("ownedStationsList",[...ownedStations.values()].map(s=>({key:s.key,x:s.x,y:s.y,tier:s.tier,ownerName:s.ownerName,shipCount:s.hiredShips.length,isOwn:s.ownerId===socket.id})));
+    broadcastOwnedStationsList();
     broadcastChat("Server",`${p.name} built a ${td.name} at (${Math.round(x)}, ${Math.round(y)})!`,"#ffcc44");
   });
 
@@ -316,9 +335,10 @@ io.on("connection",socket=>{
     if(st.hiredShips.length>=td.maxShips){socket.emit("hireDenied",{reason:`Max ${td.maxShips} ships.`});return;}
     if(p.credits<td.shipHireCost){socket.emit("hireDenied",{reason:`Need ${td.shipHireCost}cr.`});return;}
     p.credits-=td.shipHireCost;
-    st.hiredShips.push({id:`os_${stationKey}_${Date.now()}`,state:"collecting",cargo:{}});
+    st.hiredShips.push({id:`os_${stationKey}_${Date.now()}_${Math.floor(Math.random()*9999)}`,state:"collecting",cargo:{},createdAt:Date.now()});
     socket.emit("hireConfirm",{stationKey,shipCount:st.hiredShips.length,credits:p.credits});
     socket.emit("creditUpdate",{credits:p.credits});
+    broadcastOwnedStationsList();
   });
 
   socket.on("collectOwnedStation",({stationKey})=>{
@@ -326,6 +346,39 @@ io.on("connection",socket=>{
     const st=ownedStations.get(stationKey);if(!st||st.ownerId!==p.id)return;
     socket.emit("ownedStationGoods",{stationKey,goods:{...st.accumulatedGoods}});
     st.accumulatedGoods={};
+  });
+
+  socket.on("npcHitPlayer",({damage,source})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="space")return;
+    const raw=Math.max(0,Math.min(90,Number(damage)||0));if(raw<=0)return;
+    const armor=1+((p.attrs.armor-1)*0.2);let dmg=raw/armor;
+    if(p.shield>0){const abs=Math.min(p.shield,dmg);p.shield-=abs;dmg-=abs;}
+    p.hp=Math.max(0,p.hp-dmg);
+    // NPC/trade-ship hits should pause regen long enough to let sustained fire matter.
+    p.shieldRegenTimer=5;
+    socket.emit("hit",{damage:Math.round(raw/armor),hp:p.hp,shield:p.shield,by:source||"Trade Ship"});
+    if(p.hp<=0){
+      p.deaths=(p.deaths||0)+1;
+      socket.emit("youDied",{killedBy:source||"Trade Ship"});
+      io.emit("playerKilled",{victimId:p.id,victimName:p.name,killerId:null,killerName:source||"Trade Ship"});
+      broadcastLeaderboard();
+      setTimeout(()=>{
+        const rp=players.get(socket.id);if(!rp)return;
+        const sp=computeSpawnPoint();rp.x=sp.x;rp.y=sp.y;rp.hp=rp.maxHp;rp.shield=rp.maxShield;rp.energy=100;rp.shieldRegenTimer=0;
+        socket.emit("respawn",{x:rp.x,y:rp.y});
+      },3000);
+    }
+  });
+
+  socket.on("destroyOwnedTradeShip",({stationKey,shipId})=>{
+    const p=players.get(socket.id);if(!p)return;
+    const st=ownedStations.get(stationKey);if(!st||!shipId)return;
+    const idx=st.hiredShips.findIndex(sh=>sh.id===shipId);
+    if(idx<0)return;
+    st.hiredShips.splice(idx,1);
+    addScore(p,75,"Trade Ship Destroyed");
+    socket.emit("ownedTradeShipDestroyConfirm",{stationKey,shipId});
+    broadcastOwnedStationsList();
   });
 
   socket.on("useGas",()=>{
@@ -365,7 +418,7 @@ io.on("connection",socket=>{
 
   socket.on("requestLeaderboard",()=>socket.emit("leaderboard",buildLeaderboard(10)));
   socket.on("requestServerList",()=>socket.emit("serverList",{name:SERVER_NAME,players:[...players.values()].map(serverListSnap),uptime:Math.floor((Date.now()-SERVER_START)/1000)}));
-  socket.on("requestOwnedStations",()=>socket.emit("ownedStationsList",[...ownedStations.values()].map(s=>({key:s.key,x:s.x,y:s.y,tier:s.tier,ownerName:s.ownerName,shipCount:s.hiredShips.length,isOwn:s.ownerId===socket.id}))));
+  socket.on("requestOwnedStations",()=>emitOwnedStationsList(socket));
 
   socket.on("disconnect",()=>{
     const p=players.get(socket.id);
