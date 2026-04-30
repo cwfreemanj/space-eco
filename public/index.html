@@ -146,8 +146,8 @@ tr:hover td{background:#1a2a3a}
   </div>
 </div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script>
-/* socket.io loaded dynamically from the server so it works from any domain */
 /* ═══════════════════════════════════════════
    SPACE ECO — Multiplayer Client v2
    Additions: coords · server list · leaderboard
@@ -187,8 +187,6 @@ window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 let mouse={x:0,y:0,down:false,clicked:false};
 canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;mouse.x=(e.clientX-r.left)*sx;mouse.y=(e.clientY-r.top)*sy;});
 canvas.addEventListener("mousedown",e=>{
-  // If the click originated inside an overlay panel, ignore it on the canvas
-  if(e.target !== canvas && e.target.closest && e.target.closest(".overlay-panel")) return;
   if(chatFocused)return;
   mouse.down=true;mouse.clicked=true;
   const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;
@@ -495,7 +493,7 @@ function addKillFeed(text){const div=document.createElement("div");div.className
 
 /* ── Leaderboard ── */
 function toggleLeaderboard(){const el=document.getElementById("lb-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestLeaderboard");}
-// socket is initialized below inside loadSocketIO callback
+socket.on||(window.socket=null); // placeholder until socket defined below
 
 /* ── Server list ── */
 function toggleServerList(){const el=document.getElementById("sl-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestServerList");}
@@ -526,7 +524,7 @@ function renderShipShop(){
       </div>
       <div style="margin-top:8px;text-align:right">
         ${owned?'<span style="color:#78ff8a;font-size:11px">Currently flying</span>'
-          :`<button onclick="buyShip('${key}')" style="background:#1a3a2a;border:1px solid #4a8a6a;border-radius:4px;color:${canAfford?"#78ff8a":"#aa9944"};padding:4px 10px;cursor:pointer;font-size:11px">${def.price===0?"FREE":def.price+"cr"}${canAfford?"":" ✗"}</button>`}
+          :`<button onclick="buyShip('${key}')" style="background:${canAfford?"#1a3a2a":"#2a1a1a"};border:1px solid ${canAfford?"#4a8a6a":"#5a3a3a"};border-radius:4px;color:${canAfford?"#78ff8a":"#6a6a6a"};padding:4px 10px;cursor:${canAfford?"pointer":"default"};font-size:11px">${def.price===0?"FREE":def.price+"cr"}</button>`}
       </div>`;
     list.appendChild(div);
     // Draw ship preview
@@ -549,8 +547,8 @@ function drawShipPreview(key,def){
 }
 function buyShip(key){
   const def=SHIP_TYPES[key];if(!def)return;
-  if(player.shipType===key){if(window.socket)window.socket.emit("buyShip",{shipTypeKey:key});return;}
-  if(window.socket)window.socket.emit("buyShip",{shipTypeKey:key});
+  if(player.credits<def.price&&def.price>0){showFT("Not enough credits",ship.x,ship.y-15,"#ff5544");return;}
+  socket.emit("buyShip",{shipTypeKey:key});
   document.getElementById("ship-panel").style.display="none";
 }
 
@@ -567,13 +565,13 @@ function renderBuildPanel(){
     div.style.cssText=`background:#0f1824;border:1px solid #2a3a5a;border-radius:6px;padding:10px;`;
     div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center">
       <div><b style="color:#ffcc44">${def.name}</b><br><span style="font-size:10px;color:#8fa3cc">Max ${def.maxShips} ships · Range: ${def.collectRange}u · Hire: ${def.shipHireCost}cr/ship</span></div>
-      <button onclick="buyStation('${key}')" style="background:#1a3a2a;border:1px solid #4a8a6a;border-radius:4px;color:${canAfford?"#ffcc44":"#aa8833"};padding:4px 12px;cursor:pointer;font-size:11px;white-space:nowrap">${def.price}cr${canAfford?"":" (need more)"}</button>
+      <button onclick="buyStation('${key}')" style="background:${canAfford?"#1a3a2a":"#2a1a1a"};border:1px solid ${canAfford?"#4a8a6a":"#5a3a3a"};border-radius:4px;color:${canAfford?"#ffcc44":"#6a6a6a"};padding:4px 12px;cursor:${canAfford?"pointer":"default"};font-size:11px;white-space:nowrap">${def.price}cr</button>
     </div>`;
     list.appendChild(div);
   }
 }
 function buyStation(tier){
-  if(window.socket)window.socket.emit("buyStation",{x:Math.round(ship.x),y:Math.round(ship.y),tier});
+  socket.emit("buyStation",{x:Math.round(ship.x),y:Math.round(ship.y),tier});
   document.getElementById("build-panel").style.display="none";
 }
 function renderOwnedStations(){
@@ -597,31 +595,14 @@ function renderOwnedStations(){
     el.appendChild(div);
   }
 }
-function hireShip(stationKey){if(window.socket)window.socket.emit("hireShip",{stationKey});}
-function collectStation(stationKey){if(window.socket)window.socket.emit("collectOwnedStation",{stationKey});}
+function hireShip(stationKey){socket.emit("hireShip",{stationKey});}
+function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKey});}
 
 /* ══════════════════════════════════════
    SOCKET.IO
 ══════════════════════════════════════ */
-const SERVER_URL="https://space-eco-production.up.railway.app"; // ← Your Railway URL
-
-// Load socket.io FROM the server so it works when embedded in Wix or any other domain.
-// The old <script src="/socket.io/..."> only worked when opening Railway directly.
-function loadSocketIO(callback){
-  if(typeof io !== "undefined"){ callback(); return; }
-  const s=document.createElement("script");
-  s.src=SERVER_URL+"/socket.io/socket.io.js";
-  s.onload=callback;
-  s.onerror=()=>{
-    joinStatusEl.textContent="Cannot load game client from server. Check SERVER_URL in index.html.";
-    joinStatusEl.style.color="#ff4422";
-  };
-  document.head.appendChild(s);
-}
-
-// Boot everything once socket.io is loaded
-loadSocketIO(function(){
-  var socket=window.socket=io(SERVER_URL);
+const SERVER_URL="https://space-eco-production.up.railway.app"; // ← Replace with your Railway URL when deployed
+const socket=SERVER_URL?io(SERVER_URL):io();
 
 let joined=false;
 const joinStatusEl=document.getElementById("join-status"),joinScreen=document.getElementById("join-screen"),gameWrap=document.getElementById("wrap");
@@ -680,17 +661,13 @@ socket.on("serverPong",()=>{}); // ping handled server-side
 
 socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield})=>{
   player.shipType=shipTypeKey;player.credits=credits;ship.hp=hp;ship.maxHp=maxHp;ship.shield=shield;ship.maxShield=maxShield;
-  // Show at ship world position so it appears center-screen
-  showFT(`✓ Now flying: ${SHIP_TYPES[shipTypeKey]?.name}!`,ship.x,ship.y,"#ffdd44",13);
-  updateHud();
-  // Reopen shop UI refreshed so you can see the new active ship
-  setTimeout(()=>renderShipShop&&renderShipShop(),100);
+  showFT(`Now flying: ${SHIP_TYPES[shipTypeKey]?.name}!`,ship.x,ship.y-15,"#ffdd44",12);updateHud();renderShipShop();
 });
-socket.on("shipBuyDenied",({reason})=>{showFT("✗ "+reason,ship.x,ship.y,"#ff5544",11);});
+socket.on("shipBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
 
-socket.on("stationBuyConfirm",({key,x,y,tier,credits})=>{player.credits=credits;showFT(`✓ Station built!`,ship.x,ship.y,"#ffcc44",13);updateHud();});
-socket.on("stationBuyDenied",({reason})=>{showFT("✗ "+reason,ship.x,ship.y,"#ff5544",11);});
-socket.on("hireConfirm",({stationKey,shipCount,credits})=>{player.credits=credits;showFT(`✓ Ship hired! Fleet: ${shipCount}`,ship.x,ship.y,"#78ff8a",11);updateHud();});
+socket.on("stationBuyConfirm",({key,x,y,tier,credits})=>{player.credits=credits;showFT(`Station built!`,ship.x,ship.y-15,"#ffcc44",12);updateHud();});
+socket.on("stationBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
+socket.on("hireConfirm",({stationKey,shipCount,credits})=>{player.credits=credits;showFT(`Ship hired! Fleet: ${shipCount}`,ship.x,ship.y-15,"#78ff8a");updateHud();});
 socket.on("hireDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
 socket.on("ownedStationsList",(list)=>{ownedStationsList=list;renderOwnedStations&&renderOwnedStations();});
 socket.on("ownedStationUpdate",({stationKey,goodsCount,shipCount})=>{showFT(`Station: ${goodsCount} goods ready`,ship.x,ship.y,"#ffcc44",9);});
@@ -816,7 +793,7 @@ function updateSpace(dt){
   nearStation=null;for(const st of visibleStations){if(dist(ship.x,ship.y,st.x,st.y)<st.r+70){nearStation=st;break;}}
 
   // Keys
-  if(keys.has("l")){keys.delete("l");const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<nearest.p.radius+60){activePlanet=nearest.p;planetMap=genPlanetMap(activePlanet);mode=MODE.PLANET;const cx=Math.floor(planetMap.W/2),sh2=planetMap.heights[cx];astronaut.x=cx*16;astronaut.y=sh2*16-10;astronaut.vx=0;astronaut.vy=0;landedShip.x=(cx-20)*16;landedShip.y=sh2*16-4;drops.length=0;socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});}}
+  if(keys.has("l")){keys.delete("l");const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<nearest.p.radius+60){activePlanet=nearest.p;planetMap=genPlanetMap(activePlanet);mode=MODE.PLANET;const cx=Math.floor(planetMap.W/2),sh2=planetMap.heights[cx];astronaut.x=cx*16;astronaut.y=sh2*16-10;astronaut.vx=0;astronaut.vy=0;landedShip.x=(cx-5)*16;landedShip.y=sh2*16-4;drops.length=0;window.socket&&window.socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});}}
   if(keys.has("g")){keys.delete("g");useGasCanister();}
   if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;if(!inventoryOpen)selectedSlot=null;}
   if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;}
@@ -1094,8 +1071,25 @@ function handleAttrClick(mx,my){
 /* ── Inventory UI ── */
 function handleInventoryClick(mx,my){
   const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,ss=32,sg=4,cols=6,sx=px+10,sy=py+28;
-  for(let i=0;i<player.maxSlots;i++){const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){const slot=player.invSlots[i];selectedSlot=(slot.type&&slot.count)?i:null;return;}}
-  if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){buyInventorySlot();return;}}
+  // Check slot grid first
+  for(let i=0;i<player.maxSlots;i++){
+    const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);
+    if(by+ss>py+ph-40)break; // don't check slots that would be below panel
+    if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){
+      const slot=player.invSlots[i];
+      selectedSlot=(slot.type&&slot.count)?i:null;
+      return; // always return after hitting a slot cell, even empty ones
+    }
+  }
+  // Buy slot button
+  if(player.maxSlots<MAX_TOTAL_SLOTS){
+    const bx=px+250,by=py+ph-35,bw=140,bh=24;
+    if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){buyInventorySlot();return;}
+  }
+  // Clicking the detail panel area should NOT deselect - user is just reading info
+  const dx=px+250,dy=py+28,dw=140,dh=140;
+  if(mx>=dx&&mx<=dx+dw&&my>=dy&&my<=dy+dh)return;
+  // Clicked outside everything - deselect
   selectedSlot=null;
 }
 function drawInventory(){
@@ -1115,8 +1109,18 @@ function drawInventory(){
 /* ── Planet mode ── */
 function updatePlanet(dt){
   const grav=400,move=90,jump=200;let ax=0;if(keys.has("a"))ax-=move;if(keys.has("d"))ax+=move;astronaut.vx=lerp(astronaut.vx,ax,0.15);if(keys.has("w")&&astronaut.onGround){astronaut.vy=-jump;astronaut.onGround=false;}astronaut.vy+=grav*dt;astronaut.x+=astronaut.vx*dt;collidePlanet(astronaut,true);astronaut.y+=astronaut.vy*dt;astronaut.onGround=false;collidePlanet(astronaut,false);
-  if(keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<28){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;ship.vx*=0.2;ship.vy*=0.2;mode=MODE.SPACE;socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});return;}}
-  if(mouse.down)doMining(dt);
+  if(keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<28){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;ship.vx*=0.2;ship.vy*=0.2;mode=MODE.SPACE;window.socket&&window.socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});return;}}
+  // F key: teleport astronaut toward ship (find ship helper)
+  if(keys.has("f")){
+    keys.delete("f");
+    // Warp the astronaut next to the landed ship
+    const TP=16,sx=Math.floor(landedShip.x/TP),sy=Math.floor(landedShip.y/TP);
+    astronaut.x=landedShip.x+24; // stand next to ship
+    astronaut.y=landedShip.y;
+    astronaut.vx=0;astronaut.vy=0;
+  }
+  // Only mine when inventory is closed
+  if(mouse.down&&!inventoryOpen)doMining(dt);
   for(let i=drops.length-1;i>=0;i--){const it=drops[i];it.vy+=grav*dt;it.x+=it.vx*dt;it.y+=it.vy*dt;if(itemCollide(it)){it.vx*=0.6;it.vy=0;}if(dist(astronaut.x,astronaut.y,it.x,it.y)<18&&addToInventory(it.kind,1))drops.splice(i,1);}
   if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;if(!inventoryOpen)selectedSlot=null;}
 }
@@ -1124,13 +1128,73 @@ function drawPlanet(){
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle=activePlanet.pal.sky;ctx.fillRect(0,0,canvas.width,canvas.height);
   const cam=planetCamera(),TP=16,x0=Math.floor(cam.x/TP),y0=Math.floor(cam.y/TP),x1=Math.ceil((cam.x+canvas.width)/TP),y1=Math.ceil((cam.y+canvas.height)/TP);
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=tileAt(x,y);if(!t)continue;const px2=x*TP-cam.x,py2=y*TP-cam.y;ctx.fillStyle=TILECOLORS[t]||"#6b7075";ctx.fillRect(px2,py2,TP,TP);ctx.globalAlpha=0.3;ctx.fillStyle="#fff";ctx.fillRect(px2+3,py2+3,1,1);ctx.globalAlpha=1;}
-  const sx2=landedShip.x-cam.x,sy2=landedShip.y-cam.y;ctx.fillStyle="#ccc";ctx.fillRect(sx2-6,sy2-10,12,10);ctx.fillRect(sx2-2,sy2-14,4,4);ctx.fillStyle="#78ff8a";ctx.font="9px monospace";ctx.fillText("Ship (L)",sx2-12,sy2-18);
-  const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle="#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle="#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
+
+  // Draw landed ship
+  const sx2=landedShip.x-cam.x,sy2=landedShip.y-cam.y;
+  const shipOnScreen=sx2>-20&&sx2<canvas.width+20&&sy2>-20&&sy2<canvas.height+20;
+  if(shipOnScreen){
+    // Draw ship body
+    ctx.fillStyle="#aabbcc";ctx.fillRect(sx2-8,sy2-12,16,12);
+    ctx.fillStyle="#778899";ctx.fillRect(sx2-4,sy2-16,8,5); // cockpit
+    ctx.fillStyle="#ff7744";ctx.fillRect(sx2-10,sy2-8,3,6); // left engine
+    ctx.fillStyle="#ff7744";ctx.fillRect(sx2+7,sy2-8,3,6);  // right engine
+    // Pulsing green landing light
+    const pulse=0.5+0.5*Math.sin(Date.now()/300);
+    ctx.globalAlpha=pulse;ctx.fillStyle="#78ff8a";ctx.beginPath();ctx.arc(sx2,sy2-18,3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    ctx.fillStyle="#78ff8a";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText("SHIP  [L]",sx2,sy2-22);ctx.textAlign="left";
+  }
+
+  // Ship off-screen indicator — arrow + distance pointing toward ship
+  if(!shipOnScreen){
+    const shipDistPx=dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y);
+    const shipDistTiles=Math.round(shipDistPx/TP);
+    const ang=angleToward(astronaut.x,astronaut.y,landedShip.x,landedShip.y);
+    // Arrow clamped to screen edge with padding
+    const pad=22,cx2=canvas.width/2,cy2=canvas.height/2;
+    const dx2=Math.cos(ang)*999,dy2=Math.sin(ang)*999;
+    let ex=cx2+dx2,ey=cy2+dy2;
+    // Clamp to screen bounds
+    const t2=Math.min((pad-cy2)/dy2,(canvas.height-pad-cy2)/dy2,(pad-cx2)/dx2,(canvas.width-pad-cx2)/dx2);
+    // Pick smallest positive t
+    const ts=[]; if(dy2!==0){ts.push((pad-cy2)/dy2,(canvas.height-pad-cy2)/dy2);} if(dx2!==0){ts.push((pad-cx2)/dx2,(canvas.width-pad-cx2)/dx2);}
+    const validT=ts.filter(t=>t>0);const minT=Math.min(...validT);
+    ex=cx2+Math.cos(ang)*minT*999/1000;ey=cy2+Math.sin(ang)*minT*999/1000;
+    // Clamp manually to be safe
+    ex=clamp(ex,pad,canvas.width-pad);ey=clamp(ey,pad,canvas.height-pad);
+
+    // Pulsing arrow
+    const pulse2=0.6+0.4*Math.sin(Date.now()/400);
+    ctx.save();ctx.globalAlpha=pulse2;ctx.translate(ex,ey);ctx.rotate(ang);
+    ctx.fillStyle="#78ff8a";ctx.strokeStyle="#005500";ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-8,-7);ctx.lineTo(-4,0);ctx.lineTo(-8,7);ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.restore();ctx.globalAlpha=1;
+
+    // Distance label next to arrow
+    ctx.fillStyle="#78ff8a";ctx.font="bold 9px monospace";ctx.textAlign="center";
+    ctx.fillText(`SHIP ${shipDistTiles}t`,ex,ey+(ang>0&&ang<Math.PI?14:-8));
+    ctx.fillStyle="#aaccaa";ctx.font="8px monospace";
+    ctx.fillText("F: snap camera",ex,ey+(ang>0&&ang<Math.PI?25:3));
+    ctx.textAlign="left";
+  }
+
+  // Draw astronaut
+  const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;
+  ctx.fillStyle="#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);
+  ctx.fillStyle="#fff";ctx.fillRect(ax2-5,ay2-8,10,8);
+  ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
+
   for(const it of drops){ctx.fillStyle=RES[it.kind]?.color||"#fff";ctx.fillRect((it.x-cam.x)-2,(it.y-cam.y)-2,4,4);}
-  if(mouse.down){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
-  // Show planet coordinates
-  ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(`Planet: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})`,canvas.width/2,16);ctx.textAlign="left";
-  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText("I:inv  L:near ship to takeoff  Mine with mouse",6,canvas.height-8);ctx.globalAlpha=1;
+  if(mouse.down&&!inventoryOpen){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
+
+  // Planet coords + controls bar
+  ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";
+  ctx.fillText(`Planet: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})  |  Astronaut: (${Math.round(astronaut.x/TP)}, ${Math.round(astronaut.y/TP)})`,canvas.width/2,16);
+  ctx.textAlign="left";
+  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";
+  ctx.fillText("I:inv  L:near ship to takeoff  Mine with mouse  F:find ship",6,canvas.height-8);
+  ctx.globalAlpha=1;
+
   if(inventoryOpen)drawInventory();
 }
 
@@ -1157,7 +1221,6 @@ function tick(now){
   else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;updateSpace(dt);drawSpace();}else drawPlanet();}
   updateHud();requestAnimationFrame(tick);
 }
-}); // end loadSocketIO callback
 </script>
 </body>
 </html>
