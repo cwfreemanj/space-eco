@@ -147,16 +147,25 @@ tr:hover td{background:#1a2a3a}
 </div>
 
 <script>
-// Dynamically load socket.io from the server so this page works from any domain (Wix, etc.)
-const SERVER_URL="https://space-eco-production.up.railway.app"; // ← Your Railway URL
-(function loadSocketIO(){
-  const s=document.createElement("script");
-  s.src=SERVER_URL+"/socket.io/socket.io.js";
-  s.onerror=()=>{document.getElementById("join-status").textContent="Failed to reach server. Check SERVER_URL.";};
+// Load socket.io from the server first, THEN start the game.
+// Using a relative path (/socket.io/...) only works on Railway directly —
+// this approach works from any domain including Wix embeds.
+const SERVER_URL = "https://space-eco-production.up.railway.app"; // ← Your Railway URL
+(function(){
+  var s = document.createElement("script");
+  s.src = SERVER_URL + "/socket.io/socket.io.js";
+  s.onload = startGame;   // startGame() defined in next script block
+  s.onerror = function(){
+    document.getElementById("join-status").textContent =
+      "Cannot load game client. Is the server running? Check SERVER_URL.";
+    document.getElementById("join-status").style.color = "#ff4422";
+  };
   document.head.appendChild(s);
 })();
 </script>
 <script>
+function startGame(){
+/* socket.io is now loaded — safe to call io() */
 /* ═══════════════════════════════════════════
    SPACE ECO — Multiplayer Client v2
    Additions: coords · server list · leaderboard
@@ -503,6 +512,7 @@ function addKillFeed(text){const div=document.createElement("div");div.className
 /* ── Leaderboard ── */
 function toggleLeaderboard(){const el=document.getElementById("lb-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestLeaderboard");}
 
+
 /* ── Server list ── */
 function toggleServerList(){const el=document.getElementById("sl-panel");el.style.display=el.style.display==="none"?"flex":"none";if(el.style.display!=="none")socket.emit("requestServerList");}
 
@@ -607,10 +617,9 @@ function hireShip(stationKey){socket.emit("hireShip",{stationKey});}
 function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKey});}
 
 /* ══════════════════════════════════════
-   SOCKET.IO
+   SOCKET.IO  — SERVER_URL declared above in loader block
 ══════════════════════════════════════ */
-// SERVER_URL is defined in the loader block above — socket.io.js loads from there
-const socket=io(SERVER_URL);
+const socket = io(SERVER_URL);
 
 let joined=false;
 const joinStatusEl=document.getElementById("join-status"),joinScreen=document.getElementById("join-screen"),gameWrap=document.getElementById("wrap");
@@ -1142,6 +1151,7 @@ function tick(now){
   else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;updateSpace(dt);drawSpace();}else drawPlanet();}
   updateHud();requestAnimationFrame(tick);
 }
+} // end startGame()
 </script>
 </body>
 </html>
