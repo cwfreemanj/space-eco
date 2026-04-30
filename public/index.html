@@ -58,6 +58,15 @@ th{color:#8fa3cc;font-weight:normal;text-align:left;padding:3px 6px;border-botto
 td{padding:3px 6px;border-bottom:1px solid #0f1828}
 tr:hover td{background:#1a2a3a}
 .own-row td{color:#ffdd44}
+
+.credit-pack-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.credit-pack{background:linear-gradient(180deg,#101b2e,#0b1220);border:1px solid #2a4a7a;border-radius:8px;padding:10px;box-shadow:0 0 14px rgba(123,230,255,.08)}
+.credit-pack:hover{border-color:#7be6ff;box-shadow:0 0 18px rgba(123,230,255,.18)}
+.credit-pack b{color:#ffdd44;font-size:13px}
+.credit-pack .price{color:#78ff8a;font-weight:bold;font-size:13px}
+.credit-pack button{margin-top:8px;width:100%;background:#173a2a;border:1px solid #4a8a6a;border-radius:5px;color:#78ff8a;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:bold}
+.credit-pack button:hover{background:#20543b}
+.credit-note{font-size:10px;color:#8fa3cc;line-height:1.35;margin:6px 0 0}
 </style>
 </head>
 <body>
@@ -89,7 +98,7 @@ tr:hover td{background:#1a2a3a}
     <span class="pill"><b>📍</b> <span id="coords">0, 0</span></span>
     <span class="pill"><b>Ship:</b> <span id="shipname">Scout</span></span>
     <span class="pill"><b>Inv:</b> <span id="inv">(empty)</span></span>
-    <span class="pill hint"><b>WASD</b>fly <b>L</b>land <b>O</b>shop <b>G</b>gas <b>I</b>inv <b>P</b>attrs <b>H</b>ships <b>B</b>build <b>K</b>board <b>N</b>players <b>T</b>chat <b>Click</b>fire</span>
+    <span class="pill hint"><b>WASD</b>fly <b>L</b>land <b>O</b>shop <b>G</b>gas <b>I</b>inv <b>P</b>attrs <b>H</b>ships <b>B</b>build <b>M</b>credits <b>K</b>board <b>N</b>players <b>T</b>chat <b>Click</b>fire</span>
   </div>
   <canvas id="c" width="560" height="310"></canvas>
 </div>
@@ -146,6 +155,17 @@ tr:hover td{background:#1a2a3a}
   </div>
 </div>
 
+<!-- Credit purchase panel -->
+<div id="credit-panel" class="overlay-panel" style="display:none">
+  <div class="panel-box" style="min-width:500px">
+    <span class="panel-close" onclick="document.getElementById('credit-panel').style.display='none'">✕</span>
+    <h2>💳 CREDIT MARKET — <span id="credit-market-current">300</span> cr owned</h2>
+    <p class="credit-note">Purchases are started through the Wix parent page. Credits are only granted after the Wix backend confirms a successful payment with the Railway server.</p>
+    <div id="credit-pack-list" class="credit-pack-grid"></div>
+    <p id="credit-pay-status" class="credit-note"></p>
+  </div>
+</div>
+
 <script>
 /* ── Socket.io dynamic loader ──
    Loads socket.io FROM the server so this page works from any domain
@@ -191,6 +211,7 @@ window.addEventListener("keydown",e=>{
   if(e.key.toLowerCase()==="n"){toggleServerList();}
   if(e.key.toLowerCase()==="h"){toggleShipShop();}
   if(e.key.toLowerCase()==="b"){if(mode===MODE.SPACE&&!shopOpen&&!inventoryOpen&&!attrOpen)toggleBuildPanel();}
+  if(e.key.toLowerCase()==="m"){toggleCreditShop();}
 });
 window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 
@@ -688,6 +709,74 @@ function buyShip(key){
   document.getElementById("ship-panel").style.display="none";
 }
 
+
+/* ── Real-money credit shop bridge ──
+   Security model:
+   - Client only REQUESTS a purchase from the Wix parent page.
+   - Wix backend creates the payment with fixed package prices.
+   - Railway only grants credits when Wix backend calls /api/grant-credits with a shared secret.
+*/
+const CREDIT_PACKAGES={
+  credits_10000:{credits:10000,price:"$1.99",label:"Scout Cache"},
+  credits_25000:{credits:25000,price:"$2.99",label:"Trader Pack"},
+  credits_50000:{credits:50000,price:"$3.99",label:"Fleet Boost"},
+  credits_100000:{credits:100000,price:"$4.99",label:"Station Builder"},
+  credits_500000:{credits:500000,price:"$19.99",label:"Empire Vault"},
+  credits_1000000:{credits:1000000,price:"$49.99",label:"Galaxy Treasury"},
+};
+const WIX_PARENT_ORIGIN="*"; // Production: replace with your Wix site origin, e.g. "https://www.getfirstpage.com"
+function toggleCreditShop(){
+  const el=document.getElementById("credit-panel");
+  el.style.display=el.style.display==="none"?"flex":"none";
+  if(el.style.display!=="none")renderCreditShop();
+}
+function renderCreditShop(){
+  document.getElementById("credit-market-current").textContent=player.credits;
+  const status=document.getElementById("credit-pay-status");
+  if(status&&!status.textContent)status.textContent="Choose a package. The Wix checkout popup opens outside the game iframe.";
+  const list=document.getElementById("credit-pack-list");if(!list)return;
+  list.innerHTML="";
+  for(const [packageId,pkg] of Object.entries(CREDIT_PACKAGES)){
+    const div=document.createElement("div");div.className="credit-pack";
+    div.innerHTML=`<b>${pkg.label}</b><br>
+      <span style="font-size:18px;color:#ffdd44">${pkg.credits.toLocaleString()} cr</span><br>
+      <span class="price">${pkg.price}</span>
+      <button onclick="startCreditPurchase('${packageId}')">Purchase Credits</button>`;
+    list.appendChild(div);
+  }
+}
+function setCreditPayStatus(text,color="#8fa3cc"){
+  const el=document.getElementById("credit-pay-status");if(el){el.textContent=text;el.style.color=color;}
+}
+function startCreditPurchase(packageId){
+  const pkg=CREDIT_PACKAGES[packageId];
+  if(!pkg){setCreditPayStatus("Unknown credit package.","#ff5544");return;}
+  if(!joined||!socket||!socket.id){setCreditPayStatus("Launch into the game before purchasing credits.","#ff5544");return;}
+  const payload={
+    type:"SPACE_ECO_PURCHASE_CREDITS",
+    packageId,
+    socketId:socket.id,
+    playerId:player.id,
+    playerName:player.name,
+    credits:pkg.credits,
+    label:pkg.label,
+    serverUrl:SERVER_URL
+  };
+  if(window.parent&&window.parent!==window){
+    window.parent.postMessage(payload,WIX_PARENT_ORIGIN);
+    setCreditPayStatus(`Opening Wix checkout for ${pkg.credits.toLocaleString()} credits...`,"#7be6ff");
+  }else{
+    setCreditPayStatus("This purchase bridge is meant to run inside your Wix iframe. Open the game from the Wix page to buy credits.","#ffcc44");
+  }
+}
+window.addEventListener("message",(event)=>{
+  const msg=event.data||{};
+  if(!msg||typeof msg!=="object")return;
+  if(msg.type==="SPACE_ECO_PAYMENT_STARTED")setCreditPayStatus("Wix checkout opened. Complete the payment to receive credits.","#7be6ff");
+  if(msg.type==="SPACE_ECO_PAYMENT_RESULT")setCreditPayStatus(`Wix payment status: ${msg.status||"unknown"}. Waiting for server confirmation...`,"#ffcc44");
+  if(msg.type==="SPACE_ECO_PAYMENT_ERROR")setCreditPayStatus(msg.message||"Wix payment failed to start.","#ff5544");
+});
+
 /* ── Build panel ── */
 function toggleBuildPanel(){
   const el=document.getElementById("build-panel");el.style.display=el.style.display==="none"?"flex":"none";
@@ -733,7 +822,7 @@ function renderOwnedStations(){
 }
 function hireShip(stationKey){socket.emit("hireShip",{stationKey});}
 function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKey});}
-window.buyShip=buyShip;window.buyStation=buyStation;window.hireShip=hireShip;window.collectStation=collectStation;
+window.buyShip=buyShip;window.buyStation=buyStation;window.hireShip=hireShip;window.collectStation=collectStation;window.startCreditPurchase=startCreditPurchase;window.toggleCreditShop=toggleCreditShop;
 
 /* ══════════════════════════════════════
    SOCKET.IO
@@ -794,7 +883,15 @@ socket.on("killConfirm",({name})=>{addKillFeed(`☠ You destroyed ${name} (+150c
 socket.on("playerKilled",({victimName,killerName})=>{addKillFeed(`☠ ${killerName} destroyed ${victimName}`);});
 socket.on("youDied",({killedBy})=>{gameOver=true;showFT(`Destroyed by ${killedBy}!`,ship.x,ship.y,"#ff4422",14);});
 socket.on("respawn",({x,y})=>{ship.x=x;ship.y=y;ship.hp=ship.maxHp;ship.shield=ship.maxShield;energy.current=energy.max;gameOver=false;updateChunks();});
-socket.on("creditUpdate",({credits})=>{player.credits=credits;updateHud();});
+socket.on("creditUpdate",({credits})=>{player.credits=credits;updateHud();renderCreditShop&&renderCreditShop();});
+socket.on("creditPurchaseConfirm",({packageId,creditsAdded,credits,paymentId})=>{
+  player.credits=credits;
+  updateHud();
+  renderCreditShop();
+  setCreditPayStatus(`Purchase confirmed! +${Number(creditsAdded||0).toLocaleString()} credits added.`,"#78ff8a");
+  showFT(`+${Number(creditsAdded||0).toLocaleString()} cr`,ship.x,ship.y-18,"#ffdd44",14);
+});
+socket.on("creditPurchaseDenied",({reason})=>{setCreditPayStatus(reason||"Credit purchase denied.","#ff5544");});
 socket.on("xpUpdate",({xp,level})=>{player.xp=xp;player.level=level;player.xpToNext=xpForLevel(level);updateHud();});
 socket.on("levelUp",({level,attrPoints})=>{player.level=level;player.attrPoints=attrPoints;showFT("LEVEL UP! +2 Attr Points",canvas.width/2,canvas.height/2,"#cc88ff",18);});
 socket.on("scoreUpdate",({score,delta,reason})=>{player.score=score;showScorePopup(delta,reason);updateHud();});
