@@ -608,6 +608,11 @@ function renderOwnedStations(){
 function hireShip(stationKey){socket.emit("hireShip",{stationKey});}
 function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKey});}
 
+window.buyShip = buyShip;
+window.buyStation = buyStation;
+window.hireShip = hireShip;
+window.collectStation = collectStation;
+    
 /* ══════════════════════════════════════
    SOCKET.IO
 ══════════════════════════════════════ */
