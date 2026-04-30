@@ -207,6 +207,18 @@ canvas.addEventListener("mousedown",e=>{
   else if(gameOver)requestRespawn();
 });
 window.addEventListener("mouseup",()=>{mouse.down=false;});
+canvas.addEventListener("wheel",e=>{
+  if(inventoryOpen){
+    inventoryScrollRows=clamp(inventoryScrollRows+(e.deltaY>0?1:-1),0,maxInventoryScrollRows());
+    e.preventDefault();
+  }else if(shopOpen&&shopTab==="sell"){
+    shopInventoryScrollRows=clamp(shopInventoryScrollRows+(e.deltaY>0?1:-1),0,maxShopInventoryScrollRows());
+    e.preventDefault();
+  }
+},{passive:false});
+function maxInventoryScrollRows(){return Math.max(0,Math.ceil(player.maxSlots/INV_COLS)-INV_VISIBLE_ROWS);}
+function maxShopInventoryScrollRows(){return Math.max(0,Math.ceil(player.maxSlots/INV_COLS)-SHOP_SELL_VISIBLE_ROWS);}
+function clampPanelScrolls(){inventoryScrollRows=clamp(inventoryScrollRows,0,maxInventoryScrollRows());shopInventoryScrollRows=clamp(shopInventoryScrollRows,0,maxShopInventoryScrollRows());}
 
 /* ── Resources ── */
 const RES={
@@ -282,6 +294,8 @@ let myOwnedStations=new Map(); // key → {goods,shipCount}
 let gameOver=false,inventoryOpen=false,shopOpen=false,attrOpen=false;
 let shopTab="sell",shopSelectedSlot=null,shopSellQty=1,shopBuyItem=null,shopBuyQty=1;
 let selectedSlot=null,nearStation=null;
+let inventoryScrollRows=0,shopInventoryScrollRows=0;
+const INV_COLS=6,INV_VISIBLE_ROWS=4,SHOP_SELL_VISIBLE_ROWS=5;
 const MAX_STACK=24,SLOT_COST=1000,MAX_TOTAL_SLOTS=48;
 
 /* ── Station tiers (NPC) ── */
@@ -351,11 +365,25 @@ function refreshBuyStock(st){
 
 /* ── Trade ships ── */
 const TRADE_SHIP_ALERT_RANGE=300;
+function createNpcTradeShip(st,slot){
+  const cfg=st.tierDef.shipConfig;
+  const total=Math.max(1,st.tierDef.shipCount);
+  const ang=Math.PI*2*(slot/total);
+  return {id:st.id+"|ship|"+slot+"|"+Date.now(),homeSlot:slot,stationId:st.id,faction:st.faction,factionColor:st.factionColor,x:st.x+Math.cos(ang)*60,y:st.y+Math.sin(ang)*60,vx:0,vy:0,angle:ang,hp:cfg.hp,maxHp:cfg.hp,speed:cfg.speed,damage:cfg.damage,size:cfg.size,tier:st.tier,state:"idle",stateTimer:1+Math.random()*2,targetPlanet:null,lootCarried:{},shootTimer:0,ownerType:"npc"};
+}
 function initTradeShips(st,localPlanets){
-  const cfg=st.tierDef.shipConfig;st.tradeShips=[];
-  for(let i=0;i<st.tierDef.shipCount;i++){
-    const ang=Math.PI*2*(i/st.tierDef.shipCount);
-    st.tradeShips.push({id:st.id+"|ship|"+i,stationId:st.id,faction:st.faction,factionColor:st.factionColor,x:st.x+Math.cos(ang)*60,y:st.y+Math.sin(ang)*60,vx:0,vy:0,angle:ang,hp:cfg.hp*(0.7+Math.random()*0.6),maxHp:cfg.hp,speed:cfg.speed,damage:cfg.damage,size:cfg.size,tier:st.tier,state:"idle",stateTimer:1+Math.random()*2,targetPlanet:null,lootCarried:{},shootTimer:0});
+  st.tradeShips=[];st.tradeRespawns=[];
+  for(let i=0;i<st.tierDef.shipCount;i++)st.tradeShips.push(createNpcTradeShip(st,i));
+}
+
+function updateNpcTradeShipRespawns(st,dt){
+  if(!st.tradeRespawns)st.tradeRespawns=[];
+  for(let i=st.tradeRespawns.length-1;i>=0;i--){
+    const r=st.tradeRespawns[i];r.timer-=dt;
+    if(r.timer<=0&&st.tradeShips.length<st.tierDef.shipCount){
+      st.tradeShips.push(createNpcTradeShip(st,r.slot));
+      st.tradeRespawns.splice(i,1);
+    }
   }
 }
 
@@ -458,7 +486,7 @@ const STARS=Array.from({length:220},()=>({x:Math.random()*2200-1100,y:Math.rando
 /* ── Inventory helpers ── */
 function addToInventory(type,amount=1){let rem=amount;for(let i=0;i<player.maxSlots;i++){if(player.invSlots[i].type===type&&player.invSlots[i].count<MAX_STACK){const sp=MAX_STACK-player.invSlots[i].count,add=Math.min(sp,rem);player.invSlots[i].count+=add;rem-=add;if(rem<=0)return true;}}for(let i=0;i<player.maxSlots;i++){if(!player.invSlots[i].type){player.invSlots[i].type=type;const add=Math.min(MAX_STACK,rem);player.invSlots[i].count=add;rem-=add;if(rem<=0)return true;}}return rem===0;}
 function removeFromInventory(type,amount){let rem=amount;for(let i=player.maxSlots-1;i>=0;i--){if(player.invSlots[i].type===type){const rm=Math.min(player.invSlots[i].count,rem);player.invSlots[i].count-=rm;if(!player.invSlots[i].count)player.invSlots[i].type=null;rem-=rm;if(rem<=0)return true;}}return rem===0;}
-function buyInventorySlot(){if(player.credits<SLOT_COST||player.maxSlots>=MAX_TOTAL_SLOTS)return false;player.credits-=SLOT_COST;player.maxSlots++;player.invSlots.push({type:null,count:0});return true;}
+function buyInventorySlot(){if(player.credits<SLOT_COST||player.maxSlots>=MAX_TOTAL_SLOTS)return false;player.credits-=SLOT_COST;player.maxSlots++;player.invSlots.push({type:null,count:0});clampPanelScrolls();return true;}
 
 /* ── Floating text ── */
 function showFT(text,x,y,color="#fff",size=11){floatingTexts.push({text,x,y,color,size,life:1.8,vy:-25});}
@@ -482,14 +510,112 @@ function damageShip(amount){
 
 /* ── Kill trade ship (NPC) ── */
 function killTradeShip(ts,station){
-  for(const[r,q]of Object.entries(ts.lootCarried))for(let i=0;i<q;i++)spaceDrops.push({type:r,x:ts.x+(Math.random()-0.5)*20,y:ts.y+(Math.random()-0.5)*20,vx:(Math.random()-0.5)*30,vy:(Math.random()-0.5)*30,life:25});
+  for(const[r,q]of Object.entries(ts.lootCarried||{}))for(let i=0;i<q;i++)spaceDrops.push({type:r,x:ts.x+(Math.random()-0.5)*20,y:ts.y+(Math.random()-0.5)*20,vx:(Math.random()-0.5)*30,vy:(Math.random()-0.5)*30,life:25});
   const pool=station.tierDef.itemPool,dc=randInt(makeRng(ts.id+Date.now()),1,4);
   for(let i=0;i<dc;i++)spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ts.x+(Math.random()-0.5)*30,y:ts.y+(Math.random()-0.5)*30,vx:(Math.random()-0.5)*40,vy:(Math.random()-0.5)*40,life:25});
   socket.emit("gainXp",{amount:station.tierDef.xpReward});
   showFT(`+${station.tierDef.xpReward} XP`,ts.x,ts.y,"#cc88ff");
   for(const ots of station.tradeShips)if(ots!==ts&&dist(ots.x,ots.y,ts.x,ts.y)<TRADE_SHIP_ALERT_RANGE){ots.state="combat";ots.stateTimer=999;}
   const idx=station.tradeShips.indexOf(ts);if(idx>-1)station.tradeShips.splice(idx,1);
+  if(ts.ownerType!=="player"){
+    if(!station.tradeRespawns)station.tradeRespawns=[];
+    station.tradeRespawns.push({slot:ts.homeSlot??station.tradeRespawns.length,timer:18+Math.random()*20});
+    showFT("Respawn beacon charging",station.x,station.y-22,"#ffcc44",8);
+  }
 }
+
+/* ── Player-owned station trade ships (client visual/combat layer, server owns purchased count) ── */
+const ownedTradeShips=new Map();
+function stationTierStats(tier){
+  const table={
+    outpost:{hp:45,speed:70,damage:7,size:4,color:"#ffcc44",cargo:8},
+    base:{hp:85,speed:88,damage:13,size:5,color:"#66ccff",cargo:14},
+    fortress:{hp:145,speed:105,damage:22,size:7,color:"#ff8844",cargo:24}
+  };
+  return table[tier]||table.outpost;
+}
+function ownedStationShipIds(st){
+  if(Array.isArray(st.ships)&&st.ships.length)return st.ships.map(s=>typeof s==="string"?s:s.id);
+  return Array.from({length:st.shipCount||0},(_,i)=>`${st.key}_legacy_${i}`);
+}
+function ensureOwnedTradeShips(){
+  const live=new Set();
+  for(const st of ownedStationsList){
+    const ids=ownedStationShipIds(st);
+    ids.forEach((id,idx)=>{
+      live.add(id);
+      if(!ownedTradeShips.has(id)){
+        const stats=stationTierStats(st.tier);
+        const a=Math.PI*2*((idx+1)/Math.max(1,ids.length));
+        ownedTradeShips.set(id,{id,stationKey:st.key,ownerName:st.ownerName,isOwn:!!st.isOwn,x:st.x+Math.cos(a)*26,y:st.y+Math.sin(a)*26,vx:0,vy:0,angle:a,hp:stats.hp,maxHp:stats.hp,speed:stats.speed,damage:stats.damage,size:stats.size,color:stats.color,state:"idle",stateTimer:1+Math.random()*2,targetPlanet:null,lootCarried:{},shootTimer:0,aggro:false});
+      }else{
+        const os=ownedTradeShips.get(id);os.ownerName=st.ownerName;os.isOwn=!!st.isOwn;
+      }
+    });
+  }
+  for(const id of [...ownedTradeShips.keys()])if(!live.has(id))ownedTradeShips.delete(id);
+}
+function chooseOwnedTradeTarget(st,os){
+  if(!visiblePlanets.length)return null;
+  const td=OWNED_STATION_TIERS[st.tier]||OWNED_STATION_TIERS.outpost;
+  const inRange=visiblePlanets.filter(p=>dist(st.x,st.y,p.x,p.y)<(td.collectRange||900)+700);
+  const pool=inRange.length?inRange:visiblePlanets;
+  const seed=xmur3(os.id+"|target")();
+  return pool[seed%pool.length];
+}
+function randomLootFromPlanet(p,amount=3){
+  const out={};if(!p||!p.resList)return out;
+  for(let i=0;i<amount;i++){const r=p.resList[Math.floor(Math.random()*p.resList.length)];out[r]=(out[r]||0)+1;}
+  return out;
+}
+function dropOwnedTradeShipLoot(os,st){
+  for(const[r,q]of Object.entries(os.lootCarried||{}))for(let i=0;i<q;i++)spaceDrops.push({type:r,x:os.x+(Math.random()-0.5)*24,y:os.y+(Math.random()-0.5)*24,vx:(Math.random()-0.5)*40,vy:(Math.random()-0.5)*40,life:25});
+  const pool=["stone","copper","iron","gold","crystal","lava_rock","ice_block"],dc=2+Math.floor(Math.random()*3);
+  for(let i=0;i<dc;i++){const r=pool[Math.floor(Math.random()*pool.length)];spaceDrops.push({type:r,x:os.x+(Math.random()-0.5)*24,y:os.y+(Math.random()-0.5)*24,vx:(Math.random()-0.5)*45,vy:(Math.random()-0.5)*45,life:25});}
+  socket.emit("destroyOwnedTradeShip",{stationKey:st.key,shipId:os.id});
+  ownedTradeShips.delete(os.id);
+}
+function updateOwnedTradeShip(os,st,dt){
+  const stats=stationTierStats(st.tier);os.maxHp=Math.max(os.maxHp,stats.hp);os.speed=stats.speed;os.damage=stats.damage;os.size=stats.size;os.color=st.isOwn?stats.color:"#aaaaaa";
+  os.stateTimer=Math.max(0,os.stateTimer-dt);os.shootTimer=Math.max(0,os.shootTimer-dt);
+  if(os.state==="combat"){
+    const pd=dist(os.x,os.y,ship.x,ship.y),ang=angleToward(os.x,os.y,ship.x,ship.y);os.angle=ang;
+    os.vx=lerp(os.vx,Math.cos(ang)*os.speed,0.06);os.vy=lerp(os.vy,Math.sin(ang)*os.speed,0.06);
+    if(os.shootTimer<=0&&pd<280){os.shootTimer=0.75;const ba=ang+(Math.random()-0.5)*0.16;enemyProjectiles.push({x:os.x,y:os.y,vx:Math.cos(ba)*220,vy:Math.sin(ba)*220,damage:os.damage,life:2.4,source:"ownedTradeShip"});}
+    if(pd>700){os.state="return";os.aggro=false;}
+  }else if(os.state==="idle"){
+    if(os.stateTimer<=0){os.targetPlanet=chooseOwnedTradeTarget(st,os);os.state=os.targetPlanet?"travel":"idle";os.stateTimer=2;}
+  }else if(os.state==="travel"){
+    if(!os.targetPlanet)os.targetPlanet=chooseOwnedTradeTarget(st,os);
+    if(os.targetPlanet){const d=dist(os.x,os.y,os.targetPlanet.x,os.targetPlanet.y);if(d<os.targetPlanet.radius+24){os.state="mining";os.stateTimer=3+Math.random()*3;}else{const ang=angleToward(os.x,os.y,os.targetPlanet.x,os.targetPlanet.y);os.angle=ang;os.vx=lerp(os.vx,Math.cos(ang)*os.speed,0.05);os.vy=lerp(os.vy,Math.sin(ang)*os.speed,0.05);}}
+  }else if(os.state==="mining"){
+    os.vx*=0.92;os.vy*=0.92;
+    if(os.stateTimer<=0){os.lootCarried=randomLootFromPlanet(os.targetPlanet,2+Math.floor(Math.random()*4));os.state="return";}
+  }else if(os.state==="return"){
+    const d=dist(os.x,os.y,st.x,st.y);if(d<25){os.lootCarried={};os.state="idle";os.stateTimer=1+Math.random()*2;}else{const ang=angleToward(os.x,os.y,st.x,st.y);os.angle=ang;os.vx=lerp(os.vx,Math.cos(ang)*os.speed,0.05);os.vy=lerp(os.vy,Math.sin(ang)*os.speed,0.05);}
+  }
+  os.x+=os.vx*dt;os.y+=os.vy*dt;os.vx*=Math.pow(0.97,dt*60);os.vy*=Math.pow(0.97,dt*60);
+}
+function updateOwnedTradeShips(dt){
+  ensureOwnedTradeShips();
+  const byKey=new Map(ownedStationsList.map(s=>[s.key,s]));
+  for(const os of ownedTradeShips.values()){const st=byKey.get(os.stationKey);if(!st){ownedTradeShips.delete(os.id);continue;}updateOwnedTradeShip(os,st,dt);}
+}
+function drawOwnedTradeShips(camX,camY){
+  const byKey=new Map(ownedStationsList.map(s=>[s.key,s]));
+  for(const os of ownedTradeShips.values()){
+    const st=byKey.get(os.stationKey);if(!st)continue;
+    const x=os.x-camX,y=os.y-camY;if(x<-50||y<-50||x>canvas.width+50||y>canvas.height+50)continue;
+    if(os.state==="travel"&&os.targetPlanet){ctx.save();ctx.globalAlpha=0.16;ctx.strokeStyle=os.color;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(os.targetPlanet.x-camX,os.targetPlanet.y-camY);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
+    else if(os.state==="return"){ctx.save();ctx.globalAlpha=0.16;ctx.strokeStyle=os.color;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(st.x-camX,st.y-camY);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
+    else if(os.state==="combat"){ctx.save();ctx.globalAlpha=0.35;ctx.strokeStyle="#ff4422";ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(canvas.width/2,canvas.height/2);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
+    ctx.save();ctx.translate(x,y);ctx.rotate(os.angle);ctx.fillStyle=os.state==="combat"?"#ff4422":os.color;ctx.beginPath();ctx.moveTo(os.size+2,0);ctx.lineTo(-os.size,-os.size*0.7);ctx.lineTo(-os.size,os.size*0.7);ctx.closePath();ctx.fill();ctx.restore();
+    const hpPct=clamp(os.hp/os.maxHp,0,1),bw=os.size*4;ctx.fillStyle="#300";ctx.fillRect(x-bw/2,y-os.size-6,bw,2);ctx.fillStyle=hpPct>0.5?"#3f3":"#f80";ctx.fillRect(x-bw/2,y-os.size-6,bw*hpPct,2);
+    ctx.save();ctx.globalAlpha=0.72;ctx.fillStyle=os.color;ctx.font="6px monospace";ctx.textAlign="center";ctx.fillText(st.isOwn?"ALLY TRADE":"PLAYER TRADE",x,y+os.size+9);ctx.restore();ctx.textAlign="left";
+    if(Object.keys(os.lootCarried||{}).length>0){ctx.fillStyle="#ffcc44";ctx.font="7px monospace";ctx.textAlign="center";ctx.fillText("▲",x,y-os.size-9);ctx.textAlign="left";}
+  }
+}
+
 
 /* ── Chat ── */
 const chatLog=document.getElementById("chat-log"),chatInputWrap=document.getElementById("chat-input-wrap"),chatInput=document.getElementById("chat-input");
@@ -607,12 +733,8 @@ function renderOwnedStations(){
 }
 function hireShip(stationKey){socket.emit("hireShip",{stationKey});}
 function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKey});}
+window.buyShip=buyShip;window.buyStation=buyStation;window.hireShip=hireShip;window.collectStation=collectStation;
 
-window.buyShip = buyShip;
-window.buyStation = buyStation;
-window.hireShip = hireShip;
-window.collectStation = collectStation;
-    
 /* ══════════════════════════════════════
    SOCKET.IO
 ══════════════════════════════════════ */
@@ -684,7 +806,7 @@ socket.on("stationBuyConfirm",({key,x,y,tier,credits})=>{player.credits=credits;
 socket.on("stationBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
 socket.on("hireConfirm",({stationKey,shipCount,credits})=>{player.credits=credits;showFT(`Ship hired! Fleet: ${shipCount}`,ship.x,ship.y-15,"#78ff8a");updateHud();});
 socket.on("hireDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
-socket.on("ownedStationsList",(list)=>{ownedStationsList=list;renderOwnedStations&&renderOwnedStations();});
+socket.on("ownedStationsList",(list)=>{ownedStationsList=list;ensureOwnedTradeShips();renderOwnedStations&&renderOwnedStations();});
 socket.on("ownedStationUpdate",({stationKey,goodsCount,shipCount})=>{showFT(`Station: ${goodsCount} goods ready`,ship.x,ship.y,"#ffcc44",9);});
 socket.on("ownedStationGoods",({stationKey,goods})=>{let added=0;for(const[k,v]of Object.entries(goods)){if(addToInventory(k,v))added+=v;}showFT(`Collected ${added} items from station`,ship.x,ship.y-15,"#78ff8a",11);updateHud();});
 
@@ -748,7 +870,7 @@ function updateSpace(dt){
   for(let i=enemyProjectiles.length-1;i>=0;i--){
     const p=enemyProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
     if(p.life<=0){enemyProjectiles.splice(i,1);continue;}
-    if(dist(p.x,p.y,ship.x,ship.y)<10){damageShip(p.damage);showFT("-"+Math.round(p.damage),ship.x,ship.y-14,"#ff4422",10);enemyProjectiles.splice(i,1);}
+    if(dist(p.x,p.y,ship.x,ship.y)<10){damageShip(p.damage);socket.emit("npcHitPlayer",{damage:p.damage,source:p.source||"tradeShip"});showFT("-"+Math.round(p.damage),ship.x,ship.y-14,"#ff4422",10);enemyProjectiles.splice(i,1);}
   }
 
   // ══════════════════════════════════════════
@@ -790,13 +912,29 @@ function updateSpace(dt){
       }
       if(hit)break;
     }
+    if(!hit){
+      const byKey=new Map(ownedStationsList.map(s=>[s.key,s]));
+      for(const os of ownedTradeShips.values()){
+        const st=byKey.get(os.stationKey);if(!st)continue;
+        if(dist(p.x,p.y,os.x,os.y)<os.size+5){
+          os.hp-=p.damage;os.state="combat";os.aggro=true;os.stateTimer=999;
+          showFT("-"+Math.round(p.damage),os.x,os.y,"#ff4422",9);
+          if(os.hp<=0){dropOwnedTradeShipLoot(os,st);showFT("Trade ship destroyed",p.x,p.y,"#ffcc44",9);}
+          localPlayerProjectiles.splice(i,1);hit=true;break;
+        }
+      }
+    }
   }
 
   // Trade ship NPC update
   for(const st of visibleStations){
     st.buyStockTimer-=dt;if(st.buyStockTimer<=0){refreshBuyStock(st);st.buyStockTimer=300;}
+    updateNpcTradeShipRespawns(st,dt);
     for(const ts of st.tradeShips)updateTradeShip(ts,st,visiblePlanets,dt);
   }
+
+  // Player-owned station trade ship update
+  updateOwnedTradeShips(dt);
 
   // Space drops
   for(let i=spaceDrops.length-1;i>=0;i--){const d=spaceDrops[i];d.x+=d.vx*dt;d.y+=d.vy*dt;d.vx*=Math.pow(0.96,dt*60);d.vy*=Math.pow(0.96,dt*60);d.life-=dt;if(d.life<=0){spaceDrops.splice(i,1);continue;}if(dist(d.x,d.y,ship.x,ship.y)<18&&addToInventory(d.type,1)){showFT("+1 "+RES[d.type].name,ship.x,ship.y,"#78ff8a",9);spaceDrops.splice(i,1);}}
@@ -810,9 +948,9 @@ function updateSpace(dt){
   // Keys
   if(keys.has("l")){keys.delete("l");const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<nearest.p.radius+60){activePlanet=nearest.p;planetMap=genPlanetMap(activePlanet);mode=MODE.PLANET;const cx=Math.floor(planetMap.W/2),sh2=planetMap.heights[cx];astronaut.x=cx*16;astronaut.y=sh2*16-10;astronaut.vx=0;astronaut.vy=0;landedShip.x=(cx-20)*16;landedShip.y=sh2*16-4;drops.length=0;socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});}}
   if(keys.has("g")){keys.delete("g");useGasCanister();}
-  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;if(!inventoryOpen)selectedSlot=null;}
+  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
   if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;}
-  if(keys.has("o")){keys.delete("o");if(nearStation){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;}}}
+  if(keys.has("o")){keys.delete("o");if(nearStation){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}}
 }
 
 function useGasCanister(){
@@ -853,6 +991,9 @@ function drawSpace(){
     ctx.textAlign="left";
     if(isOwn&&dist(ship.x,ship.y,ost.x,ost.y)<80){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("Click B → Collect",sx,sy2+22);ctx.textAlign="left";}
   }
+
+  // Player-owned station trade ships
+  drawOwnedTradeShips(camX,camY);
 
   // NPC Stations (body)
   for(const st of visibleStations){
@@ -973,6 +1114,7 @@ function drawMinimap(){
   for(const st of visibleStations){const m=wm(st.x,st.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=st.factionColor;ctx.fillRect(m.x-2,m.y-2,4,4);}
   // Owned stations on minimap
   for(const ost of ownedStationsList){const m=wm(ost.x,ost.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=ost.isOwn?"#ffcc44":"#aaaaaa";ctx.fillRect(m.x-2,m.y-2,4,4);}
+  for(const os of ownedTradeShips.values()){const m=wm(os.x,os.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=os.isOwn?"#ffee88":"#bbbbbb";ctx.beginPath();ctx.arc(m.x,m.y,1.5,0,Math.PI*2);ctx.fill();}
   for(const[,op]of otherPlayers){const m=wm(op.x,op.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=op.color||"#7be6ff";ctx.beginPath();ctx.arc(m.x,m.y,2,0,Math.PI*2);ctx.fill();}
   const cx=mmX+mmW/2,cy=mmY+mmH/2;ctx.fillStyle="#78ff8a";ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#78ff8a";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(ship.angle)*7,cy+Math.sin(ship.angle)*7);ctx.stroke();
   // Coord display on minimap
@@ -997,8 +1139,16 @@ function drawShop(st){
 }
 
 function drawShopSell(st,px,py,pw,ph){
-  const ss=30,sg=3,cols=6,sx=px+10,sy=py+58;
-  for(let i=0;i<player.maxSlots;i++){const slot=player.invSlots[i];if(!slot.type||!slot.count)continue;const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(by+ss>py+ph-35)break;const isSel=shopSelectedSlot===i;ctx.fillStyle=isSel?"#2a3a4a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#78ff8a":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);ctx.fillStyle=RES[slot.type]?.color||"#aaa";ctx.fillRect(bx+4,by+4,ss-8,ss-8);ctx.fillStyle="#fff";ctx.font="bold 8px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-2,by+ss-2);ctx.textAlign="left";}
+  clampPanelScrolls();
+  const ss=30,sg=3,cols=INV_COLS,sx=px+10,sy=py+58,start=shopInventoryScrollRows*cols,visible=cols*SHOP_SELL_VISIBLE_ROWS;
+  ctx.fillStyle="#7a9aaa";ctx.font="bold 8px monospace";ctx.fillText(`Inventory slots ${start+1}-${Math.min(player.maxSlots,start+visible)} / ${player.maxSlots}`,sx,sy-6);
+  for(let n=0;n<visible;n++){
+    const i=start+n;if(i>=player.maxSlots)break;
+    const slot=player.invSlots[i],col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);
+    ctx.fillStyle=shopSelectedSlot===i?"#2a3a4a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=shopSelectedSlot===i?"#78ff8a":"#2a3a4a";ctx.lineWidth=shopSelectedSlot===i?2:1;ctx.strokeRect(bx,by,ss,ss);
+    if(slot.type&&slot.count){ctx.fillStyle=RES[slot.type]?.color||"#aaa";ctx.fillRect(bx+4,by+4,ss-8,ss-8);ctx.fillStyle="#fff";ctx.font="bold 8px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-2,by+ss-2);ctx.textAlign="left";}
+  }
+  if(maxShopInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=SHOP_SELL_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(14,trackH*(SHOP_SELL_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(shopInventoryScrollRows/maxShopInventoryScrollRows());ctx.fillStyle="#5a8aaa";ctx.fillRect(trackX,knobY,4,knobH);ctx.fillStyle="#6a8aaa";ctx.font="7px monospace";ctx.fillText("wheel",trackX-8,trackY+trackH+9);}
   const dx=px+260,dy=py+58,dw=170,dh=175;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
   if(shopSelectedSlot!==null&&player.invSlots[shopSelectedSlot]?.type){
     const slot=player.invSlots[shopSelectedSlot],res=RES[slot.type];if(!res)return;
@@ -1040,8 +1190,8 @@ function handleShopClick(mx,my){
 }
 
 function handleSellClick(st,mx,my,px,py,pw,ph){
-  const ss=30,sg=3,cols=6,sx=px+10,sy=py+58;
-  for(let i=0;i<player.maxSlots;i++){const slot=player.invSlots[i];if(!slot.type||!slot.count)continue;const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(by+ss>py+ph-35)break;if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){shopSelectedSlot=i;shopSellQty=1;return;}}
+  const ss=30,sg=3,cols=INV_COLS,sx=px+10,sy=py+58,start=shopInventoryScrollRows*cols,visible=cols*SHOP_SELL_VISIBLE_ROWS;
+  for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const slot=player.invSlots[i],col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){shopSelectedSlot=(slot.type&&slot.count)?i:null;shopSellQty=1;return;}}
   if(shopSelectedSlot!==null&&player.invSlots[shopSelectedSlot]?.type){
     const slot=player.invSlots[shopSelectedSlot],dx=px+260,dy=py+58,dw=170,bw=28,bh=18,my2=dy+90,mx2=dx+20;
     if(mx>=mx2&&mx<=mx2+bw&&my>=my2&&my<=my2+bh){shopSellQty=Math.max(1,shopSellQty-1);return;}
@@ -1085,23 +1235,27 @@ function handleAttrClick(mx,my){
 
 /* ── Inventory UI ── */
 function handleInventoryClick(mx,my){
-  const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,ss=32,sg=4,cols=6,sx=px+10,sy=py+28;
-  for(let i=0;i<player.maxSlots;i++){const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){const slot=player.invSlots[i];selectedSlot=(slot.type&&slot.count)?i:null;return;}}
+  clampPanelScrolls();
+  const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
+  for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){const slot=player.invSlots[i];selectedSlot=(slot.type&&slot.count)?i:null;return;}}
   if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){buyInventorySlot();return;}}
   selectedSlot=null;
 }
 function drawInventory(){
   if(!inventoryOpen)return;
+  clampPanelScrolls();
   ctx.fillStyle="rgba(0,0,0,0.75)";ctx.fillRect(0,0,canvas.width,canvas.height);
   const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#1a1f2e";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#4a5f8a";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
   ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.fillText("INVENTORY",px+10,py+16);ctx.fillStyle="#8fa3cc";ctx.font="10px monospace";ctx.fillText(`Slots:${player.maxSlots}/${MAX_TOTAL_SLOTS} Cargo:${cargoUsed()}/${ship.cargoMax}`,px+110,py+16);
-  const ss=32,sg=4,cols=6,sx=px+10,sy=py+28;
-  for(let i=0;i<player.maxSlots;i++){const col=i%cols,row=Math.floor(i/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg),slot=player.invSlots[i],isSel=selectedSlot===i;ctx.fillStyle=isSel?"#1a2a3a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#5a9aff":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);if(slot.type&&slot.count){ctx.fillStyle=RES[slot.type]?.color||"#aaa";ctx.fillRect(bx+4,by+4,ss-8,ss-8);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-3,by+ss-3);ctx.textAlign="left";}}
+  const ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
+  for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg),slot=player.invSlots[i],isSel=selectedSlot===i;ctx.fillStyle=isSel?"#1a2a3a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#5a9aff":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);if(slot.type&&slot.count){ctx.fillStyle=RES[slot.type]?.color||"#aaa";ctx.fillRect(bx+4,by+4,ss-8,ss-8);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-3,by+ss-3);ctx.textAlign="left";}}
+  if(maxInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=INV_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(14,trackH*(INV_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(inventoryScrollRows/maxInventoryScrollRows());ctx.fillStyle="#5a8aaa";ctx.fillRect(trackX,knobY,4,knobH);ctx.fillStyle="#6a8aaa";ctx.font="7px monospace";ctx.fillText("wheel",trackX-8,trackY+trackH+9);}
+  ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText(`Showing ${start+1}-${Math.min(player.maxSlots,start+visible)} of ${player.maxSlots}`,px+10,py+ph-22);
   const dx=px+250,dy=py+28,dw=140,dh=140;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
   if(selectedSlot!==null&&player.invSlots[selectedSlot]?.type){const slot=player.invSlots[selectedSlot],res=RES[slot.type];if(res){ctx.fillStyle=res.color;ctx.fillRect(dx+10,dy+10,46,46);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=2;ctx.strokeRect(dx+10,dy+10,46,46);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+62,dy+20);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Qty:${slot.count}`,dx+62,dy+33);const rarN=["","Common","Uncommon","Rare","Epic","Legendary","Exotic"],rarC=["","#9a9a9a","#7aa37a","#5a8adf","#ba5adf","#dfaa5a","#ff5adf"];ctx.fillStyle=rarC[res.rarity]||"#9a9a9a";ctx.fillText(rarN[res.rarity],dx+62,dy+46);ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+10,dy+62);ctx.lineTo(dx+dw-10,dy+62);ctx.stroke();if(slot.type==="gas_canister"){ctx.fillStyle="#aaff44";ctx.font="bold 9px monospace";ctx.fillText("G: Use canister",dx+10,dy+80);}else{ctx.fillStyle="#7a8fa0";ctx.font="bold 9px monospace";ctx.fillText("Market Value",dx+10,dy+78);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText(`${price(slot.type)}cr each`,dx+10,dy+92);ctx.fillStyle="#78ff8a";ctx.fillText(`${price(slot.type)*slot.count}cr total`,dx+10,dy+105);}}}
   else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to view",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
   if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24,canB=player.credits>=SLOT_COST;ctx.fillStyle=canB?"#2d4a3e":"#3a2a2a";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=canB?"#4a8a6a":"#6a4a4a";ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=canB?"#7be6ff":"#8a7a7a";ctx.font="9px monospace";ctx.fillText(`Buy Slot:${SLOT_COST}cr`,bx+8,by+15);}
-  ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("I:close  G:use gas",px+10,py+ph-10);
+  ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("I:close  G:use gas  wheel:scroll",px+10,py+ph-10);
 }
 
 /* ── Planet mode ── */
@@ -1110,7 +1264,7 @@ function updatePlanet(dt){
   if(keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<28){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;ship.vx*=0.2;ship.vy*=0.2;mode=MODE.SPACE;socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});return;}}
   if(mouse.down)doMining(dt);
   for(let i=drops.length-1;i>=0;i--){const it=drops[i];it.vy+=grav*dt;it.x+=it.vx*dt;it.y+=it.vy*dt;if(itemCollide(it)){it.vx*=0.6;it.vy=0;}if(dist(astronaut.x,astronaut.y,it.x,it.y)<18&&addToInventory(it.kind,1))drops.splice(i,1);}
-  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;if(!inventoryOpen)selectedSlot=null;}
+  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
 }
 function drawPlanet(){
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle=activePlanet.pal.sky;ctx.fillRect(0,0,canvas.width,canvas.height);
