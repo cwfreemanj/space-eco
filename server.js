@@ -19,11 +19,12 @@ const io     = new Server(server, {
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") { res.sendStatus(204); return; }
   next();
 });
 
+app.use(express.json({limit:"32kb"}));
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get("/api/serverinfo", (_req, res) => {
@@ -41,6 +42,22 @@ const DEAD_ZONE    = 300;
 const BROADCAST_RANGE = CHUNK_SIZE * 3.5;
 const MAX_PLAYERS  = 200;
 const GALAXY_SEED  = "GALAXY-01";
+
+
+/* ── Real-money credit packages ──
+   Never trust package prices from the browser. Wix backend should create the payment
+   from the same fixed package IDs, then call /api/grant-credits after successful payment.
+*/
+const CREDIT_PACKAGES = {
+  credits_10000:   { credits:10000,   amount:1.99,  cents:199,  label:"Scout Cache" },
+  credits_25000:   { credits:25000,   amount:2.99,  cents:299,  label:"Trader Pack" },
+  credits_50000:   { credits:50000,   amount:3.99,  cents:399,  label:"Fleet Boost" },
+  credits_100000:  { credits:100000,  amount:4.99,  cents:499,  label:"Station Builder" },
+  credits_500000:  { credits:500000,  amount:19.99, cents:1999, label:"Empire Vault" },
+  credits_1000000: { credits:1000000, amount:49.99, cents:4999, label:"Galaxy Treasury" },
+};
+const grantedCreditPayments = new Map(); // paymentId -> grant record
+const PURCHASE_WEBHOOK_SECRET = process.env.PURCHASE_WEBHOOK_SECRET || "";
 
 /* ── Ship types (synced to client) ── */
 const SHIP_TYPES = {
@@ -121,6 +138,31 @@ const economy={
   bought(k,q){this.scarcity[k]=Math.max(0.5,Math.min(1.5,this.scarcity[k]+q*0.02));},
   snapshot(){const o={};for(const k of RES_KEYS)o[k]=this.price(k);return o;}
 };
+
+
+/* ── Credit purchase API called by Wix backend only ── */
+app.get("/api/credit-packages", (_req,res)=>{
+  res.json(Object.fromEntries(Object.entries(CREDIT_PACKAGES).map(([id,p])=>[id,{credits:p.credits,amount:p.amount,label:p.label}])));
+});
+app.post("/api/grant-credits", (req,res)=>{
+  if(!PURCHASE_WEBHOOK_SECRET){res.status(500).json({ok:false,error:"PURCHASE_WEBHOOK_SECRET is not configured on Railway."});return;}
+  const auth=req.get("authorization")||"";
+  if(auth!==`Bearer ${PURCHASE_WEBHOOK_SECRET}`){res.status(401).json({ok:false,error:"Unauthorized."});return;}
+  const {paymentId,packageId,socketId}=req.body||{};
+  if(!paymentId||!packageId||!socketId){res.status(400).json({ok:false,error:"paymentId, packageId, and socketId are required."});return;}
+  const pack=CREDIT_PACKAGES[packageId];
+  if(!pack){res.status(400).json({ok:false,error:"Unknown credit package."});return;}
+  if(grantedCreditPayments.has(paymentId)){res.json({ok:true,duplicate:true,grant:grantedCreditPayments.get(paymentId)});return;}
+  const p=players.get(socketId);
+  if(!p){res.status(409).json({ok:false,error:"Player socket is not online. Add account persistence before granting offline purchases."});return;}
+  p.credits+=pack.credits;
+  const grant={paymentId,packageId,socketId,playerName:p.name,creditsAdded:pack.credits,credits:p.credits,grantedAt:Date.now()};
+  grantedCreditPayments.set(paymentId,grant);
+  addScore(p,Math.floor(pack.credits*0.002),"Credit Purchase");
+  io.to(socketId).emit("creditPurchaseConfirm",grant);
+  io.to(socketId).emit("creditUpdate",{credits:p.credits});
+  res.json({ok:true,grant});
+});
 
 /* ── PvP projectiles ── */
 const pvpProjectiles=[];
