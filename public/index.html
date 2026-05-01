@@ -91,6 +91,22 @@ tr:hover td{background:#1a2a3a}
 .char-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #16243a}
 .char-btn{background:#183354;border:1px solid #3f6f9f;border-radius:5px;color:#9fe8ff;padding:4px 8px;cursor:pointer;font-size:10px;font-weight:bold}
 .char-btn:hover{background:#204a78}
+
+/* Party + faction UI */
+#party-panel{position:fixed;left:8px;top:54px;width:210px;background:rgba(5,10,24,.86);border:1px solid #2a6aa0;border-radius:8px;color:#d6e1ff;z-index:22;padding:8px;font-family:system-ui,Segoe UI,Arial;display:none;box-shadow:0 0 18px rgba(123,230,255,.1)}
+#party-panel h3{margin:0 0 6px;color:#7be6ff;font-size:12px}
+.party-member{font-size:10px;border-top:1px solid #1d3450;padding:4px 0;display:flex;justify-content:space-between;gap:6px}
+.party-member b{color:#ffdd44}
+.social-banner{position:fixed;top:120px;left:50%;transform:translateX(-50%);background:#0d1b2e;border:2px solid #7be6ff;border-radius:10px;color:#d6e1ff;padding:10px 14px;z-index:96;display:none;box-shadow:0 0 24px rgba(123,230,255,.28);font-family:system-ui,Segoe UI,Arial}
+.social-banner button{margin-left:8px}
+#social-panel{position:fixed;inset:0;background:rgba(0,0,0,.74);display:none;align-items:center;justify-content:center;z-index:92;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial}
+.social-box{width:760px;max-width:94vw;max-height:84vh;overflow:auto;background:#0e1424;border:2px solid #2a6aa0;border-radius:10px;padding:14px;box-shadow:0 0 24px rgba(123,230,255,.18)}
+.social-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.social-head h2{margin:0;color:#7be6ff;font-size:17px}
+.social-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.social-card{background:#0b1220;border:1px solid #20395c;border-radius:8px;padding:10px}.social-card h3{margin:0 0 8px;color:#ffdd44;font-size:13px}
+.social-row{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}.social-row input,.social-row textarea,.social-row select{background:#091020;border:1px solid #2a4a7a;border-radius:4px;color:#d6e1ff;font-size:11px;padding:4px}.social-row textarea{width:100%;height:52px}
+.social-btn{background:#173a2a;border:1px solid #4a8a6a;border-radius:5px;color:#78ff8a;padding:5px 9px;cursor:pointer;font-size:11px;font-weight:bold}.social-btn.warn{background:#3a1c1c;border-color:#8a4a4a;color:#ff9a9a}.social-btn.gold{background:#3a3010;border-color:#9a7a22;color:#ffdd44}
+.social-small{font-size:10px;color:#8fa3cc;line-height:1.35}.social-member,.social-quest{font-size:11px;border-top:1px solid #172a44;padding:6px 0}.social-tag{display:inline-block;padding:1px 5px;border-radius:999px;background:#101b2e;border:1px solid #2a4a7a;color:#ffdd44;font-size:10px}
+
 </style>
 </head>
 <body>
@@ -124,7 +140,7 @@ tr:hover td{background:#1a2a3a}
     <span class="pill"><b>📍</b> <span id="coords">0, 0</span></span>
     <span class="pill"><b>Ship:</b> <span id="shipname">Scout</span></span>
     <span class="pill"><b>Inv:</b> <span id="inv">(empty)</span></span>
-    <span class="pill hint"><b>WASD</b>move/fly <b>L</b>land/takeoff <b>Q</b>tool <b>R</b>trade <b>C</b>character <b>O</b>shop <b>G</b>gas <b>I</b>inv <b>P</b>attrs <b>H</b>ships <b>B</b>build <b>M</b>credits <b>K</b>board <b>N</b>players <b>T</b>chat <b>Click</b>fire/mine</span>
+    <span class="pill hint"><b>WASD</b>move/fly <b>L</b>land/takeoff <b>Q</b>tool <b>R</b>trade <b>C</b>character <b>F</b>social <b>J</b>party <b>U</b>faction <b>O</b>shop <b>G</b>gas <b>I</b>inv <b>P</b>attrs <b>H</b>ships <b>B</b>build <b>M</b>credits <b>K</b>board <b>N</b>players <b>T</b>chat <b>Click</b>fire/mine</span>
   </div>
   <canvas id="c" width="560" height="310"></canvas>
 </div>
@@ -189,6 +205,29 @@ tr:hover td{background:#1a2a3a}
     <p class="credit-note">Purchases are started through the Wix parent page. Credits are only granted after the Wix backend confirms a successful payment with the Railway server.</p>
     <div id="credit-pack-list" class="credit-pack-grid"></div>
     <p id="credit-pay-status" class="credit-note"></p>
+  </div>
+</div>
+
+
+<!-- Party status panel -->
+<div id="party-panel"><h3>🛡 PARTY</h3><div id="party-member-list"></div><div class="social-small">F: social · J: invite nearby</div></div>
+
+<!-- Party/Faction invite banner -->
+<div id="social-invite-banner" class="social-banner">
+  <span id="social-invite-text">Invite</span>
+  <button id="social-invite-accept" class="trade-btn">Accept</button>
+  <button id="social-invite-decline" class="trade-btn warn">Decline</button>
+</div>
+
+<!-- Party + Faction panel -->
+<div id="social-panel">
+  <div class="social-box">
+    <div class="social-head"><h2>🏰 PARTY & FACTION COMMAND</h2><button id="social-close" class="social-btn warn">Close</button></div>
+    <div class="social-small">F opens/closes this window. J invites the nearest player to your party. U invites the nearest player to your faction. Party and faction members cannot damage each other.</div>
+    <div class="social-grid">
+      <div class="social-card"><h3>Party</h3><div id="social-party-content"></div></div>
+      <div class="social-card"><h3>Faction</h3><div id="social-faction-content"></div></div>
+    </div>
   </div>
 </div>
 
@@ -279,6 +318,9 @@ window.addEventListener("keydown",e=>{
   if(e.key.toLowerCase()==="h"){toggleShipShop();}
   if(e.key.toLowerCase()==="b"){if(mode===MODE.SPACE&&!shopOpen&&!inventoryOpen&&!attrOpen)toggleBuildPanel();}
   if(e.key.toLowerCase()==="m"){toggleCreditShop();}
+  if(e.key.toLowerCase()==="f"){toggleSocialPanel();}
+  if(e.key.toLowerCase()==="j"){inviteNearestToParty();}
+  if(e.key.toLowerCase()==="u"){inviteNearestToFaction();}
   if(e.key.toLowerCase()==="c"){toggleCharacterPanel();}
   if(e.key.toLowerCase()==="q"){togglePlanetTool();}
   if(e.key.toLowerCase()==="r"){sendTradeRequestToNearest();}
@@ -394,6 +436,7 @@ const otherPlayers=new Map();
 const planetPlayers=new Map();
 const planetProjectiles=new Map();
 let pendingTradeRequest=null,tradeStatus="",activeTrade=null;
+let partyState=null,factionState=null,pendingSocialInvite=null,socialOpen=false;
 let characterOpen=false,planetTool="mining",planetAttackCooldown=0,planetStateTimer=0;
 const PLANET_ATTACK_RANGE=72;
 const pvpProjectiles=[];
@@ -1140,6 +1183,21 @@ socket.on("tradeComplete",({credits,gaveOffer,receivedOffer,otherName})=>{
   showFT("Trade complete",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-35:ship.y-22,"#78ff8a",11);
   closeTradePanel(false);
 });
+
+
+socket.on("partyState",(state)=>{partyState=state;renderPartyPanel();renderSocialPanel();});
+socket.on("partyInvite",({partyId,fromName})=>{pendingSocialInvite={type:"party",partyId,fromName,expires:Date.now()+30000};showSocialInviteBanner(`<b>${fromName}</b> invited you to a party`);addChat("Party",`${fromName} invited you to a party.` ,"#ffdd44");});
+socket.on("partyInviteSent",({targetName})=>{addChat("Party",`Party invite sent to ${targetName}.`,"#7be6ff");});
+socket.on("partyDenied",({reason})=>{addChat("Party",reason||"Party action failed.","#ff8844");});
+socket.on("partyLeft",({reason})=>{partyState=null;renderPartyPanel();renderSocialPanel();addChat("Party",reason||"Left party.","#ff8844");});
+
+socket.on("factionState",(state)=>{factionState=state;renderSocialPanel();});
+socket.on("factionInvite",({factionId,fromName,name,tag,icon,color})=>{pendingSocialInvite={type:"faction",factionId,fromName,expires:Date.now()+45000};showSocialInviteBanner(`<b>${fromName}</b> invited you to ${icon||"⭐"} [${tag}] ${name}`);addChat("Faction",`${fromName} invited you to [${tag}] ${name}.`,color||"#ffdd44");});
+socket.on("factionNotice",({message})=>{addChat("Faction",message||"Faction update.","#7be6ff");});
+socket.on("factionDenied",({reason})=>{addChat("Faction",reason||"Faction action failed.","#ff8844");});
+socket.on("factionLeft",({reason})=>{factionState=null;renderSocialPanel();addChat("Faction",reason||"Left faction.","#ff8844");});
+socket.on("factionQuestCompleted",({rewardPlayerXp,rewardFactionXp})=>{addChat("Faction",`Quest complete! +${rewardPlayerXp||0} player XP, +${rewardFactionXp||0} faction XP.`,"#78ff8a");});
+
 socket.on("oxygenDamageUpdate",({hp,damage})=>{ship.hp=hp;showFT(`O2 DAMAGE -${Math.round(damage)}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)gameOver=true;});
 
 socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield})=>{
@@ -1800,10 +1858,24 @@ function setTradeReady(){if(!activeTrade)return;sendTradeOffer();socket.emit("tr
 function formatOfferHTML(offer,editable=false){let html=`<div class="trade-offer-item"><span>Credits</span><b>${offer.credits||0} cr</b></div>`;if(!(offer.items||[]).length)html+=`<div class="trade-small">No resources/items offered.</div>`;for(let i=0;i<(offer.items||[]).length;i++){const it=offer.items[i];html+=`<div class="trade-offer-item"><span>${RES[it.type]?.name||it.type} × ${it.quantity}</span>${editable?`<button class="trade-btn warn trade-remove" data-idx="${i}" style="padding:2px 6px">Remove</button>`:""}</div>`;}return html;}
 function renderTradePanel(){if(!activeTrade)return;const other=activeTrade.yourSide==="a"?"b":"a";document.getElementById("trade-other-name").textContent=activeTrade.otherName||"Pilot";document.getElementById("trade-session-status").textContent=tradeStatus||"Choose credits/resources, then press Ready. Changing your offer resets readiness.";const offer=myTradeOffer(),their=theirTradeOffer();const creditInput=document.getElementById("trade-credit-input");if(creditInput&&document.activeElement!==creditInput)creditInput.value=offer.credits||0;const sel=document.getElementById("trade-item-select");if(sel){const old=sel.value;sel.innerHTML="";const counts=inventoryTypeCounts();for(const [type,count] of Object.entries(counts)){const opt=document.createElement("option");opt.value=type;opt.textContent=`${RES[type]?.name||type} (${count})`;sel.appendChild(opt);}if(old)sel.value=old;}document.getElementById("trade-your-offer").innerHTML=formatOfferHTML(offer,true);document.getElementById("trade-their-offer").innerHTML=formatOfferHTML(their,false);document.getElementById("trade-your-ready").textContent=activeTrade.ready?.[activeTrade.yourSide]?"✓ READY":"";document.getElementById("trade-their-ready").textContent=activeTrade.ready?.[other]?"✓ READY":"";for(const btn of document.querySelectorAll(".trade-remove"))btn.onclick=()=>removeTradeItem(Number(btn.dataset.idx));}
 function initTradeDom(){const a=document.getElementById("trade-accept-btn"),d=document.getElementById("trade-decline-btn"),cl=document.getElementById("trade-close-btn"),add=document.getElementById("trade-add-item-btn"),upd=document.getElementById("trade-credit-update-btn"),ready=document.getElementById("trade-ready-btn");if(a)a.onclick=()=>respondToTradeRequest(true);if(d)d.onclick=()=>respondToTradeRequest(false);if(cl)cl.onclick=()=>closeTradePanel(true);if(add)add.onclick=addTradeItem;if(upd)upd.onclick=sendTradeOffer;if(ready)ready.onclick=setTradeReady;}
+
+function nearestAnyPlayerId(rangePlanet=160,rangeSpace=320){const t=mode===MODE.PLANET?nearestPlanetPlayer(rangePlanet):nearestSpacePlayer(rangeSpace);return t?.id||null;}
+function toggleSocialPanel(){socialOpen=!socialOpen;const el=document.getElementById("social-panel");if(el)el.style.display=socialOpen?"flex":"none";if(socialOpen){socket.emit("requestPartyState");socket.emit("requestFactionState");renderSocialPanel();}}
+function inviteNearestToParty(){const id=nearestAnyPlayerId();if(!id){showFT("No nearby player for party invite",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-28:ship.y-20,"#ffcc44",9);return;}socket.emit("partyInvite",{targetId:id});}
+function inviteNearestToFaction(){const id=nearestAnyPlayerId();if(!id){showFT("No nearby player for faction invite",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-28:ship.y-20,"#ffcc44",9);return;}socket.emit("factionInvite",{targetId:id});}
+function showSocialInviteBanner(html){const b=document.getElementById("social-invite-banner"),t=document.getElementById("social-invite-text");if(t)t.innerHTML=html;if(b)b.style.display="block";}
+function hideSocialInviteBanner(){const b=document.getElementById("social-invite-banner");if(b)b.style.display="none";}
+function respondSocialInvite(accepted){if(!pendingSocialInvite||Date.now()>pendingSocialInvite.expires){pendingSocialInvite=null;hideSocialInviteBanner();return;}if(pendingSocialInvite.type==="party")socket.emit("partyInviteResponse",{partyId:pendingSocialInvite.partyId,accepted:!!accepted});else socket.emit("factionInviteResponse",{factionId:pendingSocialInvite.factionId,accepted:!!accepted});pendingSocialInvite=null;hideSocialInviteBanner();}
+function renderPartyPanel(){const panel=document.getElementById("party-panel"),list=document.getElementById("party-member-list");if(!panel||!list)return;if(!partyState||!(partyState.members||[]).length){panel.style.display="none";return;}panel.style.display="block";let html="";for(const m of partyState.members){const loc=m.mode==="planet"?`Planet ${Math.round(m.planetX)},${Math.round(m.planetY)}`:`Space ${m.x},${m.y}`;html+=`<div class="party-member"><span>${m.leader?"👑":"•"} <b>${m.name}</b><br><span class="social-small">${loc}</span></span><span>${m.hp}/${m.maxHp}</span></div>`;}list.innerHTML=html;}
+function renderSocialPanel(){if(!socialOpen)return;renderPartySocial();renderFactionSocial();}
+function renderPartySocial(){const el=document.getElementById("social-party-content");if(!el)return;if(!partyState){el.innerHTML=`<div class="social-small">Create a party or invite a nearby pilot. Max 8 members. Party members cannot damage each other.</div><div class="social-row"><button id="party-create-btn" class="social-btn">Create Party</button><button id="party-invite-btn" class="social-btn gold">Invite Nearby</button></div>`;document.getElementById("party-create-btn").onclick=()=>socket.emit("partyCreate");document.getElementById("party-invite-btn").onclick=inviteNearestToParty;return;}const leader=partyState.leaderId===player.id;let html=`<div class="social-small">Members ${partyState.members.length}/${partyState.maxMembers}</div><div class="social-row"><button id="party-invite-btn" class="social-btn gold">Invite Nearby</button><button id="party-leave-btn" class="social-btn warn">${leader?"Disband Party":"Leave Party"}</button></div>`;for(const m of partyState.members){html+=`<div class="social-member"><b>${m.leader?"👑 ":""}${m.name}</b><br><span class="social-small">${m.mode} · ${m.mode==="planet"?`${m.planetX},${m.planetY}`:`${m.x},${m.y}`}</span>${leader&&!m.leader?`<div><button class="social-btn warn party-kick" data-id="${m.id}">Kick</button></div>`:""}</div>`;}el.innerHTML=html;document.getElementById("party-invite-btn").onclick=inviteNearestToParty;document.getElementById("party-leave-btn").onclick=()=>socket.emit(leader?"partyDisband":"partyLeave");for(const b of el.querySelectorAll(".party-kick"))b.onclick=()=>socket.emit("partyKick",{targetId:b.dataset.id});}
+function renderFactionSocial(){const el=document.getElementById("social-faction-content");if(!el)return;if(!factionState){el.innerHTML=`<div class="social-small">Create a faction for 5000 credits. Factions have tags, colors, ranks, quests, leveling, and friendly-fire protection.</div><div class="social-row"><input id="fac-name" placeholder="Faction name" style="flex:1"><input id="fac-tag" placeholder="TAG" style="width:54px"><input id="fac-icon" placeholder="⭐" style="width:42px"><input id="fac-color" type="color" value="#7be6ff"></div><div class="social-row"><textarea id="fac-desc" placeholder="Faction description"></textarea></div><button id="fac-create-btn" class="social-btn gold">Create Faction — 5000cr</button>`;document.getElementById("fac-create-btn").onclick=()=>socket.emit("factionCreate",{name:document.getElementById("fac-name").value,tag:document.getElementById("fac-tag").value,icon:document.getElementById("fac-icon").value,color:document.getElementById("fac-color").value,description:document.getElementById("fac-desc").value});return;}const fs=factionState,can=fs.yourRole==="leader"||fs.yourRole==="admin";let html=`<div><span class="social-tag" style="border-color:${fs.color};color:${fs.color}">${fs.icon} [${fs.tag}]</span> <b>${fs.name}</b></div><div class="social-small">Lv ${fs.level} · XP ${fs.xp}/${fs.xpNeeded} · Members ${fs.members.length}/${fs.capacity}<br>${fs.description||""}</div><div class="social-row"><button id="fac-invite-btn" class="social-btn gold">Invite Nearby</button><button id="fac-leave-btn" class="social-btn warn">${fs.yourRole==="leader"?"Disband Faction":"Leave Faction"}</button></div>`;if(can)html+=`<div class="social-row"><input id="fac-edit-name" value="${fs.name}" style="flex:1"><input id="fac-edit-tag" value="${fs.tag}" style="width:54px"><input id="fac-edit-icon" value="${fs.icon}" style="width:42px"><input id="fac-edit-color" type="color" value="${fs.color||"#7be6ff"}"><button id="fac-save-btn" class="social-btn">Save</button></div><textarea id="fac-edit-desc">${fs.description||""}</textarea>`;html+=`<h3>Members</h3>`;for(const m of fs.members){html+=`<div class="social-member"><b>${m.role==="leader"?"👑":m.role==="admin"?"⭐":"•"} ${m.name}</b> <span class="social-small">${m.rank} · contrib ${m.contribution}</span>${can&&m.id!==player.id&&m.role!=="leader"?`<div class="social-row"><input class="fac-rank" data-id="${m.id}" value="${m.rank}" style="width:90px"><select class="fac-role" data-id="${m.id}"><option value="member" ${m.role!=="admin"?"selected":""}>Member</option><option value="admin" ${m.role==="admin"?"selected":""}>Admin</option></select><button class="social-btn fac-rank-btn" data-id="${m.id}">Set</button><button class="social-btn warn fac-kick" data-id="${m.id}">Kick</button></div>`:""}</div>`;}html+=`<h3>Faction Quests</h3>`;for(const q of fs.quests||[]){const pct=Math.floor(((q.progress||0)/(q.target||1))*100);html+=`<div class="social-quest"><b>${q.completed?"✅ ":q.acceptedBy?"🟡 ":"⬜ "}${q.title}</b><br><span class="social-small">${q.description}<br>Progress ${q.progress||0}/${q.target} (${pct}%) ${q.acceptedByName?`· Accepted by ${q.acceptedByName}`:""}</span>${!q.completed&&!q.acceptedBy?`<div><button class="social-btn fac-quest" data-id="${q.id}">Accept Quest</button></div>`:""}</div>`;}el.innerHTML=html;document.getElementById("fac-invite-btn").onclick=inviteNearestToFaction;document.getElementById("fac-leave-btn").onclick=()=>socket.emit(fs.yourRole==="leader"?"factionDisband":"factionLeave");const save=document.getElementById("fac-save-btn");if(save)save.onclick=()=>socket.emit("factionUpdate",{name:document.getElementById("fac-edit-name").value,tag:document.getElementById("fac-edit-tag").value,icon:document.getElementById("fac-edit-icon").value,color:document.getElementById("fac-edit-color").value,description:document.getElementById("fac-edit-desc").value});for(const b of el.querySelectorAll(".fac-kick"))b.onclick=()=>socket.emit("factionKick",{targetId:b.dataset.id});for(const b of el.querySelectorAll(".fac-rank-btn"))b.onclick=()=>{const id=b.dataset.id;socket.emit("factionSetRank",{targetId:id,role:el.querySelector(`.fac-role[data-id='${id}']`).value,rank:el.querySelector(`.fac-rank[data-id='${id}']`).value});};for(const b of el.querySelectorAll(".fac-quest"))b.onclick=()=>socket.emit("factionAcceptQuest",{questId:b.dataset.id});}
+function initSocialDom(){const c=document.getElementById("social-close"),a=document.getElementById("social-invite-accept"),d=document.getElementById("social-invite-decline");if(c)c.onclick=()=>toggleSocialPanel();if(a)a.onclick=()=>respondSocialInvite(true);if(d)d.onclick=()=>respondSocialInvite(false);}
 function cycleCosmetic(){const colors=["#ffd27a","#f4b0ff","#7be6ff","#78ff8a","#ff9966","#dfe8ff","#ffdd44"];const i=colors.indexOf(character.cosmeticColor);character.cosmeticColor=colors[(i+1)%colors.length];socket.emit("characterCosmetic",{cosmeticColor:character.cosmeticColor,suitColor:character.suitColor});}
 function handleCharacterClick(mx,my){const pw=420,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;if(mx<px||mx>px+pw||my<py||my>py+ph){characterOpen=false;return;}const rows=["weapon","mining","oxygen"];for(let i=0;i<rows.length;i++){const y=py+90+i*38,bx=px+300,by=y-17,bw=95,bh=22;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){socket.emit("upgradeCharacterPart",{kind:rows[i]});return;}}const cbx=px+20,cby=py+50;if(mx>=cbx&&mx<=cbx+120&&my>=cby&&my<=cby+24){cycleCosmetic();}}
 function drawCharacterPanel(){const pw=420,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="rgba(0,0,0,.78)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#3f6f9f";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);ctx.fillStyle="#7be6ff";ctx.font="bold 13px monospace";ctx.fillText("CHARACTER BAY",px+14,py+20);ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText("C:close  R:request trade  Q:switch planet tool",px+150,py+20);ctx.fillStyle="#0b1220";ctx.fillRect(px+15,py+36,130,78);ctx.strokeStyle="#274364";ctx.strokeRect(px+15,py+36,130,78);ctx.fillStyle=character.cosmeticColor;ctx.fillRect(px+72,py+56,14,10);ctx.fillStyle=character.suitColor;ctx.fillRect(px+70,py+66,18,20);ctx.fillStyle="#6ad1ff";ctx.fillRect(px+74,py+67,10,4);ctx.fillStyle="#ffdd44";ctx.font="9px monospace";ctx.fillText("Change Color",px+33,py+104);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(px+20,py+50,120,24);ctx.fillStyle="#d6e1ff";ctx.font="10px monospace";ctx.fillText(`Credits: ${player.credits}cr`,px+170,py+45);ctx.fillText(`Level: ${player.level}  XP: ${player.xp}/${player.xpToNext}`,px+170,py+60);ctx.fillText(`Ship: ${SHIP_TYPES[player.shipType]?.name||player.shipType}  HP:${Math.round(ship.hp)}/${ship.maxHp} SH:${Math.round(ship.shield)}/${ship.maxShield}`,px+170,py+75);ctx.fillText(`Planet Tool: ${planetTool}`,px+170,py+90);const rows=[['weapon','Planet Weapon',character.weaponLevel,`Damage ${planetWeaponDamage()}`],['mining','Mining Apparatus',character.miningLevel,`Power ${planetMiningPower()}`],['oxygen','Oxygen Tank',character.oxygenLevel,`O2 ${oxygen.max}% / drain ${oxygen.drainRate.toFixed(1)}`]];for(let i=0;i<rows.length;i++){const [kind,label,lv,stat]=rows[i],y=py+130+i*38,cost=characterUpgradeCost(kind);ctx.fillStyle="#0b1220";ctx.fillRect(px+18,y-24,pw-36,30);ctx.strokeStyle="#1e3858";ctx.strokeRect(px+18,y-24,pw-36,30);ctx.fillStyle="#ffdd44";ctx.font="bold 10px monospace";ctx.fillText(`${label} Lv${lv}`,px+28,y-8);ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(stat,px+160,y-8);ctx.fillStyle=player.credits>=cost?"#183a2a":"#3a1b1b";ctx.fillRect(px+300,y-17,95,22);ctx.strokeStyle=player.credits>=cost?"#4a8a6a":"#6a3333";ctx.strokeRect(px+300,y-17,95,22);ctx.fillStyle=player.credits>=cost?"#78ff8a":"#aa7777";ctx.font="bold 8px monospace";ctx.fillText(`Upgrade ${cost}cr`,px+307,y-3);}if(tradeStatus){ctx.fillStyle="#7be6ff";ctx.font="9px monospace";ctx.fillText(tradeStatus,px+20,py+ph-14);}}
 initTradeDom();
+initSocialDom();
 
 /* ── Game over ── */
 function drawGameOver(){
