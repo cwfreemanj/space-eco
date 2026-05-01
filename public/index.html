@@ -328,6 +328,71 @@ const STATION_TIERS={
 };
 const TIER_ORDER=["outpost","standard","advanced","capital"];
 
+/* ── Station health / shield defense ── */
+const NPC_STATION_DEFENSE={
+  outpost:{maxHp:2600,maxShield:900,shieldRegen:14,hpRegen:1.4,respawnDelay:[8,16],xpReward:180},
+  standard:{maxHp:6200,maxShield:2200,shieldRegen:26,hpRegen:3.2,respawnDelay:[7,14],xpReward:420},
+  advanced:{maxHp:12000,maxShield:5200,shieldRegen:48,hpRegen:6,respawnDelay:[5,11],xpReward:900},
+  capital:{maxHp:24000,maxShield:11000,shieldRegen:84,hpRegen:10,respawnDelay:[4,9],xpReward:1800}
+};
+function npcStationDefenseStats(tier){return NPC_STATION_DEFENSE[tier]||NPC_STATION_DEFENSE.outpost;}
+function createNpcStationState(tier){const st=npcStationDefenseStats(tier);return{hp:st.maxHp,maxHp:st.maxHp,shield:st.maxShield,maxShield:st.maxShield,shieldRegenTimer:0,underAttackTimer:0,destroyed:false,destroyedAt:0};}
+function playerStationDefenseStats(tier){
+  const table={outpost:{maxHp:3500,maxShield:1400},base:{maxHp:9000,maxShield:3600},fortress:{maxHp:18000,maxShield:8000}};
+  return table[tier]||table.outpost;
+}
+function applyDamageToStation(st,rawDamage){
+  if(!st||st.destroyed)return{damage:0,hpDamage:0,shieldDamage:0,destroyed:false};
+  let dmg=Math.max(0,Number(rawDamage)||0),shieldDamage=0,hpDamage=0;
+  if(st.shield>0){shieldDamage=Math.min(st.shield,dmg);st.shield-=shieldDamage;dmg-=shieldDamage;}
+  if(dmg>0){hpDamage=Math.min(st.hp,dmg);st.hp=Math.max(0,st.hp-hpDamage);}
+  st.shieldRegenTimer=8;st.underAttackTimer=45;st.playerRep="hostile";
+  return{damage:rawDamage,hpDamage,shieldDamage,destroyed:st.hp<=0};
+}
+function aggroNpcStation(st){
+  if(!st||st.destroyed)return;
+  st.playerRep="hostile";st.underAttackTimer=Math.max(st.underAttackTimer||0,45);
+  for(const ts of st.tradeShips){ts.state="combat";ts.stateTimer=999;ts.shootTimer=Math.min(ts.shootTimer||0,0.3);}
+  if(st.tradeRespawns){for(const r of st.tradeRespawns)r.timer=Math.min(r.timer,5+Math.random()*3);}
+}
+function updateNpcStationDefense(st,dt){
+  if(!st)return;
+  if(st.underAttackTimer>0)st.underAttackTimer=Math.max(0,st.underAttackTimer-dt);
+  if(st.destroyed)return;
+  const stats=npcStationDefenseStats(st.tier);
+  st.shieldRegenTimer=Math.max(0,(st.shieldRegenTimer||0)-dt);
+  if(st.shieldRegenTimer<=0){
+    if(st.shield<st.maxShield)st.shield=Math.min(st.maxShield,st.shield+stats.shieldRegen*dt);
+    if(st.hp<st.maxHp)st.hp=Math.min(st.maxHp,st.hp+stats.hpRegen*dt);
+  }
+}
+function dropStationStockLoot(st){
+  let dropped=0;
+  for(const stock of st.buyStock||[]){
+    const qty=Math.max(0,Math.floor(stock.qty||0));
+    for(let i=0;i<qty;i++){
+      if(dropped>260)break;
+      spaceDrops.push({type:stock.type,x:st.x+(Math.random()-0.5)*50,y:st.y+(Math.random()-0.5)*50,vx:(Math.random()-0.5)*80,vy:(Math.random()-0.5)*80,life:35});
+      dropped++;
+    }
+  }
+  if(dropped>260)showFT("Cargo overloaded — loot field compressed",st.x,st.y-32,"#ffcc44",8);
+}
+function destroyNpcStation(st){
+  if(!st||st.destroyed)return;
+  st.destroyed=true;st.destroyedAt=Date.now();st.hp=0;st.shield=0;st.playerRep="hostile";st.underAttackTimer=999;
+  dropStationStockLoot(st);st.buyStock=[];
+  const stats=npcStationDefenseStats(st.tier);
+  socket.emit("gainXp",{amount:stats.xpReward});
+  showFT(`STATION DESTROYED +${stats.xpReward} XP`,st.x,st.y-26,"#ff5544",12);
+  for(const ts of st.tradeShips){ts.state="combat";ts.stateTimer=999;ts.shootTimer=0.2;}
+}
+function drawStationBars(x,y,w,hp,maxHp,shield,maxShield){
+  const hpPct=clamp((hp||0)/(maxHp||1),0,1),shPct=clamp((shield||0)/(maxShield||1),0,1);
+  ctx.fillStyle="#061022";ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle="#2266ff";ctx.fillRect(x-w/2,y,w*shPct,3);
+  ctx.fillStyle="#300";ctx.fillRect(x-w/2,y+4,w,3);ctx.fillStyle=hpPct>0.5?"#33ff66":hpPct>0.25?"#ffcc44":"#ff4433";ctx.fillRect(x-w/2,y+4,w*hpPct,3);
+}
+
 /* ── Chunk / procedural world ── */
 const CHUNK_SIZE=900,PLANETS_PER_CHUNK=5,CHUNK_RADIUS=3;
 const generatedPlanets=new Map(),generatedStations=new Map();
@@ -368,7 +433,7 @@ function generateChunk(cx,cy){
         if(skip&&Math.hypot(sx,sy)<350)continue;
         const np=planets.filter(p=>dist(sx,sy,p.x,p.y)<600).length;
         const dm=0.9+np*0.04;
-        const st={id:key+"|st|"+tk,x:sx,y:sy,tier:tk,tierDef:tier,r:tier.size+6,faction:tier.factionName,factionColor:tier.factionColor,nearbyPlanets:np,densityMult:dm,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300};
+        const st={id:key+"|st|"+tk,x:sx,y:sy,tier:tk,tierDef:tier,r:tier.size+6,faction:tier.factionName,factionColor:tier.factionColor,nearbyPlanets:np,densityMult:dm,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300,...createNpcStationState(tk)};
         stations.push(st);initTradeShips(st,planets);refreshBuyStock(st);
       }
     }
@@ -378,6 +443,7 @@ function generateChunk(cx,cy){
 }
 
 function refreshBuyStock(st){
+  if(st.destroyed)return;
   const tier=st.tierDef,rng=makeRng(GALAXY_SEED+"|stock|"+st.id+"|"+Math.floor(Date.now()/300000));
   st.buyStock=[];
   const pool=[...tier.itemPool],count=Math.min(pool.length,randInt(rng,4,7));
@@ -398,6 +464,7 @@ function initTradeShips(st,localPlanets){
 }
 
 function updateNpcTradeShipRespawns(st,dt){
+  if(st.destroyed)return;
   if(!st.tradeRespawns)st.tradeRespawns=[];
   for(let i=st.tradeRespawns.length-1;i>=0;i--){
     const r=st.tradeRespawns[i];r.timer-=dt;
@@ -410,20 +477,21 @@ function updateNpcTradeShipRespawns(st,dt){
 
 function updateTradeShip(ts,station,allPlanets,dt){
   ts.stateTimer=Math.max(0,ts.stateTimer-dt);ts.shootTimer=Math.max(0,ts.shootTimer-dt);
+  if((station.destroyed||station.underAttackTimer>0)&&ts.state!=="combat"&&ts.state!=="flee"){ts.state="combat";ts.stateTimer=999;}
   const pd=dist(ts.x,ts.y,ship.x,ship.y);
   if(ts.state==="combat"){
     const ang=angleToward(ts.x,ts.y,ship.x,ship.y);
     ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.06);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.06);ts.angle=ang;
     if(ts.shootTimer<=0&&pd<280){ts.shootTimer=0.6+(1-Math.min(1,ts.speed/130))*0.8;const ba=ang+(Math.random()-0.5)*0.18;enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(ba)*200,vy:Math.sin(ba)*200,damage:ts.damage,life:2.5});}
     if(ts.hp<ts.maxHp*0.2){ts.state="flee";ts.stateTimer=5;}
-    if(pd>600){ts.state="return";ts.stateTimer=3;}
+    if(pd>600&&!station.destroyed){ts.state="return";ts.stateTimer=3;}
     ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;
   }
   if(ts.state==="flee"){const ang=angleToward(ts.x,ts.y,ship.x,ship.y)+Math.PI;ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed*1.3,0.08);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed*1.3,0.08);if(ts.stateTimer<=0)ts.state="return";ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;}
   if(ts.state==="idle"&&ts.stateTimer<=0){const c=allPlanets.filter(p=>dist(ts.x,ts.y,p.x,p.y)<700);if(c.length>0){ts.targetPlanet=c[Math.floor(Math.random()*c.length)];ts.state="travel";}}
   if(ts.state==="travel"&&ts.targetPlanet){const d=dist(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);if(d<ts.targetPlanet.radius+20){ts.state="mining";ts.stateTimer=3+Math.random()*4;}else{const ang=angleToward(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.05);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.05);ts.angle=ang;}}
   if(ts.state==="mining"&&ts.stateTimer<=0){if(ts.targetPlanet){const rl=ts.targetPlanet.resList,col=Math.min(14,randInt(makeRng(ts.id+Date.now()),2,14));ts.lootCarried={};for(let i=0;i<col;i++){const r=rl[Math.floor(Math.random()*rl.length)];ts.lootCarried[r]=(ts.lootCarried[r]||0)+1;}}ts.state="return";}
-  if(ts.state==="return"){const d=dist(ts.x,ts.y,station.x,station.y);if(d<station.r+15){for(const[r,q]of Object.entries(ts.lootCarried)){const ex=station.buyStock.find(s=>s.type===r);if(ex)ex.qty=Math.min(ex.maxQty+20,ex.qty+q);}ts.lootCarried={};ts.state="idle";ts.stateTimer=2+Math.random()*3;}else{const ang=angleToward(ts.x,ts.y,station.x,station.y);ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.05);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.05);ts.angle=ang;}}
+  if(ts.state==="return"){const d=dist(ts.x,ts.y,station.x,station.y);if(station.destroyed){ts.state="combat";ts.stateTimer=999;}else if(d<station.r+15){for(const[r,q]of Object.entries(ts.lootCarried)){const ex=station.buyStock.find(s=>s.type===r);if(ex)ex.qty=Math.min(ex.maxQty+20,ex.qty+q);}ts.lootCarried={};ts.state="idle";ts.stateTimer=2+Math.random()*3;}else{const ang=angleToward(ts.x,ts.y,station.x,station.y);ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.05);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.05);ts.angle=ang;}}
   ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;ts.vx*=Math.pow(0.97,dt*60);ts.vy*=Math.pow(0.97,dt*60);
 }
 
@@ -538,9 +606,10 @@ function killTradeShip(ts,station){
   showFT(`+${station.tierDef.xpReward} XP`,ts.x,ts.y,"#cc88ff");
   for(const ots of station.tradeShips)if(ots!==ts&&dist(ots.x,ots.y,ts.x,ts.y)<TRADE_SHIP_ALERT_RANGE){ots.state="combat";ots.stateTimer=999;}
   const idx=station.tradeShips.indexOf(ts);if(idx>-1)station.tradeShips.splice(idx,1);
-  if(ts.ownerType!=="player"){
+  if(ts.ownerType!=="player"&&!station.destroyed){
     if(!station.tradeRespawns)station.tradeRespawns=[];
-    station.tradeRespawns.push({slot:ts.homeSlot??station.tradeRespawns.length,timer:18+Math.random()*20});
+    const stats=npcStationDefenseStats(station.tier),span=stats.respawnDelay;
+    station.tradeRespawns.push({slot:ts.homeSlot??station.tradeRespawns.length,timer:span[0]+Math.random()*(span[1]-span[0])});
     showFT("Respawn beacon charging",station.x,station.y-22,"#ffcc44",8);
   }
 }
@@ -555,23 +624,27 @@ function stationTierStats(tier){
   };
   return table[tier]||table.outpost;
 }
-function ownedStationShipIds(st){
-  if(Array.isArray(st.ships)&&st.ships.length)return st.ships.map(s=>typeof s==="string"?s:s.id);
-  return Array.from({length:st.shipCount||0},(_,i)=>`${st.key}_legacy_${i}`);
+function ownedStationShipRecords(st){
+  if(Array.isArray(st.ships)&&st.ships.length)return st.ships.map(s=>typeof s==="string"?{id:s,state:"collecting",respawnAt:0}:s);
+  return Array.from({length:st.shipCount||0},(_,i)=>({id:`${st.key}_legacy_${i}`,state:"collecting",respawnAt:0}));
 }
+function ownedStationShipIds(st){return ownedStationShipRecords(st).map(s=>s.id);}
 function ensureOwnedTradeShips(){
   const live=new Set();
   for(const st of ownedStationsList){
-    const ids=ownedStationShipIds(st);
-    ids.forEach((id,idx)=>{
+    const recs=ownedStationShipRecords(st);
+    recs.forEach((rec,idx)=>{
+      const id=rec.id;
       live.add(id);
       if(!ownedTradeShips.has(id)){
         const stats=stationTierStats(st.tier);
-        const a=Math.PI*2*((idx+1)/Math.max(1,ids.length));
+        const a=Math.PI*2*((idx+1)/Math.max(1,recs.length));
         ownedTradeShips.set(id,{id,stationKey:st.key,ownerName:st.ownerName,isOwn:!!st.isOwn,x:st.x+Math.cos(a)*26,y:st.y+Math.sin(a)*26,vx:0,vy:0,angle:a,hp:stats.hp,maxHp:stats.hp,speed:stats.speed,damage:stats.damage,size:stats.size,color:stats.color,state:"idle",stateTimer:1+Math.random()*2,targetPlanet:null,lootCarried:{},shootTimer:0,aggro:false});
       }else{
         const os=ownedTradeShips.get(id);os.ownerName=st.ownerName;os.isOwn=!!st.isOwn;
       }
+      const os=ownedTradeShips.get(id);os.serverState=rec.state||"collecting";os.respawnAt=rec.respawnAt||0;os.disabled=os.serverState==="respawning";
+      if(os.disabled){os.hp=os.maxHp;os.lootCarried={};os.state="respawning";os.vx=0;os.vy=0;}
     });
   }
   for(const id of [...ownedTradeShips.keys()])if(!live.has(id))ownedTradeShips.delete(id);
@@ -598,12 +671,14 @@ function dropOwnedTradeShipLoot(os,st){
 }
 function updateOwnedTradeShip(os,st,dt){
   const stats=stationTierStats(st.tier);os.maxHp=Math.max(os.maxHp,stats.hp);os.speed=stats.speed;os.damage=stats.damage;os.size=stats.size;os.color=st.isOwn?stats.color:"#aaaaaa";
+  if(os.disabled)return;
+  if((st.destroyed||Date.now()<(st.underAttackUntil||0))&&os.state!=="combat"){os.state="combat";os.aggro=true;os.stateTimer=999;}
   os.stateTimer=Math.max(0,os.stateTimer-dt);os.shootTimer=Math.max(0,os.shootTimer-dt);
   if(os.state==="combat"){
     const pd=dist(os.x,os.y,ship.x,ship.y),ang=angleToward(os.x,os.y,ship.x,ship.y);os.angle=ang;
     os.vx=lerp(os.vx,Math.cos(ang)*os.speed,0.06);os.vy=lerp(os.vy,Math.sin(ang)*os.speed,0.06);
     if(os.shootTimer<=0&&pd<280){os.shootTimer=0.75;const ba=ang+(Math.random()-0.5)*0.16;enemyProjectiles.push({x:os.x,y:os.y,vx:Math.cos(ba)*220,vy:Math.sin(ba)*220,damage:os.damage,life:2.4,source:"ownedTradeShip"});}
-    if(pd>700){os.state="return";os.aggro=false;}
+    if(pd>700&&!st.destroyed){os.state="return";os.aggro=false;}
   }else if(os.state==="idle"){
     if(os.stateTimer<=0){os.targetPlanet=chooseOwnedTradeTarget(st,os);os.state=os.targetPlanet?"travel":"idle";os.stateTimer=2;}
   }else if(os.state==="travel"){
@@ -626,6 +701,7 @@ function drawOwnedTradeShips(camX,camY){
   const byKey=new Map(ownedStationsList.map(s=>[s.key,s]));
   for(const os of ownedTradeShips.values()){
     const st=byKey.get(os.stationKey);if(!st)continue;
+    if(os.disabled)continue;
     const x=os.x-camX,y=os.y-camY;if(x<-50||y<-50||x>canvas.width+50||y>canvas.height+50)continue;
     if(os.state==="travel"&&os.targetPlanet){ctx.save();ctx.globalAlpha=0.16;ctx.strokeStyle=os.color;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(os.targetPlanet.x-camX,os.targetPlanet.y-camY);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
     else if(os.state==="return"){ctx.save();ctx.globalAlpha=0.16;ctx.strokeStyle=os.color;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(st.x-camX,st.y-camY);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
@@ -917,6 +993,10 @@ socket.on("hireDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");})
 socket.on("ownedStationsList",(list)=>{ownedStationsList=list;ensureOwnedTradeShips();renderOwnedStations&&renderOwnedStations();});
 socket.on("ownedStationUpdate",({stationKey,goodsCount,shipCount})=>{showFT(`Station: ${goodsCount} goods ready`,ship.x,ship.y,"#ffcc44",9);});
 socket.on("ownedStationGoods",({stationKey,goods})=>{let added=0;for(const[k,v]of Object.entries(goods)){if(addToInventory(k,v))added+=v;}showFT(`Collected ${added} items from station`,ship.x,ship.y-15,"#78ff8a",11);updateHud();});
+socket.on("ownedStationDamaged",({stationKey,hp,maxHp,shield,maxShield,ownerName,attackerName})=>{const st=ownedStationsList.find(s=>s.key===stationKey);if(st){Object.assign(st,{hp,maxHp,shield,maxShield,underAttackUntil:Date.now()+45000});ensureOwnedTradeShips();}});
+socket.on("ownedStationHitConfirm",({stationKey,hp,maxHp,shield,maxShield,damage})=>{showFT(`-${Math.round(damage)} STATION`,ship.x,ship.y-25,"#ff5544",9);});
+socket.on("stationDamageDenied",({reason})=>{showFT(reason||"Station cannot be damaged",ship.x,ship.y-20,"#ffcc44",9);});
+socket.on("ownedStationDestroyed",({stationKey,x,y,tier,ownerName,goods,destroyedBy})=>{const st=ownedStationsList.find(s=>s.key===stationKey);if(st){st.destroyed=true;st.hp=0;st.shield=0;st.underAttackUntil=Date.now()+30000;}let dropped=0;for(const[k,v]of Object.entries(goods||{})){for(let i=0;i<(v||0);i++){if(dropped>260)break;spaceDrops.push({type:k,x:x+(Math.random()-0.5)*54,y:y+(Math.random()-0.5)*54,vx:(Math.random()-0.5)*80,vy:(Math.random()-0.5)*80,life:35});dropped++;}}showFT(`${ownerName}'s station destroyed`,x,y-28,"#ff5544",12);ensureOwnedTradeShips();});
 
 // Leaderboard
 socket.on("leaderboard",(rows)=>{
@@ -1029,7 +1109,7 @@ function updateSpace(dt){
     if(!hit){
       const byKey=new Map(ownedStationsList.map(s=>[s.key,s]));
       for(const os of ownedTradeShips.values()){
-        const st=byKey.get(os.stationKey);if(!st)continue;
+        const st=byKey.get(os.stationKey);if(!st||os.disabled)continue;
         if(dist(p.x,p.y,os.x,os.y)<os.size+5){
           os.hp-=p.damage;os.state="combat";os.aggro=true;os.stateTimer=999;
           showFT("-"+Math.round(p.damage),os.x,os.y,"#ff4422",9);
@@ -1038,11 +1118,37 @@ function updateSpace(dt){
         }
       }
     }
+    if(!hit){
+      for(const st of visibleStations){
+        if(st.destroyed)continue;
+        const hitRadius=(st.tierDef?.size||18)+12;
+        if(dist(p.x,p.y,st.x,st.y)<hitRadius){
+          const result=applyDamageToStation(st,p.damage);
+          aggroNpcStation(st);
+          showFT(`-${Math.round(result.damage)} STATION`,st.x,st.y-18,"#ff5544",9);
+          if(result.destroyed)destroyNpcStation(st);
+          localPlayerProjectiles.splice(i,1);hit=true;break;
+        }
+      }
+    }
+    if(!hit){
+      for(const st of ownedStationsList){
+        if(st.destroyed||st.isOwn)continue;
+        const hitRadius=22;
+        if(dist(p.x,p.y,st.x,st.y)<hitRadius){
+          socket.emit("damageOwnedStation",{stationKey:st.key,damage:p.damage});
+          showFT("Station hit",st.x,st.y-18,"#ff5544",9);
+          for(const os of ownedTradeShips.values())if(os.stationKey===st.key&&!os.disabled){os.state="combat";os.aggro=true;os.stateTimer=999;}
+          localPlayerProjectiles.splice(i,1);hit=true;break;
+        }
+      }
+    }
   }
 
   // Trade ship NPC update
   for(const st of visibleStations){
-    st.buyStockTimer-=dt;if(st.buyStockTimer<=0){refreshBuyStock(st);st.buyStockTimer=300;}
+    updateNpcStationDefense(st,dt);
+    if(!st.destroyed){st.buyStockTimer-=dt;if(st.buyStockTimer<=0){refreshBuyStock(st);st.buyStockTimer=300;}}
     updateNpcTradeShipRespawns(st,dt);
     for(const ts of st.tradeShips)updateTradeShip(ts,st,visiblePlanets,dt);
   }
@@ -1057,7 +1163,7 @@ function updateSpace(dt){
   for(let i=floatingTexts.length-1;i>=0;i--){const ft=floatingTexts[i];ft.y+=ft.vy*dt;ft.life-=dt;if(ft.life<=0)floatingTexts.splice(i,1);}
 
   // Nearest station
-  nearStation=null;for(const st of visibleStations){if(dist(ship.x,ship.y,st.x,st.y)<st.r+70){nearStation=st;break;}}
+  nearStation=null;for(const st of visibleStations){if(!st.destroyed&&dist(ship.x,ship.y,st.x,st.y)<st.r+70){nearStation=st;break;}}
 
   // Keys
   if(keys.has("l")){keys.delete("l");const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<nearest.p.radius+60){activePlanet=nearest.p;planetMap=genPlanetMap(activePlanet);mode=MODE.PLANET;const cx=Math.floor(planetMap.W/2),sh2=planetMap.heights[cx];astronaut.x=cx*16;astronaut.y=sh2*16-10;astronaut.vx=0;astronaut.vy=0;landedShip.x=(cx-20)*16;landedShip.y=sh2*16-4;drops.length=0;socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});}}
@@ -1094,16 +1200,17 @@ function drawSpace(){
   // Owned stations
   for(const ost of ownedStationsList){
     const sx=ost.x-camX,sy2=ost.y-camY;
-    if(sx<-60||sy2<-60||sx>canvas.width+60||sy2>canvas.height+60)continue;
-    const isOwn=ost.isOwn;
-    ctx.fillStyle=isOwn?"#ffcc44":"#aaaaaa";ctx.strokeStyle=isOwn?"#ffee88":"#777777";ctx.lineWidth=2;
-    ctx.beginPath();ctx.arc(sx,sy2,10,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.fillStyle="#000";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText("S",sx,sy2+3);ctx.textAlign="left";
+    if(sx<-80||sy2<-80||sx>canvas.width+80||sy2>canvas.height+80)continue;
+    const isOwn=ost.isOwn, destroyed=!!ost.destroyed;
+    ctx.fillStyle=destroyed?"#4a2a22":isOwn?"#ffcc44":"#aaaaaa";ctx.strokeStyle=destroyed?"#ff4422":isOwn?"#ffee88":"#777777";ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(sx,sy2,12,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle="#000";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(destroyed?"X":"S",sx,sy2+3);ctx.textAlign="left";
+    drawStationBars(sx,sy2-34,34,ost.hp??0,ost.maxHp||playerStationDefenseStats(ost.tier).maxHp,ost.shield??0,ost.maxShield||playerStationDefenseStats(ost.tier).maxShield);
     ctx.fillStyle=isOwn?"#ffcc44":"#aaaaaa";ctx.font="7px monospace";ctx.textAlign="center";
-    ctx.fillText(ost.ownerName,sx,sy2-14);
-    ctx.fillText(`${ost.shipCount} ships`,sx,sy2-22);
+    ctx.fillText(ost.ownerName,sx,sy2-40);
+    ctx.fillText(destroyed?"DESTROYED":`${ost.shipCount} ships`,sx,sy2-48);
     ctx.textAlign="left";
-    if(isOwn&&dist(ship.x,ship.y,ost.x,ost.y)<80){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("Click B → Collect",sx,sy2+22);ctx.textAlign="left";}
+    if(!destroyed&&isOwn&&dist(ship.x,ship.y,ost.x,ost.y)<80){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("B → Collect",sx,sy2+24);ctx.textAlign="left";}
   }
 
   // Player-owned station trade ships
@@ -1115,14 +1222,15 @@ function drawSpace(){
     if(sx<-100||sy2<-100||sx>canvas.width+100||sy2>canvas.height+100)continue;
     const tier=st.tierDef;
     const grad=ctx.createRadialGradient(sx,sy2,0,sx,sy2,tier.size*2.5);grad.addColorStop(0,tier.glowColor);grad.addColorStop(1,"transparent");ctx.fillStyle=grad;ctx.beginPath();ctx.arc(sx,sy2,tier.size*2.5,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle=tier.color;ctx.strokeStyle=st.playerRep==="neutral"?"#ffffff55":"#ff444488";ctx.lineWidth=2;ctx.beginPath();
+    ctx.fillStyle=st.destroyed?"#3a1c1c":tier.color;ctx.strokeStyle=st.destroyed?"#ff4422":st.playerRep==="neutral"?"#ffffff55":"#ff444488";ctx.lineWidth=2;ctx.beginPath();
     if(st.tier==="outpost"){ctx.rect(sx-tier.size/2,sy2-tier.size/2,tier.size,tier.size);}
     else if(st.tier==="standard"){ctx.arc(sx,sy2,tier.size,0,Math.PI*2);}
     else if(st.tier==="advanced"){for(let k=0;k<6;k++){const a=k*Math.PI/3-Math.PI/6;k===0?ctx.moveTo(sx+Math.cos(a)*tier.size,sy2+Math.sin(a)*tier.size):ctx.lineTo(sx+Math.cos(a)*tier.size,sy2+Math.sin(a)*tier.size);}ctx.closePath();}
     else{for(let k=0;k<10;k++){const a=k*Math.PI/5-Math.PI/2,r2=k%2===0?tier.size:tier.size*0.5;k===0?ctx.moveTo(sx+Math.cos(a)*r2,sy2+Math.sin(a)*r2):ctx.lineTo(sx+Math.cos(a)*r2,sy2+Math.sin(a)*r2);}ctx.closePath();}
     ctx.fill();ctx.stroke();
-    ctx.fillStyle="#fff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(tier.name,sx,sy2-tier.size-4);ctx.fillStyle=tier.factionColor;ctx.font="7px monospace";ctx.fillText(st.faction,sx,sy2-tier.size-13);ctx.textAlign="left";
-    if(dist(ship.x,ship.y,st.x,st.y)<st.r+70){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("O: Trade",sx,sy2+tier.size+12);ctx.textAlign="left";}
+    drawStationBars(sx,sy2-tier.size-24,Math.max(34,tier.size*2.2),st.hp,st.maxHp,st.shield,st.maxShield);
+    ctx.fillStyle=st.destroyed?"#ff5544":"#fff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(st.destroyed?"DESTROYED "+tier.name:tier.name,sx,sy2-tier.size-4);ctx.fillStyle=tier.factionColor;ctx.font="7px monospace";ctx.fillText(st.faction,sx,sy2-tier.size-33);ctx.textAlign="left";
+    if(!st.destroyed&&dist(ship.x,ship.y,st.x,st.y)<st.r+70){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("O: Trade",sx,sy2+tier.size+12);ctx.textAlign="left";}
   }
 
   // NPC Trade ships (separate pass — no station culling)
