@@ -49,7 +49,7 @@ const GALAXY_SEED  = "GALAXY-01";
    from the same fixed package IDs, then call /api/grant-credits after successful payment.
 */
 const CREDIT_PACKAGES = {
-  credits_100_test: { credits:1000, amount:0.50, cents:50, label:"Small Credit Drop" },
+  credits_1000_test: { credits:1000, amount:0.50, cents:50, label:"Small Credit Drop" },
   credits_10000:   { credits:10000,   amount:1.99,  cents:199,  label:"Scout Cache" },
   credits_25000:   { credits:25000,   amount:2.99,  cents:299,  label:"Trader Pack" },
   credits_50000:   { credits:50000,   amount:3.99,  cents:399,  label:"Fleet Boost" },
@@ -153,6 +153,14 @@ function addScore(player, amount, reason) {
   player.score = (player.score||0) + amount;
   io.to(player.id).emit("scoreUpdate", { score:player.score, delta:amount, reason });
 }
+function grantXp(player,amount,reason="Mining/Combat"){
+  if(!player||amount<=0)return;
+  player.xp=(player.xp||0)+amount;player.miningScore=(player.miningScore||0)+amount;
+  addScore(player,Math.floor(amount*0.5),reason);
+  const xtn=Math.floor(100*Math.pow(1.4,player.level-1));
+  if(player.xp>=xtn){player.xp-=xtn;player.level++;player.attrPoints=(player.attrPoints||0)+2;io.to(player.id).emit("levelUp",{level:player.level,attrPoints:player.attrPoints});}
+  io.to(player.id).emit("xpUpdate",{xp:player.xp,level:player.level});
+}
 
 function buildLeaderboard(limit=10) {
   return [...players.values()]
@@ -175,9 +183,9 @@ function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=
 function sfc32(a,b,c,d){return()=>{a|=0;b|=0;c|=0;d|=0;let t=(a+b|0)+d|0;d=d+1|0;a=b^b>>>9;b=c+(c<<3)|0;c=(c<<21|c>>>11);c=c+t|0;return(t>>>0)/4294967296;};}
 function makeRng(s){const seed=xmur3(s);return sfc32(seed(),seed(),seed(),seed());}
 
-const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft"];
-const RES_BASE={dirt:1,stone:3,copper:9,iron:10,gold:40,crystal:60,fuel:25,gas_canister:30,ice_block:4,lava_rock:12,magma_core:22,toxic_sludge:8,sand:2,grass_tuft:1};
-const RES_RARITY={dirt:1,stone:2,copper:3,iron:3,gold:5,crystal:6,fuel:4,gas_canister:2,ice_block:2,lava_rock:3,magma_core:4,toxic_sludge:3,sand:1,grass_tuft:1};
+const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft"];
+const RES_BASE={dirt:1,stone:3,copper:9,iron:10,gold:40,crystal:60,fuel:25,gas_canister:30,oxygen_tank:35,ice_block:4,lava_rock:12,magma_core:22,toxic_sludge:8,sand:2,grass_tuft:1};
+const RES_RARITY={dirt:1,stone:2,copper:3,iron:3,gold:5,crystal:6,fuel:4,gas_canister:2,oxygen_tank:2,ice_block:2,lava_rock:3,magma_core:4,toxic_sludge:3,sand:1,grass_tuft:1};
 const econRng=makeRng(GALAXY_SEED+"|economy");
 const economy={
   drift:Object.fromEntries(RES_KEYS.map(k=>[k,1])),
@@ -188,6 +196,47 @@ const economy={
   bought(k,q){this.scarcity[k]=Math.max(0.5,Math.min(1.5,this.scarcity[k]+q*0.02));},
   snapshot(){const o={};for(const k of RES_KEYS)o[k]=this.price(k);return o;}
 };
+
+
+/* ── Persistent planet maps ──
+   These maps live on the server so one planet has one shared, mineable state.
+   They reset only when the Railway process restarts. Persist to Wix/DB later for permanent worlds.
+*/
+const PLANET_TILE={EMPTY:0,DIRT:1,STONE:2,ORE1:3,ORE2:4,RARE:5,ICE:6,PACKED_ICE:7,LAVA:8,MAGMA:9,TOXIC_SLUDGE:10,SAND:11,SANDSTONE:12,GRASS:13,BEDROCK:14};
+const planetMaps=new Map();
+function safePlanetInfo(raw){
+  raw=raw||{};
+  const type=["lush","desert","ice","toxic","volcanic"].includes(raw.type)?raw.type:"lush";
+  const id=String(raw.id||`${type}_${Math.round(raw.x||0)}_${Math.round(raw.y||0)}`).slice(0,120);
+  const seed=String(raw.seed||`${GALAXY_SEED}|planet|${id}`).slice(0,180);
+  const resList=Array.isArray(raw.resList)?raw.resList.filter(k=>RES_KEYS.includes(k)).slice(0,10):["dirt","stone","copper","iron"];
+  return {id,seed,type,resList,x:Number(raw.x)||0,y:Number(raw.y)||0,radius:Number(raw.radius)||40};
+}
+function genPlanetMapServer(planet){
+  const rng=makeRng(planet.seed+"|map"),W=320,H=140,sy2=45+Math.floor(rng()*13)-6;
+  const heights=new Array(W).fill(0).map((_,x)=>Math.floor(sy2+Math.sin((x/28)+rng()*10)*6+Math.sin((x/9)+rng()*10)*2+(rng()-0.5)*2));
+  const tiles=new Uint8Array(W*H),hp=new Uint8Array(W*H),idx=(x,y)=>y*W+x;
+  const tc={lush:{surface:13,shallow:1,deep:2,sHP:20,shHP:25,dHP:55},desert:{surface:11,shallow:11,deep:12,sHP:18,shHP:22,dHP:50},ice:{surface:6,shallow:6,deep:7,sHP:30,shHP:35,dHP:65},toxic:{surface:10,shallow:1,deep:2,sHP:22,shHP:28,dHP:60},volcanic:{surface:9,shallow:8,deep:2,sHP:40,shHP:50,dHP:70}};
+  const cfg=tc[planet.type]||tc.lush;
+  for(let x=0;x<W;x++){const h=Math.max(18,Math.min(H-10,heights[x]));for(let y=h;y<H;y++){let t=cfg.surface,th=cfg.sHP;if(y>h+8){t=cfg.shallow;th=cfg.shHP;}if(y>h+20&&rng()<0.35){t=cfg.deep;th=cfg.dHP;}if(y>h+35&&rng()<0.45){t=cfg.deep;th=cfg.dHP;}tiles[idx(x,y)]=t;hp[idx(x,y)]=th;}}
+  const randInt2=(a,b)=>Math.floor(rng()*(b-a+1))+a;
+  for(let i=0;i<7;i++){let cx2=randInt2(10,W-11),cy2=randInt2(35,H-20);const steps=randInt2(120,220);for(let s=0;s<steps;s++){const r=randInt2(2,4);for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++){const x=cx2+xx,y=cy2+yy;if(x>1&&y>1&&x<W-2&&y<H-5&&xx*xx+yy*yy<=r*r){tiles[idx(x,y)]=0;hp[idx(x,y)]=0;}}cx2+=randInt2(-1,1);cy2=Math.max(25,Math.min(H-10,cy2+randInt2(-1,1)));cx2=Math.max(2,Math.min(W-3,cx2));}}
+  const pc=(t,count,minY)=>{for(let n=0;n<count;n++){const cx3=randInt2(10,W-11),cy3=randInt2(minY,H-10),rr=randInt2(3,8);for(let y=-rr;y<=rr;y++)for(let x=-rr;x<=rr;x++){if(x*x+y*y<=rr*rr){const px2=cx3+x,py2=cy3+y;if(px2>1&&py2>1&&px2<W-2&&py2<H-5){const id=idx(px2,py2);if(tiles[id]!==0){tiles[id]=t;hp[id]=t===5?95:70;}}}}}};
+  pc(3,randInt2(10,16),55);pc(4,randInt2(8,14),65);pc(5,randInt2(3,6),85);
+  for(let y=H-3;y<H;y++)for(let x=0;x<W;x++){tiles[idx(x,y)]=PLANET_TILE.BEDROCK;hp[idx(x,y)]=255;}
+  return {planet,W,H,tiles,hp,heights};
+}
+function getPlanetMap(info){
+  const planet=safePlanetInfo(info);
+  let map=planetMaps.get(planet.id);
+  if(!map){map=genPlanetMapServer(planet);planetMaps.set(planet.id,map);}
+  return map;
+}
+function planetResForTile(planet,t,y,H){
+  const d=y/H,l=planet.resList&&planet.resList.length?planet.resList:["dirt","stone","copper","iron"];
+  if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>["copper","iron"].includes(k));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){if(l.includes("gold")&&Math.random()<0.55)return"gold";if(l.includes("crystal")&&Math.random()<0.65)return"crystal";return l[Math.floor(Math.random()*l.length)];}if(t===5){if(l.includes("crystal")&&Math.random()<0.6+d*0.3)return"crystal";if(l.includes("gold")&&Math.random()<0.4+d*0.3)return"gold";return l[l.length-1];}return"stone";
+}
+function hpForPlacedTile(tile){return ({1:22,2:55,6:30,8:45,10:28,11:18,13:20})[tile]||25;}
 
 
 /* ── Credit purchase API called by Wix backend only ── */
@@ -383,7 +432,63 @@ io.on("connection",socket=>{
 
   socket.on("modeChange",({mode,planetId,x,y})=>{
     const p=players.get(socket.id);if(!p)return;
-    p.mode=mode;p.planetId=planetId||null;if(x!==undefined){p.x=x;p.y=y;}
+    if(p.planetId)socket.leave(`planet:${p.planetId}`);
+    p.mode=mode;p.planetId=planetId||null;if(p.planetId)socket.join(`planet:${p.planetId}`);if(x!==undefined){p.x=x;p.y=y;}
+  });
+
+
+
+  socket.on("requestPlanetMap",({planet})=>{
+    const p=players.get(socket.id);if(!p)return;
+    const map=getPlanetMap(planet);
+    if(p.planetId)socket.leave(`planet:${p.planetId}`);
+    p.mode="planet";p.planetId=map.planet.id;socket.join(`planet:${map.planet.id}`);
+    socket.emit("planetMapState",{planetId:map.planet.id,W:map.W,H:map.H,tiles:Array.from(map.tiles),hp:Array.from(map.hp),heights:map.heights});
+  });
+
+  socket.on("minePlanetTile",({planetId,tx,ty,power})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="planet"||p.planetId!==planetId)return;
+    const map=planetMaps.get(planetId);if(!map)return;
+    tx=Math.floor(Number(tx));ty=Math.floor(Number(ty));
+    if(tx<0||ty<0||tx>=map.W||ty>=map.H-3)return;
+    const id=ty*map.W+tx,t=map.tiles[id];
+    if(!t||t===PLANET_TILE.BEDROCK)return;
+    const dmg=Math.max(1,Math.min(40,Number(power)||18));
+    map.hp[id]=Math.max(0,map.hp[id]-dmg);
+    if(map.hp[id]<=0){
+      const kind=planetResForTile(map.planet,t,ty,map.H),rar=RES_RARITY[kind]||1;
+      map.tiles[id]=0;map.hp[id]=0;
+      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile:0,hp:0});
+      const qty=(t===3||t===4)?(Math.random()<0.35?2:1):(t===5?(Math.random()<0.55?2:1):1);
+      socket.emit("planetMineDrop",{planetId,kind,x:tx*16+8,y:ty*16+8,qty});
+      grantXp(p,rar*2,"Mining");
+    }else{
+      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile:t,hp:map.hp[id]});
+    }
+  });
+
+  socket.on("placePlanetTile",({planetId,tx,ty,tile,resourceType})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="planet"||p.planetId!==planetId)return;
+    const map=planetMaps.get(planetId);if(!map)return;
+    tx=Math.floor(Number(tx));ty=Math.floor(Number(ty));tile=Math.floor(Number(tile));
+    const valid=[1,2,6,8,10,11,13];
+    if(!valid.includes(tile)){socket.emit("planetBuildDenied",{reason:"Invalid build tile.",resourceType});return;}
+    if(tx<1||ty<1||tx>=map.W-1||ty>=map.H-3){socket.emit("planetBuildDenied",{reason:"Cannot build there.",resourceType});return;}
+    const id=ty*map.W+tx;if(map.tiles[id]){socket.emit("planetBuildDenied",{reason:"Tile occupied.",resourceType});return;}
+    map.tiles[id]=tile;map.hp[id]=hpForPlacedTile(tile);
+    io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile,hp:map.hp[id]});
+  });
+
+  socket.on("oxygenDamage",({damage})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="planet")return;
+    const dmg=Math.max(1,Math.min(30,Number(damage)||7));
+    p.hp=Math.max(0,p.hp-dmg);
+    socket.emit("oxygenDamageUpdate",{hp:p.hp,damage:dmg});
+    if(p.hp<=0){
+      p.deaths=(p.deaths||0)+1;
+      socket.emit("youDied",{killedBy:"Oxygen Depletion"});
+      setTimeout(()=>{const rp=players.get(socket.id);if(!rp)return;const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;rp.x=sp.x;rp.y=sp.y;rp.hp=rp.maxHp;rp.shield=rp.maxShield;rp.energy=100;socket.emit("respawn",{x:rp.x,y:rp.y});},3000);
+    }
   });
 
   socket.on("sell",({resourceType,quantity})=>{
