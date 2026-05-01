@@ -77,6 +77,55 @@ const OWNED_STATION_TIERS = {
   fortress: { name:"War Fortress",      price:40000, maxShips:10, shipHireCost:2500, collectRange:2200 },
 };
 
+/* ── Player-built station defense stats ── */
+function stationDefenseStats(tier){
+  const table={
+    outpost:{maxHp:3500,maxShield:1400,shieldRegen:18,hpRegen:2,respawnDelay:16000,defenseWindow:45000,xpReward:300},
+    base:{maxHp:9000,maxShield:3600,shieldRegen:34,hpRegen:5,respawnDelay:13000,defenseWindow:55000,xpReward:750},
+    fortress:{maxHp:18000,maxShield:8000,shieldRegen:60,hpRegen:9,respawnDelay:10000,defenseWindow:70000,xpReward:1600}
+  };
+  return table[tier]||table.outpost;
+}
+function makeStationState(tier){
+  const stats=stationDefenseStats(tier);
+  return {hp:stats.maxHp,maxHp:stats.maxHp,shield:stats.maxShield,maxShield:stats.maxShield,shieldRegenTimer:0,underAttackUntil:0,destroyed:false,destroyedAt:0};
+}
+function applyStationDamage(st,rawDamage){
+  const raw=Math.max(0,Math.min(900,Number(rawDamage)||0));
+  if(raw<=0||st.destroyed)return {damage:0,hpDamage:0,shieldDamage:0,destroyed:false};
+  let dmg=raw,shieldDamage=0,hpDamage=0;
+  if(st.shield>0){shieldDamage=Math.min(st.shield,dmg);st.shield-=shieldDamage;dmg-=shieldDamage;}
+  if(dmg>0){hpDamage=Math.min(st.hp,dmg);st.hp=Math.max(0,st.hp-hpDamage);}
+  st.shieldRegenTimer=8;
+  const stats=stationDefenseStats(st.tier);
+  st.underAttackUntil=Date.now()+stats.defenseWindow;
+  return {damage:raw,hpDamage,shieldDamage,destroyed:st.hp<=0};
+}
+function tickOwnedStationDefense(dt){
+  const now=Date.now();
+  for(const[,st]of ownedStations){
+    const stats=stationDefenseStats(st.tier);
+    if(!Number.isFinite(st.hp)){Object.assign(st,makeStationState(st.tier));}
+    if(st.destroyed)continue;
+    st.shieldRegenTimer=Math.max(0,(st.shieldRegenTimer||0)-dt);
+    if(st.shieldRegenTimer<=0&&st.shield<st.maxShield)st.shield=Math.min(st.maxShield,st.shield+stats.shieldRegen*dt);
+    if(st.shieldRegenTimer<=0&&st.hp<st.maxHp)st.hp=Math.min(st.maxHp,st.hp+stats.hpRegen*dt);
+    for(const ship of st.hiredShips){
+      if(ship.state==="respawning"&&ship.respawnAt&&ship.respawnAt<=now){ship.state="defending";ship.respawnAt=0;ship.cargo=ship.cargo||{};}
+      if(now<st.underAttackUntil&&ship.state!=="respawning")ship.state="defending";
+    }
+  }
+}
+function destroyOwnedStation(st,attacker){
+  if(st.destroyed)return;
+  st.destroyed=true;st.destroyedAt=Date.now();st.hp=0;st.shield=0;st.underAttackUntil=Date.now()+30000;
+  for(const ship of st.hiredShips){if(ship.state!=="respawning")ship.state="defending";}
+  const goods={...st.accumulatedGoods};st.accumulatedGoods={};
+  if(attacker){addScore(attacker,stationDefenseStats(st.tier).xpReward,"Station Destroyed");}
+  io.emit("ownedStationDestroyed",{stationKey:st.key,x:st.x,y:st.y,tier:st.tier,ownerName:st.ownerName,goods,destroyedBy:attacker?.name||"Unknown"});
+  broadcastChat("Server",`${attacker?.name||"A raider"} destroyed ${st.ownerName}'s ${OWNED_STATION_TIERS[st.tier]?.name||st.tier}!`,"#ff5544");
+}
+
 /* ── Player state ── */
 const players = new Map();
 
@@ -267,8 +316,15 @@ function ownedStationListFor(socketId){
     y:st.y,
     tier:st.tier,
     ownerName:st.ownerName,
-    shipCount:st.hiredShips.length,
-    ships:st.hiredShips.map(sh=>({id:sh.id,state:sh.state||"collecting"})),
+    shipCount:st.hiredShips.filter(sh=>sh.state!=="respawning").length,
+    ships:st.hiredShips.map(sh=>({id:sh.id,state:sh.state||"collecting",respawnAt:sh.respawnAt||0})),
+    hp:Math.round(st.hp||0),
+    maxHp:st.maxHp||stationDefenseStats(st.tier).maxHp,
+    shield:Math.round(st.shield||0),
+    maxShield:st.maxShield||stationDefenseStats(st.tier).maxShield,
+    destroyed:!!st.destroyed,
+    underAttackUntil:st.underAttackUntil||0,
+    goodsCount:Object.values(st.accumulatedGoods||{}).reduce((a,b)=>a+b,0),
     isOwn:st.ownerId===socketId
   }));
 }
@@ -282,13 +338,14 @@ function broadcastOwnedStationsList(){
 setInterval(()=>{
   const RESOURCES=["stone","copper","iron","gold","crystal","lava_rock","ice_block"];
   for(const[,st]of ownedStations){
-    if(st.hiredShips.length===0)continue;
+    if(st.destroyed||st.hiredShips.length===0)continue;
     for(const ship of st.hiredShips){
+      if(ship.state==="respawning")continue;
       const count=2+Math.floor(Math.random()*6);
       for(let i=0;i<count;i++){const r=RESOURCES[Math.floor(Math.random()*RESOURCES.length)];st.accumulatedGoods[r]=(st.accumulatedGoods[r]||0)+1;}
     }
     const owner=players.get(st.ownerId);
-    if(owner)io.to(st.ownerId).emit("ownedStationUpdate",{stationKey:st.key,goodsCount:Object.values(st.accumulatedGoods).reduce((a,b)=>a+b,0),shipCount:st.hiredShips.length});
+    if(owner)io.to(st.ownerId).emit("ownedStationUpdate",{stationKey:st.key,goodsCount:Object.values(st.accumulatedGoods).reduce((a,b)=>a+b,0),shipCount:st.hiredShips.filter(sh=>sh.state!=="respawning").length});
   }
 },30000);
 
@@ -296,10 +353,10 @@ setInterval(()=>{
 let lastTick=Date.now(),ecoTimer=0,lbTimer=0,slTimer=0;
 setInterval(()=>{
   const now=Date.now(),dt=Math.min((now-lastTick)/1000,0.05);lastTick=now;
-  economy.tick();tickPlayers(dt);tickProjectiles(dt);broadcastWorldState();
+  economy.tick();tickPlayers(dt);tickProjectiles(dt);tickOwnedStationDefense(dt);broadcastWorldState();
   ecoTimer+=dt;if(ecoTimer>=5){io.emit("economyUpdate",economy.snapshot());ecoTimer=0;}
   lbTimer+=dt; if(lbTimer>=10){broadcastLeaderboard();lbTimer=0;}
-  slTimer+=dt; if(slTimer>=3){broadcastServerList();slTimer=0;}
+  slTimer+=dt; if(slTimer>=3){broadcastServerList();broadcastOwnedStationsList();slTimer=0;}
 },TICK_MS);
 
 /* ── Socket events ── */
@@ -364,7 +421,7 @@ io.on("connection",socket=>{
     const key=`${Math.round(x/100)}_${Math.round(y/100)}`;
     if(ownedStations.has(key)){socket.emit("stationBuyDenied",{reason:"Location occupied."});return;}
     p.credits-=td.price;
-    const st={key,ownerId:p.id,ownerName:p.name,x,y,tier,hiredShips:[],accumulatedGoods:{}};
+    const st={key,ownerId:p.id,ownerName:p.name,x,y,tier,hiredShips:[],accumulatedGoods:{},...makeStationState(tier)};
     ownedStations.set(key,st);addScore(p,1000,"Station Built");
     socket.emit("stationBuyConfirm",{key,x,y,tier,credits:p.credits});
     broadcastOwnedStationsList();
@@ -374,11 +431,12 @@ io.on("connection",socket=>{
   socket.on("hireShip",({stationKey})=>{
     const p=players.get(socket.id);if(!p)return;
     const st=ownedStations.get(stationKey);if(!st||st.ownerId!==p.id){socket.emit("hireDenied",{reason:"Not your station."});return;}
+    if(st.destroyed){socket.emit("hireDenied",{reason:"Station destroyed."});return;}
     const td=OWNED_STATION_TIERS[st.tier];
     if(st.hiredShips.length>=td.maxShips){socket.emit("hireDenied",{reason:`Max ${td.maxShips} ships.`});return;}
     if(p.credits<td.shipHireCost){socket.emit("hireDenied",{reason:`Need ${td.shipHireCost}cr.`});return;}
     p.credits-=td.shipHireCost;
-    st.hiredShips.push({id:`os_${stationKey}_${Date.now()}_${Math.floor(Math.random()*9999)}`,state:"collecting",cargo:{},createdAt:Date.now()});
+    st.hiredShips.push({id:`os_${stationKey}_${Date.now()}_${Math.floor(Math.random()*9999)}`,state:(Date.now()<(st.underAttackUntil||0)?"defending":"collecting"),cargo:{},createdAt:Date.now(),respawnAt:0});
     socket.emit("hireConfirm",{stationKey,shipCount:st.hiredShips.length,credits:p.credits});
     socket.emit("creditUpdate",{credits:p.credits});
     broadcastOwnedStationsList();
@@ -386,7 +444,7 @@ io.on("connection",socket=>{
 
   socket.on("collectOwnedStation",({stationKey})=>{
     const p=players.get(socket.id);if(!p)return;
-    const st=ownedStations.get(stationKey);if(!st||st.ownerId!==p.id)return;
+    const st=ownedStations.get(stationKey);if(!st||st.ownerId!==p.id||st.destroyed)return;
     socket.emit("ownedStationGoods",{stationKey,goods:{...st.accumulatedGoods}});
     st.accumulatedGoods={};
   });
@@ -418,9 +476,31 @@ io.on("connection",socket=>{
     const st=ownedStations.get(stationKey);if(!st||!shipId)return;
     const idx=st.hiredShips.findIndex(sh=>sh.id===shipId);
     if(idx<0)return;
-    st.hiredShips.splice(idx,1);
+    const sh=st.hiredShips[idx];
     addScore(p,75,"Trade Ship Destroyed");
+    if(st.destroyed){
+      st.hiredShips.splice(idx,1);
+    }else{
+      const delay=stationDefenseStats(st.tier).respawnDelay;
+      sh.state="respawning";sh.respawnAt=Date.now()+delay;sh.cargo={};
+    }
     socket.emit("ownedTradeShipDestroyConfirm",{stationKey,shipId});
+    broadcastOwnedStationsList();
+  });
+
+  socket.on("damageOwnedStation",({stationKey,damage})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="space")return;
+    const st=ownedStations.get(stationKey);if(!st||st.destroyed)return;
+    if(st.ownerId===p.id){socket.emit("stationDamageDenied",{stationKey,reason:"You cannot attack your own station."});return;}
+    if(Math.hypot(p.x-st.x,p.y-st.y)>1200)return;
+    const result=applyStationDamage(st,damage);
+    for(const sh of st.hiredShips){
+      if(sh.state==="respawning")sh.respawnAt=Math.min(sh.respawnAt||Infinity,Date.now()+5000);
+      else sh.state="defending";
+    }
+    socket.emit("ownedStationHitConfirm",{stationKey,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,damage:result.damage});
+    io.emit("ownedStationDamaged",{stationKey,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,ownerName:st.ownerName,attackerName:p.name});
+    if(result.destroyed)destroyOwnedStation(st,p);
     broadcastOwnedStationsList();
   });
 
