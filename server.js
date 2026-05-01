@@ -49,7 +49,7 @@ const GALAXY_SEED  = "GALAXY-01";
    from the same fixed package IDs, then call /api/grant-credits after successful payment.
 */
 const CREDIT_PACKAGES = {
-  credits_100_test: { credits:100, amount:0.50, cents:50, label:"Test Credit Drop" },
+  credits_100_test: { credits:1000, amount:0.50, cents:50, label:"Small Credit Drop" },
   credits_10000:   { credits:10000,   amount:1.99,  cents:199,  label:"Scout Cache" },
   credits_25000:   { credits:25000,   amount:2.99,  cents:299,  label:"Trader Pack" },
   credits_50000:   { credits:50000,   amount:3.99,  cents:399,  label:"Fleet Boost" },
