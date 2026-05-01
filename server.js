@@ -49,7 +49,7 @@ const GALAXY_SEED  = "GALAXY-01";
    from the same fixed package IDs, then call /api/grant-credits after successful payment.
 */
 const CREDIT_PACKAGES = {
-  credits_1000_test: { credits:1000, amount:0.50, cents:50, label:"Small Credit Drop" },
+  credits_1000_test: { credits:1000, amount:0.50, cents:50, label:"Test Credit Drop" },
   credits_10000:   { credits:10000,   amount:1.99,  cents:199,  label:"Scout Cache" },
   credits_25000:   { credits:25000,   amount:2.99,  cents:299,  label:"Trader Pack" },
   credits_50000:   { credits:50000,   amount:3.99,  cents:399,  label:"Fleet Boost" },
@@ -142,11 +142,21 @@ function defaultPlayer(id, name, x, y) {
     energy:100, shieldRegenTimer:0,
     score:0, kills:0, deaths:0, tradingVolume:0, miningScore:0,
     ping:0, pingTs:0,
+    planetX:0, planetY:0, planetVx:0, planetVy:0, planetTool:"mining",
+    cosmeticColor:"#ffd27a", suitColor:"#ffffff", weaponLevel:1, miningLevel:1, oxygenLevel:1,
   };
 }
 
 function sanitizeName(raw) { return String(raw||"Pilot").replace(/[^a-zA-Z0-9_ \-]/g,"").slice(0,16).trim()||"Pilot"; }
 function randomShipColor() { const p=["#7be6ff","#ff9944","#66ff88","#ff66aa","#ffdd44","#cc88ff","#44ccff","#ff6644"]; return p[Math.floor(Math.random()*p.length)]; }
+
+function characterUpgradeCost(player,kind){
+  const levels={weapon:player.weaponLevel||1,mining:player.miningLevel||1,oxygen:player.oxygenLevel||1};
+  const base={weapon:750,mining:650,oxygen:500}[kind]||999999;
+  return Math.floor(base*Math.pow(1.65,Math.max(0,(levels[kind]||1)-1)));
+}
+function planetWeaponDamage(player){return 12+((player.weaponLevel||1)-1)*5;}
+function sendCharacterState(socket,p){socket.emit("characterState",{cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,weaponLevel:p.weaponLevel||1,miningLevel:p.miningLevel||1,oxygenLevel:p.oxygenLevel||1,credits:p.credits});}
 
 /* ── Score ── */
 function addScore(player, amount, reason) {
@@ -338,7 +348,7 @@ function tickPlayers(dt){
 }
 
 /* ── Broadcast ── */
-function snap(p){return{id:p.id,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield,shieldRegenTimer:p.shieldRegenTimer||0,color:p.color,level:p.level,mode:p.mode,score:p.score||0,kills:p.kills||0,shipType:p.shipType||"scout",ping:p.ping||0};}
+function snap(p){return{id:p.id,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield,shieldRegenTimer:p.shieldRegenTimer||0,color:p.color,level:p.level,mode:p.mode,score:p.score||0,kills:p.kills||0,shipType:p.shipType||"scout",ping:p.ping||0,planetId:p.planetId,planetX:p.planetX||0,planetY:p.planetY||0,cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,weaponLevel:p.weaponLevel||1};}
 function serverListSnap(p){return{id:p.id,name:p.name,x:Math.round(p.x),y:Math.round(p.y),level:p.level,score:p.score||0,kills:p.kills||0,deaths:p.deaths||0,shipType:p.shipType||"scout",ping:p.ping||0,mode:p.mode};}
 
 function broadcastWorldState(){
@@ -348,6 +358,10 @@ function broadcastWorldState(){
     const nearby=all.filter(s=>s.id!==sid&&Math.hypot(s.x-p.x,s.y-p.y)<BROADCAST_RANGE);
     const nearProj=projs.filter(pr=>Math.hypot(pr.x-p.x,pr.y-p.y)<BROADCAST_RANGE);
     io.to(sid).emit("worldState",{self:snap(p),others:nearby,pvpProjectiles:nearProj});
+    if(p.mode==="planet"&&p.planetId){
+      const pps=[...players.values()].filter(o=>o.id!==sid&&o.mode==="planet"&&o.planetId===p.planetId).map(o=>({id:o.id,name:o.name,x:o.planetX||0,y:o.planetY||0,vx:o.planetVx||0,vy:o.planetVy||0,hp:o.hp,maxHp:o.maxHp,color:o.color,level:o.level,cosmeticColor:o.cosmeticColor,suitColor:o.suitColor,tool:o.planetTool||"mining",weaponLevel:o.weaponLevel||1}));
+      io.to(sid).emit("planetPlayersState",{planetId:p.planetId,players:pps});
+    }
   }
 }
 
@@ -422,6 +436,7 @@ io.on("connection",socket=>{
     broadcastLeaderboard();broadcastServerList();
     // Send owned stations list
     emitOwnedStationsList(socket);
+    sendCharacterState(socket,p);
   });
 
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
@@ -434,6 +449,7 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);if(!p)return;
     if(p.planetId)socket.leave(`planet:${p.planetId}`);
     p.mode=mode;p.planetId=planetId||null;if(p.planetId)socket.join(`planet:${p.planetId}`);if(x!==undefined){p.x=x;p.y=y;}
+    if(mode==="space"){p.planetX=0;p.planetY=0;p.planetVx=0;p.planetVy=0;p.planetTool="mining";}
   });
 
 
@@ -477,6 +493,70 @@ io.on("connection",socket=>{
     const id=ty*map.W+tx;if(map.tiles[id]){socket.emit("planetBuildDenied",{reason:"Tile occupied.",resourceType});return;}
     map.tiles[id]=tile;map.hp[id]=hpForPlacedTile(tile);
     io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile,hp:map.hp[id]});
+  });
+
+  socket.on("planetState",({planetId,x,y,vx,vy,onGround,tool,cosmeticColor,suitColor})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="planet"||p.planetId!==planetId)return;
+    p.planetX=Math.max(0,Math.min(99999,Number(x)||0));
+    p.planetY=Math.max(0,Math.min(99999,Number(y)||0));
+    p.planetVx=Number(vx)||0;p.planetVy=Number(vy)||0;p.planetTool=tool==="weapon"?"weapon":"mining";
+    if(cosmeticColor)p.cosmeticColor=String(cosmeticColor).slice(0,24);
+    if(suitColor)p.suitColor=String(suitColor).slice(0,24);
+  });
+
+  socket.on("planetAttack",({targetId,planetId})=>{
+    const p=players.get(socket.id),t=players.get(targetId);
+    if(!p||!t||p.mode!=="planet"||t.mode!=="planet"||p.planetId!==planetId||t.planetId!==planetId){socket.emit("planetAttackDenied",{reason:"Target unavailable."});return;}
+    const d=Math.hypot((p.planetX||0)-(t.planetX||0),(p.planetY||0)-(t.planetY||0));
+    if(d>85){socket.emit("planetAttackDenied",{reason:"Target out of range."});return;}
+    const raw=planetWeaponDamage(p), armor=1+((t.attrs.armor-1)*0.08), dmg=raw/armor;
+    t.hp=Math.max(0,t.hp-dmg);t.lastPlanetAttacker=p.id;
+    socket.emit("planetAttackConfirm",{targetId:t.id,damage:Math.round(dmg),hp:t.hp});
+    io.to(t.id).emit("planetHit",{damage:Math.round(dmg),hp:t.hp,attackerName:p.name});
+    if(t.hp<=0){
+      t.deaths=(t.deaths||0)+1;p.kills=(p.kills||0)+1;p.credits+=75;addScore(p,250,"Planet PvP");
+      io.to(p.id).emit("creditUpdate",{credits:p.credits});
+      io.to(t.id).emit("youDied",{killedBy:p.name});
+      io.emit("playerKilled",{victimId:t.id,victimName:t.name,killerId:p.id,killerName:p.name});
+      setTimeout(()=>{const rp=players.get(t.id);if(!rp)return;if(rp.planetId)io.sockets.sockets.get(t.id)?.leave(`planet:${rp.planetId}`);const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;rp.x=sp.x;rp.y=sp.y;rp.hp=rp.maxHp;rp.shield=rp.maxShield;rp.energy=100;rp.planetX=0;rp.planetY=0;io.to(t.id).emit("respawn",{x:rp.x,y:rp.y});},3000);
+      broadcastLeaderboard();
+    }
+  });
+
+  socket.on("characterCosmetic",({cosmeticColor,suitColor})=>{
+    const p=players.get(socket.id);if(!p)return;
+    if(cosmeticColor)p.cosmeticColor=String(cosmeticColor).slice(0,24);
+    if(suitColor)p.suitColor=String(suitColor).slice(0,24);
+    sendCharacterState(socket,p);
+  });
+
+  socket.on("upgradeCharacterPart",({kind})=>{
+    const p=players.get(socket.id);if(!p)return;
+    if(!["weapon","mining","oxygen"].includes(kind)){socket.emit("characterUpgradeDenied",{reason:"Unknown upgrade."});return;}
+    const cost=characterUpgradeCost(p,kind);if(p.credits<cost){socket.emit("characterUpgradeDenied",{reason:`Need ${cost}cr.`});return;}
+    const key={weapon:"weaponLevel",mining:"miningLevel",oxygen:"oxygenLevel"}[kind];
+    if((p[key]||1)>=10){socket.emit("characterUpgradeDenied",{reason:"Already maxed."});return;}
+    p.credits-=cost;p[key]=(p[key]||1)+1;
+    socket.emit("characterUpgradeConfirm",{kind,level:p[key],credits:p.credits});
+  });
+
+  socket.on("tradeRequest",({targetId})=>{
+    const p=players.get(socket.id),t=players.get(targetId);
+    if(!p||!t||p.id===t.id){socket.emit("tradeDenied",{reason:"Invalid trade target."});return;}
+    const sameSpace=p.mode==="space"&&t.mode==="space"&&Math.hypot(p.x-t.x,p.y-t.y)<250;
+    const samePlanet=p.mode==="planet"&&t.mode==="planet"&&p.planetId&&p.planetId===t.planetId&&Math.hypot((p.planetX||0)-(t.planetX||0),(p.planetY||0)-(t.planetY||0))<120;
+    if(!sameSpace&&!samePlanet){socket.emit("tradeDenied",{reason:"Move closer to trade."});return;}
+    t.pendingTradeFrom=p.id;t.pendingTradeAt=Date.now();
+    io.to(t.id).emit("tradeRequest",{fromId:p.id,fromName:p.name,mode:p.mode});
+    socket.emit("tradeRequestSent",{targetId:t.id,targetName:t.name});
+  });
+
+  socket.on("tradeResponse",({targetId,accepted})=>{
+    const p=players.get(socket.id),t=players.get(targetId);if(!p||!t)return;
+    if(p.pendingTradeFrom!==t.id||Date.now()-(p.pendingTradeAt||0)>25000){socket.emit("tradeDenied",{reason:"No active trade request."});return;}
+    p.pendingTradeFrom=null;p.pendingTradeAt=0;
+    io.to(t.id).emit("tradeResponse",{fromId:p.id,fromName:p.name,accepted:!!accepted});
+    socket.emit("tradeResponse",{fromId:t.id,fromName:t.name,accepted:!!accepted});
   });
 
   socket.on("oxygenDamage",({damage})=>{
