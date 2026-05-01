@@ -16,9 +16,11 @@ canvas{flex:1;width:100%;image-rendering:pixelated;display:block}
 #hp-bar-outer{width:65px;border:1px solid #5a2a2a}
 #shield-bar-outer{width:55px;border:1px solid #2a4a7a}
 #energy-bar-outer{width:65px;border:1px solid #2a5a2a}
+#oxygen-bar-outer{width:55px;border:1px solid #2a4a7a}
 #hp-bar-inner{height:100%;background:linear-gradient(90deg,#ff4422,#ff7755);transition:width .15s}
 #shield-bar-inner{height:100%;background:linear-gradient(90deg,#2266ff,#55aaff);transition:width .15s}
 #energy-bar-inner{height:100%;background:linear-gradient(90deg,#3aff6a,#78ff8a);transition:width .15s}
+#oxygen-bar-inner{height:100%;background:linear-gradient(90deg,#7be6ff,#b9f3ff);transition:width .15s}
 #xp-bar-outer{width:70px;border:1px solid #6a4a8a}
 #xp-bar-inner{height:100%;background:linear-gradient(90deg,#aa44ff,#cc88ff);transition:width .15s}
 
@@ -94,6 +96,8 @@ tr:hover td{background:#1a2a3a}
       <b>SH</b><div id="shield-bar-outer" class="bar-outer"><div id="shield-bar-inner" style="width:100%"></div></div>
       <b>⚡</b><div id="energy-bar-outer" class="bar-outer"><div id="energy-bar-inner" style="width:100%"></div></div>
       <span id="energy-text" style="font-size:10px">100%</span>
+      <b>O2</b><div id="oxygen-bar-outer" class="bar-outer"><div id="oxygen-bar-inner" style="width:100%"></div></div>
+      <span id="oxygen-text" style="font-size:10px">100%</span>
     </span>
     <span class="pill"><b>📍</b> <span id="coords">0, 0</span></span>
     <span class="pill"><b>Ship:</b> <span id="shipname">Scout</span></span>
@@ -217,11 +221,13 @@ window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 
 let mouse={x:0,y:0,down:false,clicked:false};
 canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;mouse.x=(e.clientX-r.left)*sx;mouse.y=(e.clientY-r.top)*sy;});
+canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("mousedown",e=>{
   if(chatFocused)return;
-  mouse.down=true;mouse.clicked=true;
   const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;
   const mx=(e.clientX-r.left)*sx,my=(e.clientY-r.top)*sy;
+  if(mode===MODE.PLANET&&e.button===2){placeBuildTileAt(mx,my);e.preventDefault();return;}
+  mouse.down=true;mouse.clicked=true;
   if(shopOpen)handleShopClick(mx,my);
   else if(inventoryOpen)handleInventoryClick(mx,my);
   else if(attrOpen)handleAttrClick(mx,my);
@@ -246,7 +252,7 @@ const RES={
   dirt:{name:"Dirt",rarity:1,color:"#5b3a2a",base:1},stone:{name:"Stone",rarity:2,color:"#70757a",base:3},
   copper:{name:"Copper",rarity:3,color:"#c27a3a",base:9},iron:{name:"Iron",rarity:3,color:"#b2b2b2",base:10},
   gold:{name:"Gold",rarity:5,color:"#ffd15c",base:40},crystal:{name:"Crystal",rarity:6,color:"#7be6ff",base:60},
-  fuel:{name:"Battery Pack",rarity:4,color:"#78ff8a",base:25},gas_canister:{name:"Gas Canister",rarity:2,color:"#aaff44",base:30},
+  fuel:{name:"Battery Pack",rarity:4,color:"#78ff8a",base:25},gas_canister:{name:"Gas Canister",rarity:2,color:"#aaff44",base:30},oxygen_tank:{name:"Oxygen Tank",rarity:2,color:"#7be6ff",base:35},
   ice_block:{name:"Ice Block",rarity:2,color:"#b9f3ff",base:4},lava_rock:{name:"Lava Rock",rarity:3,color:"#ff4d1a",base:12},
   magma_core:{name:"Magma Core",rarity:4,color:"#d63810",base:22},toxic_sludge:{name:"Toxic Sludge",rarity:3,color:"#a3d15c",base:8},
   sand:{name:"Sand",rarity:1,color:"#f4d68f",base:2},grass_tuft:{name:"Grass",rarity:1,color:"#4db357",base:1}
@@ -295,6 +301,7 @@ const ship={
   get shieldRegenRate(){return 3*(1+((player.attrs.shieldRegen-1)*0.4))*this.def.shieldRegenMult;}
 };
 const energy=ship.energy;
+const oxygen={current:100,max:100,drainRate:2.2};
 function cargoUsed(){let n=0;for(const s of player.invSlots)if(s.type)n+=s.count;return n;}
 
 /* ── Other players, projectiles, drops ── */
@@ -314,17 +321,17 @@ let myOwnedStations=new Map(); // key → {goods,shipCount}
 /* ── Game state ── */
 let gameOver=false,inventoryOpen=false,shopOpen=false,attrOpen=false;
 let shopTab="sell",shopSelectedSlot=null,shopSellQty=1,shopBuyItem=null,shopBuyQty=1;
-let selectedSlot=null,nearStation=null;
+let selectedSlot=null,nearStation=null,buildSlotIndex=null,planetLoading=false,oxygenDamageTimer=0;
 let inventoryScrollRows=0,shopInventoryScrollRows=0;
 const INV_COLS=6,INV_VISIBLE_ROWS=4,SHOP_SELL_VISIBLE_ROWS=5;
 const MAX_STACK=24,SLOT_COST=1000,MAX_TOTAL_SLOTS=48;
 
 /* ── Station tiers (NPC) ── */
 const STATION_TIERS={
-  outpost:{name:"Outpost",color:"#88aacc",glowColor:"rgba(100,160,200,0.3)",size:14,spawnChance:0.35,shipCount:2,shipConfig:{hp:30,speed:65,damage:6,cargo:8,color:"#88aacc",size:4},priceMultSell:0.85,priceMultBuy:1.3,factionName:"Frontier Corps",factionColor:"#88aacc",itemPool:["dirt","stone","copper","iron","sand"],stockMin:5,stockMax:20,xpReward:15},
-  standard:{name:"Standard",color:"#66ccaa",glowColor:"rgba(80,200,160,0.35)",size:18,spawnChance:0.18,shipCount:3,shipConfig:{hp:55,speed:80,damage:12,cargo:14,color:"#66ccaa",size:5},priceMultSell:0.9,priceMultBuy:1.25,factionName:"Trade Guild",factionColor:"#66ccaa",itemPool:["stone","copper","iron","gold","ice_block","lava_rock","toxic_sludge"],stockMin:8,stockMax:30,xpReward:30},
-  advanced:{name:"Advanced",color:"#cc88ff",glowColor:"rgba(180,100,255,0.35)",size:22,spawnChance:0.09,shipCount:4,shipConfig:{hp:100,speed:95,damage:20,cargo:22,color:"#cc88ff",size:6},priceMultSell:0.95,priceMultBuy:1.2,factionName:"Nova Syndicate",factionColor:"#cc88ff",itemPool:["iron","gold","crystal","magma_core","fuel"],stockMin:15,stockMax:40,xpReward:60},
-  capital:{name:"Capital",color:"#ffcc44",glowColor:"rgba(255,200,50,0.4)",size:28,spawnChance:0.04,shipCount:6,shipConfig:{hp:200,speed:110,damage:35,cargo:36,color:"#ffcc44",size:8},priceMultSell:1.0,priceMultBuy:1.15,factionName:"Galactic Empire",factionColor:"#ffcc44",itemPool:["gold","crystal","magma_core","fuel","gas_canister"],stockMin:20,stockMax:60,xpReward:120}
+  outpost:{name:"Outpost",color:"#88aacc",glowColor:"rgba(100,160,200,0.3)",size:14,spawnChance:0.35,shipCount:2,shipConfig:{hp:30,speed:65,damage:6,cargo:8,color:"#88aacc",size:4},priceMultSell:0.85,priceMultBuy:1.3,factionName:"Frontier Corps",factionColor:"#88aacc",itemPool:["dirt","stone","copper","iron","sand","oxygen_tank"],stockMin:5,stockMax:20,xpReward:15},
+  standard:{name:"Standard",color:"#66ccaa",glowColor:"rgba(80,200,160,0.35)",size:18,spawnChance:0.18,shipCount:3,shipConfig:{hp:55,speed:80,damage:12,cargo:14,color:"#66ccaa",size:5},priceMultSell:0.9,priceMultBuy:1.25,factionName:"Trade Guild",factionColor:"#66ccaa",itemPool:["stone","copper","iron","gold","ice_block","lava_rock","toxic_sludge","oxygen_tank"],stockMin:8,stockMax:30,xpReward:30},
+  advanced:{name:"Advanced",color:"#cc88ff",glowColor:"rgba(180,100,255,0.35)",size:22,spawnChance:0.09,shipCount:4,shipConfig:{hp:100,speed:95,damage:20,cargo:22,color:"#cc88ff",size:6},priceMultSell:0.95,priceMultBuy:1.2,factionName:"Nova Syndicate",factionColor:"#cc88ff",itemPool:["iron","gold","crystal","magma_core","fuel","oxygen_tank"],stockMin:15,stockMax:40,xpReward:60},
+  capital:{name:"Capital",color:"#ffcc44",glowColor:"rgba(255,200,50,0.4)",size:28,spawnChance:0.04,shipCount:6,shipConfig:{hp:200,speed:110,damage:35,cargo:36,color:"#ffcc44",size:8},priceMultSell:1.0,priceMultBuy:1.15,factionName:"Galactic Empire",factionColor:"#ffcc44",itemPool:["gold","crystal","magma_core","fuel","gas_canister","oxygen_tank"],stockMin:20,stockMax:60,xpReward:120}
 };
 const TIER_ORDER=["outpost","standard","advanced","capital"];
 
@@ -504,8 +511,10 @@ function updateChunks(){
 }
 
 /* ── Planet mode ── */
-const TILE={EMPTY:0,DIRT:1,STONE:2,ORE1:3,ORE2:4,RARE:5,ICE:6,PACKED_ICE:7,LAVA:8,MAGMA:9,TOXIC_SLUDGE:10,SAND:11,SANDSTONE:12,GRASS:13};
-const TILECOLORS={0:"",1:"#5b3a2a",2:"#6b7075",3:"#c27a3a",4:"#b2b2b2",5:"#7be6ff",6:"#b9f3ff",7:"#8dc9e6",8:"#ff4d1a",9:"#d63810",10:"#a3d15c",11:"#f4d68f",12:"#d9a84e",13:"#4db357"};
+const TILE={EMPTY:0,DIRT:1,STONE:2,ORE1:3,ORE2:4,RARE:5,ICE:6,PACKED_ICE:7,LAVA:8,MAGMA:9,TOXIC_SLUDGE:10,SAND:11,SANDSTONE:12,GRASS:13,BEDROCK:14};
+const TILECOLORS={0:"",1:"#5b3a2a",2:"#6b7075",3:"#c27a3a",4:"#b2b2b2",5:"#7be6ff",6:"#b9f3ff",7:"#8dc9e6",8:"#ff4d1a",9:"#d63810",10:"#a3d15c",11:"#f4d68f",12:"#d9a84e",13:"#4db357",14:"#242730"};
+const BUILDABLE_RES_TO_TILE={dirt:TILE.DIRT,stone:TILE.STONE,sand:TILE.SAND,ice_block:TILE.ICE,lava_rock:TILE.LAVA,toxic_sludge:TILE.TOXIC_SLUDGE,grass_tuft:TILE.GRASS};
+const BUILD_TILE_HP={1:22,2:55,6:30,8:45,10:28,11:18,13:20};
 const MODE={SPACE:"space",PLANET:"planet"};
 let mode=MODE.SPACE,activePlanet=null,planetMap=null;
 const astronaut={x:0,y:0,vx:0,vy:0,w:10,h:14,onGround:false};
@@ -525,7 +534,7 @@ function genPlanetMap(planet){
   return{W,H,tiles,hp,heights,planet};
 }
 function resForTile(planet,t,y,H){const d=y/H,l=planet.resList;if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>["copper","iron"].includes(k));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){if(l.includes("gold")&&Math.random()<0.55)return"gold";if(l.includes("crystal")&&Math.random()<0.65)return"crystal";return l[Math.floor(Math.random()*l.length)];}if(t===5){if(l.includes("crystal")&&Math.random()<0.6+d*0.3)return"crystal";if(l.includes("gold")&&Math.random()<0.4+d*0.3)return"gold";return l[l.length-1];}return"stone";}
-function tileAt(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.tiles[y*planetMap.W+x];}
+function tileAt(x,y){if(!planetMap||x<0||x>=planetMap.W||y<0)return 0;if(y>=planetMap.H)return TILE.BEDROCK;return planetMap.tiles[y*planetMap.W+x];}
 function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.tiles[y*planetMap.W+x]=t;}
 function tileHP(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.hp[y*planetMap.W+x];}
 function setTileHP(x,y,h){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.hp[y*planetMap.W+x]=clamp(h,0,255);}
@@ -533,12 +542,12 @@ function collidePlanet(a,horiz){const TP=16,l=Math.floor((a.x-a.w/2)/TP),ri=Math
 function itemCollide(it){const TP=16,tx=Math.floor(it.x/TP),ty=Math.floor(it.y/TP);if(tileAt(tx,ty)){it.y=ty*TP-1;return true;}return false;}
 let mineCooldown=0;
 function doMining(dt){
-  mineCooldown-=dt;if(mineCooldown>0)return;
+  mineCooldown-=dt;if(mineCooldown>0||!planetMap||!activePlanet)return;
   const TP=16,cam=planetCamera(),wx=mouse.x+cam.x,wy=mouse.y+cam.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);
   if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)>72)return;
-  const t=tileAt(tx,ty);if(!t)return;
-  let hpv=tileHP(tx,ty);hpv-=18;setTileHP(tx,ty,hpv);mineCooldown=0.06;
-  if(hpv<=0){const kind=resForTile(activePlanet,t,ty,planetMap.H);setTile(tx,ty,0);setTileHP(tx,ty,0);let qty=1;if(t===3||t===4)qty=Math.random()<0.35?2:1;if(t===5)qty=Math.random()<0.55?2:1;for(let i=0;i<qty;i++)drops.push({kind,x:tx*TP+8+(Math.random()-0.5)*6,y:ty*TP+8,vx:(Math.random()-0.5)*40,vy:-80-Math.random()*60});socket.emit("gainXp",{amount:RES[kind].rarity*2});}
+  const t=tileAt(tx,ty);if(!t||t===TILE.BEDROCK||ty>=planetMap.H-3)return;
+  mineCooldown=0.075;
+  socket.emit("minePlanetTile",{planetId:activePlanet.id,tx,ty,power:18});
 }
 function planetCamera(){return{x:clamp(astronaut.x-canvas.width/2,0,planetMap.W*16-canvas.width),y:clamp(astronaut.y-canvas.height/2,0,planetMap.H*16-canvas.height)};}
 
@@ -549,7 +558,7 @@ const modeEl=document.getElementById("mode"),creditsEl=document.getElementById("
   scoreEl=document.getElementById("score"),
   xpBar=document.getElementById("xp-bar-inner"),hpBar=document.getElementById("hp-bar-inner"),
   shBar=document.getElementById("shield-bar-inner"),eBar=document.getElementById("energy-bar-inner"),
-  eText=document.getElementById("energy-text"),pcEl=document.getElementById("player-count");
+  eText=document.getElementById("energy-text"),o2Bar=document.getElementById("oxygen-bar-inner"),o2Text=document.getElementById("oxygen-text"),pcEl=document.getElementById("player-count");
 
 function updateHud(){
   modeEl.textContent=mode===MODE.SPACE?"SPACE":"PLANET:"+(activePlanet?activePlanet.type.toUpperCase():"");
@@ -563,6 +572,9 @@ function updateHud(){
   const ePct=clamp((energy.current/energy.max)*100,0,100);
   eBar.style.width=ePct+"%";eBar.style.background=ePct>50?"linear-gradient(90deg,#3aff6a,#78ff8a)":ePct>25?"linear-gradient(90deg,#ffaa00,#ffdd55)":"linear-gradient(90deg,#ff3322,#ff6644)";
   eText.textContent=Math.ceil(ePct)+"%";
+  const oPct=clamp((oxygen.current/oxygen.max)*100,0,100);
+  if(o2Bar){o2Bar.style.width=oPct+"%";o2Bar.style.background=oPct>50?"linear-gradient(90deg,#7be6ff,#b9f3ff)":oPct>25?"linear-gradient(90deg,#ffaa00,#ffdd55)":"linear-gradient(90deg,#ff3322,#ff6644)";}
+  if(o2Text)o2Text.textContent=Math.ceil(oPct)+"%";
   coordsEl.textContent=`${Math.round(ship.x)}, ${Math.round(ship.y)}`;
   shipnameEl.textContent=SHIP_TYPES[player.shipType]?.name||"Scout";
   const entries=[];for(const s of player.invSlots)if(s.type&&s.count>0)entries.push(`${RES[s.type].name}:${s.count}`);
@@ -959,7 +971,7 @@ socket.on("hitConfirm",({targetId,damage})=>{const op=otherPlayers.get(targetId)
 socket.on("killConfirm",({name})=>{addKillFeed(`☠ You destroyed ${name} (+150cr)`);player.credits+=150;updateHud();});
 socket.on("playerKilled",({victimName,killerName})=>{addKillFeed(`☠ ${killerName} destroyed ${victimName}`);});
 socket.on("youDied",({killedBy})=>{gameOver=true;showFT(`Destroyed by ${killedBy}!`,ship.x,ship.y,"#ff4422",14);});
-socket.on("respawn",({x,y})=>{ship.x=x;ship.y=y;ship.hp=ship.maxHp;ship.shield=ship.maxShield;energy.current=energy.max;gameOver=false;updateChunks();});
+socket.on("respawn",({x,y})=>{ship.x=x;ship.y=y;ship.hp=ship.maxHp;ship.shield=ship.maxShield;energy.current=energy.max;oxygen.current=oxygen.max;mode=MODE.SPACE;gameOver=false;updateChunks();updateHud();});
 socket.on("creditUpdate",({credits})=>{player.credits=credits;updateHud();renderCreditShop&&renderCreditShop();});
 socket.on("creditPurchaseConfirm",({packageId,creditsAdded,credits,paymentId})=>{
   player.credits=credits;
@@ -979,6 +991,26 @@ socket.on("attrConfirm",({attr,val,attrPoints})=>{player.attrs[attr]=val;player.
 socket.on("upgradeDenied",({reason})=>{showFT(reason,canvas.width/2,canvas.height/2,"#ff5544",10);});
 socket.on("energyUpdate",({energy:e})=>{energy.current=e;});
 socket.on("serverPong",()=>{}); // ping handled server-side
+
+socket.on("planetMapState",({planetId,W,H,tiles,hp,heights})=>{
+  if(!activePlanet||activePlanet.id!==planetId)return;
+  planetMap={W,H,tiles:Uint8Array.from(tiles||[]),hp:Uint8Array.from(hp||[]),heights:heights||[],planet:activePlanet};
+  enterPlanetWithLoadedMap();
+});
+socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
+  if(!activePlanet||activePlanet.id!==planetId||!planetMap)return;
+  setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
+});
+socket.on("planetMineDrop",({planetId,kind,x,y,qty})=>{
+  if(!activePlanet||activePlanet.id!==planetId)return;
+  const count=Math.max(1,Math.min(8,qty||1));
+  for(let i=0;i<count;i++)drops.push({kind,x:x+(Math.random()-0.5)*8,y:y+(Math.random()-0.5)*8,vx:(Math.random()-0.5)*35,vy:-70-Math.random()*45});
+});
+socket.on("planetBuildDenied",({reason,resourceType})=>{
+  if(resourceType)addToInventory(resourceType,1);
+  showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
+});
+socket.on("oxygenDamageUpdate",({hp,damage})=>{ship.hp=hp;showFT(`O2 DAMAGE -${Math.round(damage)}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)gameOver=true;});
 
 socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield})=>{
   player.shipType=shipTypeKey;player.credits=credits;ship.hp=hp;ship.maxHp=maxHp;ship.shield=shield;ship.maxShield=maxShield;
@@ -1166,11 +1198,86 @@ function updateSpace(dt){
   nearStation=null;for(const st of visibleStations){if(!st.destroyed&&dist(ship.x,ship.y,st.x,st.y)<st.r+70){nearStation=st;break;}}
 
   // Keys
-  if(keys.has("l")){keys.delete("l");const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<nearest.p.radius+60){activePlanet=nearest.p;planetMap=genPlanetMap(activePlanet);mode=MODE.PLANET;const cx=Math.floor(planetMap.W/2),sh2=planetMap.heights[cx];astronaut.x=cx*16;astronaut.y=sh2*16-10;astronaut.vx=0;astronaut.vy=0;landedShip.x=(cx-20)*16;landedShip.y=sh2*16-4;drops.length=0;socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});}}
+  if(keys.has("l")){keys.delete("l");landOnNearestPlanet();}
   if(keys.has("g")){keys.delete("g");useGasCanister();}
   if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
   if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;}
   if(keys.has("o")){keys.delete("o");if(nearStation){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}}
+}
+
+
+function surfaceYAtColumn(col){
+  if(!planetMap)return 0;
+  col=clamp(Math.floor(col),1,planetMap.W-2);
+  for(let y=0;y<planetMap.H;y++)if(tileAt(col,y))return y;
+  return Math.max(1,planetMap.H-4);
+}
+function findLandingColumn(){
+  if(!planetMap)return Math.floor(planetMap.W/2);
+  const center=Math.floor(planetMap.W/2), candidates=[];
+  for(let off=0;off<Math.floor(planetMap.W/2)-3;off++){
+    for(const col of [center+off,center-off]){
+      if(col<3||col>planetMap.W-4)continue;
+      const y=surfaceYAtColumn(col);
+      if(y>4&&y<planetMap.H-4&&!tileAt(col,y-1)&&!tileAt(col,y-2))candidates.push(col);
+    }
+    if(candidates.length)return candidates[0];
+  }
+  return center;
+}
+function placeLandedShipNear(col){
+  const sc=clamp(col+3,2,planetMap.W-3);
+  const sy=surfaceYAtColumn(sc);
+  landedShip.x=sc*16+8;
+  landedShip.y=sy*16-4;
+}
+function enterPlanetWithLoadedMap(){
+  if(!activePlanet||!planetMap)return;
+  mode=MODE.PLANET;planetLoading=false;oxygen.current=oxygen.max;oxygenDamageTimer=0;
+  const col=findLandingColumn(), surfaceY=surfaceYAtColumn(col);
+  astronaut.x=col*16+8;astronaut.y=surfaceY*16-10;astronaut.vx=0;astronaut.vy=0;astronaut.onGround=false;
+  placeLandedShipNear(col);
+  drops.length=0;
+  socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});
+  showFT("Planetfall",astronaut.x,astronaut.y-25,"#7be6ff",11);
+}
+function landOnNearestPlanet(){
+  const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];
+  if(!nearest||nearest.d>=nearest.p.radius+60)return;
+  activePlanet=nearest.p;planetLoading=true;
+  socket.emit("requestPlanetMap",{planet:{id:activePlanet.id,seed:activePlanet.seed,type:activePlanet.type,resList:activePlanet.resList,x:activePlanet.x,y:activePlanet.y,radius:activePlanet.radius}});
+  showFT("Loading planet map...",ship.x,ship.y-18,"#7be6ff",10);
+}
+function leavePlanet(){
+  ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;ship.vx*=0.2;ship.vy*=0.2;
+  mode=MODE.SPACE;oxygen.current=oxygen.max;planetLoading=false;
+  socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});
+  updateChunks();
+}
+function useOxygenTank(){
+  if(oxygen.current>=oxygen.max)return false;
+  const idx=player.invSlots.findIndex(s=>s.type==="oxygen_tank"&&s.count>0);
+  if(idx===-1){showFT("No oxygen tanks",astronaut.x,astronaut.y-25,"#ff5544",9);return false;}
+  removeFromInventory("oxygen_tank",1);oxygen.current=clamp(oxygen.current+65,0,oxygen.max);
+  showFT("+65% O2",astronaut.x,astronaut.y-25,"#7be6ff",10);updateHud();return true;
+}
+function buildableSlot(){
+  if(buildSlotIndex!==null){const s=player.invSlots[buildSlotIndex];if(s&&s.type&&s.count>0&&BUILDABLE_RES_TO_TILE[s.type])return {index:buildSlotIndex,slot:s};}
+  for(let i=0;i<player.maxSlots;i++){const s=player.invSlots[i];if(s&&s.type&&s.count>0&&BUILDABLE_RES_TO_TILE[s.type])return {index:i,slot:s};}
+  return null;
+}
+function placeBuildTileAt(mx,my){
+  if(!planetMap||!activePlanet)return;
+  const b=buildableSlot();if(!b){showFT("Select/build with dirt, stone, sand, ice, lava, sludge, or grass",astronaut.x,astronaut.y-25,"#ffcc44",8);return;}
+  const cam=planetCamera(),TP=16,wx=mx+cam.x,wy=my+cam.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);
+  if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)>82){showFT("Too far to build",astronaut.x,astronaut.y-25,"#ffcc44",8);return;}
+  if(tx<1||ty<1||tx>=planetMap.W-1||ty>=planetMap.H-3){showFT("Cannot build there",astronaut.x,astronaut.y-25,"#ffcc44",8);return;}
+  if(tileAt(tx,ty)){showFT("Tile occupied",astronaut.x,astronaut.y-25,"#ffcc44",8);return;}
+  if(Math.abs(wx-astronaut.x)<14&&Math.abs(wy-astronaut.y)<24){showFT("Too close to you",astronaut.x,astronaut.y-25,"#ffcc44",8);return;}
+  const type=b.slot.type,tile=BUILDABLE_RES_TO_TILE[type];
+  if(!removeFromInventory(type,1)){return;}
+  buildSlotIndex=b.index;
+  socket.emit("placePlanetTile",{planetId:activePlanet.id,tx,ty,tile,resourceType:type});
 }
 
 function useGasCanister(){
@@ -1459,7 +1566,7 @@ function handleAttrClick(mx,my){
 function handleInventoryClick(mx,my){
   clampPanelScrolls();
   const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
-  for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){const slot=player.invSlots[i];selectedSlot=(slot.type&&slot.count)?i:null;return;}}
+  for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){const slot=player.invSlots[i];selectedSlot=(slot.type&&slot.count)?i:null;if(selectedSlot!==null&&BUILDABLE_RES_TO_TILE[slot.type])buildSlotIndex=selectedSlot;return;}}
   if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){buyInventorySlot();return;}}
   selectedSlot=null;
 }
@@ -1474,19 +1581,32 @@ function drawInventory(){
   if(maxInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=INV_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(14,trackH*(INV_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(inventoryScrollRows/maxInventoryScrollRows());ctx.fillStyle="#5a8aaa";ctx.fillRect(trackX,knobY,4,knobH);ctx.fillStyle="#6a8aaa";ctx.font="7px monospace";ctx.fillText("wheel",trackX-8,trackY+trackH+9);}
   ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText(`Showing ${start+1}-${Math.min(player.maxSlots,start+visible)} of ${player.maxSlots}`,px+10,py+ph-22);
   const dx=px+250,dy=py+28,dw=140,dh=140;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
-  if(selectedSlot!==null&&player.invSlots[selectedSlot]?.type){const slot=player.invSlots[selectedSlot],res=RES[slot.type];if(res){ctx.fillStyle=res.color;ctx.fillRect(dx+10,dy+10,46,46);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=2;ctx.strokeRect(dx+10,dy+10,46,46);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+62,dy+20);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Qty:${slot.count}`,dx+62,dy+33);const rarN=["","Common","Uncommon","Rare","Epic","Legendary","Exotic"],rarC=["","#9a9a9a","#7aa37a","#5a8adf","#ba5adf","#dfaa5a","#ff5adf"];ctx.fillStyle=rarC[res.rarity]||"#9a9a9a";ctx.fillText(rarN[res.rarity],dx+62,dy+46);ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+10,dy+62);ctx.lineTo(dx+dw-10,dy+62);ctx.stroke();if(slot.type==="gas_canister"){ctx.fillStyle="#aaff44";ctx.font="bold 9px monospace";ctx.fillText("G: Use canister",dx+10,dy+80);}else{ctx.fillStyle="#7a8fa0";ctx.font="bold 9px monospace";ctx.fillText("Market Value",dx+10,dy+78);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText(`${price(slot.type)}cr each`,dx+10,dy+92);ctx.fillStyle="#78ff8a";ctx.fillText(`${price(slot.type)*slot.count}cr total`,dx+10,dy+105);}}}
+  if(selectedSlot!==null&&player.invSlots[selectedSlot]?.type){const slot=player.invSlots[selectedSlot],res=RES[slot.type];if(res){ctx.fillStyle=res.color;ctx.fillRect(dx+10,dy+10,46,46);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=2;ctx.strokeRect(dx+10,dy+10,46,46);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+62,dy+20);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Qty:${slot.count}`,dx+62,dy+33);const rarN=["","Common","Uncommon","Rare","Epic","Legendary","Exotic"],rarC=["","#9a9a9a","#7aa37a","#5a8adf","#ba5adf","#dfaa5a","#ff5adf"];ctx.fillStyle=rarC[res.rarity]||"#9a9a9a";ctx.fillText(rarN[res.rarity],dx+62,dy+46);ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+10,dy+62);ctx.lineTo(dx+dw-10,dy+62);ctx.stroke();if(slot.type==="gas_canister"){ctx.fillStyle="#aaff44";ctx.font="bold 9px monospace";ctx.fillText("G: Use canister",dx+10,dy+80);}else if(slot.type==="oxygen_tank"){ctx.fillStyle="#7be6ff";ctx.font="bold 9px monospace";ctx.fillText("X: Use oxygen tank",dx+10,dy+80);}else if(BUILDABLE_RES_TO_TILE[slot.type]){ctx.fillStyle="#ffcc44";ctx.font="bold 9px monospace";ctx.fillText("Right-click on planet to build",dx+10,dy+80);}else{ctx.fillStyle="#7a8fa0";ctx.font="bold 9px monospace";ctx.fillText("Market Value",dx+10,dy+78);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText(`${price(slot.type)}cr each`,dx+10,dy+92);ctx.fillStyle="#78ff8a";ctx.fillText(`${price(slot.type)*slot.count}cr total`,dx+10,dy+105);}}}
   else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to view",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
   if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24,canB=player.credits>=SLOT_COST;ctx.fillStyle=canB?"#2d4a3e":"#3a2a2a";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=canB?"#4a8a6a":"#6a4a4a";ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=canB?"#7be6ff":"#8a7a7a";ctx.font="9px monospace";ctx.fillText(`Buy Slot:${SLOT_COST}cr`,bx+8,by+15);}
-  ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("I:close  G:use gas  wheel:scroll",px+10,py+ph-10);
+  ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("I:close  G:gas  X:O2  right-click:build",px+10,py+ph-10);
 }
 
 /* ── Planet mode ── */
 function updatePlanet(dt){
-  const grav=400,move=90,jump=200;let ax=0;if(keys.has("a"))ax-=move;if(keys.has("d"))ax+=move;astronaut.vx=lerp(astronaut.vx,ax,0.15);if(keys.has("w")&&astronaut.onGround){astronaut.vy=-jump;astronaut.onGround=false;}astronaut.vy+=grav*dt;astronaut.x+=astronaut.vx*dt;collidePlanet(astronaut,true);astronaut.y+=astronaut.vy*dt;astronaut.onGround=false;collidePlanet(astronaut,false);
-  if(keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<28){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;ship.vx*=0.2;ship.vy*=0.2;mode=MODE.SPACE;socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});return;}}
+  if(!planetMap)return;
+  const grav=400,move=90,jump=200;
+  oxygen.current=clamp(oxygen.current-oxygen.drainRate*dt,0,oxygen.max);
+  if(oxygen.current<=0){oxygenDamageTimer-=dt;if(oxygenDamageTimer<=0){oxygenDamageTimer=1;socket.emit("oxygenDamage",{damage:7});}}
+  else oxygenDamageTimer=0;
+  let ax=0;if(keys.has("a"))ax-=move;if(keys.has("d"))ax+=move;
+  astronaut.vx=lerp(astronaut.vx,ax,0.15);
+  if(keys.has("w")&&astronaut.onGround){astronaut.vy=-jump;astronaut.onGround=false;}
+  astronaut.vy+=grav*dt;astronaut.x+=astronaut.vx*dt;astronaut.x=clamp(astronaut.x,8,planetMap.W*16-8);collidePlanet(astronaut,true);
+  astronaut.y+=astronaut.vy*dt;astronaut.onGround=false;collidePlanet(astronaut,false);
+  const bottomY=(planetMap.H-2)*16;
+  if(astronaut.y>bottomY){astronaut.y=bottomY;astronaut.vy=0;astronaut.onGround=true;}
+  if(keys.has("x")){keys.delete("x");useOxygenTank();}
+  if(keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
   if(mouse.down)doMining(dt);
   for(let i=drops.length-1;i>=0;i--){const it=drops[i];it.vy+=grav*dt;it.x+=it.vx*dt;it.y+=it.vy*dt;if(itemCollide(it)){it.vx*=0.6;it.vy=0;}if(dist(astronaut.x,astronaut.y,it.x,it.y)<18&&addToInventory(it.kind,1))drops.splice(i,1);}
   if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
+  updateHud();
 }
 function drawPlanet(){
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle=activePlanet.pal.sky;ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -1496,9 +1616,12 @@ function drawPlanet(){
   const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle="#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle="#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
   for(const it of drops){ctx.fillStyle=RES[it.kind]?.color||"#fff";ctx.fillRect((it.x-cam.x)-2,(it.y-cam.y)-2,4,4);}
   if(mouse.down){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
+  const bp=buildableSlot();
+  if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
+  const ox=8,oy=24,ow=90,oh=7,op=clamp(oxygen.current/oxygen.max,0,1);ctx.fillStyle="#07101b";ctx.fillRect(ox,oy,ow,oh);ctx.fillStyle=op>0.5?"#7be6ff":op>0.25?"#ffcc44":"#ff5544";ctx.fillRect(ox,oy,ow*op,oh);ctx.strokeStyle="#2a4a7a";ctx.strokeRect(ox,oy,ow,oh);ctx.fillStyle="#cfe2ff";ctx.font="8px monospace";ctx.fillText(`O2 ${Math.ceil(op*100)}%`,ox,oy+17);
   // Show planet coordinates
   ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(`Planet: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})`,canvas.width/2,16);ctx.textAlign="left";
-  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText("I:inv  L:near ship to takeoff  Mine with mouse",6,canvas.height-8);ctx.globalAlpha=1;
+  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText("I:inv  L:takeoff near ship  X:oxygen tank  Left-click:mine  Right-click:build",6,canvas.height-8);ctx.globalAlpha=1;
   if(inventoryOpen)drawInventory();
 }
 
