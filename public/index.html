@@ -69,6 +69,10 @@ tr:hover td{background:#1a2a3a}
 .credit-pack button{margin-top:8px;width:100%;background:#173a2a;border:1px solid #4a8a6a;border-radius:5px;color:#78ff8a;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:bold}
 .credit-pack button:hover{background:#20543b}
 .credit-note{font-size:10px;color:#8fa3cc;line-height:1.35;margin:6px 0 0}
+
+.char-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #16243a}
+.char-btn{background:#183354;border:1px solid #3f6f9f;border-radius:5px;color:#9fe8ff;padding:4px 8px;cursor:pointer;font-size:10px;font-weight:bold}
+.char-btn:hover{background:#204a78}
 </style>
 </head>
 <body>
@@ -102,7 +106,7 @@ tr:hover td{background:#1a2a3a}
     <span class="pill"><b>📍</b> <span id="coords">0, 0</span></span>
     <span class="pill"><b>Ship:</b> <span id="shipname">Scout</span></span>
     <span class="pill"><b>Inv:</b> <span id="inv">(empty)</span></span>
-    <span class="pill hint"><b>WASD</b>fly <b>L</b>land <b>O</b>shop <b>G</b>gas <b>I</b>inv <b>P</b>attrs <b>H</b>ships <b>B</b>build <b>M</b>credits <b>K</b>board <b>N</b>players <b>T</b>chat <b>Click</b>fire</span>
+    <span class="pill hint"><b>WASD</b>move/fly <b>L</b>land/takeoff <b>Q</b>tool <b>R</b>trade <b>C</b>character <b>O</b>shop <b>G</b>gas <b>I</b>inv <b>P</b>attrs <b>H</b>ships <b>B</b>build <b>M</b>credits <b>K</b>board <b>N</b>players <b>T</b>chat <b>Click</b>fire/mine</span>
   </div>
   <canvas id="c" width="560" height="310"></canvas>
 </div>
@@ -216,6 +220,11 @@ window.addEventListener("keydown",e=>{
   if(e.key.toLowerCase()==="h"){toggleShipShop();}
   if(e.key.toLowerCase()==="b"){if(mode===MODE.SPACE&&!shopOpen&&!inventoryOpen&&!attrOpen)toggleBuildPanel();}
   if(e.key.toLowerCase()==="m"){toggleCreditShop();}
+  if(e.key.toLowerCase()==="c"){toggleCharacterPanel();}
+  if(e.key.toLowerCase()==="q"){togglePlanetTool();}
+  if(e.key.toLowerCase()==="r"){sendTradeRequestToNearest();}
+  if(e.key.toLowerCase()==="y"){respondToTradeRequest(true);}
+  if(e.key.toLowerCase()==="n"){respondToTradeRequest(false);}
 });
 window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 
@@ -228,7 +237,8 @@ canvas.addEventListener("mousedown",e=>{
   const mx=(e.clientX-r.left)*sx,my=(e.clientY-r.top)*sy;
   if(mode===MODE.PLANET&&e.button===2){placeBuildTileAt(mx,my);e.preventDefault();return;}
   mouse.down=true;mouse.clicked=true;
-  if(shopOpen)handleShopClick(mx,my);
+  if(characterOpen)handleCharacterClick(mx,my);
+  else if(shopOpen)handleShopClick(mx,my);
   else if(inventoryOpen)handleInventoryClick(mx,my);
   else if(attrOpen)handleAttrClick(mx,my);
   else if(gameOver)requestRespawn();
@@ -286,6 +296,22 @@ const player={
   attrs:{damage:1,speed:1,cargoMax:1,armor:1,gasEfficiency:1,shieldRegen:1},
   attrPoints:0,color:"#7be6ff",shipType:"scout",score:0,kills:0,deaths:0,
 };
+const character={
+  cosmeticColor:"#ffd27a",
+  suitColor:"#ffffff",
+  weaponLevel:1,
+  miningLevel:1,
+  oxygenLevel:1,
+};
+const CHARACTER_UPGRADES={
+  weapon:{label:"Planet Weapon",key:"weaponLevel",baseCost:750},
+  mining:{label:"Mining Apparatus",key:"miningLevel",baseCost:650},
+  oxygen:{label:"Oxygen Tank",key:"oxygenLevel",baseCost:500},
+};
+function characterUpgradeCost(kind){const u=CHARACTER_UPGRADES[kind];return u?Math.floor(u.baseCost*Math.pow(1.65,Math.max(0,(character[u.key]||1)-1))):999999;}
+function planetWeaponDamage(){return 12+(character.weaponLevel-1)*5;}
+function planetMiningPower(){return 18+(character.miningLevel-1)*6;}
+function applyOxygenLevel(){oxygen.max=100+(character.oxygenLevel-1)*25;oxygen.drainRate=Math.max(1.2,4-(character.oxygenLevel-1)*0.45);oxygen.current=clamp(oxygen.current,0,oxygen.max);}
 function xpForLevel(l){return Math.floor(100*Math.pow(1.4,l-1));}
 
 /* ── Ship ── */
@@ -306,6 +332,10 @@ function cargoUsed(){let n=0;for(const s of player.invSlots)if(s.type)n+=s.count
 
 /* ── Other players, projectiles, drops ── */
 const otherPlayers=new Map();
+const planetPlayers=new Map();
+let pendingTradeRequest=null,tradeStatus="";
+let characterOpen=false,planetTool="mining",planetAttackCooldown=0,planetStateTimer=0;
+const PLANET_ATTACK_RANGE=72;
 const pvpProjectiles=[];
 const localPlayerProjectiles=[];
 const enemyProjectiles=[];
@@ -547,7 +577,7 @@ function doMining(dt){
   if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)>72)return;
   const t=tileAt(tx,ty);if(!t||t===TILE.BEDROCK||ty>=planetMap.H-3)return;
   mineCooldown=0.075;
-  socket.emit("minePlanetTile",{planetId:activePlanet.id,tx,ty,power:18});
+  socket.emit("minePlanetTile",{planetId:activePlanet.id,tx,ty,power:planetMiningPower()});
 }
 function planetCamera(){return{x:clamp(astronaut.x-canvas.width/2,0,planetMap.W*16-canvas.width),y:clamp(astronaut.y-canvas.height/2,0,planetMap.H*16-canvas.height)};}
 
@@ -805,7 +835,7 @@ function buyShip(key){
    - Railway only grants credits when Wix backend calls /api/grant-credits with a shared secret.
 */
 const CREDIT_PACKAGES={
-  credits_1000_test:{credits:1000,price:"$0.50",label:"Small Credit Drop"},
+  credits_1000_test:{credits:1000,price:"$0.50",label:"Test Credit Drop"},
   credits_10000:{credits:10000,price:"$1.99",label:"Scout Cache"},
   credits_25000:{credits:25000,price:"$2.99",label:"Trader Pack"},
   credits_50000:{credits:50000,price:"$3.99",label:"Fleet Boost"},
@@ -1010,6 +1040,27 @@ socket.on("planetBuildDenied",({reason,resourceType})=>{
   if(resourceType)addToInventory(resourceType,1);
   showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
 });
+socket.on("planetPlayersState",({planetId,players:pps})=>{
+  if(!activePlanet||activePlanet.id!==planetId)return;
+  const seen=new Set();
+  for(const pp of pps||[]){
+    if(pp.id===player.id)continue;
+    seen.add(pp.id);
+    const old=planetPlayers.get(pp.id)||{};
+    planetPlayers.set(pp.id,{...old,...pp,renderX:old.renderX??pp.x,renderY:old.renderY??pp.y,lastUpdate:performance.now()});
+  }
+  for(const id of [...planetPlayers.keys()])if(!seen.has(id))planetPlayers.delete(id);
+});
+socket.on("planetHit",({damage,hp,attackerName})=>{ship.hp=hp;showFT(`-${Math.round(damage)} ${attackerName||"hit"}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)gameOver=true;});
+socket.on("planetAttackConfirm",({targetId,damage,hp})=>{const pp=planetPlayers.get(targetId);if(pp){pp.hp=hp;showFT(`-${Math.round(damage)}`,pp.renderX||pp.x,pp.renderY||pp.y-24,"#ffff44",9);}});
+socket.on("planetAttackDenied",({reason})=>showFT(reason||"Attack missed",astronaut.x,astronaut.y-24,"#ffcc44",8));
+socket.on("characterState",({cosmeticColor,suitColor,weaponLevel,miningLevel,oxygenLevel,credits})=>{if(cosmeticColor)character.cosmeticColor=cosmeticColor;if(suitColor)character.suitColor=suitColor;if(weaponLevel)character.weaponLevel=weaponLevel;if(miningLevel)character.miningLevel=miningLevel;if(oxygenLevel)character.oxygenLevel=oxygenLevel;if(typeof credits==="number")player.credits=credits;applyOxygenLevel();updateHud();});
+socket.on("characterUpgradeConfirm",({kind,level,credits})=>{const u=CHARACTER_UPGRADES[kind];if(u)character[u.key]=level;if(typeof credits==="number")player.credits=credits;applyOxygenLevel();showFT(`${u?.label||kind} Lv${level}`,canvas.width/2,canvas.height/2-30,"#7be6ff",11);updateHud();});
+socket.on("characterUpgradeDenied",({reason})=>showFT(reason||"Upgrade denied",canvas.width/2,canvas.height/2-20,"#ff5544",10));
+socket.on("tradeRequest",({fromId,fromName,mode})=>{pendingTradeRequest={fromId,fromName,mode,expires:Date.now()+20000};tradeStatus=`${fromName} wants to trade. Press Y to accept or N to decline.`;addChat("Trade",tradeStatus,"#ffdd44");showFT("Trade request: Y/N",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-35:ship.y-20,"#ffdd44",10);});
+socket.on("tradeRequestSent",({targetName})=>{tradeStatus=`Trade request sent to ${targetName}.`;addChat("Trade",tradeStatus,"#7be6ff");});
+socket.on("tradeResponse",({fromName,accepted})=>{tradeStatus=accepted?`${fromName} accepted your trade request.`:`${fromName} declined your trade request.`;addChat("Trade",tradeStatus,accepted?"#78ff8a":"#ff8844");});
+socket.on("tradeDenied",({reason})=>{tradeStatus=reason||"Trade request failed.";addChat("Trade",tradeStatus,"#ff5544");});
 socket.on("oxygenDamageUpdate",({hp,damage})=>{ship.hp=hp;showFT(`O2 DAMAGE -${Math.round(damage)}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)gameOver=true;});
 
 socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield})=>{
@@ -1059,7 +1110,7 @@ function sendInput(){
   if(!joined||mode!==MODE.SPACE)return;
   const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
   let shootX=undefined,shootY=undefined;
-  if(mouse.clicked&&!shopOpen&&!inventoryOpen&&!attrOpen&&shootCooldownTimer<=0){shootX=mouse.x+camX;shootY=mouse.y+camY;shootCooldownTimer=SHOOT_CD;}
+  if(mouse.clicked&&!shopOpen&&!inventoryOpen&&!attrOpen&&!characterOpen&&shootCooldownTimer<=0){shootX=mouse.x+camX;shootY=mouse.y+camY;shootCooldownTimer=SHOOT_CD;}
   socket.emit("input",{rotLeft:keys.has("a"),rotRight:keys.has("d"),thrust:keys.has("w"),brake:keys.has("s"),shootX,shootY});
   mouse.clicked=false;
 }
@@ -1200,9 +1251,9 @@ function updateSpace(dt){
   // Keys
   if(keys.has("l")){keys.delete("l");landOnNearestPlanet();}
   if(keys.has("g")){keys.delete("g");useGasCanister();}
-  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
-  if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;}
-  if(keys.has("o")){keys.delete("o");if(nearStation){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}}
+  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
+  if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;}
+  if(keys.has("o")){keys.delete("o");if(nearStation){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}}
 }
 
 
@@ -1233,7 +1284,7 @@ function placeLandedShipNear(col){
 }
 function enterPlanetWithLoadedMap(){
   if(!activePlanet||!planetMap)return;
-  mode=MODE.PLANET;planetLoading=false;oxygen.current=oxygen.max;oxygenDamageTimer=0;
+  mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;planetPlayers.clear();
   const col=findLandingColumn(), surfaceY=surfaceYAtColumn(col);
   astronaut.x=col*16+8;astronaut.y=surfaceY*16-10;astronaut.vx=0;astronaut.vy=0;astronaut.onGround=false;
   placeLandedShipNear(col);
@@ -1242,6 +1293,7 @@ function enterPlanetWithLoadedMap(){
   showFT("Planetfall",astronaut.x,astronaut.y-25,"#7be6ff",11);
 }
 function landOnNearestPlanet(){
+  if(planetLoading){showFT("Landing sequence already started...",ship.x,ship.y-18,"#7be6ff",9);return;}
   const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];
   if(!nearest||nearest.d>=nearest.p.radius+60)return;
   activePlanet=nearest.p;planetLoading=true;
@@ -1591,6 +1643,9 @@ function drawInventory(){
 function updatePlanet(dt){
   if(!planetMap)return;
   const grav=400,move=90,jump=200;
+  planetAttackCooldown=Math.max(0,planetAttackCooldown-dt);
+  planetStateTimer-=dt;
+  if(planetStateTimer<=0&&activePlanet){planetStateTimer=0.08;socket.emit("planetState",{planetId:activePlanet.id,x:astronaut.x,y:astronaut.y,vx:astronaut.vx,vy:astronaut.vy,onGround:astronaut.onGround,tool:planetTool,cosmeticColor:character.cosmeticColor,suitColor:character.suitColor});}
   oxygen.current=clamp(oxygen.current-oxygen.drainRate*dt,0,oxygen.max);
   if(oxygen.current<=0){oxygenDamageTimer-=dt;if(oxygenDamageTimer<=0){oxygenDamageTimer=1;socket.emit("oxygenDamage",{damage:7});}}
   else oxygenDamageTimer=0;
@@ -1603,9 +1658,9 @@ function updatePlanet(dt){
   if(astronaut.y>bottomY){astronaut.y=bottomY;astronaut.vy=0;astronaut.onGround=true;}
   if(keys.has("x")){keys.delete("x");useOxygenTank();}
   if(keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
-  if(mouse.down)doMining(dt);
+  if(mouse.down&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon")planetWeaponAttack();else doMining(dt);}
   for(let i=drops.length-1;i>=0;i--){const it=drops[i];it.vy+=grav*dt;it.x+=it.vx*dt;it.y+=it.vy*dt;if(itemCollide(it)){it.vx*=0.6;it.vy=0;}if(dist(astronaut.x,astronaut.y,it.x,it.y)<18&&addToInventory(it.kind,1))drops.splice(i,1);}
-  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
+  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
   updateHud();
 }
 function drawPlanet(){
@@ -1613,17 +1668,40 @@ function drawPlanet(){
   const cam=planetCamera(),TP=16,x0=Math.floor(cam.x/TP),y0=Math.floor(cam.y/TP),x1=Math.ceil((cam.x+canvas.width)/TP),y1=Math.ceil((cam.y+canvas.height)/TP);
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=tileAt(x,y);if(!t)continue;const px2=x*TP-cam.x,py2=y*TP-cam.y;ctx.fillStyle=TILECOLORS[t]||"#6b7075";ctx.fillRect(px2,py2,TP,TP);ctx.globalAlpha=0.3;ctx.fillStyle="#fff";ctx.fillRect(px2+3,py2+3,1,1);ctx.globalAlpha=1;}
   const sx2=landedShip.x-cam.x,sy2=landedShip.y-cam.y;ctx.fillStyle="#ccc";ctx.fillRect(sx2-6,sy2-10,12,10);ctx.fillRect(sx2-2,sy2-14,4,4);ctx.fillStyle="#78ff8a";ctx.font="9px monospace";ctx.fillText("Ship (L)",sx2-12,sy2-18);
-  const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle="#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle="#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
+  for(const [,pp] of planetPlayers){
+    const pxp=(pp.renderX=lerp(pp.renderX??pp.x,pp.x,0.35))-cam.x,pyp=(pp.renderY=lerp(pp.renderY??pp.y,pp.y,0.35))-cam.y;
+    if(pxp<-20||pyp<-30||pxp>canvas.width+20||pyp>canvas.height+20)continue;
+    ctx.fillStyle=pp.cosmeticColor||"#ffd27a";ctx.fillRect(pxp-4,pyp-14,8,6);
+    ctx.fillStyle=pp.suitColor||"#dfe8ff";ctx.fillRect(pxp-5,pyp-8,10,8);
+    ctx.fillStyle="#6ad1ff";ctx.fillRect(pxp-3,pyp-7,6,3);
+    ctx.fillStyle=pp.color||"#7be6ff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(pp.name||"Pilot",pxp,pyp-20);
+    const hpP=clamp((pp.hp||1)/(pp.maxHp||1),0,1);ctx.fillStyle="#300";ctx.fillRect(pxp-14,pyp-18,28,2);ctx.fillStyle=hpP>0.5?"#3f3":"#f80";ctx.fillRect(pxp-14,pyp-18,28*hpP,2);ctx.textAlign="left";
+  }
+  const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle=character.cosmeticColor||"#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=character.suitColor||"#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
   for(const it of drops){ctx.fillStyle=RES[it.kind]?.color||"#fff";ctx.fillRect((it.x-cam.x)-2,(it.y-cam.y)-2,4,4);}
-  if(mouse.down){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
+  if(mouse.down&&planetTool==="mining"){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
   const bp=buildableSlot();
   if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
   const ox=8,oy=24,ow=90,oh=7,op=clamp(oxygen.current/oxygen.max,0,1);ctx.fillStyle="#07101b";ctx.fillRect(ox,oy,ow,oh);ctx.fillStyle=op>0.5?"#7be6ff":op>0.25?"#ffcc44":"#ff5544";ctx.fillRect(ox,oy,ow*op,oh);ctx.strokeStyle="#2a4a7a";ctx.strokeRect(ox,oy,ow,oh);ctx.fillStyle="#cfe2ff";ctx.font="8px monospace";ctx.fillText(`O2 ${Math.ceil(op*100)}%`,ox,oy+17);
   // Show planet coordinates
   ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(`Planet: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})`,canvas.width/2,16);ctx.textAlign="left";
-  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText("I:inv  L:takeoff near ship  X:oxygen tank  Left-click:mine  Right-click:build",6,canvas.height-8);ctx.globalAlpha=1;
+  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(`Tool:${planetTool.toUpperCase()} | Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"attack":"mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
   if(inventoryOpen)drawInventory();
+  if(characterOpen)drawCharacterPanel();
 }
+
+
+/* ── Character / planet interaction UI ── */
+function toggleCharacterPanel(){characterOpen=!characterOpen;if(characterOpen){inventoryOpen=false;shopOpen=false;attrOpen=false;}}
+function togglePlanetTool(){if(mode!==MODE.PLANET)return;planetTool=planetTool==="mining"?"weapon":"mining";showFT(`Tool: ${planetTool}`,astronaut.x,astronaut.y-24,"#ffdd44",9);}
+function nearestPlanetPlayer(maxD=70){let best=null,bd=maxD;for(const [,pp] of planetPlayers){const d=dist(astronaut.x,astronaut.y,pp.x,pp.y);if(d<bd){bd=d;best=pp;}}return best;}
+function nearestSpacePlayer(maxD=180){let best=null,bd=maxD;for(const [,op] of otherPlayers){if(op.mode!=="space")continue;const d=dist(ship.x,ship.y,op.x,op.y);if(d<bd){bd=d;best=op;}}return best;}
+function sendTradeRequestToNearest(){const t=mode===MODE.PLANET?nearestPlanetPlayer(85):nearestSpacePlayer(220);if(!t){showFT("No nearby player to trade with",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-28:ship.y-20,"#ffcc44",9);return;}socket.emit("tradeRequest",{targetId:t.id});}
+function respondToTradeRequest(accepted){if(!pendingTradeRequest||Date.now()>pendingTradeRequest.expires){pendingTradeRequest=null;return;}socket.emit("tradeResponse",{targetId:pendingTradeRequest.fromId,accepted:!!accepted});pendingTradeRequest=null;tradeStatus=accepted?"Trade accepted.":"Trade declined.";}
+function planetWeaponAttack(){if(planetAttackCooldown>0||!activePlanet)return;const target=nearestPlanetPlayer(PLANET_ATTACK_RANGE);if(!target){return;}planetAttackCooldown=0.45;socket.emit("planetAttack",{targetId:target.id,planetId:activePlanet.id});showFT("Strike!",astronaut.x,astronaut.y-22,"#ffdd44",8);}
+function cycleCosmetic(){const colors=["#ffd27a","#f4b0ff","#7be6ff","#78ff8a","#ff9966","#dfe8ff","#ffdd44"];const i=colors.indexOf(character.cosmeticColor);character.cosmeticColor=colors[(i+1)%colors.length];socket.emit("characterCosmetic",{cosmeticColor:character.cosmeticColor,suitColor:character.suitColor});}
+function handleCharacterClick(mx,my){const pw=420,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;if(mx<px||mx>px+pw||my<py||my>py+ph){characterOpen=false;return;}const rows=["weapon","mining","oxygen"];for(let i=0;i<rows.length;i++){const y=py+90+i*38,bx=px+300,by=y-17,bw=95,bh=22;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){socket.emit("upgradeCharacterPart",{kind:rows[i]});return;}}const cbx=px+20,cby=py+50;if(mx>=cbx&&mx<=cbx+120&&my>=cby&&my<=cby+24){cycleCosmetic();}}
+function drawCharacterPanel(){const pw=420,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="rgba(0,0,0,.78)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#3f6f9f";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);ctx.fillStyle="#7be6ff";ctx.font="bold 13px monospace";ctx.fillText("CHARACTER BAY",px+14,py+20);ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText("C:close  R:request trade  Q:switch planet tool",px+150,py+20);ctx.fillStyle="#0b1220";ctx.fillRect(px+15,py+36,130,78);ctx.strokeStyle="#274364";ctx.strokeRect(px+15,py+36,130,78);ctx.fillStyle=character.cosmeticColor;ctx.fillRect(px+72,py+56,14,10);ctx.fillStyle=character.suitColor;ctx.fillRect(px+70,py+66,18,20);ctx.fillStyle="#6ad1ff";ctx.fillRect(px+74,py+67,10,4);ctx.fillStyle="#ffdd44";ctx.font="9px monospace";ctx.fillText("Change Color",px+33,py+104);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(px+20,py+50,120,24);ctx.fillStyle="#d6e1ff";ctx.font="10px monospace";ctx.fillText(`Credits: ${player.credits}cr`,px+170,py+45);ctx.fillText(`Level: ${player.level}  XP: ${player.xp}/${player.xpToNext}`,px+170,py+60);ctx.fillText(`Ship: ${SHIP_TYPES[player.shipType]?.name||player.shipType}  HP:${Math.round(ship.hp)}/${ship.maxHp} SH:${Math.round(ship.shield)}/${ship.maxShield}`,px+170,py+75);ctx.fillText(`Planet Tool: ${planetTool}`,px+170,py+90);const rows=[['weapon','Planet Weapon',character.weaponLevel,`Damage ${planetWeaponDamage()}`],['mining','Mining Apparatus',character.miningLevel,`Power ${planetMiningPower()}`],['oxygen','Oxygen Tank',character.oxygenLevel,`O2 ${oxygen.max}% / drain ${oxygen.drainRate.toFixed(1)}`]];for(let i=0;i<rows.length;i++){const [kind,label,lv,stat]=rows[i],y=py+130+i*38,cost=characterUpgradeCost(kind);ctx.fillStyle="#0b1220";ctx.fillRect(px+18,y-24,pw-36,30);ctx.strokeStyle="#1e3858";ctx.strokeRect(px+18,y-24,pw-36,30);ctx.fillStyle="#ffdd44";ctx.font="bold 10px monospace";ctx.fillText(`${label} Lv${lv}`,px+28,y-8);ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(stat,px+160,y-8);ctx.fillStyle=player.credits>=cost?"#183a2a":"#3a1b1b";ctx.fillRect(px+300,y-17,95,22);ctx.strokeStyle=player.credits>=cost?"#4a8a6a":"#6a3333";ctx.strokeRect(px+300,y-17,95,22);ctx.fillStyle=player.credits>=cost?"#78ff8a":"#aa7777";ctx.font="bold 8px monospace";ctx.fillText(`Upgrade ${cost}cr`,px+307,y-3);}if(tradeStatus){ctx.fillStyle="#7be6ff";ctx.font="9px monospace";ctx.fillText(tradeStatus,px+20,py+ph-14);}}
 
 /* ── Game over ── */
 function drawGameOver(){
@@ -1644,8 +1722,8 @@ function tick(now){
   const dt=Math.min(0.033,(now-last)/1000);last=now;
   sendInput();
   if(gameOver){drawSpace();updateHud();requestAnimationFrame(tick);return;}
-  if(mode===MODE.SPACE){if(activePlanet||planetMap){activePlanet=null;planetMap=null;}updateSpace(dt);drawSpace();}
-  else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;updateSpace(dt);drawSpace();}else drawPlanet();}
+  if(mode===MODE.SPACE){if(!planetLoading&&(activePlanet||planetMap)){activePlanet=null;planetMap=null;}updateSpace(dt);drawSpace();if(characterOpen)drawCharacterPanel();}
+  else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;planetPlayers.clear();updateSpace(dt);drawSpace();if(characterOpen)drawCharacterPanel();}else drawPlanet();}
   updateHud();requestAnimationFrame(tick);
 }
 }; // end _socketScript.onload
