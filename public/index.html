@@ -70,6 +70,24 @@ tr:hover td{background:#1a2a3a}
 .credit-pack button:hover{background:#20543b}
 .credit-note{font-size:10px;color:#8fa3cc;line-height:1.35;margin:6px 0 0}
 
+.trade-dom-panel{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:90;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial}
+.trade-box{width:620px;max-width:92vw;background:#0e1424;border:2px solid #2a6aa0;border-radius:10px;padding:14px;box-shadow:0 0 24px rgba(123,230,255,.18)}
+.trade-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.trade-head h2{margin:0;color:#7be6ff;font-size:16px}
+.trade-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.trade-column{background:#0b1220;border:1px solid #20395c;border-radius:8px;padding:10px;min-height:180px}
+.trade-column h3{margin:0 0 8px;font-size:12px;color:#ffdd44}
+.trade-row{display:flex;gap:6px;align-items:center;margin:6px 0}
+.trade-row input,.trade-row select{background:#091020;border:1px solid #2a4a7a;border-radius:4px;color:#d6e1ff;font-size:11px;padding:4px}
+.trade-btn{background:#173a2a;border:1px solid #4a8a6a;border-radius:5px;color:#78ff8a;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:bold}
+.trade-btn.warn{background:#3a1c1c;border-color:#8a4a4a;color:#ff9a9a}
+.trade-btn.ready{background:#31401a;border-color:#ffd15c;color:#ffdd44}
+.trade-offer-item{display:flex;justify-content:space-between;gap:6px;font-size:11px;border-bottom:1px solid #172a44;padding:4px 0}
+.trade-small{font-size:10px;color:#8fa3cc}
+#trade-request-banner{position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#241b05;border:2px solid #ffdd44;border-radius:10px;color:#fff3a4;padding:10px 14px;z-index:95;display:none;box-shadow:0 0 24px rgba(255,221,68,.35);font-family:system-ui,Segoe UI,Arial}
+#trade-request-banner b{color:#fff}
+#trade-request-banner button{margin-left:8px}
+
 .char-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #16243a}
 .char-btn{background:#183354;border:1px solid #3f6f9f;border-radius:5px;color:#9fe8ff;padding:4px 8px;cursor:pointer;font-size:10px;font-weight:bold}
 .char-btn:hover{background:#204a78}
@@ -171,6 +189,47 @@ tr:hover td{background:#1a2a3a}
     <p class="credit-note">Purchases are started through the Wix parent page. Credits are only granted after the Wix backend confirms a successful payment with the Railway server.</p>
     <div id="credit-pack-list" class="credit-pack-grid"></div>
     <p id="credit-pay-status" class="credit-note"></p>
+  </div>
+</div>
+
+<!-- Noticeable trade request banner -->
+<div id="trade-request-banner">
+  <span id="trade-request-text">Trade request</span>
+  <button id="trade-accept-btn" class="trade-btn">Accept</button>
+  <button id="trade-decline-btn" class="trade-btn warn">Decline</button>
+</div>
+
+<!-- Player trade panel -->
+<div id="trade-panel-dom" class="trade-dom-panel">
+  <div class="trade-box">
+    <div class="trade-head">
+      <h2>🤝 PLAYER TRADE — <span id="trade-other-name">Pilot</span></h2>
+      <button id="trade-close-btn" class="trade-btn warn">Cancel</button>
+    </div>
+    <div class="trade-small" id="trade-session-status">Choose credits/resources, then press Ready. Changing your offer resets readiness.</div>
+    <div class="trade-grid">
+      <div class="trade-column">
+        <h3>Your Offer <span id="trade-your-ready"></span></h3>
+        <div class="trade-row">
+          <label class="trade-small">Credits</label>
+          <input id="trade-credit-input" type="number" min="0" step="1" value="0" style="width:95px"/>
+          <button id="trade-credit-update-btn" class="trade-btn">Update</button>
+        </div>
+        <div class="trade-row">
+          <select id="trade-item-select" style="flex:1"></select>
+          <input id="trade-item-qty" type="number" min="1" step="1" value="1" style="width:62px"/>
+          <button id="trade-add-item-btn" class="trade-btn">Add</button>
+        </div>
+        <div id="trade-your-offer"></div>
+      </div>
+      <div class="trade-column">
+        <h3>Their Offer <span id="trade-their-ready"></span></h3>
+        <div id="trade-their-offer"></div>
+      </div>
+    </div>
+    <div class="trade-row" style="justify-content:flex-end;margin-top:12px">
+      <button id="trade-ready-btn" class="trade-btn ready">Ready Trade</button>
+    </div>
   </div>
 </div>
 
@@ -333,7 +392,8 @@ function cargoUsed(){let n=0;for(const s of player.invSlots)if(s.type)n+=s.count
 /* ── Other players, projectiles, drops ── */
 const otherPlayers=new Map();
 const planetPlayers=new Map();
-let pendingTradeRequest=null,tradeStatus="";
+const planetProjectiles=new Map();
+let pendingTradeRequest=null,tradeStatus="",activeTrade=null;
 let characterOpen=false,planetTool="mining",planetAttackCooldown=0,planetStateTimer=0;
 const PLANET_ATTACK_RANGE=72;
 const pvpProjectiles=[];
@@ -835,7 +895,7 @@ function buyShip(key){
    - Railway only grants credits when Wix backend calls /api/grant-credits with a shared secret.
 */
 const CREDIT_PACKAGES={
-  credits_1000_test:{credits:1000,price:"$0.50",label:"Test Credit Drop"},
+  credits_1000_test:{credits:1000,price:"$0.50",label:"Small Credit Drop"},
   credits_10000:{credits:10000,price:"$1.99",label:"Scout Cache"},
   credits_25000:{credits:25000,price:"$2.99",label:"Trader Pack"},
   credits_50000:{credits:50000,price:"$3.99",label:"Fleet Boost"},
@@ -1040,7 +1100,7 @@ socket.on("planetBuildDenied",({reason,resourceType})=>{
   if(resourceType)addToInventory(resourceType,1);
   showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
 });
-socket.on("planetPlayersState",({planetId,players:pps})=>{
+socket.on("planetPlayersState",({planetId,players:pps,projectiles})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
   const seen=new Set();
   for(const pp of pps||[]){
@@ -1050,6 +1110,13 @@ socket.on("planetPlayersState",({planetId,players:pps})=>{
     planetPlayers.set(pp.id,{...old,...pp,renderX:old.renderX??pp.x,renderY:old.renderY??pp.y,lastUpdate:performance.now()});
   }
   for(const id of [...planetPlayers.keys()])if(!seen.has(id))planetPlayers.delete(id);
+  const pSeen=new Set();
+  for(const pr of projectiles||[]){
+    pSeen.add(pr.id);
+    const old=planetProjectiles.get(pr.id)||{};
+    planetProjectiles.set(pr.id,{...old,...pr,renderX:old.renderX??pr.x,renderY:old.renderY??pr.y});
+  }
+  for(const id of [...planetProjectiles.keys()])if(!pSeen.has(id))planetProjectiles.delete(id);
 });
 socket.on("planetHit",({damage,hp,attackerName})=>{ship.hp=hp;showFT(`-${Math.round(damage)} ${attackerName||"hit"}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)gameOver=true;});
 socket.on("planetAttackConfirm",({targetId,damage,hp})=>{const pp=planetPlayers.get(targetId);if(pp){pp.hp=hp;showFT(`-${Math.round(damage)}`,pp.renderX||pp.x,pp.renderY||pp.y-24,"#ffff44",9);}});
@@ -1057,10 +1124,22 @@ socket.on("planetAttackDenied",({reason})=>showFT(reason||"Attack missed",astron
 socket.on("characterState",({cosmeticColor,suitColor,weaponLevel,miningLevel,oxygenLevel,credits})=>{if(cosmeticColor)character.cosmeticColor=cosmeticColor;if(suitColor)character.suitColor=suitColor;if(weaponLevel)character.weaponLevel=weaponLevel;if(miningLevel)character.miningLevel=miningLevel;if(oxygenLevel)character.oxygenLevel=oxygenLevel;if(typeof credits==="number")player.credits=credits;applyOxygenLevel();updateHud();});
 socket.on("characterUpgradeConfirm",({kind,level,credits})=>{const u=CHARACTER_UPGRADES[kind];if(u)character[u.key]=level;if(typeof credits==="number")player.credits=credits;applyOxygenLevel();showFT(`${u?.label||kind} Lv${level}`,canvas.width/2,canvas.height/2-30,"#7be6ff",11);updateHud();});
 socket.on("characterUpgradeDenied",({reason})=>showFT(reason||"Upgrade denied",canvas.width/2,canvas.height/2-20,"#ff5544",10));
-socket.on("tradeRequest",({fromId,fromName,mode})=>{pendingTradeRequest={fromId,fromName,mode,expires:Date.now()+20000};tradeStatus=`${fromName} wants to trade. Press Y to accept or N to decline.`;addChat("Trade",tradeStatus,"#ffdd44");showFT("Trade request: Y/N",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-35:ship.y-20,"#ffdd44",10);});
+socket.on("tradeRequest",({fromId,fromName,mode})=>{pendingTradeRequest={fromId,fromName,mode,expires:Date.now()+25000};tradeStatus=`${fromName} wants to trade.`;addChat("Trade",`${tradeStatus} Use the yellow banner or press Y/N.`,"#ffdd44");showTradeRequestBanner();showFT("TRADE REQUEST!",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-40:ship.y-24,"#ffdd44",13);});
 socket.on("tradeRequestSent",({targetName})=>{tradeStatus=`Trade request sent to ${targetName}.`;addChat("Trade",tradeStatus,"#7be6ff");});
-socket.on("tradeResponse",({fromName,accepted})=>{tradeStatus=accepted?`${fromName} accepted your trade request.`:`${fromName} declined your trade request.`;addChat("Trade",tradeStatus,accepted?"#78ff8a":"#ff8844");});
+socket.on("tradeResponse",({fromName,accepted})=>{tradeStatus=accepted?`${fromName} accepted your trade request. Opening trade window...`:`${fromName} declined your trade request.`;addChat("Trade",tradeStatus,accepted?"#78ff8a":"#ff8844");});
 socket.on("tradeDenied",({reason})=>{tradeStatus=reason||"Trade request failed.";addChat("Trade",tradeStatus,"#ff5544");});
+socket.on("tradeStarted",(state)=>{applyTradeState(state);showTradePanel();addChat("Trade",`Trade started with ${state.otherName}.`,"#78ff8a");});
+socket.on("tradeSessionState",(state)=>{applyTradeState(state);renderTradePanel();});
+socket.on("tradeCancelled",({reason})=>{addChat("Trade",reason||"Trade cancelled.","#ff8844");closeTradePanel(false);});
+socket.on("tradeComplete",({credits,gaveOffer,receivedOffer,otherName})=>{
+  for(const it of (gaveOffer?.items||[]))removeFromInventory(it.type,it.quantity);
+  for(const it of (receivedOffer?.items||[]))addToInventory(it.type,it.quantity);
+  if(typeof credits==="number")player.credits=credits;
+  updateHud();
+  addChat("Trade",`Trade completed with ${otherName||"player"}.`,"#78ff8a");
+  showFT("Trade complete",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-35:ship.y-22,"#78ff8a",11);
+  closeTradePanel(false);
+});
 socket.on("oxygenDamageUpdate",({hp,damage})=>{ship.hp=hp;showFT(`O2 DAMAGE -${Math.round(damage)}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)gameOver=true;});
 
 socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield})=>{
@@ -1677,6 +1756,12 @@ function drawPlanet(){
     ctx.fillStyle=pp.color||"#7be6ff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(pp.name||"Pilot",pxp,pyp-20);
     const hpP=clamp((pp.hp||1)/(pp.maxHp||1),0,1);ctx.fillStyle="#300";ctx.fillRect(pxp-14,pyp-18,28,2);ctx.fillStyle=hpP>0.5?"#3f3":"#f80";ctx.fillRect(pxp-14,pyp-18,28*hpP,2);ctx.textAlign="left";
   }
+  for(const [,pr] of planetProjectiles){
+    const px=(pr.renderX=lerp(pr.renderX??pr.x,pr.x,0.55))-cam.x,py=(pr.renderY=lerp(pr.renderY??pr.y,pr.y,0.55))-cam.y;
+    if(px<-12||py<-12||px>canvas.width+12||py>canvas.height+12)continue;
+    ctx.fillStyle=pr.ownerId===player.id?"#ffdd44":"#ff6655";ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=.45;ctx.strokeStyle=pr.ownerId===player.id?"#ffdd44":"#ff6655";ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+  }
   const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle=character.cosmeticColor||"#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=character.suitColor||"#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
   for(const it of drops){ctx.fillStyle=RES[it.kind]?.color||"#fff";ctx.fillRect((it.x-cam.x)-2,(it.y-cam.y)-2,4,4);}
   if(mouse.down&&planetTool==="mining"){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
@@ -1685,7 +1770,7 @@ function drawPlanet(){
   const ox=8,oy=24,ow=90,oh=7,op=clamp(oxygen.current/oxygen.max,0,1);ctx.fillStyle="#07101b";ctx.fillRect(ox,oy,ow,oh);ctx.fillStyle=op>0.5?"#7be6ff":op>0.25?"#ffcc44":"#ff5544";ctx.fillRect(ox,oy,ow*op,oh);ctx.strokeStyle="#2a4a7a";ctx.strokeRect(ox,oy,ow,oh);ctx.fillStyle="#cfe2ff";ctx.font="8px monospace";ctx.fillText(`O2 ${Math.ceil(op*100)}%`,ox,oy+17);
   // Show planet coordinates
   ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(`Planet: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})`,canvas.width/2,16);ctx.textAlign="left";
-  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(`Tool:${planetTool.toUpperCase()} | Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"attack":"mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
+  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(`Tool:${planetTool.toUpperCase()} | Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"shoot":"mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
   if(inventoryOpen)drawInventory();
   if(characterOpen)drawCharacterPanel();
 }
@@ -1696,12 +1781,29 @@ function toggleCharacterPanel(){characterOpen=!characterOpen;if(characterOpen){i
 function togglePlanetTool(){if(mode!==MODE.PLANET)return;planetTool=planetTool==="mining"?"weapon":"mining";showFT(`Tool: ${planetTool}`,astronaut.x,astronaut.y-24,"#ffdd44",9);}
 function nearestPlanetPlayer(maxD=70){let best=null,bd=maxD;for(const [,pp] of planetPlayers){const d=dist(astronaut.x,astronaut.y,pp.x,pp.y);if(d<bd){bd=d;best=pp;}}return best;}
 function nearestSpacePlayer(maxD=180){let best=null,bd=maxD;for(const [,op] of otherPlayers){if(op.mode!=="space")continue;const d=dist(ship.x,ship.y,op.x,op.y);if(d<bd){bd=d;best=op;}}return best;}
-function sendTradeRequestToNearest(){const t=mode===MODE.PLANET?nearestPlanetPlayer(85):nearestSpacePlayer(220);if(!t){showFT("No nearby player to trade with",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-28:ship.y-20,"#ffcc44",9);return;}socket.emit("tradeRequest",{targetId:t.id});}
-function respondToTradeRequest(accepted){if(!pendingTradeRequest||Date.now()>pendingTradeRequest.expires){pendingTradeRequest=null;return;}socket.emit("tradeResponse",{targetId:pendingTradeRequest.fromId,accepted:!!accepted});pendingTradeRequest=null;tradeStatus=accepted?"Trade accepted.":"Trade declined.";}
-function planetWeaponAttack(){if(planetAttackCooldown>0||!activePlanet)return;const target=nearestPlanetPlayer(PLANET_ATTACK_RANGE);if(!target){return;}planetAttackCooldown=0.45;socket.emit("planetAttack",{targetId:target.id,planetId:activePlanet.id});showFT("Strike!",astronaut.x,astronaut.y-22,"#ffdd44",8);}
+function sendTradeRequestToNearest(){const t=mode===MODE.PLANET?nearestPlanetPlayer(95):nearestSpacePlayer(220);if(!t){showFT("No nearby player to trade with",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-28:ship.y-20,"#ffcc44",9);return;}socket.emit("tradeRequest",{targetId:t.id});}
+function respondToTradeRequest(accepted){if(!pendingTradeRequest||Date.now()>pendingTradeRequest.expires){pendingTradeRequest=null;hideTradeRequestBanner();return;}socket.emit("tradeResponse",{targetId:pendingTradeRequest.fromId,accepted:!!accepted});pendingTradeRequest=null;hideTradeRequestBanner();tradeStatus=accepted?"Trade accepted.":"Trade declined.";}
+function planetWeaponAttack(){if(planetAttackCooldown>0||!activePlanet)return;planetAttackCooldown=0.55;const cam=planetCamera();socket.emit("planetFireProjectile",{planetId:activePlanet.id,x:astronaut.x,y:astronaut.y-8,targetX:mouse.x+cam.x,targetY:mouse.y+cam.y});showFT("Pew!",astronaut.x,astronaut.y-22,"#ffdd44",8);}
+function inventoryTypeCounts(){const out={};for(const s of player.invSlots){if(s.type&&s.count>0)out[s.type]=(out[s.type]||0)+s.count;}return out;}
+function normalizeTradeItems(items){const counts=inventoryTypeCounts(),used={};const out=[];for(const it of items||[]){const type=it.type;if(!type||!RES[type])continue;const max=Math.max(0,(counts[type]||0)-(used[type]||0));const q=clamp(Math.floor(Number(it.quantity)||0),0,max);if(q>0){used[type]=(used[type]||0)+q;out.push({type,quantity:q});}}return out;}
+function showTradeRequestBanner(){const b=document.getElementById("trade-request-banner"),t=document.getElementById("trade-request-text");if(!b||!pendingTradeRequest)return;if(t)t.innerHTML=`<b>${pendingTradeRequest.fromName}</b> wants to trade with you`;b.style.display="block";}
+function hideTradeRequestBanner(){const b=document.getElementById("trade-request-banner");if(b)b.style.display="none";}
+function applyTradeState(state){if(!state)return;activeTrade={...activeTrade,...state};}
+function showTradePanel(){const el=document.getElementById("trade-panel-dom");if(el)el.style.display="flex";renderTradePanel();}
+function closeTradePanel(sendCancel=true){if(sendCancel&&activeTrade?.tradeId)socket.emit("tradeCancel",{tradeId:activeTrade.tradeId});activeTrade=null;const el=document.getElementById("trade-panel-dom");if(el)el.style.display="none";}
+function myTradeOffer(){if(!activeTrade)return {credits:0,items:[]};return activeTrade.offers?.[activeTrade.yourSide]||{credits:0,items:[]};}
+function theirTradeOffer(){if(!activeTrade)return {credits:0,items:[]};const other=activeTrade.yourSide==="a"?"b":"a";return activeTrade.offers?.[other]||{credits:0,items:[]};}
+function sendTradeOffer(){if(!activeTrade)return;const inp=document.getElementById("trade-credit-input");let credits=clamp(Math.floor(Number(inp?.value)||0),0,Math.max(0,player.credits));const offer=myTradeOffer();offer.credits=credits;offer.items=normalizeTradeItems(offer.items);socket.emit("tradeUpdate",{tradeId:activeTrade.tradeId,offer});}
+function addTradeItem(){if(!activeTrade)return;const sel=document.getElementById("trade-item-select"),qtyEl=document.getElementById("trade-item-qty");const type=sel?.value;if(!type)return;const q=Math.max(1,Math.floor(Number(qtyEl?.value)||1));const offer=myTradeOffer();const existing=offer.items.find(i=>i.type===type);if(existing)existing.quantity+=q;else offer.items.push({type,quantity:q});offer.items=normalizeTradeItems(offer.items);socket.emit("tradeUpdate",{tradeId:activeTrade.tradeId,offer});}
+function removeTradeItem(idx){if(!activeTrade)return;const offer=myTradeOffer();offer.items.splice(idx,1);socket.emit("tradeUpdate",{tradeId:activeTrade.tradeId,offer});}
+function setTradeReady(){if(!activeTrade)return;sendTradeOffer();socket.emit("tradeReady",{tradeId:activeTrade.tradeId,ready:true});}
+function formatOfferHTML(offer,editable=false){let html=`<div class="trade-offer-item"><span>Credits</span><b>${offer.credits||0} cr</b></div>`;if(!(offer.items||[]).length)html+=`<div class="trade-small">No resources/items offered.</div>`;for(let i=0;i<(offer.items||[]).length;i++){const it=offer.items[i];html+=`<div class="trade-offer-item"><span>${RES[it.type]?.name||it.type} × ${it.quantity}</span>${editable?`<button class="trade-btn warn trade-remove" data-idx="${i}" style="padding:2px 6px">Remove</button>`:""}</div>`;}return html;}
+function renderTradePanel(){if(!activeTrade)return;const other=activeTrade.yourSide==="a"?"b":"a";document.getElementById("trade-other-name").textContent=activeTrade.otherName||"Pilot";document.getElementById("trade-session-status").textContent=tradeStatus||"Choose credits/resources, then press Ready. Changing your offer resets readiness.";const offer=myTradeOffer(),their=theirTradeOffer();const creditInput=document.getElementById("trade-credit-input");if(creditInput&&document.activeElement!==creditInput)creditInput.value=offer.credits||0;const sel=document.getElementById("trade-item-select");if(sel){const old=sel.value;sel.innerHTML="";const counts=inventoryTypeCounts();for(const [type,count] of Object.entries(counts)){const opt=document.createElement("option");opt.value=type;opt.textContent=`${RES[type]?.name||type} (${count})`;sel.appendChild(opt);}if(old)sel.value=old;}document.getElementById("trade-your-offer").innerHTML=formatOfferHTML(offer,true);document.getElementById("trade-their-offer").innerHTML=formatOfferHTML(their,false);document.getElementById("trade-your-ready").textContent=activeTrade.ready?.[activeTrade.yourSide]?"✓ READY":"";document.getElementById("trade-their-ready").textContent=activeTrade.ready?.[other]?"✓ READY":"";for(const btn of document.querySelectorAll(".trade-remove"))btn.onclick=()=>removeTradeItem(Number(btn.dataset.idx));}
+function initTradeDom(){const a=document.getElementById("trade-accept-btn"),d=document.getElementById("trade-decline-btn"),cl=document.getElementById("trade-close-btn"),add=document.getElementById("trade-add-item-btn"),upd=document.getElementById("trade-credit-update-btn"),ready=document.getElementById("trade-ready-btn");if(a)a.onclick=()=>respondToTradeRequest(true);if(d)d.onclick=()=>respondToTradeRequest(false);if(cl)cl.onclick=()=>closeTradePanel(true);if(add)add.onclick=addTradeItem;if(upd)upd.onclick=sendTradeOffer;if(ready)ready.onclick=setTradeReady;}
 function cycleCosmetic(){const colors=["#ffd27a","#f4b0ff","#7be6ff","#78ff8a","#ff9966","#dfe8ff","#ffdd44"];const i=colors.indexOf(character.cosmeticColor);character.cosmeticColor=colors[(i+1)%colors.length];socket.emit("characterCosmetic",{cosmeticColor:character.cosmeticColor,suitColor:character.suitColor});}
 function handleCharacterClick(mx,my){const pw=420,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;if(mx<px||mx>px+pw||my<py||my>py+ph){characterOpen=false;return;}const rows=["weapon","mining","oxygen"];for(let i=0;i<rows.length;i++){const y=py+90+i*38,bx=px+300,by=y-17,bw=95,bh=22;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){socket.emit("upgradeCharacterPart",{kind:rows[i]});return;}}const cbx=px+20,cby=py+50;if(mx>=cbx&&mx<=cbx+120&&my>=cby&&my<=cby+24){cycleCosmetic();}}
 function drawCharacterPanel(){const pw=420,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="rgba(0,0,0,.78)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#3f6f9f";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);ctx.fillStyle="#7be6ff";ctx.font="bold 13px monospace";ctx.fillText("CHARACTER BAY",px+14,py+20);ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText("C:close  R:request trade  Q:switch planet tool",px+150,py+20);ctx.fillStyle="#0b1220";ctx.fillRect(px+15,py+36,130,78);ctx.strokeStyle="#274364";ctx.strokeRect(px+15,py+36,130,78);ctx.fillStyle=character.cosmeticColor;ctx.fillRect(px+72,py+56,14,10);ctx.fillStyle=character.suitColor;ctx.fillRect(px+70,py+66,18,20);ctx.fillStyle="#6ad1ff";ctx.fillRect(px+74,py+67,10,4);ctx.fillStyle="#ffdd44";ctx.font="9px monospace";ctx.fillText("Change Color",px+33,py+104);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(px+20,py+50,120,24);ctx.fillStyle="#d6e1ff";ctx.font="10px monospace";ctx.fillText(`Credits: ${player.credits}cr`,px+170,py+45);ctx.fillText(`Level: ${player.level}  XP: ${player.xp}/${player.xpToNext}`,px+170,py+60);ctx.fillText(`Ship: ${SHIP_TYPES[player.shipType]?.name||player.shipType}  HP:${Math.round(ship.hp)}/${ship.maxHp} SH:${Math.round(ship.shield)}/${ship.maxShield}`,px+170,py+75);ctx.fillText(`Planet Tool: ${planetTool}`,px+170,py+90);const rows=[['weapon','Planet Weapon',character.weaponLevel,`Damage ${planetWeaponDamage()}`],['mining','Mining Apparatus',character.miningLevel,`Power ${planetMiningPower()}`],['oxygen','Oxygen Tank',character.oxygenLevel,`O2 ${oxygen.max}% / drain ${oxygen.drainRate.toFixed(1)}`]];for(let i=0;i<rows.length;i++){const [kind,label,lv,stat]=rows[i],y=py+130+i*38,cost=characterUpgradeCost(kind);ctx.fillStyle="#0b1220";ctx.fillRect(px+18,y-24,pw-36,30);ctx.strokeStyle="#1e3858";ctx.strokeRect(px+18,y-24,pw-36,30);ctx.fillStyle="#ffdd44";ctx.font="bold 10px monospace";ctx.fillText(`${label} Lv${lv}`,px+28,y-8);ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(stat,px+160,y-8);ctx.fillStyle=player.credits>=cost?"#183a2a":"#3a1b1b";ctx.fillRect(px+300,y-17,95,22);ctx.strokeStyle=player.credits>=cost?"#4a8a6a":"#6a3333";ctx.strokeRect(px+300,y-17,95,22);ctx.fillStyle=player.credits>=cost?"#78ff8a":"#aa7777";ctx.font="bold 8px monospace";ctx.fillText(`Upgrade ${cost}cr`,px+307,y-3);}if(tradeStatus){ctx.fillStyle="#7be6ff";ctx.font="9px monospace";ctx.fillText(tradeStatus,px+20,py+ph-14);}}
+initTradeDom();
 
 /* ── Game over ── */
 function drawGameOver(){
