@@ -49,7 +49,7 @@ const GALAXY_SEED  = "GALAXY-01";
    from the same fixed package IDs, then call /api/grant-credits after successful payment.
 */
 const CREDIT_PACKAGES = {
-  credits_1000_test: { credits:1000, amount:0.50, cents:50, label:"Small Credit Drop" },
+  credits_1000_test: { credits:1000, amount:0.50, cents:50, label:"Test Credit Drop" },
   credits_10000:   { credits:10000,   amount:1.99,  cents:199,  label:"Scout Cache" },
   credits_25000:   { credits:25000,   amount:2.99,  cents:299,  label:"Trader Pack" },
   credits_50000:   { credits:50000,   amount:3.99,  cents:399,  label:"Fleet Boost" },
@@ -285,6 +285,7 @@ function tickProjectiles(dt){
     if(p.life<=0){pvpProjectiles.splice(i,1);continue;}
     for(const[sid,target]of players){
       if(sid===p.ownerId||target.mode!=="space")continue;
+      if(areAllied(players.get(p.ownerId),target))continue;
       if(Math.hypot(p.x-target.x,p.y-target.y)<12){
         const armor=1+((target.attrs.armor-1)*0.2);let dmg=p.damage/armor;
         if(target.shield>0){const abs=Math.min(target.shield,dmg);target.shield-=abs;dmg-=abs;}
@@ -322,6 +323,7 @@ function tickPlanetProjectiles(dt){
     if(map){const tx=Math.floor(pr.x/16),ty=Math.floor(pr.y/16);if(tx<0||ty<0||tx>=map.W||ty>=map.H){planetProjectiles.splice(i,1);continue;}if(map.tiles[ty*map.W+tx]){planetProjectiles.splice(i,1);continue;}}
     for(const [,target] of players){
       if(target.id===pr.ownerId||target.mode!=="planet"||target.planetId!==pr.planetId||target.hp<=0)continue;
+      if(areAllied(players.get(pr.ownerId),target))continue;
       const d=Math.hypot((target.planetX||0)-pr.x,((target.planetY||0)-8)-pr.y);
       if(d<PLANET_PROJ_HIT_RADIUS){
         const owner=players.get(pr.ownerId);
@@ -389,7 +391,7 @@ function tickPlayers(dt){
 
 /* ── Broadcast ── */
 function snap(p){return{id:p.id,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield,shieldRegenTimer:p.shieldRegenTimer||0,color:p.color,level:p.level,mode:p.mode,score:p.score||0,kills:p.kills||0,shipType:p.shipType||"scout",ping:p.ping||0,planetId:p.planetId,planetX:p.planetX||0,planetY:p.planetY||0,cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,weaponLevel:p.weaponLevel||1};}
-function serverListSnap(p){return{id:p.id,name:p.name,x:Math.round(p.x),y:Math.round(p.y),level:p.level,score:p.score||0,kills:p.kills||0,deaths:p.deaths||0,shipType:p.shipType||"scout",ping:p.ping||0,mode:p.mode};}
+function serverListSnap(p){return{id:p.id,name:p.name,x:Math.round(p.x),y:Math.round(p.y),level:p.level,score:p.score||0,kills:p.kills||0,deaths:p.deaths||0,shipType:p.shipType||"scout",ping:p.ping||0,mode:p.mode,partyId:p.partyId||null,factionId:p.factionId||null,factionTag:factionTagFor(p.factionId)};}
 
 function broadcastWorldState(){
   const all=[ ...players.values()].map(snap);
@@ -454,13 +456,14 @@ setInterval(()=>{
 },30000);
 
 /* ── Main tick ── */
-let lastTick=Date.now(),ecoTimer=0,lbTimer=0,slTimer=0;
+let lastTick=Date.now(),ecoTimer=0,lbTimer=0,slTimer=0,socialTimer=0;
 setInterval(()=>{
   const now=Date.now(),dt=Math.min((now-lastTick)/1000,0.05);lastTick=now;
   economy.tick();tickPlayers(dt);tickProjectiles(dt);tickPlanetProjectiles(dt);tickOwnedStationDefense(dt);broadcastWorldState();
   ecoTimer+=dt;if(ecoTimer>=5){io.emit("economyUpdate",economy.snapshot());ecoTimer=0;}
   lbTimer+=dt; if(lbTimer>=10){broadcastLeaderboard();lbTimer=0;}
   slTimer+=dt; if(slTimer>=3){broadcastServerList();broadcastOwnedStationsList();slTimer=0;}
+  socialTimer+=dt; if(socialTimer>=2){for(const id of parties.keys())emitPartyState(id);for(const id of factions.keys())emitFactionState(id);socialTimer=0;}
 },TICK_MS);
 
 
@@ -513,6 +516,47 @@ function completeTrade(s){
   tradeSessions.delete(s.id);
   io.to(pa.id).emit("tradeComplete",{tradeId:s.id,credits:pa.credits,gaveOffer:oa,receivedOffer:ob,otherName:pb.name});
   io.to(pb.id).emit("tradeComplete",{tradeId:s.id,credits:pb.credits,gaveOffer:ob,receivedOffer:oa,otherName:pa.name});
+}
+
+
+/* ── Party + faction system ── */
+const parties = new Map();
+const factions = new Map();
+let partySeq = 1, factionSeq = 1;
+const FACTION_CREATE_COST = 5000;
+const PARTY_MAX_MEMBERS = 8;
+const FACTION_QUEST_RESET_MS = 6*60*60*1000;
+
+function safeText(v,max=80){return String(v||"").replace(/[<>]/g,"").trim().slice(0,max);}
+function factionTagFor(id){const f=id?factions.get(id):null;return f?f.tag:null;}
+function factionCapacity(f){return 15 + Math.max(0,(f?.level||1)-1)*5;}
+function factionXpNeeded(level){return Math.floor(2500*Math.pow(Math.max(1,level),1.35));}
+function makePartyState(partyId){const party=parties.get(partyId);if(!party)return null;const members=[...party.members].map(id=>{const p=players.get(id);return p?{id:p.id,name:p.name,leader:id===party.leaderId,mode:p.mode,x:Math.round(p.x||0),y:Math.round(p.y||0),planetId:p.planetId||null,planetX:Math.round(p.planetX||0),planetY:Math.round(p.planetY||0),hp:Math.round(p.hp||0),maxHp:p.maxHp||100,shipType:p.shipType||"scout",online:true}:null;}).filter(Boolean);return {id:party.id,leaderId:party.leaderId,members,maxMembers:PARTY_MAX_MEMBERS};}
+function emitPartyState(partyId){const st=makePartyState(partyId);if(!st)return;for(const m of st.members)io.to(m.id).emit("partyState",st);}
+function leaveParty(playerId,reason="left the party"){
+  const p=players.get(playerId);if(!p?.partyId)return;
+  const party=parties.get(p.partyId);if(!party){p.partyId=null;return;}
+  party.members.delete(playerId);p.partyId=null;io.to(playerId).emit("partyLeft",{reason});
+  if(party.members.size===0){parties.delete(party.id);return;}
+  if(party.leaderId===playerId)party.leaderId=[...party.members][0];
+  emitPartyState(party.id);
+}
+function nearbyForInvite(a,b){if(!a||!b)return false;if(a.mode==="planet"&&b.mode==="planet"&&a.planetId===b.planetId)return Math.hypot((a.planetX||0)-(b.planetX||0),(a.planetY||0)-(b.planetY||0))<140;if(a.mode==="space"&&b.mode==="space")return Math.hypot((a.x||0)-(b.x||0),(a.y||0)-(b.y||0))<300;return false;}
+function getOrCreatePartyForLeader(p){if(p.partyId)return parties.get(p.partyId);const id=`party_${Date.now()}_${partySeq++}`;const party={id,leaderId:p.id,members:new Set([p.id]),invites:new Map(),createdAt:Date.now()};parties.set(id,party);p.partyId=id;emitPartyState(id);return party;}
+function areAllied(a,b){if(!a||!b)return false;if(a.id===b.id)return true;if(a.partyId&&a.partyId===b.partyId)return true;if(a.factionId&&a.factionId===b.factionId)return true;return false;}
+function makeFactionQuests(f){const count=Math.min(8,3+Math.floor((f.level||1)/2));const quests=[];for(let i=0;i<count;i++){const diff=(f.level||1)+i;const target=Math.floor(350+diff*230);quests.push({id:`fq_${f.id}_${Date.now()}_${i}`,title:["Mine Resonant Ore","Secure Trade Routes","Chart Planet Worksites","Train Combat Wing","Deliver Guild XP"][i%5],description:`Earn ${target} XP while this quest is accepted. Only one member can complete it.`,type:"earn_xp",target,progress:0,acceptedBy:null,acceptedByName:null,completed:false,rewardPlayerXp:Math.floor(target*0.65),rewardFactionXp:target*2});}f.quests=quests;f.questResetAt=Date.now()+FACTION_QUEST_RESET_MS;}
+function ensureFactionQuests(f){if(!f)return;if(!f.quests||Date.now()>(f.questResetAt||0))makeFactionQuests(f);}
+function makeFactionState(factionId,forPlayerId=null){const f=factions.get(factionId);if(!f)return null;ensureFactionQuests(f);const members=[...f.members].map(id=>{const p=players.get(id);const meta=f.memberMeta[id]||{};return {id,name:p?.name||meta.name||"Pilot",online:!!p,role:meta.role||"member",rank:meta.rank||"Member",contribution:meta.contribution||0,level:p?.level||meta.level||1,mode:p?.mode||"offline",x:Math.round(p?.x||0),y:Math.round(p?.y||0),planetId:p?.planetId||null};});return {id:f.id,name:f.name,tag:f.tag,icon:f.icon,color:f.color,description:f.description,leaderId:f.leaderId,level:f.level,xp:f.xp,xpNeeded:factionXpNeeded(f.level),capacity:factionCapacity(f),members,quests:f.quests,questResetAt:f.questResetAt,yourRole:f.memberMeta[forPlayerId]?.role||null};}
+function emitFactionState(factionId){const f=factions.get(factionId);if(!f)return;for(const id of f.members)io.to(id).emit("factionState",makeFactionState(factionId,id));}
+function playerFactionRole(f,id){return f?.memberMeta?.[id]?.role||"member";}
+function canManageFaction(f,id){const r=playerFactionRole(f,id);return f?.leaderId===id||r==="leader"||r==="admin";}
+function contributeFactionXp(p,amount,reason="XP"){
+  if(!p?.factionId)return;const f=factions.get(p.factionId);if(!f)return;ensureFactionQuests(f);
+  const gain=Math.max(1,Math.floor(Number(amount)||0));f.xp=(f.xp||0)+gain;(f.memberMeta[p.id]||(f.memberMeta[p.id]={name:p.name,role:"member",rank:"Member",contribution:0})).contribution+=gain;p.factionContribution=(p.factionContribution||0)+gain;
+  while(f.xp>=factionXpNeeded(f.level)){f.xp-=factionXpNeeded(f.level);f.level++;broadcastChat("Faction",`${f.name} reached faction level ${f.level}!`,f.color||"#ffdd44");makeFactionQuests(f);}
+  const q=(f.quests||[]).find(q=>q.acceptedBy===p.id&&!q.completed);
+  if(q&&q.type==="earn_xp"){q.progress=Math.min(q.target,(q.progress||0)+gain);if(q.progress>=q.target){q.completed=true;f.xp+=q.rewardFactionXp||0;p.xp=(p.xp||0)+(q.rewardPlayerXp||0);io.to(p.id).emit("factionQuestCompleted",{questId:q.id,rewardPlayerXp:q.rewardPlayerXp,rewardFactionXp:q.rewardFactionXp});}}
+  emitFactionState(f.id);
 }
 
 /* ── Socket events ── */
@@ -600,6 +644,7 @@ io.on("connection",socket=>{
   socket.on("planetAttack",({targetId,planetId})=>{
     const p=players.get(socket.id),t=players.get(targetId);
     if(!p||!t||p.mode!=="planet"||t.mode!=="planet"||p.planetId!==planetId||t.planetId!==planetId){socket.emit("planetAttackDenied",{reason:"Target unavailable."});return;}
+    if(areAllied(p,t)){socket.emit("planetAttackDenied",{reason:"Friendly fire disabled."});return;}
     const d=Math.hypot((p.planetX||0)-(t.planetX||0),(p.planetY||0)-(t.planetY||0));
     if(d>85){socket.emit("planetAttackDenied",{reason:"Target out of range."});return;}
     const raw=planetWeaponDamage(p), armor=1+((t.attrs.armor-1)*0.08), dmg=raw/armor;
@@ -685,6 +730,28 @@ io.on("connection",socket=>{
     if(!sideOfTrade(s,p.id))return;
     cancelTrade(s,`${p.name} cancelled the trade.`);
   });
+
+
+  /* Party events */
+  socket.on("partyCreate",()=>{const p=players.get(socket.id);if(!p)return;const party=getOrCreatePartyForLeader(p);socket.emit("partyState",makePartyState(party.id));});
+  socket.on("partyInvite",({targetId})=>{const p=players.get(socket.id),t=players.get(targetId);if(!p||!t||p.id===t.id){socket.emit("partyDenied",{reason:"Invalid party target."});return;}const party=getOrCreatePartyForLeader(p);if(party.leaderId!==p.id){socket.emit("partyDenied",{reason:"Only the party leader can invite."});return;}if(party.members.size>=PARTY_MAX_MEMBERS){socket.emit("partyDenied",{reason:"Party is full."});return;}if(t.partyId){socket.emit("partyDenied",{reason:"That player is already in a party."});return;}if(!nearbyForInvite(p,t)){socket.emit("partyDenied",{reason:"Move closer to invite that player."});return;}party.invites.set(t.id,{fromId:p.id,expires:Date.now()+30000});io.to(t.id).emit("partyInvite",{partyId:party.id,fromId:p.id,fromName:p.name});socket.emit("partyInviteSent",{targetName:t.name});emitPartyState(party.id);});
+  socket.on("partyInviteResponse",({partyId,accepted})=>{const p=players.get(socket.id);const party=parties.get(partyId);if(!p||!party)return;const inv=party.invites.get(p.id);if(!inv||Date.now()>inv.expires){socket.emit("partyDenied",{reason:"Party invite expired."});return;}party.invites.delete(p.id);if(!accepted){io.to(inv.fromId).emit("partyDenied",{reason:`${p.name} declined the party invite.`});return;}if(p.partyId){socket.emit("partyDenied",{reason:"You are already in a party."});return;}if(party.members.size>=PARTY_MAX_MEMBERS){socket.emit("partyDenied",{reason:"Party is full."});return;}party.members.add(p.id);p.partyId=party.id;emitPartyState(party.id);broadcastChat("Party",`${p.name} joined a party.`,"#78ff8a");});
+  socket.on("partyLeave",()=>{leaveParty(socket.id,"You left the party.");});
+  socket.on("partyKick",({targetId})=>{const p=players.get(socket.id),t=players.get(targetId);if(!p?.partyId||!t||p.partyId!==t.partyId)return;const party=parties.get(p.partyId);if(!party||party.leaderId!==p.id)return;if(t.id===p.id)return;leaveParty(t.id,`Kicked from party by ${p.name}.`);emitPartyState(party.id);});
+  socket.on("partyDisband",()=>{const p=players.get(socket.id);if(!p?.partyId)return;const party=parties.get(p.partyId);if(!party||party.leaderId!==p.id)return;for(const id of [...party.members]){const m=players.get(id);if(m)m.partyId=null;io.to(id).emit("partyLeft",{reason:"Party disbanded."});}parties.delete(party.id);});
+  socket.on("requestPartyState",()=>{const p=players.get(socket.id);if(p?.partyId)socket.emit("partyState",makePartyState(p.partyId));});
+
+  /* Faction events */
+  socket.on("factionCreate",({name,tag,icon,color,description})=>{const p=players.get(socket.id);if(!p)return;if(p.factionId){socket.emit("factionDenied",{reason:"You are already in a faction."});return;}if((p.credits||0)<FACTION_CREATE_COST){socket.emit("factionDenied",{reason:`Need ${FACTION_CREATE_COST} credits to create a faction.`});return;}name=safeText(name,32)||`${p.name}'s Faction`;tag=safeText(tag,5).toUpperCase()||"NEW";icon=safeText(icon,4)||"⭐";color=safeText(color,16)||"#7be6ff";description=safeText(description,180)||"A new Space Eco faction.";if([...factions.values()].some(f=>f.tag.toLowerCase()===tag.toLowerCase())){socket.emit("factionDenied",{reason:"Faction tag already taken."});return;}p.credits-=FACTION_CREATE_COST;const id=`fac_${Date.now()}_${factionSeq++}`;const f={id,name,tag,icon,color,description,leaderId:p.id,level:1,xp:0,members:new Set([p.id]),memberMeta:{[p.id]:{name:p.name,role:"leader",rank:"Founder",contribution:0}},invites:new Map(),createdAt:Date.now(),quests:[],questResetAt:0};factions.set(id,f);p.factionId=id;p.factionRank="Founder";makeFactionQuests(f);socket.emit("creditUpdate",{credits:p.credits});emitFactionState(id);broadcastChat("Faction",`${p.name} founded [${tag}] ${name}!`,color);});
+  socket.on("factionInvite",({targetId})=>{const p=players.get(socket.id),t=players.get(targetId);if(!p?.factionId||!t)return;const f=factions.get(p.factionId);if(!f||!canManageFaction(f,p.id)){socket.emit("factionDenied",{reason:"Only faction leaders/admins can invite."});return;}if(t.factionId){socket.emit("factionDenied",{reason:"That player is already in a faction."});return;}if(f.members.size>=factionCapacity(f)){socket.emit("factionDenied",{reason:"Faction is full."});return;}if(!nearbyForInvite(p,t)){socket.emit("factionDenied",{reason:"Move closer to invite that player."});return;}f.invites.set(t.id,{fromId:p.id,expires:Date.now()+45000});io.to(t.id).emit("factionInvite",{factionId:f.id,fromId:p.id,fromName:p.name,name:f.name,tag:f.tag,icon:f.icon,color:f.color});socket.emit("factionNotice",{message:`Faction invite sent to ${t.name}.`});});
+  socket.on("factionInviteResponse",({factionId,accepted})=>{const p=players.get(socket.id),f=factions.get(factionId);if(!p||!f)return;const inv=f.invites.get(p.id);if(!inv||Date.now()>inv.expires){socket.emit("factionDenied",{reason:"Faction invite expired."});return;}f.invites.delete(p.id);if(!accepted){io.to(inv.fromId).emit("factionNotice",{message:`${p.name} declined the faction invite.`});return;}if(p.factionId){socket.emit("factionDenied",{reason:"You are already in a faction."});return;}if(f.members.size>=factionCapacity(f)){socket.emit("factionDenied",{reason:"Faction is full."});return;}f.members.add(p.id);f.memberMeta[p.id]={name:p.name,role:"member",rank:"Member",contribution:0};p.factionId=f.id;p.factionRank="Member";emitFactionState(f.id);broadcastChat("Faction",`${p.name} joined [${f.tag}] ${f.name}.`,f.color);});
+  socket.on("factionLeave",()=>{const p=players.get(socket.id);if(!p?.factionId)return;const f=factions.get(p.factionId);if(!f)return;if(f.leaderId===p.id){socket.emit("factionDenied",{reason:"Leader must disband or transfer leadership first."});return;}f.members.delete(p.id);delete f.memberMeta[p.id];p.factionId=null;p.factionRank="member";socket.emit("factionLeft",{reason:"You left the faction."});emitFactionState(f.id);});
+  socket.on("factionKick",({targetId})=>{const p=players.get(socket.id),t=players.get(targetId);if(!p?.factionId||!t||p.factionId!==t.factionId)return;const f=factions.get(p.factionId);if(!f||!canManageFaction(f,p.id)||targetId===f.leaderId)return;f.members.delete(t.id);delete f.memberMeta[t.id];t.factionId=null;t.factionRank="member";io.to(t.id).emit("factionLeft",{reason:`Kicked from faction by ${p.name}.`});emitFactionState(f.id);});
+  socket.on("factionDisband",()=>{const p=players.get(socket.id);if(!p?.factionId)return;const f=factions.get(p.factionId);if(!f||f.leaderId!==p.id)return;for(const id of [...f.members]){const m=players.get(id);if(m){m.factionId=null;m.factionRank="member";}io.to(id).emit("factionLeft",{reason:"Faction disbanded."});}factions.delete(f.id);broadcastChat("Faction",`${f.name} has disbanded.`,"#ff8844");});
+  socket.on("factionUpdate",({name,tag,icon,color,description})=>{const p=players.get(socket.id);if(!p?.factionId)return;const f=factions.get(p.factionId);if(!f||!canManageFaction(f,p.id))return;if(name)f.name=safeText(name,32);if(tag)f.tag=safeText(tag,5).toUpperCase();if(icon)f.icon=safeText(icon,4);if(color)f.color=safeText(color,16);if(description!==undefined)f.description=safeText(description,180);emitFactionState(f.id);});
+  socket.on("factionSetRank",({targetId,role,rank})=>{const p=players.get(socket.id);if(!p?.factionId)return;const f=factions.get(p.factionId);if(!f||f.leaderId!==p.id||!f.members.has(targetId))return;if(targetId===f.leaderId)return;role=(role==="admin")?"admin":"member";f.memberMeta[targetId].role=role;f.memberMeta[targetId].rank=safeText(rank,24)|| (role==="admin"?"Admin":"Member");emitFactionState(f.id);});
+  socket.on("factionAcceptQuest",({questId})=>{const p=players.get(socket.id);if(!p?.factionId)return;const f=factions.get(p.factionId);if(!f)return;ensureFactionQuests(f);const q=f.quests.find(q=>q.id===questId);if(!q||q.completed){socket.emit("factionDenied",{reason:"Quest unavailable."});return;}if(q.acceptedBy&&q.acceptedBy!==p.id){socket.emit("factionDenied",{reason:"Another member already accepted that quest."});return;}q.acceptedBy=p.id;q.acceptedByName=p.name;p.activeFactionQuestId=q.id;emitFactionState(f.id);});
+  socket.on("requestFactionState",()=>{const p=players.get(socket.id);if(p?.factionId)socket.emit("factionState",makeFactionState(p.factionId,p.id));else socket.emit("factionState",null);});
 
   socket.on("oxygenDamage",({damage})=>{
     const p=players.get(socket.id);if(!p||p.mode!=="planet")return;
@@ -804,6 +871,7 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);if(!p||p.mode!=="space")return;
     const st=ownedStations.get(stationKey);if(!st||st.destroyed)return;
     if(st.ownerId===p.id){socket.emit("stationDamageDenied",{stationKey,reason:"You cannot attack your own station."});return;}
+    const owner=players.get(st.ownerId);if(owner&&areAllied(p,owner)){socket.emit("stationDamageDenied",{stationKey,reason:"Friendly faction/party station."});return;}
     if(Math.hypot(p.x-st.x,p.y-st.y)>1200)return;
     const result=applyStationDamage(st,damage);
     for(const sh of st.hiredShips){
@@ -835,6 +903,7 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);if(!p||amount<=0||amount>500)return;
     p.xp=(p.xp||0)+amount;p.miningScore=(p.miningScore||0)+amount;
     addScore(p,Math.floor(amount*0.5),"Mining/Combat");
+    contributeFactionXp(p,Math.floor(amount),"XP");
     const xtn=Math.floor(100*Math.pow(1.4,p.level-1));
     if(p.xp>=xtn){p.xp-=xtn;p.level++;p.attrPoints=(p.attrPoints||0)+2;socket.emit("levelUp",{level:p.level,attrPoints:p.attrPoints});}
     socket.emit("xpUpdate",{xp:p.xp,level:p.level});
@@ -859,6 +928,8 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);
     if(p){broadcastChat("Server",`${p.name} has left the galaxy.`,"#ff8888");socket.broadcast.emit("playerLeft",{id:socket.id});}
     for(const ts of [...tradeSessions.values()])if(ts.a===socket.id||ts.b===socket.id)cancelTrade(ts,"Trade cancelled: player disconnected.");
+    if(p?.partyId)leaveParty(socket.id,"Disconnected from party.");
+    if(p?.factionId){const f=factions.get(p.factionId);if(f)emitFactionState(f.id);}
     players.delete(socket.id);broadcastLeaderboard();broadcastServerList();
   });
 });
