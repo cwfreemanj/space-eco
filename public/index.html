@@ -308,32 +308,71 @@ const canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
 /* ── Input ── */
 const keys=new Set();
 let chatFocused=false;
+let mouse={x:0,y:0,down:false,clicked:false};
+
+const BLOCKING_DOM_PANEL_IDS=["lb-panel","sl-panel","ship-panel","build-panel","credit-panel","trade-panel-dom","social-panel"];
+function isShown(el){return !!el&&getComputedStyle(el).display!=="none"&&getComputedStyle(el).visibility!=="hidden";}
+function isTextControl(target){const el=target&&target.closest&&target.closest("input, textarea, select, button, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
+function joinScreenOpen(){return isShown(document.getElementById("join-screen"));}
+function blockingDomPanelOpen(){return BLOCKING_DOM_PANEL_IDS.some(id=>isShown(document.getElementById(id)));}
+function canvasPanelOpen(){return !!(inventoryOpen||shopOpen||attrOpen||characterOpen);}
+function domInputLocked(target=document.activeElement){return chatFocused||joinScreenOpen()||isTextControl(target)||blockingDomPanelOpen();}
+function gameplayInputLocked(target=document.activeElement){return domInputLocked(target)||canvasPanelOpen();}
+function clearMovementInput(){["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," "].forEach(k=>keys.delete(k));mouse.down=false;mouse.clicked=false;}
+function clearLiveInput(){keys.clear();mouse.down=false;mouse.clicked=false;}
+function hidePanel(id){const el=document.getElementById(id);if(el)el.style.display="none";}
+function closeTopDomPanel(){
+  if(isShown(document.getElementById("trade-panel-dom"))){closeTradePanel(true);return true;}
+  if(isShown(document.getElementById("social-panel"))){socialOpen=false;hidePanel("social-panel");return true;}
+  for(const id of ["credit-panel","build-panel","ship-panel","sl-panel","lb-panel"]){if(isShown(document.getElementById(id))){hidePanel(id);return true;}}
+  return false;
+}
+function closeMatchingPanelHotkey(key){
+  const map={k:"lb-panel",n:"sl-panel",h:"ship-panel",b:"build-panel",m:"credit-panel"};
+  if(key==="f"&&isShown(document.getElementById("social-panel"))){toggleSocialPanel();return true;}
+  const id=map[key];
+  if(id&&isShown(document.getElementById(id))){hidePanel(id);return true;}
+  return false;
+}
+
 window.addEventListener("keydown",e=>{
-  if(chatFocused)return;
-  keys.add(e.key.toLowerCase());
-  if([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(e.key.toLowerCase()))e.preventDefault();
-  if(e.key.toLowerCase()==="t"){openChat();e.preventDefault();}
-  if(e.key.toLowerCase()==="k"){toggleLeaderboard();}
-  if(e.key.toLowerCase()==="n"){toggleServerList();}
-  if(e.key.toLowerCase()==="h"){toggleShipShop();}
-  if(e.key.toLowerCase()==="b"){if(mode===MODE.SPACE&&!shopOpen&&!inventoryOpen&&!attrOpen)toggleBuildPanel();}
-  if(e.key.toLowerCase()==="m"){toggleCreditShop();}
-  if(e.key.toLowerCase()==="f"){toggleSocialPanel();}
-  if(e.key.toLowerCase()==="j"){inviteNearestToParty();}
-  if(e.key.toLowerCase()==="u"){inviteNearestToFaction();}
-  if(e.key.toLowerCase()==="c"){toggleCharacterPanel();}
-  if(e.key.toLowerCase()==="q"){togglePlanetTool();}
-  if(e.key.toLowerCase()==="r"){sendTradeRequestToNearest();}
-  if(e.key.toLowerCase()==="y"){respondToTradeRequest(true);}
-  if(e.key.toLowerCase()==="n"){respondToTradeRequest(false);}
+  const key=e.key.toLowerCase();
+
+  // Text fields and open DOM panels own their keyboard input.
+  // This prevents typing in login, trade, faction, and edit fields from firing game hotkeys.
+  if(domInputLocked(e.target)){
+    clearLiveInput();
+    if(key==="escape"){e.preventDefault();closeTopDomPanel();}
+    else if(!isTextControl(e.target)&&closeMatchingPanelHotkey(key)){e.preventDefault();}
+    return;
+  }
+
+  // Trade invite hotkeys should not also open the player list on N.
+  if(pendingTradeRequest&&(key==="y"||key==="n")){respondToTradeRequest(key==="y");e.preventDefault();return;}
+
+  keys.add(key);
+  if([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(key))e.preventDefault();
+  if(key==="t"){openChat();e.preventDefault();return;}
+  if(key==="k"){toggleLeaderboard();return;}
+  if(key==="n"){toggleServerList();return;}
+  if(key==="h"){toggleShipShop();return;}
+  if(key==="b"){if(mode===MODE.SPACE&&!shopOpen&&!inventoryOpen&&!attrOpen)toggleBuildPanel();return;}
+  if(key==="m"){toggleCreditShop();return;}
+  if(key==="f"){toggleSocialPanel();return;}
+  if(key==="j"){inviteNearestToParty();return;}
+  if(key==="u"){inviteNearestToFaction();return;}
+  if(key==="c"){toggleCharacterPanel();return;}
+  if(key==="q"){togglePlanetTool();return;}
+  if(key==="r"){sendTradeRequestToNearest();return;}
 });
 window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
+window.addEventListener("blur",clearLiveInput);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)clearLiveInput();});
 
-let mouse={x:0,y:0,down:false,clicked:false};
 canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;mouse.x=(e.clientX-r.left)*sx;mouse.y=(e.clientY-r.top)*sy;});
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("mousedown",e=>{
-  if(chatFocused)return;
+  if(domInputLocked(e.target)){clearLiveInput();return;}
   const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;
   const mx=(e.clientX-r.left)*sx,my=(e.clientY-r.top)*sy;
   if(mode===MODE.PLANET&&e.button===2){placeBuildTileAt(mx,my);e.preventDefault();return;}
@@ -346,6 +385,7 @@ canvas.addEventListener("mousedown",e=>{
 });
 window.addEventListener("mouseup",()=>{mouse.down=false;});
 canvas.addEventListener("wheel",e=>{
+  if(domInputLocked(e.target)){clearLiveInput();return;}
   if(inventoryOpen){
     inventoryScrollRows=clamp(inventoryScrollRows+(e.deltaY>0?1:-1),0,maxInventoryScrollRows());
     e.preventDefault();
@@ -672,51 +712,7 @@ function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)p
 function tileHP(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.hp[y*planetMap.W+x];}
 function setTileHP(x,y,h){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.hp[y*planetMap.W+x]=clamp(h,0,255);}
 function collidePlanet(a,horiz){const TP=16,l=Math.floor((a.x-a.w/2)/TP),ri=Math.floor((a.x+a.w/2)/TP),t=Math.floor((a.y-a.h)/TP),b=Math.floor(a.y/TP);for(let ty=t;ty<=b;ty++)for(let tx=l;tx<=ri;tx++){const ti=tileAt(tx,ty);if(!ti)continue;const tl=tx*TP,tt=ty*TP,tr=tl+TP,tb=tt+TP,ax1=a.x-a.w/2,ax2=a.x+a.w/2,ay1=a.y-a.h,ay2=a.y;if(ax2>tl&&ax1<tr&&ay2>tt&&ay1<tb){if(horiz){if(a.vx>0){a.x=tl-a.w/2;a.vx=0;}else if(a.vx<0){a.x=tr+a.w/2;a.vx=0;}}else{if(a.vy>0){a.y=tt;a.vy=0;a.onGround=true;}else if(a.vy<0){a.y=tb+a.h;a.vy=0;}}}}}
-function dropHitsSolidAt(x,y,size=5){
-  const TP=16,r=size/2;
-  const l=Math.floor((x-r)/TP),ri=Math.floor((x+r)/TP),t=Math.floor((y-r)/TP),b=Math.floor((y+r)/TP);
-  for(let ty=t;ty<=b;ty++)for(let tx=l;tx<=ri;tx++)if(tileAt(tx,ty))return true;
-  return false;
-}
-function findSafeDropSpot(x,y){
-  // Spawn drops in nearby open air so they do not begin inside a tile or under a ceiling.
-  const offsets=[[0,-10],[-7,-8],[7,-8],[0,6],[-10,2],[10,2],[0,-18],[-14,-14],[14,-14],[0,16]];
-  for(const[oX,oY]of offsets){const sx=x+oX,sy=y+oY;if(!dropHitsSolidAt(sx,sy,6))return{x:sx,y:sy};}
-  return{x,y:y-12};
-}
-function spawnPlanetDropVisual(kind,x,y,qty=1,opts={}){
-  const q=Math.max(1,Math.min(8,Math.floor(Number(qty)||1)));
-  for(let i=0;i<q;i++){
-    const p=findSafeDropSpot(x+(Math.random()-0.5)*8,y+(Math.random()-0.5)*6);
-    drops.push({kind,x:p.x,y:p.y,prevX:p.x,prevY:p.y,vx:(Math.random()-0.5)*34,vy:-55-Math.random()*35,life:8,age:0,size:7,serverAwarded:!!opts.serverAwarded,cosmetic:!!opts.cosmetic});
-  }
-}
-function resolveDropCollision(it){
-  const TP=16,r=(it.size||6)/2;
-  let hit=false;
-  const l=Math.floor((it.x-r)/TP),ri=Math.floor((it.x+r)/TP),t=Math.floor((it.y-r)/TP),b=Math.floor((it.y+r)/TP);
-  for(let ty=t;ty<=b;ty++)for(let tx=l;tx<=ri;tx++){
-    if(!tileAt(tx,ty))continue;
-    const left=tx*TP,top=ty*TP,right=left+TP,bottom=top+TP;
-    const px=it.prevX??it.x,py=it.prevY??it.y;
-    // Only land on the top face if the drop came from above. This prevents the old bug where
-    // a drop touching the underside of a block teleported to the block's top.
-    if((py+r)<=top&&it.y+r>top&&it.vy>=0){it.y=top-r-0.1;it.vy=0;it.vx*=0.62;hit=true;}
-    else if((py-r)>=bottom&&it.y-r<bottom&&it.vy<0){it.y=bottom+r+0.1;it.vy=Math.abs(it.vy)*0.25;hit=true;}
-    else if((px+r)<=left&&it.x+r>left){it.x=left-r-0.1;it.vx=-Math.abs(it.vx)*0.35;hit=true;}
-    else if((px-r)>=right&&it.x-r<right){it.x=right+r+0.1;it.vx=Math.abs(it.vx)*0.35;hit=true;}
-    else{
-      // If it spawned partially inside a solid tile, nudge it toward the closest open side.
-      const cx=tx*TP+TP/2,cy=ty*TP+TP/2;
-      const dx=it.x-cx,dy=it.y-cy;
-      if(Math.abs(dx)>Math.abs(dy)){it.x+=(dx>=0?1:-1)*2;it.vx*=-0.25;}
-      else{it.y+=(dy>=0?1:-1)*2;it.vy*=-0.2;}
-      hit=true;
-    }
-  }
-  return hit;
-}
-function itemCollide(it){return resolveDropCollision(it);}
+function itemCollide(it){const TP=16,tx=Math.floor(it.x/TP),ty=Math.floor(it.y/TP);if(tileAt(tx,ty)){it.y=ty*TP-1;return true;}return false;}
 let mineCooldown=0;
 function doMining(dt){
   mineCooldown-=dt;if(mineCooldown>0||!planetMap||!activePlanet)return;
@@ -1206,15 +1202,12 @@ socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
 });
 socket.on("planetMineReward",({planetId,kind,x,y,qty})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
-  // Server already granted this inventory. Spawn a visible local pickup sparkle so the player
-  // can see where the mined resource came from without duplicating inventory.
-  spawnPlanetDropVisual(kind,x,y,qty,{serverAwarded:true});
-  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-12,"#78ff8a",9);
+  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
 });
-// Backward compatible handler for older servers that still send physical planet drops.
+// Backward compatible handler for older servers.
 socket.on("planetMineDrop",({planetId,kind,x,y,qty})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
-  spawnPlanetDropVisual(kind,x,y,qty,{serverAwarded:false});
+  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
 });
 socket.on("planetBuildDenied",({reason,resourceType})=>{
   showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
@@ -1319,6 +1312,16 @@ function doJoin(){if(!socket.connected){joinStatusEl.textContent="Still connecti
 let shootCooldownTimer=0;
 function sendInput(){
   if(!joined||mode!==MODE.SPACE)return;
+  if(domInputLocked()){
+    clearLiveInput();
+    socket.emit("input",{rotLeft:false,rotRight:false,thrust:false,brake:false,shootX:undefined,shootY:undefined});
+    return;
+  }
+  if(canvasPanelOpen()){
+    clearMovementInput();
+    socket.emit("input",{rotLeft:false,rotRight:false,thrust:false,brake:false,shootX:undefined,shootY:undefined});
+    return;
+  }
   const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
   let shootX=undefined,shootY=undefined;
   if(mouse.clicked&&!shopOpen&&!inventoryOpen&&!attrOpen&&!characterOpen&&shootCooldownTimer<=0){shootX=mouse.x+camX;shootY=mouse.y+camY;shootCooldownTimer=SHOOT_CD;}
@@ -1339,7 +1342,9 @@ function updateSpace(dt){
   if(ship.shieldRegenTimer<=0&&ship.shield<ship.maxShield)ship.shield=Math.min(ship.maxShield,ship.shield+ship.shieldRegenRate*dt);
 
   // Local energy drain (visual, server authoritative)
-  const isThrust=keys.has("w"),spd=Math.hypot(ship.vx,ship.vy);
+  const domLocked=domInputLocked();
+  const controlsLocked=domLocked||canvasPanelOpen();
+  const isThrust=!controlsLocked&&keys.has("w"),spd=Math.hypot(ship.vx,ship.vy);
   if(isThrust)energy.current=Math.max(0,energy.current-ENERGY_DRAIN*ship.gasEfficiency*dt);
   else if(spd>5)energy.current=Math.max(0,energy.current-ENERGY_IDLE*ship.gasEfficiency*dt);
   if(energy.current<=0){gameOver=true;return;}
@@ -1370,7 +1375,7 @@ function updateSpace(dt){
   // mouse.clicked gets consumed by sendInput() before we get here.
   // Fix: fire local NPC projectiles from a SEPARATE flag.
   // ══════════════════════════════════════════
-  if(mouse.down&&!shopOpen&&!inventoryOpen&&!attrOpen&&!chatFocused&&shootCooldownTimer<=0){
+  if(!controlsLocked&&mouse.down&&!shopOpen&&!inventoryOpen&&!attrOpen&&!chatFocused&&shootCooldownTimer<=0){
     const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
     const wx=mouse.x+camX,wy=mouse.y+camY;
     const ang=angleToward(ship.x,ship.y,wx,wy);
@@ -1460,11 +1465,13 @@ function updateSpace(dt){
   nearStation=null;for(const st of visibleStations){if(!st.destroyed&&dist(ship.x,ship.y,st.x,st.y)<st.r+70){nearStation=st;break;}}
 
   // Keys
-  if(keys.has("l")){keys.delete("l");landOnNearestPlanet();}
-  if(keys.has("g")){keys.delete("g");useGasCanister();}
-  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
-  if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;}
-  if(keys.has("o")){keys.delete("o");if(nearStation){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}}
+  if(!domLocked){
+    if(!canvasPanelOpen()&&keys.has("l")){keys.delete("l");landOnNearestPlanet();}
+    if(!canvasPanelOpen()&&keys.has("g")){keys.delete("g");useGasCanister();}
+    if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
+    if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;}
+    if(keys.has("o")){keys.delete("o");if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}}
+  }
 }
 
 
@@ -1856,32 +1863,20 @@ function updatePlanet(dt){
   oxygen.current=clamp(oxygen.current-oxygen.drainRate*dt,0,oxygen.max);
   if(oxygen.current<=0){oxygenDamageTimer-=dt;if(oxygenDamageTimer<=0){oxygenDamageTimer=1;socket.emit("oxygenDamage",{damage:7});}}
   else oxygenDamageTimer=0;
-  let ax=0;if(keys.has("a"))ax-=move;if(keys.has("d"))ax+=move;
+  const domLocked=domInputLocked();
+  const controlsLocked=domLocked||canvasPanelOpen();
+  let ax=0;if(!controlsLocked&&keys.has("a"))ax-=move;if(!controlsLocked&&keys.has("d"))ax+=move;
   astronaut.vx=lerp(astronaut.vx,ax,0.15);
-  if(keys.has("w")&&astronaut.onGround){astronaut.vy=-jump;astronaut.onGround=false;}
+  if(!controlsLocked&&keys.has("w")&&astronaut.onGround){astronaut.vy=-jump;astronaut.onGround=false;}
   astronaut.vy+=grav*dt;astronaut.x+=astronaut.vx*dt;astronaut.x=clamp(astronaut.x,8,planetMap.W*16-8);collidePlanet(astronaut,true);
   astronaut.y+=astronaut.vy*dt;astronaut.onGround=false;collidePlanet(astronaut,false);
   const bottomY=(planetMap.H-2)*16;
   if(astronaut.y>bottomY){astronaut.y=bottomY;astronaut.vy=0;astronaut.onGround=true;}
-  if(keys.has("x")){keys.delete("x");useOxygenTank();}
-  if(keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
-  if(mouse.down&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon")planetWeaponAttack();else doMining(dt);}
-  for(let i=drops.length-1;i>=0;i--){
-    const it=drops[i];
-    it.age=(it.age||0)+dt;it.life=(it.life??8)-dt;
-    it.prevX=it.x;it.prevY=it.y;
-    // Cosmetic/server-awarded drops gently drift toward the player after a short beat.
-    if(it.serverAwarded&&it.age>0.28){const a=angleToward(it.x,it.y,astronaut.x,astronaut.y-8);it.vx=lerp(it.vx,Math.cos(a)*95,0.08);it.vy=lerp(it.vy,Math.sin(a)*95,0.08);}
-    else{it.vy+=grav*dt;}
-    it.x+=it.vx*dt;it.y+=it.vy*dt;
-    if(!it.serverAwarded&&itemCollide(it)){it.vx*=0.6;}
-    if(it.life<=0){drops.splice(i,1);continue;}
-    if(dist(astronaut.x,astronaut.y-8,it.x,it.y)<20){
-      if(it.serverAwarded){drops.splice(i,1);continue;}
-      if(addToInventory(it.kind,1))drops.splice(i,1);
-    }
-  }
-  if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
+  if(!controlsLocked&&keys.has("x")){keys.delete("x");useOxygenTank();}
+  if(!controlsLocked&&keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
+  if(!controlsLocked&&mouse.down&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon")planetWeaponAttack();else doMining(dt);}
+  for(let i=drops.length-1;i>=0;i--){const it=drops[i];it.vy+=grav*dt;it.x+=it.vx*dt;it.y+=it.vy*dt;if(itemCollide(it)){it.vx*=0.6;it.vy=0;}if(dist(astronaut.x,astronaut.y,it.x,it.y)<18&&addToInventory(it.kind,1))drops.splice(i,1);}
+  if(!domLocked&&keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
   updateHud();
 }
 function drawPlanet(){
@@ -1905,19 +1900,7 @@ function drawPlanet(){
     ctx.globalAlpha=.45;ctx.strokeStyle=pr.ownerId===player.id?"#ffdd44":"#ff6655";ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   }
   const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle=character.cosmeticColor||"#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=character.suitColor||"#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
-  for(const it of drops){
-    const px=it.x-cam.x,py=it.y-cam.y,color=RES[it.kind]?.color||"#fff";
-    if(px<-20||py<-20||px>canvas.width+20||py>canvas.height+20)continue;
-    const pulse=1+Math.sin((performance.now()/110)+(it.x*0.03))*0.18;
-    ctx.save();
-    ctx.globalAlpha=Math.max(0.35,Math.min(1,(it.life??8)/0.7));
-    ctx.shadowColor=color;ctx.shadowBlur=8;
-    ctx.fillStyle="#05060a";ctx.fillRect(px-5*pulse,py-5*pulse,10*pulse,10*pulse);
-    ctx.shadowBlur=0;ctx.strokeStyle="#ffffff";ctx.lineWidth=1;ctx.strokeRect(px-5*pulse,py-5*pulse,10*pulse,10*pulse);
-    ctx.fillStyle=color;ctx.fillRect(px-3*pulse,py-3*pulse,6*pulse,6*pulse);
-    ctx.fillStyle="#fff";ctx.globalAlpha*=0.75;ctx.fillRect(px-1,py-1,2,2);
-    ctx.restore();
-  }
+  for(const it of drops){ctx.fillStyle=RES[it.kind]?.color||"#fff";ctx.fillRect((it.x-cam.x)-2,(it.y-cam.y)-2,4,4);}
   if(mouse.down&&planetTool==="mining"){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
   const bp=buildableSlot();
   if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
