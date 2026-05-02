@@ -67,11 +67,24 @@ const PURCHASE_WEBHOOK_SECRET = process.env.PURCHASE_WEBHOOK_SECRET || "";
    https://www.yoursite.com/_functions/spaceEcoPersistPlayer
    WIX_PERSIST_SECRET must match the Wix secret checked by that endpoint.
 */
-const WIX_GAME_AUTH_SECRET = process.env.WIX_GAME_AUTH_SECRET || "";
-const WIX_PERSIST_URL = process.env.WIX_PERSIST_URL || "";
-const WIX_PERSIST_SECRET = process.env.WIX_PERSIST_SECRET || PURCHASE_WEBHOOK_SECRET || "";
+// Accept both the older WIX_* env names and the newer SPACE_ECO_* names shown in Railway.
+function cleanEnvUrl(value){
+  value = String(value || "").trim();
+  // In Railway, make sure the variable NAME is WIX_PERSIST_URL.
+  // This fallback also handles the accidental value: "WIX_PERSIST_URL=https://..."
+  if(value.startsWith("WIX_PERSIST_URL=")) value = value.slice("WIX_PERSIST_URL=".length);
+  return value;
+}
+const WIX_GAME_AUTH_SECRET = process.env.WIX_GAME_AUTH_SECRET || process.env.SPACE_ECO_GAME_AUTH_SECRET || "";
+const WIX_PERSIST_URL = cleanEnvUrl(process.env.WIX_PERSIST_URL || process.env.PERSIST || process.env.SPACE_ECO_PERSIST_URL || "");
+const WIX_PERSIST_SECRET = process.env.WIX_PERSIST_SECRET || process.env.SPACE_ECO_PERSIST_SECRET || PURCHASE_WEBHOOK_SECRET || "";
 const socketsByMemberId = new Map();
 const persistTimers = new Map();
+console.log("Space Eco persistence config", {
+  hasGameAuthSecret: !!WIX_GAME_AUTH_SECRET,
+  hasPersistUrl: !!WIX_PERSIST_URL,
+  hasPersistSecret: !!WIX_PERSIST_SECRET
+});
 
 /* ── Ship types (synced to client) ── */
 const SHIP_TYPES = {
@@ -286,10 +299,15 @@ function emitInventorySync(p,reason="sync"){
   io.to(p.id).emit("inventorySync",{credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),reason});
 }
 async function persistPlayerNow(p,reason="update"){
-  if(!p?.memberId||!WIX_PERSIST_URL||!WIX_PERSIST_SECRET)return;
+  if(!p?.memberId){console.warn("Wix persistence skipped: player has no memberId", p?.id, reason);return;}
+  if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
   const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},reason,updatedAt:Date.now()};
   try{
-    await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
+    const res = await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
+    if(!res.ok){
+      const text = await res.text().catch(()=>"");
+      console.warn("Wix persistence failed response:", res.status, text.slice(0,300));
+    }
   }catch(err){console.warn("Wix persistence failed:",err?.message||err);}
 }
 function persistPlayerSoon(p,reason="update",delay=1200){
@@ -915,9 +933,25 @@ io.on("connection",socket=>{
 
   socket.on("buy",({resourceType,quantity,pricePerUnit})=>{
     const p=players.get(socket.id);if(!p||quantity<=0||quantity>500)return;
-    const sp2=economy.price(resourceType);
-    if(Math.abs(pricePerUnit-sp2)/sp2>0.25){socket.emit("buyDenied",{reason:"Price changed. Retry."});return;}
-    const cost=sp2*quantity;if(p.credits<cost){socket.emit("buyDenied",{reason:"Insufficient credits."});return;}
+    resourceType=String(resourceType||"");
+    quantity=Math.floor(Number(quantity)||0);
+    if(!RES_KEYS.includes(resourceType)||quantity<=0)return;
+
+    // Station shop prices are calculated client-side from station tier/stock, while
+    // economy.price() is the global market price. The old 25% comparison rejected
+    // valid station prices with: "Price changed. Retry.". We now accept the
+    // quoted station price, but bound it against the global market to prevent
+    // obvious client tampering.
+    const marketPrice=economy.price(resourceType);
+    const quotedPrice=Math.floor(Number(pricePerUnit)||0);
+    const unitPrice=quotedPrice>0?quotedPrice:marketPrice;
+    const minAllowed=Math.max(1,Math.floor(marketPrice*0.45));
+    const maxAllowed=Math.max(minAllowed,Math.ceil(marketPrice*4.0));
+    if(unitPrice<minAllowed||unitPrice>maxAllowed){
+      socket.emit("buyDenied",{reason:"Invalid station price. Retry."});return;
+    }
+
+    const cost=unitPrice*quantity;if(p.credits<cost){socket.emit("buyDenied",{reason:"Insufficient credits."});return;}
     if(!canFitInventory(p,resourceType,quantity)){socket.emit("buyDenied",{reason:"Inventory full."});return;}
     p.credits-=cost;economy.bought(resourceType,quantity);addInventory(p,resourceType,quantity);
     socket.emit("buyConfirm",{resourceType,quantity,cost,credits:p.credits,prices:economy.snapshot()});
@@ -1088,6 +1122,5 @@ io.on("connection",socket=>{
 
 const PORT=process.env.PORT||3000;
 server.listen(PORT,()=>{console.log(`🚀 ${SERVER_NAME} on port ${PORT} | ${TICK_RATE}Hz | Max:${MAX_PLAYERS}`);});
-
 
 
