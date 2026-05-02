@@ -938,7 +938,7 @@ function buyShip(key){
    - Railway only grants credits when Wix backend calls /api/grant-credits with a shared secret.
 */
 const CREDIT_PACKAGES={
-  credits_1000_test:{credits:1000,price:"$0.50",label:"Small Credit Drop"},
+  credits_1000_test:{credits:1000,price:"$0.50",label:"Test Credit Drop"},
   credits_10000:{credits:10000,price:"$1.99",label:"Scout Cache"},
   credits_25000:{credits:25000,price:"$2.99",label:"Trader Pack"},
   credits_50000:{credits:50000,price:"$3.99",label:"Fleet Boost"},
@@ -946,7 +946,8 @@ const CREDIT_PACKAGES={
   credits_500000:{credits:500000,price:"$19.99",label:"Empire Vault"},
   credits_1000000:{credits:1000000,price:"$49.99",label:"Galaxy Treasury"},
 };
-const WIX_PARENT_ORIGIN="*"; // Production: replace with your Wix site origin, e.g. "https://www.getfirstpage.com"
+const WIX_PARENT_ORIGIN="*";
+let wixGameToken=null,wixMemberId=null; // Production: replace with your Wix site origin, e.g. "https://www.getfirstpage.com"
 function toggleCreditShop(){
   const el=document.getElementById("credit-panel");
   el.style.display=el.style.display==="none"?"flex":"none";
@@ -994,6 +995,12 @@ function startCreditPurchase(packageId){
 window.addEventListener("message",(event)=>{
   const msg=event.data||{};
   if(!msg||typeof msg!=="object")return;
+  if(msg.type==="SPACE_ECO_AUTH"){
+    wixGameToken=msg.token||wixGameToken;wixMemberId=msg.memberId||wixMemberId;
+    if(typeof msg.credits==="number")player.credits=msg.credits;
+    if(Array.isArray(msg.invSlots)){player.invSlots=msg.invSlots;player.maxSlots=msg.maxSlots||msg.invSlots.length||player.maxSlots;clampPanelScrolls();}
+    updateHud();
+  }
   if(msg.type==="SPACE_ECO_PAYMENT_STARTED")setCreditPayStatus("Wix checkout opened. Complete the payment to receive credits.","#7be6ff");
   if(msg.type==="SPACE_ECO_PAYMENT_RESULT")setCreditPayStatus(`Wix payment status: ${msg.status||"unknown"}. Waiting for server confirmation...`,"#ffcc44");
   if(msg.type==="SPACE_ECO_PAYMENT_ERROR")setCreditPayStatus(msg.message||"Wix payment failed to start.","#ff5544");
@@ -1060,8 +1067,8 @@ socket.on("disconnect",()=>{joined=false;joinStatusEl.textContent="Disconnected.
 socket.on("connect_error",()=>{joinStatusEl.textContent="Cannot reach server. Check SERVER_URL.";joinStatusEl.style.color="#ff4422";});
 socket.on("serverFull",()=>{joinStatusEl.textContent="Server full. Try again later.";joinStatusEl.style.color="#ffcc44";});
 
-socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,serverName})=>{
-  player.id=id;player.color=color;GALAXY_SEED=seed;serverPrices=prices||{};
+socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId})=>{
+  player.id=id;player.color=color;if(serverMemberId)wixMemberId=serverMemberId;if(typeof serverCredits==="number")player.credits=serverCredits;if(Array.isArray(serverInvSlots)){player.invSlots=serverInvSlots;player.maxSlots=serverMaxSlots||serverInvSlots.length||player.maxSlots;clampPanelScrolls();}GALAXY_SEED=seed;serverPrices=prices||{};
   if(shipTypes)SHIP_TYPES=shipTypes;
   if(ownedStationTiers)OWNED_STATION_TIERS=ownedStationTiers;
   ship.x=x;ship.y=y;joined=true;
@@ -1106,6 +1113,10 @@ socket.on("playerKilled",({victimName,killerName})=>{addKillFeed(`☠ ${killerNa
 socket.on("youDied",({killedBy})=>{gameOver=true;showFT(`Destroyed by ${killedBy}!`,ship.x,ship.y,"#ff4422",14);});
 socket.on("respawn",({x,y})=>{ship.x=x;ship.y=y;ship.hp=ship.maxHp;ship.shield=ship.maxShield;energy.current=energy.max;oxygen.current=oxygen.max;mode=MODE.SPACE;gameOver=false;updateChunks();updateHud();});
 socket.on("creditUpdate",({credits})=>{player.credits=credits;updateHud();renderCreditShop&&renderCreditShop();});
+socket.on("inventorySync",({credits,maxSlots,invSlots,reason})=>{if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;clampPanelScrolls();updateHud();});
+socket.on("inventorySlotDenied",({reason})=>showFT(reason||"Slot purchase denied",canvas.width/2,canvas.height/2,"#ff5544",10));
+socket.on("inventorySlotConfirm",({credits,maxSlots})=>{player.credits=credits;player.maxSlots=maxSlots;showFT("Inventory slot unlocked",canvas.width/2,canvas.height/2,"#78ff8a",10);});
+socket.on("useItemDenied",({reason})=>showFT(reason||"Item use denied",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-25:ship.y-15,"#ff5544",9));
 socket.on("creditPurchaseConfirm",({packageId,creditsAdded,credits,paymentId})=>{
   player.credits=credits;
   updateHud();
@@ -1118,11 +1129,13 @@ socket.on("xpUpdate",({xp,level})=>{player.xp=xp;player.level=level;player.xpToN
 socket.on("levelUp",({level,attrPoints})=>{player.level=level;player.attrPoints=attrPoints;showFT("LEVEL UP! +2 Attr Points",canvas.width/2,canvas.height/2,"#cc88ff",18);});
 socket.on("scoreUpdate",({score,delta,reason})=>{player.score=score;showScorePopup(delta,reason);updateHud();});
 socket.on("sellConfirm",({resourceType,quantity,earned,credits,prices})=>{serverPrices=prices;player.credits=credits;showFT(`+${earned}cr`,ship.x,ship.y-15,"#ffd15c");updateHud();});
-socket.on("buyConfirm",({resourceType,quantity,cost,credits,prices})=>{serverPrices=prices;player.credits=credits;addToInventory(resourceType,quantity);showFT(`Bought ${quantity}x ${RES[resourceType]?.name}`,ship.x,ship.y-15,"#78ff8a");updateHud();});
+socket.on("buyConfirm",({resourceType,quantity,cost,credits,prices})=>{serverPrices=prices;player.credits=credits;showFT(`Bought ${quantity}x ${RES[resourceType]?.name}`,ship.x,ship.y-15,"#78ff8a");updateHud();});
 socket.on("buyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
+socket.on("sellDenied",({reason})=>{showFT(reason||"Sale denied",ship.x,ship.y-15,"#ff5544");});
 socket.on("attrConfirm",({attr,val,attrPoints})=>{player.attrs[attr]=val;player.attrPoints=attrPoints;showFT(`${attr} → Lv${val}`,canvas.width/2,canvas.height/2-20,"#cc88ff",10);});
 socket.on("upgradeDenied",({reason})=>{showFT(reason,canvas.width/2,canvas.height/2,"#ff5544",10);});
 socket.on("energyUpdate",({energy:e})=>{energy.current=e;});
+socket.on("oxygenTankUsed",()=>{oxygen.current=clamp(oxygen.current+65,0,oxygen.max);showFT("+65% O2",astronaut.x,astronaut.y-25,"#7be6ff",10);updateHud();});
 socket.on("serverPong",()=>{}); // ping handled server-side
 
 socket.on("planetMapState",({planetId,W,H,tiles,hp,heights})=>{
@@ -1134,13 +1147,16 @@ socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
   if(!activePlanet||activePlanet.id!==planetId||!planetMap)return;
   setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
 });
+socket.on("planetMineReward",({planetId,kind,x,y,qty})=>{
+  if(!activePlanet||activePlanet.id!==planetId)return;
+  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
+});
+// Backward compatible handler for older servers.
 socket.on("planetMineDrop",({planetId,kind,x,y,qty})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
-  const count=Math.max(1,Math.min(8,qty||1));
-  for(let i=0;i<count;i++)drops.push({kind,x:x+(Math.random()-0.5)*8,y:y+(Math.random()-0.5)*8,vx:(Math.random()-0.5)*35,vy:-70-Math.random()*45});
+  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
 });
 socket.on("planetBuildDenied",({reason,resourceType})=>{
-  if(resourceType)addToInventory(resourceType,1);
   showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
 });
 socket.on("planetPlayersState",({planetId,players:pps,projectiles})=>{
@@ -1175,8 +1191,6 @@ socket.on("tradeStarted",(state)=>{applyTradeState(state);showTradePanel();addCh
 socket.on("tradeSessionState",(state)=>{applyTradeState(state);renderTradePanel();});
 socket.on("tradeCancelled",({reason})=>{addChat("Trade",reason||"Trade cancelled.","#ff8844");closeTradePanel(false);});
 socket.on("tradeComplete",({credits,gaveOffer,receivedOffer,otherName})=>{
-  for(const it of (gaveOffer?.items||[]))removeFromInventory(it.type,it.quantity);
-  for(const it of (receivedOffer?.items||[]))addToInventory(it.type,it.quantity);
   if(typeof credits==="number")player.credits=credits;
   updateHud();
   addChat("Trade",`Trade completed with ${otherName||"player"}.`,"#78ff8a");
@@ -1212,7 +1226,7 @@ socket.on("hireConfirm",({stationKey,shipCount,credits})=>{player.credits=credit
 socket.on("hireDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
 socket.on("ownedStationsList",(list)=>{ownedStationsList=list;ensureOwnedTradeShips();renderOwnedStations&&renderOwnedStations();});
 socket.on("ownedStationUpdate",({stationKey,goodsCount,shipCount})=>{showFT(`Station: ${goodsCount} goods ready`,ship.x,ship.y,"#ffcc44",9);});
-socket.on("ownedStationGoods",({stationKey,goods})=>{let added=0;for(const[k,v]of Object.entries(goods)){if(addToInventory(k,v))added+=v;}showFT(`Collected ${added} items from station`,ship.x,ship.y-15,"#78ff8a",11);updateHud();});
+socket.on("ownedStationGoods",({stationKey,goods})=>{let added=0;for(const v of Object.values(goods||{}))added+=Number(v)||0;showFT(`Collected ${added} items from station`,ship.x,ship.y-15,"#78ff8a",11);updateHud();});
 socket.on("ownedStationDamaged",({stationKey,hp,maxHp,shield,maxShield,ownerName,attackerName})=>{const st=ownedStationsList.find(s=>s.key===stationKey);if(st){Object.assign(st,{hp,maxHp,shield,maxShield,underAttackUntil:Date.now()+45000});ensureOwnedTradeShips();}});
 socket.on("ownedStationHitConfirm",({stationKey,hp,maxHp,shield,maxShield,damage})=>{showFT(`-${Math.round(damage)} STATION`,ship.x,ship.y-25,"#ff5544",9);});
 socket.on("stationDamageDenied",({reason})=>{showFT(reason||"Station cannot be damaged",ship.x,ship.y-20,"#ffcc44",9);});
@@ -1239,7 +1253,7 @@ socket.on("chat",({from,message,color})=>{addChat(from,message,color||"#d6e1ff")
 /* ── Join ── */
 document.getElementById("join-btn").addEventListener("click",doJoin);
 document.getElementById("join-name").addEventListener("keydown",e=>{if(e.key==="Enter")doJoin();});
-function doJoin(){if(!socket.connected){joinStatusEl.textContent="Still connecting…";return;}if(joined)return;const name=document.getElementById("join-name").value.trim()||"Pilot";player.name=name;joinStatusEl.textContent="Launching…";joinStatusEl.style.color="#ffcc44";socket.emit("join",{name});}
+function doJoin(){if(!socket.connected){joinStatusEl.textContent="Still connecting…";return;}if(joined)return;const name=document.getElementById("join-name").value.trim()||"Pilot";player.name=name;joinStatusEl.textContent="Launching…";joinStatusEl.style.color="#ffcc44";socket.emit("join",{name,token:wixGameToken});}
 
 /* ── Input sender ── */
 let shootCooldownTimer=0;
@@ -1447,8 +1461,7 @@ function useOxygenTank(){
   if(oxygen.current>=oxygen.max)return false;
   const idx=player.invSlots.findIndex(s=>s.type==="oxygen_tank"&&s.count>0);
   if(idx===-1){showFT("No oxygen tanks",astronaut.x,astronaut.y-25,"#ff5544",9);return false;}
-  removeFromInventory("oxygen_tank",1);oxygen.current=clamp(oxygen.current+65,0,oxygen.max);
-  showFT("+65% O2",astronaut.x,astronaut.y-25,"#7be6ff",10);updateHud();return true;
+  socket.emit("useOxygenTank");return true;
 }
 function buildableSlot(){
   if(buildSlotIndex!==null){const s=player.invSlots[buildSlotIndex];if(s&&s.type&&s.count>0&&BUILDABLE_RES_TO_TILE[s.type])return {index:buildSlotIndex,slot:s};}
@@ -1464,7 +1477,6 @@ function placeBuildTileAt(mx,my){
   if(tileAt(tx,ty)){showFT("Tile occupied",astronaut.x,astronaut.y-25,"#ffcc44",8);return;}
   if(Math.abs(wx-astronaut.x)<14&&Math.abs(wy-astronaut.y)<24){showFT("Too close to you",astronaut.x,astronaut.y-25,"#ffcc44",8);return;}
   const type=b.slot.type,tile=BUILDABLE_RES_TO_TILE[type];
-  if(!removeFromInventory(type,1)){return;}
   buildSlotIndex=b.index;
   socket.emit("placePlanetTile",{planetId:activePlanet.id,tx,ty,tile,resourceType:type});
 }
@@ -1472,8 +1484,7 @@ function placeBuildTileAt(mx,my){
 function useGasCanister(){
   if(energy.current>=energy.max)return;
   const idx=player.invSlots.findIndex(s=>s.type==="gas_canister"&&s.count>0);if(idx===-1)return;
-  removeFromInventory("gas_canister",1);energy.current=clamp(energy.current+GAS_REFUEL,0,energy.max);
-  socket.emit("useGas");showFT("+"+GAS_REFUEL+"% Energy",ship.x,ship.y-10,"#aaff44",10);
+  socket.emit("useGas");showFT("Requesting energy refill...",ship.x,ship.y-10,"#aaff44",10);
 }
 function requestRespawn(){socket.emit("respawn");}
 
@@ -1703,7 +1714,7 @@ function handleShopClick(mx,my){
   if(!nearStation)return;const st=nearStation;
   const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
   const tabs=["sell","buy"];for(let i=0;i<tabs.length;i++){const tx=px+10+i*80,ty=py+34,tw=75,th=18;if(mx>=tx&&mx<=tx+tw&&my>=ty&&my<=ty+th){shopTab=tabs[i];shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;return;}}
-  const gx=px+10,gy=py+ph-28,gw=130,gh=20;if(mx>=gx&&mx<=gx+gw&&my>=gy&&my<=gy+gh){if(player.credits>=GAS_COST){addToInventory("gas_canister",1);player.credits-=GAS_COST;showFT("Bought gas canister",ship.x,ship.y-15,"#aaff44");socket.emit("buy",{resourceType:"gas_canister",quantity:1,pricePerUnit:GAS_COST});}return;}
+  const gx=px+10,gy=py+ph-28,gw=130,gh=20;if(mx>=gx&&mx<=gx+gw&&my>=gy&&my<=gy+gh){if(player.credits>=GAS_COST){showFT("Buying gas canister",ship.x,ship.y-15,"#aaff44");socket.emit("buy",{resourceType:"gas_canister",quantity:1,pricePerUnit:GAS_COST});}return;}
   if(shopTab==="sell")handleSellClick(st,mx,my,px,py,pw,ph);else handleBuyClick(st,mx,my,px,py,pw,ph);
 }
 
@@ -1718,8 +1729,7 @@ function handleSellClick(st,mx,my,px,py,pw,ph){
     const sellX=dx+88,sellY=dy+132,sellW=70;
     if(mx>=sellX&&mx<=sellX+sellW&&my>=sellY&&my<=sellY+btnH){
       const type=slot.type,qty=Math.min(shopSellQty,slot.count);
-      removeFromInventory(type,qty);if(!player.invSlots[shopSelectedSlot]?.count)shopSelectedSlot=null;shopSellQty=1;
-      socket.emit("sell",{resourceType:type,quantity:qty,stationId:nearStation.id});return;
+      shopSellQty=1;socket.emit("sell",{resourceType:type,quantity:qty,stationId:nearStation.id});return;
     }
   }
 }
@@ -1906,3 +1916,4 @@ document.head.appendChild(_socketScript);
 </script>
 </body>
 </html>
+
