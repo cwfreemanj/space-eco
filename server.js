@@ -7,6 +7,7 @@ const express = require("express");
 const http    = require("http");
 const { Server } = require("socket.io");
 const path    = require("path");
+const crypto  = require("crypto");
 
 const app    = express();
 const server = http.createServer(app);
@@ -59,6 +60,18 @@ const CREDIT_PACKAGES = {
 };
 const grantedCreditPayments = new Map(); // paymentId -> grant record
 const PURCHASE_WEBHOOK_SECRET = process.env.PURCHASE_WEBHOOK_SECRET || "";
+
+/* ── Wix member/account persistence ──
+   WIX_GAME_AUTH_SECRET must match the secret used by SpaceEcoAuth.web.js.
+   WIX_PERSIST_URL should be your Wix HTTP function URL, for example:
+   https://www.yoursite.com/_functions/spaceEcoPersistPlayer
+   WIX_PERSIST_SECRET must match the Wix secret checked by that endpoint.
+*/
+const WIX_GAME_AUTH_SECRET = process.env.WIX_GAME_AUTH_SECRET || "";
+const WIX_PERSIST_URL = process.env.WIX_PERSIST_URL || "";
+const WIX_PERSIST_SECRET = process.env.WIX_PERSIST_SECRET || PURCHASE_WEBHOOK_SECRET || "";
+const socketsByMemberId = new Map();
+const persistTimers = new Map();
 
 /* ── Ship types (synced to client) ── */
 const SHIP_TYPES = {
@@ -170,6 +183,7 @@ function grantXp(player,amount,reason="Mining/Combat"){
   const xtn=Math.floor(100*Math.pow(1.4,player.level-1));
   if(player.xp>=xtn){player.xp-=xtn;player.level++;player.attrPoints=(player.attrPoints||0)+2;io.to(player.id).emit("levelUp",{level:player.level,attrPoints:player.attrPoints});}
   io.to(player.id).emit("xpUpdate",{xp:player.xp,level:player.level});
+  if(typeof persistPlayerSoon==="function")persistPlayerSoon(player,"gain_xp");
 }
 
 function buildLeaderboard(limit=10) {
@@ -207,12 +221,106 @@ const economy={
   snapshot(){const o={};for(const k of RES_KEYS)o[k]=this.price(k);return o;}
 };
 
+/* ── Account token + server-authoritative inventory ── */
+function base64urlToJson(input){
+  try{input=String(input||"").replace(/-/g,"+").replace(/_/g,"/");while(input.length%4)input+="=";return JSON.parse(Buffer.from(input,"base64").toString("utf8"));}
+  catch(_){return null;}
+}
+function hmacSign(input,secret){return crypto.createHmac("sha256",secret).update(input).digest("base64").replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");}
+function verifyGameToken(token){
+  if(!token||!WIX_GAME_AUTH_SECRET)return null;
+  const [h,p,s]=String(token).split(".");if(!h||!p||!s)return null;
+  const expected=hmacSign(`${h}.${p}`,WIX_GAME_AUTH_SECRET);
+  if(s!==expected)return null;
+  const data=base64urlToJson(p);if(!data||!data.memberId)return null;
+  if(data.exp&&Date.now()>Number(data.exp))return null;
+  return data;
+}
+function emptySlots(n=24){return Array(n).fill(null).map(()=>({type:null,count:0}));}
+function normalizeInventorySlots(slots,maxSlots=24){
+  maxSlots=Math.max(24,Math.min(96,Math.floor(Number(maxSlots)||24)));
+  const out=emptySlots(maxSlots);
+  if(Array.isArray(slots)){
+    for(let i=0;i<Math.min(slots.length,maxSlots);i++){
+      const type=String(slots[i]?.type||"");const count=Math.max(0,Math.min(9999,Math.floor(Number(slots[i]?.count)||0)));
+      if(type&&RES_KEYS.includes(type)&&count>0)out[i]={type,count};
+    }
+  }else if(slots&&typeof slots==="object"){
+    let idx=0;
+    for(const [type,val] of Object.entries(slots)){
+      let count=Math.max(0,Math.min(9999,Math.floor(Number(val)||0)));
+      if(!RES_KEYS.includes(type)||count<=0)continue;
+      while(count>0&&idx<maxSlots){const put=Math.min(24,count);out[idx++]={type,count:put};count-=put;}
+    }
+  }
+  return out;
+}
+function inventoryCounts(p){const o={};for(const s of p.invSlots||[])if(s?.type&&s.count>0)o[s.type]=(o[s.type]||0)+s.count;return o;}
+function inventoryCount(p,type){let n=0;for(const s of p.invSlots||[])if(s.type===type)n+=s.count;return n;}
+function canFitInventory(p,type,amount){
+  let rem=Math.max(0,Math.floor(Number(amount)||0));if(rem<=0)return true;
+  for(let i=0;i<(p.maxSlots||24);i++){const s=p.invSlots[i];if(s?.type===type&&s.count<24)rem-=Math.min(24-s.count,rem);if(rem<=0)return true;}
+  for(let i=0;i<(p.maxSlots||24);i++){const s=p.invSlots[i];if(!s?.type){rem-=Math.min(24,rem);if(rem<=0)return true;}}
+  return false;
+}
+function addInventory(p,type,amount){
+  if(!RES_KEYS.includes(type))return false;
+  let rem=Math.max(0,Math.floor(Number(amount)||0));if(rem<=0)return true;
+  if(!Array.isArray(p.invSlots))p.invSlots=emptySlots(p.maxSlots||24);
+  for(let i=0;i<(p.maxSlots||24);i++){const s=p.invSlots[i];if(s?.type===type&&s.count<24){const add=Math.min(24-s.count,rem);s.count+=add;rem-=add;if(rem<=0)return true;}}
+  for(let i=0;i<(p.maxSlots||24);i++){const s=p.invSlots[i];if(!s?.type){const add=Math.min(24,rem);p.invSlots[i]={type,count:add};rem-=add;if(rem<=0)return true;}}
+  return false;
+}
+function removeInventory(p,type,amount){
+  let rem=Math.max(0,Math.floor(Number(amount)||0));if(rem<=0)return true;
+  if(inventoryCount(p,type)<rem)return false;
+  for(let i=(p.maxSlots||24)-1;i>=0;i--){const s=p.invSlots[i];if(s?.type===type){const rm=Math.min(s.count,rem);s.count-=rm;rem-=rm;if(s.count<=0)p.invSlots[i]={type:null,count:0};if(rem<=0)return true;}}
+  return true;
+}
+function validateTradeItems(p,items){
+  const need={};for(const it of items||[]){const type=String(it.type||"");const q=Math.max(0,Math.floor(Number(it.quantity)||0));if(!RES_KEYS.includes(type)||q<=0)return false;need[type]=(need[type]||0)+q;}
+  return Object.entries(need).every(([type,q])=>inventoryCount(p,type)>=q);
+}
+function emitInventorySync(p,reason="sync"){
+  if(!p?.id)return;
+  io.to(p.id).emit("inventorySync",{credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),reason});
+}
+async function persistPlayerNow(p,reason="update"){
+  if(!p?.memberId||!WIX_PERSIST_URL||!WIX_PERSIST_SECRET)return;
+  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},reason,updatedAt:Date.now()};
+  try{
+    await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
+  }catch(err){console.warn("Wix persistence failed:",err?.message||err);}
+}
+function persistPlayerSoon(p,reason="update",delay=1200){
+  if(!p?.memberId)return;
+  if(persistTimers.has(p.id))clearTimeout(persistTimers.get(p.id));
+  persistTimers.set(p.id,setTimeout(()=>{persistTimers.delete(p.id);persistPlayerNow(p,reason);},delay));
+}
+function syncAndPersist(p,reason="sync"){
+  emitInventorySync(p,reason);persistPlayerSoon(p,reason);
+}
+function applyAuthAccountToPlayer(p,auth){
+  if(!auth)return;
+  p.memberId=String(auth.memberId);p.accountLoaded=true;
+  p.name=sanitizeName(auth.displayName||p.name||"Pilot");
+  p.credits=Math.max(0,Math.floor(Number(auth.credits)||p.credits||300));
+  p.maxSlots=Math.max(24,Math.min(96,Math.floor(Number(auth.maxSlots)||24)));
+  p.invSlots=normalizeInventorySlots(auth.invSlots||auth.inventory,p.maxSlots);
+  if(auth.shipType&&SHIP_TYPES[auth.shipType])p.shipType=auth.shipType;
+  if(auth.level)p.level=Math.max(1,Math.floor(Number(auth.level)||1));
+  if(auth.xp!==undefined)p.xp=Math.max(0,Math.floor(Number(auth.xp)||0));
+  if(auth.attrs&&typeof auth.attrs==="object")p.attrs={...p.attrs,...auth.attrs};
+}
+
+
 
 /* ── Persistent planet maps ──
    These maps live on the server so one planet has one shared, mineable state.
    They reset only when the Railway process restarts. Persist to Wix/DB later for permanent worlds.
 */
 const PLANET_TILE={EMPTY:0,DIRT:1,STONE:2,ORE1:3,ORE2:4,RARE:5,ICE:6,PACKED_ICE:7,LAVA:8,MAGMA:9,TOXIC_SLUDGE:10,SAND:11,SANDSTONE:12,GRASS:13,BEDROCK:14};
+const BUILD_RESOURCE_TO_TILE={dirt:1,stone:2,ice_block:6,lava_rock:8,toxic_sludge:10,sand:11,grass_tuft:13};
 const planetMaps=new Map();
 function safePlanetInfo(raw){
   raw=raw||{};
@@ -265,11 +373,12 @@ app.post("/api/grant-credits", (req,res)=>{
   const p=players.get(socketId);
   if(!p){res.status(409).json({ok:false,error:"Player socket is not online. Add account persistence before granting offline purchases."});return;}
   p.credits+=pack.credits;
-  const grant={paymentId,packageId,socketId,playerName:p.name,creditsAdded:pack.credits,credits:p.credits,grantedAt:Date.now()};
+  const grant={paymentId,packageId,socketId,playerName:p.name,memberId:p.memberId||null,creditsAdded:pack.credits,credits:p.credits,grantedAt:Date.now()};
   grantedCreditPayments.set(paymentId,grant);
   addScore(p,Math.floor(pack.credits*0.002),"Credit Purchase");
   io.to(socketId).emit("creditPurchaseConfirm",grant);
   io.to(socketId).emit("creditUpdate",{credits:p.credits});
+  syncAndPersist(p,"credit_purchase");
   res.json({ok:true,grant});
 });
 
@@ -511,11 +620,18 @@ function completeTrade(s){
   const pa=players.get(s.a),pb=players.get(s.b);if(!pa||!pb){cancelTrade(s,"Trade cancelled: player disconnected.");return;}
   const oa=s.offers.a,ob=s.offers.b;
   if((pa.credits||0)<(oa.credits||0)||(pb.credits||0)<(ob.credits||0)){cancelTrade(s,"Trade cancelled: insufficient credits.");return;}
+  if(!validateTradeItems(pa,oa.items)||!validateTradeItems(pb,ob.items)){cancelTrade(s,"Trade cancelled: one player no longer has the offered inventory.");return;}
+  // Remove both offers first, then add received items. This prevents duplication exploits.
+  for(const it of oa.items||[])removeInventory(pa,it.type,it.quantity);
+  for(const it of ob.items||[])removeInventory(pb,it.type,it.quantity);
+  for(const it of ob.items||[])addInventory(pa,it.type,it.quantity);
+  for(const it of oa.items||[])addInventory(pb,it.type,it.quantity);
   pa.credits=pa.credits-(oa.credits||0)+(ob.credits||0);
   pb.credits=pb.credits-(ob.credits||0)+(oa.credits||0);
   tradeSessions.delete(s.id);
-  io.to(pa.id).emit("tradeComplete",{tradeId:s.id,credits:pa.credits,gaveOffer:oa,receivedOffer:ob,otherName:pb.name});
-  io.to(pb.id).emit("tradeComplete",{tradeId:s.id,credits:pb.credits,gaveOffer:ob,receivedOffer:oa,otherName:pa.name});
+  syncAndPersist(pa,"trade_complete");syncAndPersist(pb,"trade_complete");
+  io.to(pa.id).emit("tradeComplete",{tradeId:s.id,credits:pa.credits,gaveOffer:oa,receivedOffer:ob,otherName:pb.name,serverAuthoritative:true});
+  io.to(pb.id).emit("tradeComplete",{tradeId:s.id,credits:pb.credits,gaveOffer:ob,receivedOffer:oa,otherName:pa.name,serverAuthoritative:true});
 }
 
 
@@ -563,17 +679,19 @@ function contributeFactionXp(p,amount,reason="XP"){
 io.on("connection",socket=>{
   if(players.size>=MAX_PLAYERS){socket.emit("serverFull");socket.disconnect(true);return;}
 
-  socket.on("join",({name})=>{
+  socket.on("join",({name,token})=>{
     if(players.has(socket.id))return;
-    const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,name,sp.x,sp.y);
+    const auth=verifyGameToken(token);
+    const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
+    applyAuthAccountToPlayer(p,auth);
     players.set(socket.id,p);
-    socket.emit("welcome",{id:socket.id,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,serverName:SERVER_NAME});
+    if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots});
+    emitInventorySync(p,"login");
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
     broadcastLeaderboard();broadcastServerList();
-    // Send owned stations list
     emitOwnedStationsList(socket);
-    sendCharacterState(socket,p);
   });
 
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
@@ -613,7 +731,9 @@ io.on("connection",socket=>{
       map.tiles[id]=0;map.hp[id]=0;
       io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile:0,hp:0});
       const qty=(t===3||t===4)?(Math.random()<0.35?2:1):(t===5?(Math.random()<0.55?2:1):1);
-      socket.emit("planetMineDrop",{planetId,kind,x:tx*16+8,y:ty*16+8,qty});
+      addInventory(p,kind,qty);
+      socket.emit("planetMineReward",{planetId,kind,x:tx*16+8,y:ty*16+8,qty});
+      syncAndPersist(p,"planet_mine");
       grantXp(p,rar*2,"Mining");
     }else{
       io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile:t,hp:map.hp[id]});
@@ -628,8 +748,12 @@ io.on("connection",socket=>{
     if(!valid.includes(tile)){socket.emit("planetBuildDenied",{reason:"Invalid build tile.",resourceType});return;}
     if(tx<1||ty<1||tx>=map.W-1||ty>=map.H-3){socket.emit("planetBuildDenied",{reason:"Cannot build there.",resourceType});return;}
     const id=ty*map.W+tx;if(map.tiles[id]){socket.emit("planetBuildDenied",{reason:"Tile occupied.",resourceType});return;}
+    resourceType=String(resourceType||"");
+    if(BUILD_RESOURCE_TO_TILE[resourceType]!==tile){socket.emit("planetBuildDenied",{reason:"Build material does not match tile.",resourceType});return;}
+    if(!removeInventory(p,resourceType,1)){socket.emit("planetBuildDenied",{reason:"No build material in server inventory.",resourceType});return;}
     map.tiles[id]=tile;map.hp[id]=hpForPlacedTile(tile);
     io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile,hp:map.hp[id]});
+    syncAndPersist(p,"planet_build");
   });
 
   socket.on("planetState",({planetId,x,y,vx,vy,onGround,tool,cosmeticColor,suitColor})=>{
@@ -712,7 +836,9 @@ io.on("connection",socket=>{
   socket.on("tradeUpdate",({tradeId,offer})=>{
     const p=players.get(socket.id),s=tradeSessions.get(tradeId);if(!p||!s)return;
     const side=sideOfTrade(s,p.id);if(!side)return;
-    s.offers[side]=sanitizeTradeOffer(offer,p);
+    const clean=sanitizeTradeOffer(offer,p);
+    if(!validateTradeItems(p,clean.items)){socket.emit("tradeDenied",{reason:"You do not have those items in your server inventory."});return;}
+    s.offers[side]=clean;
     s.ready.a=false;s.ready.b=false;
     emitTradeState(s);
   });
@@ -765,12 +891,26 @@ io.on("connection",socket=>{
     }
   });
 
+  socket.on("requestInventorySync",()=>{const p=players.get(socket.id);if(p)emitInventorySync(p,"requested");});
+
+  socket.on("buyInventorySlot",()=>{
+    const p=players.get(socket.id);if(!p)return;
+    const SLOT_COST=1000,MAX_TOTAL_SLOTS=96;
+    if((p.maxSlots||24)>=MAX_TOTAL_SLOTS){socket.emit("inventorySlotDenied",{reason:"Maximum slots reached."});return;}
+    if((p.credits||0)<SLOT_COST){socket.emit("inventorySlotDenied",{reason:`Need ${SLOT_COST}cr.`});return;}
+    p.credits-=SLOT_COST;p.maxSlots=(p.maxSlots||24)+1;p.invSlots.push({type:null,count:0});
+    socket.emit("inventorySlotConfirm",{credits:p.credits,maxSlots:p.maxSlots});syncAndPersist(p,"buy_inventory_slot");
+  });
+
   socket.on("sell",({resourceType,quantity})=>{
     const p=players.get(socket.id);if(!p||quantity<=0||quantity>500)return;
     const pr=economy.price(resourceType);if(!pr)return;
+    quantity=Math.floor(Number(quantity)||0);
+    if(!removeInventory(p,resourceType,quantity)){socket.emit("sellDenied",{reason:"You do not have that quantity in your server inventory."});return;}
     const earned=pr*quantity;p.credits+=earned;p.tradingVolume=(p.tradingVolume||0)+earned;
     economy.sold(resourceType,quantity);addScore(p,Math.floor(earned*0.1),"Trade");
     socket.emit("sellConfirm",{resourceType,quantity,earned,credits:p.credits,prices:economy.snapshot()});
+    syncAndPersist(p,"sell_resource");
   });
 
   socket.on("buy",({resourceType,quantity,pricePerUnit})=>{
@@ -778,8 +918,10 @@ io.on("connection",socket=>{
     const sp2=economy.price(resourceType);
     if(Math.abs(pricePerUnit-sp2)/sp2>0.25){socket.emit("buyDenied",{reason:"Price changed. Retry."});return;}
     const cost=sp2*quantity;if(p.credits<cost){socket.emit("buyDenied",{reason:"Insufficient credits."});return;}
-    p.credits-=cost;economy.bought(resourceType,quantity);
+    if(!canFitInventory(p,resourceType,quantity)){socket.emit("buyDenied",{reason:"Inventory full."});return;}
+    p.credits-=cost;economy.bought(resourceType,quantity);addInventory(p,resourceType,quantity);
     socket.emit("buyConfirm",{resourceType,quantity,cost,credits:p.credits,prices:economy.snapshot()});
+    syncAndPersist(p,"buy_resource");
   });
 
   socket.on("buyShip",({shipTypeKey})=>{
@@ -790,6 +932,7 @@ io.on("connection",socket=>{
     if(p.credits<def.price){socket.emit("shipBuyDenied",{reason:`Need ${def.price}cr.`});return;}
     p.credits-=def.price;p.shipType=shipTypeKey;p.maxHp=def.maxHp;p.hp=def.maxHp;p.maxShield=def.maxShield;p.shield=def.maxShield;
     socket.emit("shipBuyConfirm",{shipTypeKey,credits:p.credits,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});
+    syncAndPersist(p,"buy_ship");
     broadcastChat("Server",`${p.name} upgraded to a ${def.name}!`,"#ffdd44");
   });
 
@@ -799,7 +942,7 @@ io.on("connection",socket=>{
     if(p.credits<td.price){socket.emit("stationBuyDenied",{reason:`Need ${td.price}cr.`});return;}
     const key=`${Math.round(x/100)}_${Math.round(y/100)}`;
     if(ownedStations.has(key)){socket.emit("stationBuyDenied",{reason:"Location occupied."});return;}
-    p.credits-=td.price;
+    p.credits-=td.price;syncAndPersist(p,"buy_station");
     const st={key,ownerId:p.id,ownerName:p.name,x,y,tier,hiredShips:[],accumulatedGoods:{},...makeStationState(tier)};
     ownedStations.set(key,st);addScore(p,1000,"Station Built");
     socket.emit("stationBuyConfirm",{key,x,y,tier,credits:p.credits});
@@ -814,7 +957,7 @@ io.on("connection",socket=>{
     const td=OWNED_STATION_TIERS[st.tier];
     if(st.hiredShips.length>=td.maxShips){socket.emit("hireDenied",{reason:`Max ${td.maxShips} ships.`});return;}
     if(p.credits<td.shipHireCost){socket.emit("hireDenied",{reason:`Need ${td.shipHireCost}cr.`});return;}
-    p.credits-=td.shipHireCost;
+    p.credits-=td.shipHireCost;syncAndPersist(p,"hire_station_ship");
     st.hiredShips.push({id:`os_${stationKey}_${Date.now()}_${Math.floor(Math.random()*9999)}`,state:(Date.now()<(st.underAttackUntil||0)?"defending":"collecting"),cargo:{},createdAt:Date.now(),respawnAt:0});
     socket.emit("hireConfirm",{stationKey,shipCount:st.hiredShips.length,credits:p.credits});
     socket.emit("creditUpdate",{credits:p.credits});
@@ -824,8 +967,10 @@ io.on("connection",socket=>{
   socket.on("collectOwnedStation",({stationKey})=>{
     const p=players.get(socket.id);if(!p)return;
     const st=ownedStations.get(stationKey);if(!st||st.ownerId!==p.id||st.destroyed)return;
-    socket.emit("ownedStationGoods",{stationKey,goods:{...st.accumulatedGoods}});
-    st.accumulatedGoods={};
+    const goods={...st.accumulatedGoods};
+    for(const [k,v] of Object.entries(goods))if(v>0)addInventory(p,k,v);
+    socket.emit("ownedStationGoods",{stationKey,goods,serverAuthoritative:true});
+    st.accumulatedGoods={};syncAndPersist(p,"collect_station_goods");
   });
 
   socket.on("npcHitPlayer",({damage,source})=>{
@@ -884,9 +1029,16 @@ io.on("connection",socket=>{
     broadcastOwnedStationsList();
   });
 
+  socket.on("useOxygenTank",()=>{
+    const p=players.get(socket.id);if(!p)return;
+    if(!removeInventory(p,"oxygen_tank",1)){socket.emit("useItemDenied",{type:"oxygen_tank",reason:"No oxygen tank in server inventory."});return;}
+    socket.emit("oxygenTankUsed",{});syncAndPersist(p,"use_oxygen_tank");
+  });
+
   socket.on("useGas",()=>{
     const p=players.get(socket.id);if(!p)return;
-    p.energy=Math.min(100,p.energy+GAS_REFUEL);socket.emit("energyUpdate",{energy:p.energy});
+    if(!removeInventory(p,"gas_canister",1)){socket.emit("useItemDenied",{type:"gas_canister",reason:"No gas canister in server inventory."});return;}
+    p.energy=Math.min(100,p.energy+GAS_REFUEL);socket.emit("energyUpdate",{energy:p.energy});syncAndPersist(p,"use_gas");
   });
 
   socket.on("upgradeAttr",({attr})=>{
@@ -896,7 +1048,7 @@ io.on("connection",socket=>{
     if((p.attrPoints||0)<=0){socket.emit("upgradeDenied",{reason:"No attribute points."});return;}
     if((p.attrs[attr]||1)>=10){socket.emit("upgradeDenied",{reason:"Already maxed."});return;}
     p.attrs[attr]=(p.attrs[attr]||1)+1;p.attrPoints=(p.attrPoints||0)-1;
-    socket.emit("attrConfirm",{attr,val:p.attrs[attr],attrPoints:p.attrPoints});
+    socket.emit("attrConfirm",{attr,val:p.attrs[attr],attrPoints:p.attrPoints});syncAndPersist(p,"upgrade_attr");
   });
 
   socket.on("gainXp",({amount})=>{
@@ -906,7 +1058,7 @@ io.on("connection",socket=>{
     contributeFactionXp(p,Math.floor(amount),"XP");
     const xtn=Math.floor(100*Math.pow(1.4,p.level-1));
     if(p.xp>=xtn){p.xp-=xtn;p.level++;p.attrPoints=(p.attrPoints||0)+2;socket.emit("levelUp",{level:p.level,attrPoints:p.attrPoints});}
-    socket.emit("xpUpdate",{xp:p.xp,level:p.level});
+    socket.emit("xpUpdate",{xp:p.xp,level:p.level});persistPlayerSoon(p,"gain_xp");
   });
 
   socket.on("chat",({message})=>{
@@ -926,7 +1078,7 @@ io.on("connection",socket=>{
 
   socket.on("disconnect",()=>{
     const p=players.get(socket.id);
-    if(p){broadcastChat("Server",`${p.name} has left the galaxy.`,"#ff8888");socket.broadcast.emit("playerLeft",{id:socket.id});}
+    if(p){broadcastChat("Server",`${p.name} has left the galaxy.`,"#ff8888");socket.broadcast.emit("playerLeft",{id:socket.id});persistPlayerNow(p,"disconnect");if(p.memberId)socketsByMemberId.delete(p.memberId);}
     for(const ts of [...tradeSessions.values()])if(ts.a===socket.id||ts.b===socket.id)cancelTrade(ts,"Trade cancelled: player disconnected.");
     if(p?.partyId)leaveParty(socket.id,"Disconnected from party.");
     if(p?.factionId){const f=factions.get(p.factionId);if(f)emitFactionState(f.id);}
@@ -936,3 +1088,6 @@ io.on("connection",socket=>{
 
 const PORT=process.env.PORT||3000;
 server.listen(PORT,()=>{console.log(`🚀 ${SERVER_NAME} on port ${PORT} | ${TICK_RATE}Hz | Max:${MAX_PLAYERS}`);});
+
+
+
