@@ -712,7 +712,48 @@ function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)p
 function tileHP(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.hp[y*planetMap.W+x];}
 function setTileHP(x,y,h){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.hp[y*planetMap.W+x]=clamp(h,0,255);}
 function collidePlanet(a,horiz){const TP=16,l=Math.floor((a.x-a.w/2)/TP),ri=Math.floor((a.x+a.w/2)/TP),t=Math.floor((a.y-a.h)/TP),b=Math.floor(a.y/TP);for(let ty=t;ty<=b;ty++)for(let tx=l;tx<=ri;tx++){const ti=tileAt(tx,ty);if(!ti)continue;const tl=tx*TP,tt=ty*TP,tr=tl+TP,tb=tt+TP,ax1=a.x-a.w/2,ax2=a.x+a.w/2,ay1=a.y-a.h,ay2=a.y;if(ax2>tl&&ax1<tr&&ay2>tt&&ay1<tb){if(horiz){if(a.vx>0){a.x=tl-a.w/2;a.vx=0;}else if(a.vx<0){a.x=tr+a.w/2;a.vx=0;}}else{if(a.vy>0){a.y=tt;a.vy=0;a.onGround=true;}else if(a.vy<0){a.y=tb+a.h;a.vy=0;}}}}}
-function itemCollide(it){const TP=16,tx=Math.floor(it.x/TP),ty=Math.floor(it.y/TP);if(tileAt(tx,ty)){it.y=ty*TP-1;return true;}return false;}
+function itemCollide(it){
+  // Only settle drops when they are falling onto the top of a solid tile.
+  // The old check snapped any drop inside a tile to that tile's top, which could
+  // visually yank drops upward if they spawned under the block above them.
+  const TP=16,r=it.r||3,tx=Math.floor(it.x/TP),ty=Math.floor((it.y+r)/TP);
+  if(it.vy>=0&&tileAt(tx,ty)){
+    it.y=ty*TP-r-0.35;
+    return true;
+  }
+  return false;
+}
+function makeMineDropKey(planetId,kind,x,y){return `${planetId||"?"}|${kind||"?"}|${Math.round(Number(x)||0)}|${Math.round(Number(y)||0)}`;}
+const recentMineDropVisuals=new Map();
+function noteMineDropVisual(key){
+  const now=performance.now();
+  recentMineDropVisuals.set(key,now);
+  for(const[k,t]of recentMineDropVisuals)if(now-t>1200)recentMineDropVisuals.delete(k);
+}
+function spawnPlanetLootVisual({planetId,kind,x,y,qty=1,ownerId=null,serverGranted=true}){
+  if(!activePlanet||activePlanet.id!==planetId||!RES[kind])return;
+  const key=makeMineDropKey(planetId,kind,x,y);
+  noteMineDropVisual(key);
+  const count=clamp(Math.floor(Number(qty)||1),1,4);
+  for(let i=0;i<count;i++){
+    const ang=(-Math.PI/2)+(Math.random()-0.5)*1.45;
+    const sp=34+Math.random()*32;
+    drops.push({
+      kind,
+      x:(Number(x)||0)+(Math.random()-0.5)*8,
+      y:(Number(y)||0)-5+(Math.random()-0.5)*4,
+      vx:Math.cos(ang)*sp,
+      vy:Math.sin(ang)*sp-18,
+      r:3,
+      age:0,
+      life:7,
+      pickupDelay:0.42,
+      sparkle:0.8,
+      ownerId,
+      serverGranted
+    });
+  }
+}
 let mineCooldown=0;
 function doMining(dt){
   mineCooldown-=dt;if(mineCooldown>0||!planetMap||!activePlanet)return;
@@ -1203,11 +1244,20 @@ socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
 socket.on("planetMineReward",({planetId,kind,x,y,qty})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
   showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
+  // Fallback for older servers that grant inventory but do not broadcast a
+  // visible planetMineDrop event. Newer servers send planetMineDrop to everyone.
+  const key=makeMineDropKey(planetId,kind,x,y);
+  setTimeout(()=>{
+    if(!activePlanet||activePlanet.id!==planetId)return;
+    const seen=recentMineDropVisuals.get(key)||0;
+    if(performance.now()-seen>220)spawnPlanetLootVisual({planetId,kind,x,y,qty,ownerId:player.id,serverGranted:true});
+  },90);
 });
-// Backward compatible handler for older servers.
-socket.on("planetMineDrop",({planetId,kind,x,y,qty})=>{
+// Visible mining loot. These drops are visual pickup feedback only because the
+// server has already granted/synced the resource for the miner.
+socket.on("planetMineDrop",({planetId,kind,x,y,qty,ownerId})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
-  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
+  spawnPlanetLootVisual({planetId,kind,x,y,qty,ownerId,serverGranted:true});
 });
 socket.on("planetBuildDenied",({reason,resourceType})=>{
   showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
@@ -1875,7 +1925,22 @@ function updatePlanet(dt){
   if(!controlsLocked&&keys.has("x")){keys.delete("x");useOxygenTank();}
   if(!controlsLocked&&keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
   if(!controlsLocked&&mouse.down&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon")planetWeaponAttack();else doMining(dt);}
-  for(let i=drops.length-1;i>=0;i--){const it=drops[i];it.vy+=grav*dt;it.x+=it.vx*dt;it.y+=it.vy*dt;if(itemCollide(it)){it.vx*=0.6;it.vy=0;}if(dist(astronaut.x,astronaut.y,it.x,it.y)<18&&addToInventory(it.kind,1))drops.splice(i,1);}
+  for(let i=drops.length-1;i>=0;i--){
+    const it=drops[i];
+    it.age=(it.age||0)+dt;
+    if(Number.isFinite(it.life)){it.life-=dt;if(it.life<=0){drops.splice(i,1);continue;}}
+    if(it.pickupDelay>0)it.pickupDelay-=dt;
+    it.vy+=grav*dt;
+    it.x+=it.vx*dt;
+    it.y+=it.vy*dt;
+    it.vx*=Math.pow(0.985,dt*60);
+    if(itemCollide(it)){it.vx*=0.72;it.vy=0;}
+    const canPickup=(it.pickupDelay||0)<=0&&dist(astronaut.x,astronaut.y,it.x,it.y)<18;
+    if(canPickup){
+      if(it.serverGranted){showFT(`${RES[it.kind]?.name||it.kind}`,it.x,it.y-8,"#78ff8a",8);drops.splice(i,1);}
+      else if(addToInventory(it.kind,1)){drops.splice(i,1);}
+    }
+  }
   if(!domLocked&&keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
   updateHud();
 }
@@ -1900,7 +1965,17 @@ function drawPlanet(){
     ctx.globalAlpha=.45;ctx.strokeStyle=pr.ownerId===player.id?"#ffdd44":"#ff6655";ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   }
   const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle=character.cosmeticColor||"#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=character.suitColor||"#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
-  for(const it of drops){ctx.fillStyle=RES[it.kind]?.color||"#fff";ctx.fillRect((it.x-cam.x)-2,(it.y-cam.y)-2,4,4);}
+  for(const it of drops){
+    const dx=it.x-cam.x,dy=it.y-cam.y,col=RES[it.kind]?.color||"#fff";
+    if(dx<-12||dy<-12||dx>canvas.width+12||dy>canvas.height+12)continue;
+    const pulse=1+Math.sin((it.age||0)*10)*0.18;
+    ctx.save();
+    ctx.globalAlpha=Math.max(0.25,Math.min(1,it.life===undefined?1:it.life/0.8));
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(dx,dy,3*pulse,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha*=0.42;ctx.strokeStyle=col;ctx.beginPath();ctx.arc(dx,dy,6*pulse,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=0.9;ctx.fillStyle="#ffffff";ctx.fillRect(dx-1,dy-4,1,1);
+    ctx.restore();
+  }
   if(mouse.down&&planetTool==="mining"){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
   const bp=buildableSlot();
   if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
