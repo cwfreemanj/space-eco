@@ -1000,11 +1000,24 @@ window.addEventListener("message",(event)=>{
     if(typeof msg.credits==="number")player.credits=msg.credits;
     if(Array.isArray(msg.invSlots)){player.invSlots=msg.invSlots;player.maxSlots=msg.maxSlots||msg.invSlots.length||player.maxSlots;clampPanelScrolls();}
     updateHud();
+    setCreditPayStatus("Wix account linked. Credits and inventory will sync.","#78ff8a");
   }
   if(msg.type==="SPACE_ECO_PAYMENT_STARTED")setCreditPayStatus("Wix checkout opened. Complete the payment to receive credits.","#7be6ff");
   if(msg.type==="SPACE_ECO_PAYMENT_RESULT")setCreditPayStatus(`Wix payment status: ${msg.status||"unknown"}. Waiting for server confirmation...`,"#ffcc44");
   if(msg.type==="SPACE_ECO_PAYMENT_ERROR")setCreditPayStatus(msg.message||"Wix payment failed to start.","#ff5544");
 });
+function notifyWixIframeReady(){
+  if(window.parent&&window.parent!==window){
+    window.parent.postMessage({type:"SPACE_ECO_IFRAME_READY",serverUrl:SERVER_URL},WIX_PARENT_ORIGIN);
+  }
+}
+notifyWixIframeReady();
+let _wixReadyPings=0;
+const _wixReadyTimer=setInterval(()=>{
+  _wixReadyPings++;
+  if(wixGameToken||_wixReadyPings>12){clearInterval(_wixReadyTimer);return;}
+  notifyWixIframeReady();
+},750);
 
 /* ── Build panel ── */
 function toggleBuildPanel(){
@@ -1916,4 +1929,3 @@ document.head.appendChild(_socketScript);
 </script>
 </body>
 </html>
-
