@@ -672,7 +672,51 @@ function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)p
 function tileHP(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.hp[y*planetMap.W+x];}
 function setTileHP(x,y,h){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.hp[y*planetMap.W+x]=clamp(h,0,255);}
 function collidePlanet(a,horiz){const TP=16,l=Math.floor((a.x-a.w/2)/TP),ri=Math.floor((a.x+a.w/2)/TP),t=Math.floor((a.y-a.h)/TP),b=Math.floor(a.y/TP);for(let ty=t;ty<=b;ty++)for(let tx=l;tx<=ri;tx++){const ti=tileAt(tx,ty);if(!ti)continue;const tl=tx*TP,tt=ty*TP,tr=tl+TP,tb=tt+TP,ax1=a.x-a.w/2,ax2=a.x+a.w/2,ay1=a.y-a.h,ay2=a.y;if(ax2>tl&&ax1<tr&&ay2>tt&&ay1<tb){if(horiz){if(a.vx>0){a.x=tl-a.w/2;a.vx=0;}else if(a.vx<0){a.x=tr+a.w/2;a.vx=0;}}else{if(a.vy>0){a.y=tt;a.vy=0;a.onGround=true;}else if(a.vy<0){a.y=tb+a.h;a.vy=0;}}}}}
-function itemCollide(it){const TP=16,tx=Math.floor(it.x/TP),ty=Math.floor(it.y/TP);if(tileAt(tx,ty)){it.y=ty*TP-1;return true;}return false;}
+function dropHitsSolidAt(x,y,size=5){
+  const TP=16,r=size/2;
+  const l=Math.floor((x-r)/TP),ri=Math.floor((x+r)/TP),t=Math.floor((y-r)/TP),b=Math.floor((y+r)/TP);
+  for(let ty=t;ty<=b;ty++)for(let tx=l;tx<=ri;tx++)if(tileAt(tx,ty))return true;
+  return false;
+}
+function findSafeDropSpot(x,y){
+  // Spawn drops in nearby open air so they do not begin inside a tile or under a ceiling.
+  const offsets=[[0,-10],[-7,-8],[7,-8],[0,6],[-10,2],[10,2],[0,-18],[-14,-14],[14,-14],[0,16]];
+  for(const[oX,oY]of offsets){const sx=x+oX,sy=y+oY;if(!dropHitsSolidAt(sx,sy,6))return{x:sx,y:sy};}
+  return{x,y:y-12};
+}
+function spawnPlanetDropVisual(kind,x,y,qty=1,opts={}){
+  const q=Math.max(1,Math.min(8,Math.floor(Number(qty)||1)));
+  for(let i=0;i<q;i++){
+    const p=findSafeDropSpot(x+(Math.random()-0.5)*8,y+(Math.random()-0.5)*6);
+    drops.push({kind,x:p.x,y:p.y,prevX:p.x,prevY:p.y,vx:(Math.random()-0.5)*34,vy:-55-Math.random()*35,life:8,age:0,size:7,serverAwarded:!!opts.serverAwarded,cosmetic:!!opts.cosmetic});
+  }
+}
+function resolveDropCollision(it){
+  const TP=16,r=(it.size||6)/2;
+  let hit=false;
+  const l=Math.floor((it.x-r)/TP),ri=Math.floor((it.x+r)/TP),t=Math.floor((it.y-r)/TP),b=Math.floor((it.y+r)/TP);
+  for(let ty=t;ty<=b;ty++)for(let tx=l;tx<=ri;tx++){
+    if(!tileAt(tx,ty))continue;
+    const left=tx*TP,top=ty*TP,right=left+TP,bottom=top+TP;
+    const px=it.prevX??it.x,py=it.prevY??it.y;
+    // Only land on the top face if the drop came from above. This prevents the old bug where
+    // a drop touching the underside of a block teleported to the block's top.
+    if((py+r)<=top&&it.y+r>top&&it.vy>=0){it.y=top-r-0.1;it.vy=0;it.vx*=0.62;hit=true;}
+    else if((py-r)>=bottom&&it.y-r<bottom&&it.vy<0){it.y=bottom+r+0.1;it.vy=Math.abs(it.vy)*0.25;hit=true;}
+    else if((px+r)<=left&&it.x+r>left){it.x=left-r-0.1;it.vx=-Math.abs(it.vx)*0.35;hit=true;}
+    else if((px-r)>=right&&it.x-r<right){it.x=right+r+0.1;it.vx=Math.abs(it.vx)*0.35;hit=true;}
+    else{
+      // If it spawned partially inside a solid tile, nudge it toward the closest open side.
+      const cx=tx*TP+TP/2,cy=ty*TP+TP/2;
+      const dx=it.x-cx,dy=it.y-cy;
+      if(Math.abs(dx)>Math.abs(dy)){it.x+=(dx>=0?1:-1)*2;it.vx*=-0.25;}
+      else{it.y+=(dy>=0?1:-1)*2;it.vy*=-0.2;}
+      hit=true;
+    }
+  }
+  return hit;
+}
+function itemCollide(it){return resolveDropCollision(it);}
 let mineCooldown=0;
 function doMining(dt){
   mineCooldown-=dt;if(mineCooldown>0||!planetMap||!activePlanet)return;
@@ -1162,12 +1206,15 @@ socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
 });
 socket.on("planetMineReward",({planetId,kind,x,y,qty})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
-  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
+  // Server already granted this inventory. Spawn a visible local pickup sparkle so the player
+  // can see where the mined resource came from without duplicating inventory.
+  spawnPlanetDropVisual(kind,x,y,qty,{serverAwarded:true});
+  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-12,"#78ff8a",9);
 });
-// Backward compatible handler for older servers.
+// Backward compatible handler for older servers that still send physical planet drops.
 socket.on("planetMineDrop",({planetId,kind,x,y,qty})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
-  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
+  spawnPlanetDropVisual(kind,x,y,qty,{serverAwarded:false});
 });
 socket.on("planetBuildDenied",({reason,resourceType})=>{
   showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
@@ -1819,7 +1866,21 @@ function updatePlanet(dt){
   if(keys.has("x")){keys.delete("x");useOxygenTank();}
   if(keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
   if(mouse.down&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon")planetWeaponAttack();else doMining(dt);}
-  for(let i=drops.length-1;i>=0;i--){const it=drops[i];it.vy+=grav*dt;it.x+=it.vx*dt;it.y+=it.vy*dt;if(itemCollide(it)){it.vx*=0.6;it.vy=0;}if(dist(astronaut.x,astronaut.y,it.x,it.y)<18&&addToInventory(it.kind,1))drops.splice(i,1);}
+  for(let i=drops.length-1;i>=0;i--){
+    const it=drops[i];
+    it.age=(it.age||0)+dt;it.life=(it.life??8)-dt;
+    it.prevX=it.x;it.prevY=it.y;
+    // Cosmetic/server-awarded drops gently drift toward the player after a short beat.
+    if(it.serverAwarded&&it.age>0.28){const a=angleToward(it.x,it.y,astronaut.x,astronaut.y-8);it.vx=lerp(it.vx,Math.cos(a)*95,0.08);it.vy=lerp(it.vy,Math.sin(a)*95,0.08);}
+    else{it.vy+=grav*dt;}
+    it.x+=it.vx*dt;it.y+=it.vy*dt;
+    if(!it.serverAwarded&&itemCollide(it)){it.vx*=0.6;}
+    if(it.life<=0){drops.splice(i,1);continue;}
+    if(dist(astronaut.x,astronaut.y-8,it.x,it.y)<20){
+      if(it.serverAwarded){drops.splice(i,1);continue;}
+      if(addToInventory(it.kind,1))drops.splice(i,1);
+    }
+  }
   if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
   updateHud();
 }
@@ -1844,7 +1905,19 @@ function drawPlanet(){
     ctx.globalAlpha=.45;ctx.strokeStyle=pr.ownerId===player.id?"#ffdd44":"#ff6655";ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   }
   const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle=character.cosmeticColor||"#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=character.suitColor||"#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
-  for(const it of drops){ctx.fillStyle=RES[it.kind]?.color||"#fff";ctx.fillRect((it.x-cam.x)-2,(it.y-cam.y)-2,4,4);}
+  for(const it of drops){
+    const px=it.x-cam.x,py=it.y-cam.y,color=RES[it.kind]?.color||"#fff";
+    if(px<-20||py<-20||px>canvas.width+20||py>canvas.height+20)continue;
+    const pulse=1+Math.sin((performance.now()/110)+(it.x*0.03))*0.18;
+    ctx.save();
+    ctx.globalAlpha=Math.max(0.35,Math.min(1,(it.life??8)/0.7));
+    ctx.shadowColor=color;ctx.shadowBlur=8;
+    ctx.fillStyle="#05060a";ctx.fillRect(px-5*pulse,py-5*pulse,10*pulse,10*pulse);
+    ctx.shadowBlur=0;ctx.strokeStyle="#ffffff";ctx.lineWidth=1;ctx.strokeRect(px-5*pulse,py-5*pulse,10*pulse,10*pulse);
+    ctx.fillStyle=color;ctx.fillRect(px-3*pulse,py-3*pulse,6*pulse,6*pulse);
+    ctx.fillStyle="#fff";ctx.globalAlpha*=0.75;ctx.fillRect(px-1,py-1,2,2);
+    ctx.restore();
+  }
   if(mouse.down&&planetTool==="mining"){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
   const bp=buildableSlot();
   if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
