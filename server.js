@@ -750,7 +750,11 @@ io.on("connection",socket=>{
       io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile:0,hp:0});
       const qty=(t===3||t===4)?(Math.random()<0.35?2:1):(t===5?(Math.random()<0.55?2:1):1);
       addInventory(p,kind,qty);
-      socket.emit("planetMineReward",{planetId,kind,x:tx*16+8,y:ty*16+8,qty});
+      const dropX=tx*16+8,dropY=ty*16+8;
+      // Broadcast a visible, shared loot pop to everyone on this planet.
+      // Inventory remains server-authoritative and is granted immediately below.
+      io.to(`planet:${planetId}`).emit("planetMineDrop",{planetId,kind,x:dropX,y:dropY,qty,ownerId:p.id});
+      socket.emit("planetMineReward",{planetId,kind,x:dropX,y:dropY,qty});
       syncAndPersist(p,"planet_mine");
       grantXp(p,rar*2,"Mining");
     }else{
