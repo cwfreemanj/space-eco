@@ -686,7 +686,7 @@ function updateTradeShip(ts,station,allPlanets,dt){
   if(ts.state==="combat"){
     const ang=angleToward(ts.x,ts.y,ship.x,ship.y);
     ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.06);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.06);ts.angle=ang;
-    if(ts.shootTimer<=0&&pd<280){ts.shootTimer=0.6+(1-Math.min(1,ts.speed/130))*0.8;const ba=ang+(Math.random()-0.5)*0.18;enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(ba)*200,vy:Math.sin(ba)*200,damage:ts.damage,life:2.5});}
+    if(ts.shootTimer<=0&&pd<280){ts.shootTimer=0.6+(1-Math.min(1,ts.speed/130))*0.8;const ba=ang+(Math.random()-0.5)*0.18;enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(ba)*200,vy:Math.sin(ba)*200,damage:ts.damage,life:2.5,source:"Trade Ship",sourceTarget:{type:"npcTradeShip",stationId:station.id,shipId:ts.id,x:ts.x,y:ts.y}});}
     if(ts.hp<ts.maxHp*0.2){ts.state="flee";ts.stateTimer=5;}
     if(pd>600&&!station.destroyed){ts.state="return";ts.stateTimer=3;}
     ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;
@@ -748,7 +748,7 @@ function updateEventPirates(dt){
     const ep=eventPirates[i];
     const d=dist(ep.x,ep.y,ship.x,ship.y),ang=angleToward(ep.x,ep.y,ship.x,ship.y);ep.angle=ang;ep.shootTimer=Math.max(0,ep.shootTimer-dt);
     if(d>140){ep.vx=lerp(ep.vx,Math.cos(ang)*ep.speed,0.055);ep.vy=lerp(ep.vy,Math.sin(ang)*ep.speed,0.055);}else{ep.vx*=0.96;ep.vy*=0.96;}
-    if(ep.shootTimer<=0&&d<430){ep.shootTimer=1.1+Math.random()*0.7;const ba=ang+(Math.random()-.5)*0.18;enemyProjectiles.push({x:ep.x,y:ep.y,vx:Math.cos(ba)*230,vy:Math.sin(ba)*230,damage:ep.damage,life:2.6,source:"Pirate"});}
+    if(ep.shootTimer<=0&&d<430){ep.shootTimer=1.1+Math.random()*0.7;const ba=ang+(Math.random()-.5)*0.18;enemyProjectiles.push({x:ep.x,y:ep.y,vx:Math.cos(ba)*230,vy:Math.sin(ba)*230,damage:ep.damage,life:2.6,source:"Pirate",sourceTarget:{type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y}});}
     ep.x+=ep.vx*dt;ep.y+=ep.vy*dt;ep.vx*=Math.pow(.985,dt*60);ep.vy*=Math.pow(.985,dt*60);
     if(ep.hp<=0){const pool=["copper","iron","gold","fuel","gas_canister"],drops=2+Math.floor(Math.random()*4);for(let k=0;k<drops;k++)spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ep.x+(Math.random()-.5)*24,y:ep.y+(Math.random()-.5)*24,vx:(Math.random()-.5)*55,vy:(Math.random()-.5)*55,life:35});socket.emit("gainXp",{amount:35+Math.floor(player.level*8)});showFT("Pirate destroyed",ep.x,ep.y,"#ffcc44",10);eventPirates.splice(i,1);}
   }
@@ -757,7 +757,7 @@ function drawEventPirates(camX,camY){
   for(const ep of eventPirates){const x=ep.x-camX,y=ep.y-camY;if(x<-60||y<-60||x>canvas.width+60||y>canvas.height+60)continue;ctx.save();ctx.translate(x,y);ctx.rotate(ep.angle);ctx.fillStyle="#ff3344";ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(-7,-5);ctx.lineTo(-4,0);ctx.lineTo(-7,5);ctx.closePath();ctx.fill();ctx.fillStyle="#ffcc44";ctx.fillRect(-10,-1,4,2);ctx.restore();const pct=clamp(ep.hp/ep.maxHp,0,1);ctx.fillStyle="#300";ctx.fillRect(x-12,y-12,24,3);ctx.fillStyle=pct>.5?"#ffcc44":"#ff5544";ctx.fillRect(x-12,y-12,24*pct,3);}
 }
 function tryHitEventPirates(p){
-  for(let k=eventPirates.length-1;k>=0;k--){const ep=eventPirates[k];if(dist(p.x,p.y,ep.x,ep.y)<12){ep.hp-=p.damage;showFT("-"+Math.round(p.damage),ep.x,ep.y,"#ffcc44",9);return true;}}
+  for(let k=eventPirates.length-1;k>=0;k--){const ep=eventPirates[k];if(dist(p.x,p.y,ep.x,ep.y)<12){callOwnedTradeShipsToAssist({type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y},"pirate");ep.hp-=p.damage;showFT("-"+Math.round(p.damage),ep.x,ep.y,"#ffcc44",9);return true;}}
   return false;
 }
 
@@ -1015,32 +1015,124 @@ function resolveOwnedAssistTarget(target){
   }else if(target.type==="ownedStation"){
     const st=ownedStationsList.find(s=>s.key===target.stationKey&&!s.destroyed);
     if(st)return {type:"ownedStation",station:st,obj:st,x:st.x,y:st.y,valid:true};
+  }else if(target.type==="ownedTradeShip"){
+    const os=ownedTradeShips.get(target.shipId);
+    const st=ownedStationsList.find(s=>s.key===target.stationKey&&!s.destroyed);
+    if(os&&st&&!os.disabled&&!os.isOwn)return {type:"ownedTradeShip",station:st,obj:os,x:os.x,y:os.y,valid:true};
+  }else if(target.type==="otherPlayer"){
+    const op=otherPlayers.get(target.playerId);
+    if(op&&op.mode==="space"&&!isClientAlliedPlayer(op))return {type:"otherPlayer",station:null,obj:op,x:op.renderX||op.x,y:op.renderY||op.y,valid:true};
+  }else if(target.type==="pirate"){
+    const ep=eventPirates.find(p=>p.id===target.pirateId);
+    if(ep)return {type:"pirate",station:null,obj:ep,x:ep.x,y:ep.y,valid:true};
   }
   return null;
 }
+function isClientAlliedPlayer(op){
+  if(!op||op.id===player.id)return true;
+  if(partyState?.members?.some(m=>m.id===op.id))return true;
+  if(factionState?.members?.some(m=>m.id===op.id))return true;
+  return false;
+}
+function pointSegmentDistance(px,py,ax,ay,bx,by){
+  const vx=bx-ax,vy=by-ay,wx=px-ax,wy=py-ay;
+  const len2=vx*vx+vy*vy||1;
+  const t=clamp((wx*vx+wy*vy)/len2,0,1);
+  const cx=ax+vx*t,cy=ay+vy*t;
+  return dist(px,py,cx,cy);
+}
+function assistAimScore(tx,ty,radius,wx,wy){
+  const aimD=dist(wx,wy,tx,ty);
+  const a=angleToward(ship.x,ship.y,wx,wy);
+  const len=Math.max(700,Math.min(1250,dist(ship.x,ship.y,wx,wy)+180));
+  const ex=ship.x+Math.cos(a)*len,ey=ship.y+Math.sin(a)*len;
+  const rayD=pointSegmentDistance(tx,ty,ship.x,ship.y,ex,ey);
+  if(aimD<=radius*1.7||rayD<=radius)return Math.min(aimD,rayD);
+  return Infinity;
+}
+function findAssistTargetForShot(wx,wy){
+  let best=null,bestScore=Infinity;
+  const consider=(target,x,y,radius,label)=>{
+    const score=assistAimScore(x,y,radius,wx,wy);
+    if(score<bestScore){bestScore=score;best={...target,x,y,label};}
+  };
+  for(const[,op]of otherPlayers){
+    if(op.mode!=="space"||isClientAlliedPlayer(op))continue;
+    const def=SHIP_TYPES[op.shipType]||SHIP_TYPES.scout;
+    const radius=def.size==="huge"?28:def.size==="large"?23:18;
+    consider({type:"otherPlayer",playerId:op.id},op.renderX||op.x,op.renderY||op.y,radius,"enemy player");
+  }
+  for(const st of visibleStations){
+    if(st.destroyed)continue;
+    for(const ts of st.tradeShips||[])consider({type:"npcTradeShip",stationId:st.id,shipId:ts.id},ts.x,ts.y,(ts.size||5)+12,"enemy trade ship");
+    consider({type:"npcStation",stationId:st.id},st.x,st.y,(st.tierDef?.size||18)+18,"enemy station");
+  }
+  for(const st of ownedStationsList){
+    if(st.destroyed)continue;
+    if(!st.isOwn)consider({type:"ownedStation",stationKey:st.key},st.x,st.y,28,"enemy player station");
+  }
+  const byKey=new Map(ownedStationsList.map(s=>[s.key,s]));
+  for(const os of ownedTradeShips.values()){
+    const st=byKey.get(os.stationKey);
+    if(!st||os.disabled||os.isOwn||st.isOwn)continue;
+    consider({type:"ownedTradeShip",stationKey:st.key,shipId:os.id},os.x,os.y,(os.size||5)+12,"enemy trade ship");
+  }
+  for(const ep of eventPirates)consider({type:"pirate",pirateId:ep.id},ep.x,ep.y,18,"pirate");
+  return best;
+}
+function forceAssistOnAttacker(target,label="attacker"){
+  if(!target)return;
+  callOwnedTradeShipsToAssist(target,label);
+}
 function callOwnedTradeShipsToAssist(target,label="target"){
-  const ASSIST_RANGE=1150;let called=0;
+  if(!target)return 0;
+  const ASSIST_RANGE=1800;
+  const SHIP_NEAR_RANGE=1250;
+  let called=0;
+  const tx=Number(target.x),ty=Number(target.y);
   for(const os of ownedTradeShips.values()){
     if(!os.isOwn||os.disabled)continue;
     const st=ownedStationsList.find(s=>s.key===os.stationKey);if(!st||st.destroyed)continue;
-    const nearPlayer=dist(ship.x,ship.y,st.x,st.y)<ASSIST_RANGE||dist(ship.x,ship.y,os.x,os.y)<ASSIST_RANGE;
-    const nearTarget=dist(target.x||ship.x,target.y||ship.y,st.x,st.y)<ASSIST_RANGE||dist(target.x||ship.x,target.y||ship.y,os.x,os.y)<ASSIST_RANGE;
-    if(nearPlayer||nearTarget){os.assistTarget={...target};os.state="assist";os.aggro=true;os.stateTimer=8;os.shootTimer=Math.min(os.shootTimer||0,0.25);called++;}
+    const nearPlayer=dist(ship.x,ship.y,st.x,st.y)<ASSIST_RANGE||dist(ship.x,ship.y,os.x,os.y)<SHIP_NEAR_RANGE;
+    const nearTarget=Number.isFinite(tx)&&Number.isFinite(ty)&&(dist(tx,ty,st.x,st.y)<ASSIST_RANGE||dist(tx,ty,os.x,os.y)<ASSIST_RANGE);
+    if(nearPlayer||nearTarget){
+      os.assistTarget={...target};
+      os.state="assist";
+      os.aggro=true;
+      os.stateTimer=24;
+      os.shootTimer=Math.min(os.shootTimer||0,0.18);
+      called++;
+    }
   }
-  if(called>0)showFT(`${called} trade ship${called>1?"s":""} assisting`,ship.x,ship.y-28,"#ffee88",10);
+  const now=performance.now();
+  if(called>0&&(!callOwnedTradeShipsToAssist._lastShown||now-callOwnedTradeShipsToAssist._lastShown>1300)){
+    callOwnedTradeShipsToAssist._lastShown=now;
+    showFT(`${called} trade ship${called>1?"s":""} assisting vs ${label}`,ship.x,ship.y-28,"#ffee88",10);
+  }
+  return called;
 }
 function updateOwnedTradeShipAssist(os,st,dt){
   const target=resolveOwnedAssistTarget(os.assistTarget);
   if(!target){os.assistTarget=null;os.state="return";return false;}
   const tx=target.x,ty=target.y,d=dist(os.x,os.y,tx,ty),ang=angleToward(os.x,os.y,tx,ty);os.angle=ang;
-  if(d>180){os.vx=lerp(os.vx,Math.cos(ang)*os.speed,0.07);os.vy=lerp(os.vy,Math.sin(ang)*os.speed,0.07);}else{os.vx*=0.94;os.vy*=0.94;}
-  if(os.shootTimer<=0&&d<360){
-    os.shootTimer=0.7;
-    if(target.type==="npcTradeShip"){target.obj.hp-=os.damage;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);if(target.obj.hp<=0)killTradeShip(target.obj,target.station);}
-    else if(target.type==="npcStation"){const r=applyDamageToStation(target.station,os.damage);aggroNpcStation(target.station);showFT("ALLY -"+Math.round(r.damage),target.station.x,target.station.y-18,"#ffee88",8);if(r.destroyed)destroyNpcStation(target.station);}
-    else if(target.type==="ownedStation"){socket.emit("damageOwnedStation",{stationKey:target.station.key,damage:os.damage});}
+  if(d>155){os.vx=lerp(os.vx,Math.cos(ang)*os.speed,0.085);os.vy=lerp(os.vy,Math.sin(ang)*os.speed,0.085);}else{os.vx*=0.94;os.vy*=0.94;}
+  if(os.shootTimer<=0&&d<430){
+    os.shootTimer=0.62;
+    if(target.type==="npcTradeShip"){
+      aggroNpcStation(target.station);target.obj.hp-=os.damage;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);if(target.obj.hp<=0)killTradeShip(target.obj,target.station);
+    }else if(target.type==="npcStation"){
+      const r=applyDamageToStation(target.station,os.damage);aggroNpcStation(target.station);showFT("ALLY -"+Math.round(r.damage),target.station.x,target.station.y-18,"#ffee88",8);if(r.destroyed)destroyNpcStation(target.station);
+    }else if(target.type==="ownedStation"){
+      socket.emit("damageOwnedStation",{stationKey:target.station.key,damage:os.damage});showFT("ALLY station hit",target.x,target.y-18,"#ffee88",8);
+    }else if(target.type==="ownedTradeShip"){
+      target.obj.hp-=os.damage;target.obj.state="combat";target.obj.aggro=true;target.obj.stateTimer=999;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);if(target.obj.hp<=0)dropOwnedTradeShipLoot(target.obj,target.station);
+    }else if(target.type==="otherPlayer"){
+      socket.emit("ownedTradeShipAttackPlayer",{targetId:target.obj.id,stationKey:st.key,shipId:os.id,damage:os.damage,x:os.x,y:os.y});showFT("ALLY FIRE",target.x,target.y-15,"#ffee88",8);
+    }else if(target.type==="pirate"){
+      target.obj.hp-=os.damage;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);
+    }
   }
-  if(dist(os.x,os.y,ship.x,ship.y)>1600&&dist(os.x,os.y,st.x,st.y)>1600){os.assistTarget=null;os.state="return";}
+  if(dist(os.x,os.y,ship.x,ship.y)>2100&&dist(os.x,os.y,st.x,st.y)>2100){os.assistTarget=null;os.state="return";}
   return true;
 }
 function updateOwnedTradeShip(os,st,dt){
@@ -1055,7 +1147,7 @@ function updateOwnedTradeShip(os,st,dt){
     else{
       const pd=dist(os.x,os.y,ship.x,ship.y),ang=angleToward(os.x,os.y,ship.x,ship.y);os.angle=ang;
       os.vx=lerp(os.vx,Math.cos(ang)*os.speed,0.06);os.vy=lerp(os.vy,Math.sin(ang)*os.speed,0.06);
-      if(os.shootTimer<=0&&pd<280){os.shootTimer=0.75;const ba=ang+(Math.random()-0.5)*0.16;enemyProjectiles.push({x:os.x,y:os.y,vx:Math.cos(ba)*220,vy:Math.sin(ba)*220,damage:os.damage,life:2.4,source:"ownedTradeShip"});}
+      if(os.shootTimer<=0&&pd<280){os.shootTimer=0.75;const ba=ang+(Math.random()-0.5)*0.16;enemyProjectiles.push({x:os.x,y:os.y,vx:Math.cos(ba)*220,vy:Math.sin(ba)*220,damage:os.damage,life:2.4,source:"ownedTradeShip",sourceTarget:{type:"ownedTradeShip",stationKey:st.key,shipId:os.id,x:os.x,y:os.y}});}
       if(pd>700&&!st.destroyed){os.state="return";os.aggro=false;}
     }
   }else if(os.state==="idle"){
@@ -1352,6 +1444,10 @@ socket.on("hit",({damage,hp,shield,by})=>{
   ship.shield=shield;
   // Any authoritative hit should delay local visual shield regen too.
   ship.shieldRegenTimer=4;
+  if(by&&otherPlayers.has(by)){
+    const op=otherPlayers.get(by);
+    forceAssistOnAttacker({type:"otherPlayer",playerId:by,x:op.renderX||op.x,y:op.renderY||op.y},op.name||"enemy player");
+  }
   showFT(`-${Math.round(damage)} ${by||"Hit"}`,ship.x,ship.y-14,"#ff4422",10);
   if(hp<=0)gameOver=true;
 });
@@ -1540,7 +1636,12 @@ function sendInput(){
   }
   const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
   let shootX=undefined,shootY=undefined;
-  if(mouse.clicked&&!shopOpen&&!inventoryOpen&&!attrOpen&&!characterOpen&&shootCooldownTimer<=0){shootX=mouse.x+camX;shootY=mouse.y+camY;shootCooldownTimer=SHOOT_CD;}
+  if(mouse.clicked&&!shopOpen&&!inventoryOpen&&!attrOpen&&!characterOpen&&shootCooldownTimer<=0){
+    shootX=mouse.x+camX;shootY=mouse.y+camY;
+    const assistTarget=findAssistTargetForShot(shootX,shootY);
+    if(assistTarget)callOwnedTradeShipsToAssist(assistTarget,assistTarget.label||"target");
+    shootCooldownTimer=SHOOT_CD;
+  }
   socket.emit("input",{rotLeft:keys.has("a"),rotRight:keys.has("d"),thrust:keys.has("w"),brake:keys.has("s"),shootX,shootY});
   mouse.clicked=false;
 }
@@ -1579,6 +1680,7 @@ function updateSpace(dt){
       // Let the server apply NPC/trade-ship damage.
       // Applying local damage here first can get overwritten by the next worldState,
       // which looks like instant shield recharge.
+      if(p.sourceTarget)forceAssistOnAttacker(p.sourceTarget,p.source||"attacker");
       socket.emit("npcHitPlayer",{damage:p.damage,source:p.source||"Trade Ship"});
       enemyProjectiles.splice(i,1);
     }
@@ -1597,6 +1699,8 @@ function updateSpace(dt){
     const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
     const wx=mouse.x+camX,wy=mouse.y+camY;
     const ang=angleToward(ship.x,ship.y,wx,wy);
+    const assistTarget=findAssistTargetForShot(wx,wy);
+    if(assistTarget)callOwnedTradeShipsToAssist(assistTarget,assistTarget.label||"target");
     localPlayerProjectiles.push({x:ship.x,y:ship.y,vx:Math.cos(ang)*280,vy:Math.sin(ang)*280,damage:18*ship.damageStat,life:2.2});
     shootCooldownTimer=SHOOT_CD;
   }
@@ -1627,8 +1731,9 @@ function updateSpace(dt){
     if(!hit){
       const byKey=new Map(ownedStationsList.map(s=>[s.key,s]));
       for(const os of ownedTradeShips.values()){
-        const st=byKey.get(os.stationKey);if(!st||os.disabled)continue;
+        const st=byKey.get(os.stationKey);if(!st||os.disabled||os.isOwn||st.isOwn)continue;
         if(dist(p.x,p.y,os.x,os.y)<os.size+5){
+          callOwnedTradeShipsToAssist({type:"ownedTradeShip",stationKey:st.key,shipId:os.id,x:os.x,y:os.y},"enemy trade ship");
           os.hp-=p.damage;os.state="combat";os.aggro=true;os.stateTimer=999;
           showFT("-"+Math.round(p.damage),os.x,os.y,"#ff4422",9);
           if(os.hp<=0){dropOwnedTradeShipLoot(os,st);showFT("Trade ship destroyed",p.x,p.y,"#ffcc44",9);}
