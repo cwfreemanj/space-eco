@@ -502,6 +502,21 @@ function handlePlayerKill(victimId, killerId){
   },3000);
 }
 
+function applySpaceDamageToPlayer(target, rawDamage, attacker, sourceName="Ally Trade Ship"){
+  if(!target||target.mode!=="space"||target.hp<=0)return {damage:0,killed:false};
+  const amount=Math.max(0,Math.min(220,Number(rawDamage)||0));
+  if(amount<=0)return {damage:0,killed:false};
+  const armor=1+(((target.attrs||{}).armor-1)*0.2);
+  let dmg=amount/Math.max(0.2,armor);
+  if(target.shield>0){const abs=Math.min(target.shield,dmg);target.shield-=abs;dmg-=abs;}
+  target.hp=Math.max(0,target.hp-dmg);target.shieldRegenTimer=4;
+  io.to(target.id).emit("hit",{damage:Math.round(dmg),hp:target.hp,shield:target.shield,by:attacker?.id||sourceName,source:sourceName});
+  if(attacker?.id)io.to(attacker.id).emit("hitConfirm",{targetId:target.id,damage:Math.round(dmg),source:sourceName});
+  const killed=target.hp<=0;
+  if(killed)handlePlayerKill(target.id,attacker?.id||null);
+  return {damage:Math.round(dmg),killed};
+}
+
 /* ── Physics tick ── */
 const ROT_SPEED=2.4, BASE_THRUST=115, ENERGY_DRAIN=1.8, ENERGY_IDLE=0.15, GAS_REFUEL=30;
 
@@ -773,6 +788,28 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);if(!p)return;
     p.input.rotLeft=!!rotLeft;p.input.rotRight=!!rotRight;p.input.thrust=!!thrust;p.input.brake=!!brake;
     if(shootX!==undefined&&p.input.shootX===null){p.input.shootX=shootX;p.input.shootY=shootY;}
+  });
+
+  socket.on("ownedTradeShipAttackPlayer",({targetId,stationKey,shipId,damage,x,y})=>{
+    const owner=players.get(socket.id),target=players.get(String(targetId||""));
+    if(!owner||!target||owner.mode!=="space"||target.mode!=="space"||target.hp<=0)return;
+    if(owner.id===target.id||areAllied(owner,target))return;
+    const st=ownedStations.get(String(stationKey||""));
+    if(!st||st.ownerId!==owner.id||st.destroyed)return;
+    const sh=(st.hiredShips||[]).find(s=>s.id===shipId);
+    if(!sh||sh.state==="respawning")return;
+    const now=Date.now();
+    if(sh.lastAssistShotAt&&now-sh.lastAssistShotAt<560)return;
+    const declaredX=Number(x),declaredY=Number(y);
+    const stationNearOwner=Math.hypot(owner.x-st.x,owner.y-st.y)<2400;
+    const stationNearTarget=Math.hypot(target.x-st.x,target.y-st.y)<2400;
+    const declaredShipNearTarget=Number.isFinite(declaredX)&&Number.isFinite(declaredY)&&Math.hypot(target.x-declaredX,target.y-declaredY)<520;
+    if(!stationNearOwner&&!stationNearTarget&&!declaredShipNearTarget)return;
+    const tierDamage={outpost:7,base:13,fortress:22}[st.tier]||7;
+    const safeDamage=Math.max(1,Math.min(tierDamage,Number(damage)||tierDamage));
+    sh.lastAssistShotAt=now;
+    const result=applySpaceDamageToPlayer(target,safeDamage,owner,"Ally Trade Ship");
+    socket.emit("ownedTradeShipAttackConfirm",{targetId:target.id,stationKey:st.key,shipId:sh.id,damage:result.damage});
   });
 
   socket.on("modeChange",({mode,planetId,x,y})=>{
