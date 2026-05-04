@@ -189,14 +189,30 @@ function addScore(player, amount, reason) {
   player.score = (player.score||0) + amount;
   io.to(player.id).emit("scoreUpdate", { score:player.score, delta:amount, reason });
 }
-function grantXp(player,amount,reason="Mining/Combat"){
+function playerXpNeeded(level){return Math.floor(100*Math.pow(1.4,Math.max(1,level)-1));}
+function addPlayerXpOnly(player,amount,reason="XP"){
   if(!player||amount<=0)return;
-  player.xp=(player.xp||0)+amount;player.miningScore=(player.miningScore||0)+amount;
+  amount=Math.max(0,Math.floor(Number(amount)||0));
+  if(amount<=0)return;
+  player.xp=(player.xp||0)+amount;
+  player.miningScore=(player.miningScore||0)+amount;
   addScore(player,Math.floor(amount*0.5),reason);
-  const xtn=Math.floor(100*Math.pow(1.4,player.level-1));
-  if(player.xp>=xtn){player.xp-=xtn;player.level++;player.attrPoints=(player.attrPoints||0)+2;io.to(player.id).emit("levelUp",{level:player.level,attrPoints:player.attrPoints});}
+  let leveled=false;
+  while(player.xp>=playerXpNeeded(player.level)){
+    player.xp-=playerXpNeeded(player.level);
+    player.level++;
+    player.attrPoints=(player.attrPoints||0)+2;
+    leveled=true;
+  }
+  if(leveled)io.to(player.id).emit("levelUp",{level:player.level,attrPoints:player.attrPoints});
   io.to(player.id).emit("xpUpdate",{xp:player.xp,level:player.level});
   if(typeof persistPlayerSoon==="function")persistPlayerSoon(player,"gain_xp");
+}
+function grantXp(player,amount,reason="Mining/Combat"){
+  if(!player||amount<=0)return;
+  amount=Math.max(0,Math.floor(Number(amount)||0));
+  addPlayerXpOnly(player,amount,reason);
+  contributeFactionXp(player,amount,reason);
 }
 
 function buildLeaderboard(limit=10) {
@@ -659,7 +675,12 @@ const factions = new Map();
 let partySeq = 1, factionSeq = 1;
 const FACTION_CREATE_COST = 5000;
 const PARTY_MAX_MEMBERS = 8;
-const FACTION_QUEST_RESET_MS = 6*60*60*1000;
+const FACTION_QUEST_BASE_RESET_MS = 10*60*1000;
+const FACTION_QUEST_MIN_RESET_MS = 2*60*1000;
+function factionQuestResetMs(level=1){
+  // Level 1 factions refresh every 10 minutes; veteran factions cycle faster, down to 2 minutes.
+  return Math.max(FACTION_QUEST_MIN_RESET_MS, Math.floor(FACTION_QUEST_BASE_RESET_MS / (1 + Math.max(0,level-1)*0.18)));
+}
 
 function safeText(v,max=80){return String(v||"").replace(/[<>]/g,"").trim().slice(0,max);}
 function factionTagFor(id){const f=id?factions.get(id):null;return f?f.tag:null;}
@@ -678,7 +699,27 @@ function leaveParty(playerId,reason="left the party"){
 function nearbyForInvite(a,b){if(!a||!b)return false;if(a.mode==="planet"&&b.mode==="planet"&&a.planetId===b.planetId)return Math.hypot((a.planetX||0)-(b.planetX||0),(a.planetY||0)-(b.planetY||0))<140;if(a.mode==="space"&&b.mode==="space")return Math.hypot((a.x||0)-(b.x||0),(a.y||0)-(b.y||0))<300;return false;}
 function getOrCreatePartyForLeader(p){if(p.partyId)return parties.get(p.partyId);const id=`party_${Date.now()}_${partySeq++}`;const party={id,leaderId:p.id,members:new Set([p.id]),invites:new Map(),createdAt:Date.now()};parties.set(id,party);p.partyId=id;emitPartyState(id);return party;}
 function areAllied(a,b){if(!a||!b)return false;if(a.id===b.id)return true;if(a.partyId&&a.partyId===b.partyId)return true;if(a.factionId&&a.factionId===b.factionId)return true;return false;}
-function makeFactionQuests(f){const count=Math.min(8,3+Math.floor((f.level||1)/2));const quests=[];for(let i=0;i<count;i++){const diff=(f.level||1)+i;const target=Math.floor(350+diff*230);quests.push({id:`fq_${f.id}_${Date.now()}_${i}`,title:["Mine Resonant Ore","Secure Trade Routes","Chart Planet Worksites","Train Combat Wing","Deliver Guild XP"][i%5],description:`Earn ${target} XP while this quest is accepted. Only one member can complete it.`,type:"earn_xp",target,progress:0,acceptedBy:null,acceptedByName:null,completed:false,rewardPlayerXp:Math.floor(target*0.65),rewardFactionXp:target*2});}f.quests=quests;f.questResetAt=Date.now()+FACTION_QUEST_RESET_MS;}
+function makeFactionQuests(f){
+  const level=Math.max(1,f.level||1);
+  const count=Math.min(8,3+Math.floor(level/2));
+  const quests=[];
+  const titles=["Mine Resonant Ore","Secure Trade Routes","Chart Planet Worksites","Train Combat Wing","Deliver Guild XP","Break Pirate Pressure","Fortify Guild Supply","Survey Deep Space"];
+  for(let i=0;i<count;i++){
+    const diff=level+i;
+    const target=Math.floor(1200*Math.pow(1.28,level-1) + diff*520 + i*360);
+    quests.push({
+      id:`fq_${f.id}_${Date.now()}_${i}`,
+      title:titles[i%titles.length],
+      description:`Earn ${target} XP while this quest is accepted. Only one member can complete it.`,
+      type:"earn_xp",target,progress:0,acceptedBy:null,acceptedByName:null,completed:false,
+      rewardPlayerXp:Math.floor(target*1.15),
+      rewardFactionXp:Math.floor(target*4.0),
+      rewardCredits:Math.floor(600 + target*0.35 + level*125)
+    });
+  }
+  f.quests=quests;
+  f.questResetAt=Date.now()+factionQuestResetMs(level);
+}
 function ensureFactionQuests(f){if(!f)return;if(!f.quests||Date.now()>(f.questResetAt||0))makeFactionQuests(f);}
 function makeFactionState(factionId,forPlayerId=null){const f=factions.get(factionId);if(!f)return null;ensureFactionQuests(f);const members=[...f.members].map(id=>{const p=players.get(id);const meta=f.memberMeta[id]||{};return {id,name:p?.name||meta.name||"Pilot",online:!!p,role:meta.role||"member",rank:meta.rank||"Member",contribution:meta.contribution||0,level:p?.level||meta.level||1,mode:p?.mode||"offline",x:Math.round(p?.x||0),y:Math.round(p?.y||0),planetId:p?.planetId||null};});return {id:f.id,name:f.name,tag:f.tag,icon:f.icon,color:f.color,description:f.description,leaderId:f.leaderId,level:f.level,xp:f.xp,xpNeeded:factionXpNeeded(f.level),capacity:factionCapacity(f),members,quests:f.quests,questResetAt:f.questResetAt,yourRole:f.memberMeta[forPlayerId]?.role||null};}
 function emitFactionState(factionId){const f=factions.get(factionId);if(!f)return;for(const id of f.members)io.to(id).emit("factionState",makeFactionState(factionId,id));}
@@ -686,10 +727,26 @@ function playerFactionRole(f,id){return f?.memberMeta?.[id]?.role||"member";}
 function canManageFaction(f,id){const r=playerFactionRole(f,id);return f?.leaderId===id||r==="leader"||r==="admin";}
 function contributeFactionXp(p,amount,reason="XP"){
   if(!p?.factionId)return;const f=factions.get(p.factionId);if(!f)return;ensureFactionQuests(f);
-  const gain=Math.max(1,Math.floor(Number(amount)||0));f.xp=(f.xp||0)+gain;(f.memberMeta[p.id]||(f.memberMeta[p.id]={name:p.name,role:"member",rank:"Member",contribution:0})).contribution+=gain;p.factionContribution=(p.factionContribution||0)+gain;
+  const gain=Math.max(1,Math.floor(Number(amount)||0));
+  f.xp=(f.xp||0)+gain;
+  (f.memberMeta[p.id]||(f.memberMeta[p.id]={name:p.name,role:"member",rank:"Member",contribution:0})).contribution+=gain;
+  p.factionContribution=(p.factionContribution||0)+gain;
   while(f.xp>=factionXpNeeded(f.level)){f.xp-=factionXpNeeded(f.level);f.level++;broadcastChat("Faction",`${f.name} reached faction level ${f.level}!`,f.color||"#ffdd44");makeFactionQuests(f);}
   const q=(f.quests||[]).find(q=>q.acceptedBy===p.id&&!q.completed);
-  if(q&&q.type==="earn_xp"){q.progress=Math.min(q.target,(q.progress||0)+gain);if(q.progress>=q.target){q.completed=true;f.xp+=q.rewardFactionXp||0;p.xp=(p.xp||0)+(q.rewardPlayerXp||0);io.to(p.id).emit("factionQuestCompleted",{questId:q.id,rewardPlayerXp:q.rewardPlayerXp,rewardFactionXp:q.rewardFactionXp});}}
+  if(q&&q.type==="earn_xp"){
+    q.progress=Math.min(q.target,(q.progress||0)+gain);
+    if(q.progress>=q.target){
+      q.completed=true;
+      p.activeFactionQuestId=null;
+      f.xp=(f.xp||0)+(q.rewardFactionXp||0);
+      while(f.xp>=factionXpNeeded(f.level)){f.xp-=factionXpNeeded(f.level);f.level++;broadcastChat("Faction",`${f.name} reached faction level ${f.level}!`,f.color||"#ffdd44");makeFactionQuests(f);}
+      const rewardCredits=Math.max(0,Math.floor(Number(q.rewardCredits)||0));
+      if(rewardCredits>0){p.credits=(p.credits||0)+rewardCredits;io.to(p.id).emit("creditUpdate",{credits:p.credits});}
+      addPlayerXpOnly(p,q.rewardPlayerXp||0,"Faction Quest Reward");
+      io.to(p.id).emit("factionQuestCompleted",{questId:q.id,rewardPlayerXp:q.rewardPlayerXp,rewardFactionXp:q.rewardFactionXp,rewardCredits});
+      persistPlayerSoon(p,"faction_quest_complete");
+    }
+  }
   emitFactionState(f.id);
 }
 
@@ -941,18 +998,15 @@ io.on("connection",socket=>{
     quantity=Math.floor(Number(quantity)||0);
     if(!RES_KEYS.includes(resourceType)||quantity<=0)return;
 
-    // Station shop prices are calculated client-side from station tier/stock, while
-    // economy.price() is the global market price. The old 25% comparison rejected
-    // valid station prices with: "Price changed. Retry.". We now accept the
-    // quoted station price, but bound it against the global market to prevent
-    // obvious client tampering.
+    // Never allow buy prices below the global sell value, or players can buy low
+    // and immediately sell high. Client station stock now also uses this floor.
     const marketPrice=economy.price(resourceType);
     const quotedPrice=Math.floor(Number(pricePerUnit)||0);
-    const unitPrice=quotedPrice>0?quotedPrice:marketPrice;
-    const minAllowed=Math.max(1,Math.floor(marketPrice*0.45));
-    const maxAllowed=Math.max(minAllowed,Math.ceil(marketPrice*4.0));
+    const minAllowed=Math.max(1,Math.ceil(marketPrice*1.08));
+    const maxAllowed=Math.max(minAllowed,Math.ceil(marketPrice*6.0));
+    const unitPrice=quotedPrice>0?quotedPrice:minAllowed;
     if(unitPrice<minAllowed||unitPrice>maxAllowed){
-      socket.emit("buyDenied",{reason:"Invalid station price. Retry."});return;
+      socket.emit("buyDenied",{reason:"Price changed. Retry."});return;
     }
 
     const cost=unitPrice*quantity;if(p.credits<cost){socket.emit("buyDenied",{reason:"Insufficient credits."});return;}
@@ -1091,12 +1145,7 @@ io.on("connection",socket=>{
 
   socket.on("gainXp",({amount})=>{
     const p=players.get(socket.id);if(!p||amount<=0||amount>500)return;
-    p.xp=(p.xp||0)+amount;p.miningScore=(p.miningScore||0)+amount;
-    addScore(p,Math.floor(amount*0.5),"Mining/Combat");
-    contributeFactionXp(p,Math.floor(amount),"XP");
-    const xtn=Math.floor(100*Math.pow(1.4,p.level-1));
-    if(p.xp>=xtn){p.xp-=xtn;p.level++;p.attrPoints=(p.attrPoints||0)+2;socket.emit("levelUp",{level:p.level,attrPoints:p.attrPoints});}
-    socket.emit("xpUpdate",{xp:p.xp,level:p.level});persistPlayerSoon(p,"gain_xp");
+    grantXp(p,Math.floor(Number(amount)||0),"Mining/Combat");
   });
 
   socket.on("chat",({message})=>{
