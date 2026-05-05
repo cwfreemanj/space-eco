@@ -582,6 +582,7 @@ function aggroNpcStation(st){
 function updateNpcStationDefense(st,dt){
   if(!st)return;
   if(st.underAttackTimer>0)st.underAttackTimer=Math.max(0,st.underAttackTimer-dt);
+  if(st.underPirateAttackTimer>0)st.underPirateAttackTimer=Math.max(0,st.underPirateAttackTimer-dt);
   if(st.destroyed)return;
   const stats=npcStationDefenseStats(st.tier);
   st.shieldRegenTimer=Math.max(0,(st.shieldRegenTimer||0)-dt);
@@ -715,14 +716,22 @@ function updateNpcTradeShipRespawns(st,dt){
 
 function updateTradeShip(ts,station,allPlanets,dt){
   ts.stateTimer=Math.max(0,ts.stateTimer-dt);ts.shootTimer=Math.max(0,ts.shootTimer-dt);
-  if((station.destroyed||station.underAttackTimer>0)&&ts.state!=="combat"&&ts.state!=="flee"){ts.state="combat";ts.stateTimer=999;}
-  const pd=dist(ts.x,ts.y,ship.x,ship.y);
+  if((station.destroyed||station.underAttackTimer>0||station.underPirateAttackTimer>0)&&ts.state!=="combat"&&ts.state!=="flee"){ts.state="combat";ts.stateTimer=999;}
   if(ts.state==="combat"){
-    const ang=angleToward(ts.x,ts.y,ship.x,ship.y);
-    ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.06);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.06);ts.angle=ang;
-    if(ts.shootTimer<=0&&pd<280){ts.shootTimer=0.6+(1-Math.min(1,ts.speed/130))*0.8;const ba=ang+(Math.random()-0.5)*0.18;enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(ba)*200,vy:Math.sin(ba)*200,damage:ts.damage,life:2.5,source:"Trade Ship",sourceTarget:{type:"npcTradeShip",stationId:station.id,shipId:ts.id,x:ts.x,y:ts.y}});}
-    if(ts.hp<ts.maxHp*0.2){ts.state="flee";ts.stateTimer=5;}
-    if(pd>600&&!station.destroyed){ts.state="return";ts.stateTimer=3;}
+    const target=resolveNpcTradeShipCombatTarget(ts,station);
+    if(!target){ts.state="return";ts.stateTimer=3;}
+    else{
+      const td=dist(ts.x,ts.y,target.x,target.y),ang=angleToward(ts.x,ts.y,target.x,target.y);
+      ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed,0.06);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed,0.06);ts.angle=ang;
+      if(ts.shootTimer<=0&&td<320){
+        ts.shootTimer=0.6+(1-Math.min(1,ts.speed/130))*0.8;
+        if(target.type==="pirate")npcTradeShipFireAtRaider(ts,station,target.obj);
+        else{const ba=ang+(Math.random()-0.5)*0.18;enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(ba)*200,vy:Math.sin(ba)*200,damage:ts.damage,life:2.5,source:"Trade Ship",sourceTarget:{type:"npcTradeShip",stationId:station.id,shipId:ts.id,x:ts.x,y:ts.y}});}
+      }
+      if(ts.hp<ts.maxHp*0.2){ts.state="flee";ts.stateTimer=5;}
+      if(target.type==="player"&&td>650&&!station.destroyed){ts.state="return";ts.stateTimer=3;}
+      if(target.type==="pirate"&&td>950&&!station.destroyed){ts.combatTarget=null;ts.state="return";ts.stateTimer=2;}
+    }
     ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;
   }
   if(ts.state==="flee"){const ang=angleToward(ts.x,ts.y,ship.x,ship.y)+Math.PI;ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed*1.3,0.08);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed*1.3,0.08);if(ts.stateTimer<=0)ts.state="return";ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;}
@@ -738,10 +747,13 @@ const randomEventStations=[];
 const eventPirates=[];
 const eventShipRuins=[];
 const specialEventPlanets=[];
+const warProjectiles=[]; // visual beams/bolts for pirate-vs-station and ship-vs-raider battles
 let activeRuin=null,ruinChests=[],ruinBaddies=[],ruinSurvivors=[];
 // Discovery pacing: first event appears quickly, then discoveries refresh often and stay longer.
 let randomEventTimer=22+Math.random()*18;
 let eventRadarPulseTimer=0;
+// Separate station-war timer: busy NPC/ally stations can draw raider attacks and become battle zones.
+let stationWarEventTimer=150+Math.random()*150;
 // Raider/pirate pressure is intentionally on its own slower timer.
 // Discovery events can still appear often, but hostile ambushes should feel special,
 // not constant: one pirate ambush every 7–10 minutes.
@@ -761,7 +773,7 @@ function spawnPirateAmbush(){
   if(!pirateAmbushReady())return false;
   scheduleNextPirateAmbush();
   const count=2+Math.floor(Math.random()*3)+Math.min(3,Math.floor(player.level/4));
-  for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,r=260+Math.random()*160;eventPirates.push({id:`pir_${Date.now()}_${i}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,vx:0,vy:0,angle:a,hp:55+player.level*10,maxHp:55+player.level*10,damage:8+player.level*1.5,speed:75+Math.random()*35,shootTimer:0.8+Math.random()*0.9});}
+  for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,r=260+Math.random()*160;eventPirates.push({id:`pir_${Date.now()}_${i}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,vx:0,vy:0,angle:a,hp:55+player.level*10,maxHp:55+player.level*10,damage:8+player.level*1.5,speed:75+Math.random()*35,shootTimer:0.8+Math.random()*0.9,target:{type:"player"},retargetTimer:0});}
   addChat("Event",`Pirate ambush! ${count} raiders dropped out of warp.`,"#ff5544");showFT("PIRATE AMBUSH!",ship.x,ship.y-35,"#ff5544",16);
   return true;
 }
@@ -826,22 +838,225 @@ function updateRandomEvents(dt){
     randomEventTimer=48+Math.random()*32;
     spawnDiscoveryEvent();
   }
+  stationWarEventTimer-=dt;
+  if(stationWarEventTimer<=0){
+    stationWarEventTimer=240+Math.random()*180;
+    maybeSpawnStationWarEvent();
+  }
 }
+
+function makeRaiderTarget(type,data={}){return {type,...data};}
+function resolveRaiderTarget(raw){
+  if(!raw)return null;
+  if(raw.type==="player"){if(mode===MODE.SPACE&&!gameOver)return {raw,type:"player",x:ship.x,y:ship.y,obj:ship,priority:1.1,label:"player"};return null;}
+  if(raw.type==="npcStation"){
+    const st=visibleStations.find(s=>s.id===raw.stationId&&!s.destroyed);if(st)return {raw,type:"npcStation",station:st,obj:st,x:st.x,y:st.y,priority:1.6,label:"NPC station"};
+  }else if(raw.type==="npcTradeShip"){
+    const st=visibleStations.find(s=>s.id===raw.stationId&&!s.destroyed);const ts=st?.tradeShips?.find(t=>t.id===raw.shipId&&t.hp>0);if(st&&ts)return {raw,type:"npcTradeShip",station:st,obj:ts,x:ts.x,y:ts.y,priority:1.35,label:"NPC trade ship"};
+  }else if(raw.type==="ownedStation"){
+    const st=ownedStationsList.find(s=>s.key===raw.stationKey&&!s.destroyed);if(st)return {raw,type:"ownedStation",station:st,obj:st,x:st.x,y:st.y,priority:1.55,label:"station"};
+  }else if(raw.type==="ownedTradeShip"){
+    const os=ownedTradeShips.get(raw.shipId);const st=ownedStationsList.find(s=>s.key===raw.stationKey&&!s.destroyed);if(os&&st&&!os.disabled&&os.hp>0)return {raw,type:"ownedTradeShip",station:st,obj:os,x:os.x,y:os.y,priority:1.35,label:"trade ship"};
+  }
+  return null;
+}
+function raiderCandidateTargets(ep,range=1550){
+  const out=[];
+  if(mode===MODE.SPACE&&!gameOver&&dist(ep.x,ep.y,ship.x,ship.y)<range)out.push({raw:{type:"player"},x:ship.x,y:ship.y,priority:1.0,label:"player"});
+  for(const st of visibleStations){
+    if(st.destroyed||dist(ep.x,ep.y,st.x,st.y)>range)continue;
+    const shipCount=(st.tradeShips||[]).length;
+    out.push({raw:{type:"npcStation",stationId:st.id},x:st.x,y:st.y,priority:1.45+Math.min(0.65,shipCount*0.08),label:"NPC station"});
+    for(const ts of st.tradeShips||[])if(ts.hp>0&&dist(ep.x,ep.y,ts.x,ts.y)<range)out.push({raw:{type:"npcTradeShip",stationId:st.id,shipId:ts.id},x:ts.x,y:ts.y,priority:1.25,label:"NPC trade ship"});
+  }
+  for(const st of ownedStationsList){
+    if(st.destroyed||dist(ep.x,ep.y,st.x,st.y)>range)continue;
+    const nearOwnedShips=[...ownedTradeShips.values()].filter(os=>os.stationKey===st.key&&!os.disabled&&dist(os.x,os.y,st.x,st.y)<800).length;
+    out.push({raw:{type:"ownedStation",stationKey:st.key},x:st.x,y:st.y,priority:1.5+Math.min(0.7,nearOwnedShips*0.12),label:st.isOwn?"ally station":"player station"});
+  }
+  for(const os of ownedTradeShips.values()){
+    if(os.disabled||os.hp<=0)continue;const st=ownedStationsList.find(s=>s.key===os.stationKey&&!s.destroyed);if(!st)continue;
+    if(dist(ep.x,ep.y,os.x,os.y)<range)out.push({raw:{type:"ownedTradeShip",stationKey:st.key,shipId:os.id},x:os.x,y:os.y,priority:1.25,label:os.isOwn?"ally trade ship":"player trade ship"});
+  }
+  return out;
+}
+function chooseRaiderTarget(ep,current=null){
+  if(current&&dist(ep.x,ep.y,current.x,current.y)<1250)return current;
+  const candidates=raiderCandidateTargets(ep,1700);
+  if(!candidates.length)return null;
+  candidates.sort((a,b)=>(dist(ep.x,ep.y,a.x,a.y)/(a.priority||1))-(dist(ep.x,ep.y,b.x,b.y)/(b.priority||1)));
+  const raw=candidates[0].raw;
+  return resolveRaiderTarget(raw)||{...candidates[0],type:raw.type,raw};
+}
+function spawnWarProjectile(x1,y1,x2,y2,color="#ff5544",speed=340){
+  const a=angleToward(x1,y1,x2,y2);warProjectiles.push({x:x1,y:y1,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,tx:x2,ty:y2,life:1,color});
+}
+function alertNpcDefendersAgainstRaider(st,ep,centerX=ep.x,centerY=ep.y){
+  if(!st||st.destroyed||!ep)return;
+  st.underPirateAttackTimer=Math.max(st.underPirateAttackTimer||0,35);
+  for(const ts of st.tradeShips||[]){
+    if(dist(ts.x,ts.y,centerX,centerY)<TRADE_SHIP_ALERT_RANGE+360||dist(ts.x,ts.y,st.x,st.y)<st.r+520){
+      ts.state="combat";ts.stateTimer=999;ts.combatTarget={type:"pirate",pirateId:ep.id};ts.shootTimer=Math.min(ts.shootTimer||0,0.25+Math.random()*0.25);
+    }
+  }
+}
+function alertOwnedDefendersAgainstRaider(stOrKey,ep,label="raider"){
+  if(!ep)return;
+  const stationKey=typeof stOrKey==="string"?stOrKey:stOrKey?.key;
+  const raw={type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y};
+  for(const os of ownedTradeShips.values()){
+    if(!os.isOwn||os.disabled)continue;
+    const st=ownedStationsList.find(s=>s.key===os.stationKey&&!s.destroyed);if(!st)continue;
+    const sameStation=stationKey&&os.stationKey===stationKey;
+    const nearBattle=dist(os.x,os.y,ep.x,ep.y)<1550||dist(st.x,st.y,ep.x,ep.y)<1700||dist(ship.x,ship.y,ep.x,ep.y)<1350;
+    if(sameStation||nearBattle){os.assistTarget=raw;os.state="assist";os.aggro=true;os.stateTimer=28;os.shootTimer=Math.min(os.shootTimer||0,0.22);}
+  }
+  if(dist(ship.x,ship.y,ep.x,ep.y)<1500)callOwnedTradeShipsToAssist(raw,label);
+}
+function applyRaiderDamageToNpcStation(st,damage,ep){
+  if(!st||st.destroyed)return {destroyed:false,damage:0};
+  let dmg=Math.max(0,Number(damage)||0),shieldDamage=0,hpDamage=0;
+  if(st.shield>0){shieldDamage=Math.min(st.shield,dmg);st.shield-=shieldDamage;dmg-=shieldDamage;}
+  if(dmg>0){hpDamage=Math.min(st.hp,dmg);st.hp=Math.max(0,st.hp-hpDamage);}
+  st.shieldRegenTimer=8;st.underPirateAttackTimer=Math.max(st.underPirateAttackTimer||0,42);
+  alertNpcDefendersAgainstRaider(st,ep,st.x,st.y);
+  return {damage:shieldDamage+hpDamage,hpDamage,shieldDamage,destroyed:st.hp<=0};
+}
+function destroyNpcStationByRaiders(st,ep){
+  if(!st||st.destroyed)return;
+  st.destroyed=true;st.destroyedAt=Date.now();st.hp=0;st.shield=0;st.underPirateAttackTimer=999;
+  dropStationStockLoot(st);st.buyStock=[];
+  showFT(`RAIDERS DESTROYED ${st.tierDef?.name||"STATION"}`,st.x,st.y-28,"#ff5544",12);
+  addChat("War",`Raiders destroyed a ${st.tierDef?.name||"station"} near ${Math.round(st.x)}, ${Math.round(st.y)}!`,"#ff5544");
+  for(const ts of st.tradeShips||[]){ts.state="combat";ts.stateTimer=999;ts.combatTarget={type:"pirate",pirateId:ep?.id};ts.shootTimer=0.2;}
+}
+function destroyNpcTradeShipByRaiders(ts,station,ep){
+  if(!ts||!station)return;
+  for(const[r,q]of Object.entries(ts.lootCarried||{}))for(let i=0;i<q;i++)spaceDrops.push({type:r,x:ts.x+(Math.random()-0.5)*20,y:ts.y+(Math.random()-0.5)*20,vx:(Math.random()-0.5)*30,vy:(Math.random()-0.5)*30,life:25});
+  const idx=station.tradeShips.indexOf(ts);if(idx>-1)station.tradeShips.splice(idx,1);
+  if(!station.destroyed){
+    if(!station.tradeRespawns)station.tradeRespawns=[];const stats=npcStationDefenseStats(station.tier),span=stats.respawnDelay;
+    station.tradeRespawns.push({slot:ts.homeSlot??station.tradeRespawns.length,timer:span[0]+Math.random()*(span[1]-span[0])});
+  }
+  showFT("Trade ship destroyed by raiders",ts.x,ts.y,"#ff8844",9);
+  alertNpcDefendersAgainstRaider(station,ep,ts.x,ts.y);
+}
+function raiderFireAtTarget(ep,target){
+  if(!ep||!target)return;
+  if(target.type==="player"){
+    const ang=angleToward(ep.x,ep.y,ship.x,ship.y)+(Math.random()-.5)*0.18;
+    enemyProjectiles.push({x:ep.x,y:ep.y,vx:Math.cos(ang)*230,vy:Math.sin(ang)*230,damage:ep.damage,life:2.6,source:"Pirate",sourceTarget:{type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y}});
+    return;
+  }
+  spawnWarProjectile(ep.x,ep.y,target.x,target.y,"#ff5544",330);
+  if(target.type==="npcTradeShip"){
+    target.obj.hp-=ep.damage;target.obj.state="combat";target.obj.stateTimer=999;target.obj.combatTarget={type:"pirate",pirateId:ep.id};
+    showFT("RAIDER -"+Math.round(ep.damage),target.obj.x,target.obj.y,"#ff8844",8);alertNpcDefendersAgainstRaider(target.station,ep,target.obj.x,target.obj.y);
+    if(target.obj.hp<=0){destroyNpcTradeShipByRaiders(target.obj,target.station,ep);ep.target=null;}
+  }else if(target.type==="npcStation"){
+    const r=applyRaiderDamageToNpcStation(target.station,ep.damage,ep);showFT("RAIDER -"+Math.round(r.damage),target.station.x,target.station.y-18,"#ff8844",8);
+    if(r.destroyed){destroyNpcStationByRaiders(target.station,ep);ep.target=null;}
+  }else if(target.type==="ownedTradeShip"){
+    target.obj.hp-=ep.damage;showFT("RAIDER -"+Math.round(ep.damage),target.obj.x,target.obj.y,"#ff8844",8);alertOwnedDefendersAgainstRaider(target.station,ep,"raider");
+    if(target.obj.hp<=0){dropOwnedTradeShipLoot(target.obj,target.station);ep.target=null;}
+  }else if(target.type==="ownedStation"){
+    showFT("RAIDER station hit",target.x,target.y-18,"#ff8844",8);alertOwnedDefendersAgainstRaider(target.station,ep,"raider");
+    if(!ep.lastStationHitAt||performance.now()-ep.lastStationHitAt>650){ep.lastStationHitAt=performance.now();socket.emit("environmentalDamageOwnedStation",{stationKey:target.station.key,damage:ep.damage,source:"Pirate Raiders",x:ep.x,y:ep.y});}
+  }
+}
+function npcTradeShipFireAtRaider(ts,station,ep){
+  if(!ts||!ep)return;
+  spawnWarProjectile(ts.x,ts.y,ep.x,ep.y,station?.factionColor||"#7be6ff",340);
+  ep.hp-=ts.damage;ep.target={type:"npcTradeShip",stationId:station.id,shipId:ts.id};ep.retargetTimer=1.4;
+  showFT("DEF -"+Math.round(ts.damage),ep.x,ep.y,"#7be6ff",8);
+}
+function resolveNpcTradeShipCombatTarget(ts,station){
+  if(ts.combatTarget?.type==="pirate"){
+    const ep=eventPirates.find(p=>p.id===ts.combatTarget.pirateId&&p.hp>0);
+    if(ep)return {type:"pirate",x:ep.x,y:ep.y,obj:ep};
+    ts.combatTarget=null;
+  }
+  if((station.underPirateAttackTimer||0)>0){
+    let nearest=null,bd=Infinity;for(const ep of eventPirates){const d=dist(ts.x,ts.y,ep.x,ep.y);if(d<bd&&d<820){bd=d;nearest=ep;}}
+    if(nearest){ts.combatTarget={type:"pirate",pirateId:nearest.id};return {type:"pirate",x:nearest.x,y:nearest.y,obj:nearest};}
+  }
+  if(station.destroyed||station.underAttackTimer>0||station.playerRep==="hostile")return {type:"player",x:ship.x,y:ship.y,obj:ship};
+  return null;
+}
+function busyStationWarZones(){
+  const zones=[];
+  for(const st of visibleStations){
+    if(st.destroyed||dist(ship.x,ship.y,st.x,st.y)>2300)continue;
+    let count=(st.tradeShips||[]).length;
+    for(const os of ownedTradeShips.values())if(!os.disabled&&dist(os.x,os.y,st.x,st.y)<760)count++;
+    if(count>=2)zones.push({x:st.x,y:st.y,station:st,count,kind:"npc"});
+  }
+  for(const st of ownedStationsList){
+    if(st.destroyed||dist(ship.x,ship.y,st.x,st.y)>2300)continue;
+    let count=[...ownedTradeShips.values()].filter(os=>!os.disabled&&dist(os.x,os.y,st.x,st.y)<840).length;
+    for(const ns of visibleStations)for(const ts of ns.tradeShips||[])if(dist(ts.x,ts.y,st.x,st.y)<760)count++;
+    if(count>=2)zones.push({x:st.x,y:st.y,station:st,count,kind:"owned"});
+  }
+  zones.sort((a,b)=>b.count-a.count);return zones;
+}
+function maybeSpawnStationWarEvent(){
+  if(mode!==MODE.SPACE||gameOver||!joined)return false;
+  if(eventPirates.filter(p=>dist(p.x,p.y,ship.x,ship.y)<2400).length>10)return false;
+  const zones=busyStationWarZones();if(!zones.length)return false;
+  const z=zones[Math.floor(Math.random()*Math.min(3,zones.length))];
+  const count=clamp(2+Math.ceil(z.count/2)+Math.floor(player.level/6),3,9);
+  for(let i=0;i<count;i++){
+    const a=Math.random()*Math.PI*2,r=260+Math.random()*180;
+    const hp=65+player.level*10+z.count*5;
+    const raw=z.kind==="npc"?{type:"npcStation",stationId:z.station.id}:{type:"ownedStation",stationKey:z.station.key};
+    eventPirates.push({id:`war_pir_${Date.now()}_${i}`,x:z.x+Math.cos(a)*r,y:z.y+Math.sin(a)*r,vx:0,vy:0,angle:a,hp,maxHp:hp,damage:9+player.level*1.6+Math.min(8,z.count),speed:80+Math.random()*38,shootTimer:0.4+Math.random()*0.8,target:raw,retargetTimer:0});
+  }
+  addChat("War",`Raider warband attacking a busy trade zone near ${Math.round(z.x)}, ${Math.round(z.y)}! ${count} raiders detected.`,"#ff5544");
+  showFT("SPACE WAR!",z.x,z.y-42,"#ff5544",16);
+  if(z.kind==="npc")alertNpcDefendersAgainstRaider(z.station,eventPirates[eventPirates.length-1],z.x,z.y);else alertOwnedDefendersAgainstRaider(z.station,eventPirates[eventPirates.length-1],"warband");
+  return true;
+}
+function updateWarProjectiles(dt){
+  for(let i=warProjectiles.length-1;i>=0;i--){const p=warProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0||dist(p.x,p.y,p.tx,p.ty)<9)warProjectiles.splice(i,1);}
+}
+
 function updateEventPirates(dt){
   for(let i=eventPirates.length-1;i>=0;i--){
     const ep=eventPirates[i];
-    const d=dist(ep.x,ep.y,ship.x,ship.y),ang=angleToward(ep.x,ep.y,ship.x,ship.y);ep.angle=ang;ep.shootTimer=Math.max(0,ep.shootTimer-dt);
-    if(d>140){ep.vx=lerp(ep.vx,Math.cos(ang)*ep.speed,0.055);ep.vy=lerp(ep.vy,Math.sin(ang)*ep.speed,0.055);}else{ep.vx*=0.96;ep.vy*=0.96;}
-    if(ep.shootTimer<=0&&d<430){ep.shootTimer=1.1+Math.random()*0.7;const ba=ang+(Math.random()-.5)*0.18;enemyProjectiles.push({x:ep.x,y:ep.y,vx:Math.cos(ba)*230,vy:Math.sin(ba)*230,damage:ep.damage,life:2.6,source:"Pirate",sourceTarget:{type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y}});}
+    ep.shootTimer=Math.max(0,ep.shootTimer-dt);
+    ep.retargetTimer=Math.max(0,(ep.retargetTimer||0)-dt);
+    let target=resolveRaiderTarget(ep.target);
+    if(!target||ep.retargetTimer<=0){
+      target=chooseRaiderTarget(ep,target);
+      ep.target=target?target.raw:null;
+      ep.retargetTimer=1.2+Math.random()*1.6;
+    }
+    if(!target){
+      const ang=angleToward(ep.x,ep.y,ship.x,ship.y);ep.angle=ang;
+      ep.vx=lerp(ep.vx,Math.cos(ang)*ep.speed*0.55,0.035);ep.vy=lerp(ep.vy,Math.sin(ang)*ep.speed*0.55,0.035);
+    }else{
+      const d=dist(ep.x,ep.y,target.x,target.y),ang=angleToward(ep.x,ep.y,target.x,target.y);ep.angle=ang;
+      const desired=d>170?ep.speed:(d<95?-ep.speed*0.35:0);
+      if(desired){ep.vx=lerp(ep.vx,Math.cos(ang)*desired,0.058);ep.vy=lerp(ep.vy,Math.sin(ang)*desired,0.058);}else{ep.vx*=0.95;ep.vy*=0.95;}
+      if(ep.shootTimer<=0&&d<480){
+        ep.shootTimer=0.95+Math.random()*0.55;
+        raiderFireAtTarget(ep,target);
+      }
+    }
     ep.x+=ep.vx*dt;ep.y+=ep.vy*dt;ep.vx*=Math.pow(.985,dt*60);ep.vy*=Math.pow(.985,dt*60);
-    if(ep.hp<=0){const pool=["copper","iron","gold","fuel","gas_canister","hull_plate","weapon_array"],drops=2+Math.floor(Math.random()*4);for(let k=0;k<drops;k++)spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ep.x+(Math.random()-.5)*24,y:ep.y+(Math.random()-.5)*24,vx:(Math.random()-.5)*55,vy:(Math.random()-.5)*55,life:35});socket.emit("gainXp",{amount:35+Math.floor(player.level*8)});recordQuestProgress("pirate",1,{tier:"combat"});incrementBadgeCounter("pirates",1);showFT("Pirate destroyed",ep.x,ep.y,"#ffcc44",10);eventPirates.splice(i,1);}
+    if(ep.hp<=0){
+      const pool=["copper","iron","gold","fuel","gas_canister","hull_plate","weapon_array"],drops=2+Math.floor(Math.random()*4);
+      for(let k=0;k<drops;k++)spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ep.x+(Math.random()-.5)*24,y:ep.y+(Math.random()-.5)*24,vx:(Math.random()-.5)*55,vy:(Math.random()-.5)*55,life:35});
+      socket.emit("gainXp",{amount:35+Math.floor(player.level*8)});recordQuestProgress("pirate",1,{tier:"combat"});incrementBadgeCounter("pirates",1);
+      showFT("Pirate destroyed",ep.x,ep.y,"#ffcc44",10);eventPirates.splice(i,1);
+    }
   }
 }
 function drawEventPirates(camX,camY){
   for(const ep of eventPirates){const x=ep.x-camX,y=ep.y-camY;if(x<-60||y<-60||x>canvas.width+60||y>canvas.height+60)continue;ctx.save();ctx.translate(x,y);ctx.rotate(ep.angle);ctx.fillStyle="#ff3344";ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(-7,-5);ctx.lineTo(-4,0);ctx.lineTo(-7,5);ctx.closePath();ctx.fill();ctx.fillStyle="#ffcc44";ctx.fillRect(-10,-1,4,2);ctx.restore();const pct=clamp(ep.hp/ep.maxHp,0,1);ctx.fillStyle="#300";ctx.fillRect(x-12,y-12,24,3);ctx.fillStyle=pct>.5?"#ffcc44":"#ff5544";ctx.fillRect(x-12,y-12,24*pct,3);}
 }
 function tryHitEventPirates(p){
-  for(let k=eventPirates.length-1;k>=0;k--){const ep=eventPirates[k];if(dist(p.x,p.y,ep.x,ep.y)<12){callOwnedTradeShipsToAssist({type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y},"pirate");ep.hp-=p.damage;showFT("-"+Math.round(p.damage),ep.x,ep.y,"#ffcc44",9);return true;}}
+  for(let k=eventPirates.length-1;k>=0;k--){const ep=eventPirates[k];if(dist(p.x,p.y,ep.x,ep.y)<12){callOwnedTradeShipsToAssist({type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y},"pirate");ep.target={type:"player"};ep.retargetTimer=2.2;ep.hp-=p.damage;showFT("-"+Math.round(p.damage),ep.x,ep.y,"#ffcc44",9);return true;}}
   return false;
 }
 function getEventBeacons(){
@@ -1251,7 +1466,7 @@ function updateOwnedTradeShipAssist(os,st,dt){
     }else if(target.type==="otherPlayer"){
       socket.emit("ownedTradeShipAttackPlayer",{targetId:target.obj.id,stationKey:st.key,shipId:os.id,damage:os.damage,x:os.x,y:os.y});showFT("ALLY FIRE",target.x,target.y-15,"#ffee88",8);
     }else if(target.type==="pirate"){
-      target.obj.hp-=os.damage;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);
+      target.obj.hp-=os.damage;target.obj.target={type:"ownedTradeShip",stationKey:st.key,shipId:os.id};target.obj.retargetTimer=1.5;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);
     }
   }
   if(dist(os.x,os.y,ship.x,ship.y)>2100&&dist(os.x,os.y,st.x,st.y)>2100){os.assistTarget=null;os.state="return";}
@@ -1262,6 +1477,10 @@ function updateOwnedTradeShip(os,st,dt){
   if(os.disabled)return;
   os.stateTimer=Math.max(0,os.stateTimer-dt);os.shootTimer=Math.max(0,os.shootTimer-dt);
   if(os.assistTarget){if(updateOwnedTradeShipAssist(os,st,dt)){os.x+=os.vx*dt;os.y+=os.vy*dt;os.vx*=Math.pow(0.97,dt*60);os.vy*=Math.pow(0.97,dt*60);return;}}
+  if(os.isOwn){
+    let nearPirate=null,bd=Infinity;for(const ep of eventPirates){const d=Math.min(dist(ep.x,ep.y,st.x,st.y),dist(ep.x,ep.y,os.x,os.y));if(d<bd&&d<1350){bd=d;nearPirate=ep;}}
+    if(nearPirate&&(Date.now()<(st.underAttackUntil||0)||bd<900)){os.assistTarget={type:"pirate",pirateId:nearPirate.id,x:nearPirate.x,y:nearPirate.y};os.state="assist";os.aggro=true;os.stateTimer=20;}
+  }
   if(!os.isOwn&&(st.destroyed||Date.now()<(st.underAttackUntil||0))&&os.state!=="combat"){os.state="combat";os.aggro=true;os.stateTimer=999;}
   else if(os.isOwn&&(st.destroyed||Date.now()<(st.underAttackUntil||0))&&os.state!=="assist"){os.state="return";os.aggro=false;}
   if(os.state==="combat"){
@@ -1826,6 +2045,7 @@ function updateSpace(dt){
   if(energy.current<=0){gameOver=true;return;}
   updateRandomEvents(dt);
   updateEventPirates(dt);
+  updateWarProjectiles(dt);
 
   // Dead reckoning
   const now=performance.now();
@@ -2197,6 +2417,7 @@ function drawSpace(){
   for(const p of pvpProjectiles){const px2=p.x-camX,py2=p.y-camY;const own=p.ownerId===player.id;ctx.fillStyle=own?"#ffff44":"#ff6622";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=4;ctx.beginPath();ctx.arc(px2,py2,2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of localPlayerProjectiles){ctx.fillStyle="#ffff44";ctx.shadowColor="#ffff44";ctx.shadowBlur=4;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of enemyProjectiles){ctx.fillStyle="#ff4422";ctx.shadowColor="#ff4422";ctx.shadowBlur=4;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
+  for(const p of warProjectiles){ctx.fillStyle=p.color||"#ff8844";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.3;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,5.5,0,Math.PI*2);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;}
   for(const p of allyProjectiles){ctx.fillStyle=p.color||"#ffee88";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.35;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,6,0,Math.PI*2);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;}
   ctx.shadowBlur=0;
 
