@@ -706,7 +706,6 @@ function completeTrade(s){
   io.to(pb.id).emit("tradeComplete",{tradeId:s.id,credits:pb.credits,gaveOffer:ob,receivedOffer:oa,otherName:pa.name,serverAuthoritative:true});
 }
 
-
 /* ── Party + faction system ── */
 const parties = new Map();
 const factions = new Map();
