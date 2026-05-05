@@ -89,15 +89,15 @@ console.log("Space Eco persistence config", {
 /* ── Ship types (synced to client) ── */
 const SHIP_TYPES = {
   scout:       { name:"Scout",       price:0,     description:"Starter ship. Fast and agile.",           maxHp:100, maxShield:60,  thrustMult:1.00, cargoMult:1.0, damageMult:1.0, shieldRegenMult:1.0, size:"small", specialty:"Starter"  },
-  hauler:      { name:"Hauler",      price:2500,  description:"Massive cargo hold. Built for trading.",  maxHp:160, maxShield:40,  thrustMult:0.70, cargoMult:2.2, damageMult:0.8, shieldRegenMult:0.8, size:"large", specialty:"Bulk cargo"  },
+  hauler:      { name:"Hauler",      price:2500,  description:"Massive trade frame. Built for long-haul commerce.",  maxHp:160, maxShield:40,  thrustMult:0.70, cargoMult:2.2, damageMult:0.8, shieldRegenMult:0.8, size:"large", specialty:"Commerce"  },
   fighter:     { name:"Fighter",     price:3500,  description:"Combat-focused with strong weapons.",     maxHp:130, maxShield:80,  thrustMult:1.15, cargoMult:0.7, damageMult:1.8, shieldRegenMult:1.2, size:"medium", specialty:"Dogfighting" },
   interceptor: { name:"Interceptor", price:5000,  description:"Extreme speed. Fragile but deadly fast.", maxHp:80,  maxShield:50,  thrustMult:1.60, cargoMult:0.5, damageMult:1.3, shieldRegenMult:1.5, size:"small", specialty:"Speed"  },
   dreadnought: { name:"Dreadnought", price:12000, description:"Tanky powerhouse. Slow but devastating.", maxHp:280, maxShield:150, thrustMult:0.55, cargoMult:1.5, damageMult:2.2, shieldRegenMult:0.7, size:"huge", specialty:"Siege"   },
   phantom:     { name:"Phantom",     price:8000,  description:"Balanced stealth raider.",               maxHp:110, maxShield:90,  thrustMult:1.30, cargoMult:0.9, damageMult:1.5, shieldRegenMult:1.4, size:"medium", specialty:"Raiding" },
-  miner_mantis:{ name:"Miner Mantis",price:0,craftOnly:true,description:"Crafted mining cutter with expanded bay and ore scanner.",maxHp:145,maxShield:75,thrustMult:1.05,cargoMult:2.7,damageMult:1.05,shieldRegenMult:1.0,size:"large",specialty:"Mining + cargo",recipe:{credits:6000,hull_plate:4,engine_core:2,cargo_pod:4,copper:40,iron:30}},
+  miner_mantis:{ name:"Miner Mantis",price:0,craftOnly:true,description:"Crafted mining cutter with an ore scanner and reinforced storage racks.",maxHp:145,maxShield:75,thrustMult:1.05,cargoMult:2.7,damageMult:1.05,shieldRegenMult:1.0,size:"large",specialty:"Mining",recipe:{credits:6000,hull_plate:4,engine_core:2,cargo_pod:4,copper:40,iron:30}},
   guardian:    { name:"Guardian",price:0,craftOnly:true,description:"Crafted escort cruiser built to protect stations and allies.",maxHp:230,maxShield:210,thrustMult:0.82,cargoMult:1.2,damageMult:1.65,shieldRegenMult:1.8,size:"large",specialty:"Defense escort",recipe:{credits:11000,hull_plate:8,shield_matrix:3,weapon_array:2,iron:70,gold:20}},
   solar_sprinter:{ name:"Solar Sprinter",price:0,craftOnly:true,description:"Crafted solar racer with excellent fuel efficiency and long-range scout speed.",maxHp:95,maxShield:95,thrustMult:1.85,cargoMult:0.85,damageMult:1.25,shieldRegenMult:1.45,size:"small",specialty:"Speed + fuel",recipe:{credits:14000,engine_core:5,nav_chip:3,crystal:25,fuel:20}},
-  obelisk_carrier:{ name:"Obelisk Carrier",price:0,craftOnly:true,description:"Crafted mothership-class carrier with giant cargo, heavy shields, and command presence.",maxHp:390,maxShield:260,thrustMult:0.50,cargoMult:3.4,damageMult:2.35,shieldRegenMult:0.95,size:"huge",specialty:"Mother ship",recipe:{credits:45000,obelisk_core:1,hull_plate:16,shield_matrix:8,weapon_array:6,cargo_pod:10,crystal:70,gold:100,magma_core:40}},
+  obelisk_carrier:{ name:"Obelisk Carrier",price:0,craftOnly:true,description:"Crafted mothership-class carrier with heavy shields and command presence.",maxHp:390,maxShield:260,thrustMult:0.50,cargoMult:3.4,damageMult:2.35,shieldRegenMult:0.95,size:"huge",specialty:"Mothership",recipe:{credits:45000,obelisk_core:1,hull_plate:16,shield_matrix:8,weapon_array:6,cargo_pod:10,crystal:70,gold:100,magma_core:40}},
 };
 
 /* ── Owned station tiers ── */
@@ -174,6 +174,7 @@ function defaultPlayer(id, name, x, y) {
     ping:0, pingTs:0,
     planetX:0, planetY:0, planetVx:0, planetVy:0, planetTool:"mining",
     cosmeticColor:"#ffd27a", suitColor:"#ffffff", weaponLevel:1, miningLevel:1, oxygenLevel:1,
+    badgeRewards:{},
   };
 }
 
@@ -318,6 +319,14 @@ function canCraftRecipe(p,recipe){
   return {ok:true};
 }
 function consumeCraftRecipe(p,recipe){for(const it of recipeItems(recipe))removeInventory(p,it.type,it.qty);p.credits=(p.credits||0)-Math.max(0,Math.floor(Number(recipe?.credits)||0));}
+
+function attrUpgradeCost(p,attr){
+  const cur=Math.max(1,Math.floor(Number(p?.attrs?.[attr])||1));
+  return {
+    credits:Math.floor(500*Math.pow(1.55,cur-1)),
+    xp:Math.floor(80*Math.pow(1.38,cur-1))
+  };
+}
 function grantRewardBundle(p,{credits=0,xp=0,items=[]}={},reason="reward"){
   credits=Math.max(0,Math.min(100000,Math.floor(Number(credits)||0)));
   xp=Math.max(0,Math.min(25000,Math.floor(Number(xp)||0)));
@@ -340,7 +349,7 @@ function emitInventorySync(p,reason="sync"){
 async function persistPlayerNow(p,reason="update"){
   if(!p?.memberId){console.warn("Wix persistence skipped: player has no memberId", p?.id, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
-  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},reason,updatedAt:Date.now()};
+  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},reason,updatedAt:Date.now()};
   try{
     const res = await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
     if(!res.ok){
@@ -368,6 +377,7 @@ function applyAuthAccountToPlayer(p,auth){
   if(auth.level)p.level=Math.max(1,Math.floor(Number(auth.level)||1));
   if(auth.xp!==undefined)p.xp=Math.max(0,Math.floor(Number(auth.xp)||0));
   if(auth.attrs&&typeof auth.attrs==="object")p.attrs={...p.attrs,...auth.attrs};
+  if(auth.badgeRewards&&typeof auth.badgeRewards==="object")p.badgeRewards={...auth.badgeRewards};
 }
 
 
@@ -705,6 +715,7 @@ function completeTrade(s){
   io.to(pa.id).emit("tradeComplete",{tradeId:s.id,credits:pa.credits,gaveOffer:oa,receivedOffer:ob,otherName:pb.name,serverAuthoritative:true});
   io.to(pb.id).emit("tradeComplete",{tradeId:s.id,credits:pb.credits,gaveOffer:ob,receivedOffer:oa,otherName:pa.name,serverAuthoritative:true});
 }
+
 
 /* ── Party + faction system ── */
 const parties = new Map();
@@ -1121,6 +1132,30 @@ io.on("connection",socket=>{
     syncAndPersist(p,"ship_part_reward");
   });
 
+
+  socket.on("claimBadgeReward",({badgeId,name})=>{
+    const p=players.get(socket.id);if(!p)return;
+    badgeId=safeText(badgeId||"badge",48);
+    name=safeText(name||"Badge",48);
+    p.badgeRewards=p.badgeRewards||{};
+    if(p.badgeRewards[badgeId]){socket.emit("badgeRewardDenied",{badgeId,reason:"Badge reward already claimed."});return;}
+    const rewardTable={
+      first_quest:{credits:1200,xp:300},
+      contract_captain:{credits:8000,xp:1800},
+      pirate_breaker:{credits:7000,xp:1600},
+      salvage_runner:{credits:6500,xp:1500},
+      shipwright:{credits:10000,xp:2200},
+      first_boarding:{credits:2500,xp:650},
+      first_rescue:{credits:3000,xp:750}
+    };
+    const reward=rewardTable[badgeId]||{credits:1800,xp:450};
+    const bundle=grantRewardBundle(p,{credits:reward.credits,xp:reward.xp,items:[]},"Badge Reward");
+    if(!bundle.ok){socket.emit("badgeRewardDenied",{badgeId,reason:bundle.reason||"Badge reward failed."});return;}
+    p.badgeRewards[badgeId]=Date.now();
+    socket.emit("badgeRewardConfirm",{badgeId,name,credits:p.credits,xp:p.xp,level:p.level,reward:bundle});
+    syncAndPersist(p,"badge_reward");
+  });
+
   socket.on("buyStation",({x,y,tier})=>{
     const p=players.get(socket.id);if(!p)return;
     const td=OWNED_STATION_TIERS[tier];if(!td){socket.emit("stationBuyDenied",{reason:"Unknown tier."});return;}
@@ -1228,12 +1263,28 @@ io.on("connection",socket=>{
 
   socket.on("upgradeAttr",({attr})=>{
     const p=players.get(socket.id);if(!p)return;
-    const valid=["damage","speed","cargoMax","armor","gasEfficiency","shieldRegen"];
+    const valid=["damage","speed","armor","gasEfficiency","shieldRegen"];
     if(!valid.includes(attr))return;
-    if((p.attrPoints||0)<=0){socket.emit("upgradeDenied",{reason:"No attribute points."});return;}
+    if((p.attrPoints||0)<=0){socket.emit("upgradeDenied",{reason:"No attribute points. Use paid upgrade instead."});return;}
     if((p.attrs[attr]||1)>=10){socket.emit("upgradeDenied",{reason:"Already maxed."});return;}
     p.attrs[attr]=(p.attrs[attr]||1)+1;p.attrPoints=(p.attrPoints||0)-1;
-    socket.emit("attrConfirm",{attr,val:p.attrs[attr],attrPoints:p.attrPoints});syncAndPersist(p,"upgrade_attr");
+    socket.emit("attrConfirm",{attr,val:p.attrs[attr],attrPoints:p.attrPoints,credits:p.credits,xp:p.xp,level:p.level});syncAndPersist(p,"upgrade_attr");
+  });
+
+  socket.on("upgradeAttrPaid",({attr})=>{
+    const p=players.get(socket.id);if(!p)return;
+    const valid=["damage","speed","armor","gasEfficiency","shieldRegen"];
+    attr=String(attr||"");
+    if(!valid.includes(attr))return;
+    if((p.attrs[attr]||1)>=10){socket.emit("upgradeDenied",{reason:"Already maxed."});return;}
+    const cost=attrUpgradeCost(p,attr);
+    if((p.credits||0)<cost.credits){socket.emit("upgradeDenied",{reason:`Need ${cost.credits}cr.`});return;}
+    if((p.xp||0)<cost.xp){socket.emit("upgradeDenied",{reason:`Need ${cost.xp}XP saved.`});return;}
+    p.credits-=cost.credits;
+    p.xp-=cost.xp;
+    p.attrs[attr]=(p.attrs[attr]||1)+1;
+    socket.emit("attrConfirm",{attr,val:p.attrs[attr],attrPoints:p.attrPoints||0,credits:p.credits,xp:p.xp,level:p.level,cost});
+    syncAndPersist(p,"upgrade_attr_paid");
   });
 
   socket.on("gainXp",({amount})=>{
