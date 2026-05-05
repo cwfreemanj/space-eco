@@ -48,6 +48,12 @@ canvas{flex:1;width:100%;image-rendering:pixelated;display:block}
 #kill-feed{position:fixed;top:62px;right:8px;width:210px;display:flex;flex-direction:column;gap:2px;z-index:10}
 .kill-entry{font-size:10px;background:rgba(5,8,20,0.85);border:1px solid #3a1a1a;border-radius:4px;padding:2px 6px;color:#ff9966;animation:fadeChat 5s forwards}
 #score-popup{position:fixed;top:44px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:bold;color:#ffd15c;pointer-events:none;opacity:0;transition:opacity 0.3s}
+#credit-shop-tip{position:fixed;right:10px;bottom:10px;width:220px;background:linear-gradient(180deg,rgba(18,28,48,.96),rgba(8,13,26,.96));border:1px solid #ffdd44;border-radius:10px;color:#d6e1ff;padding:9px 10px;z-index:45;display:none;box-shadow:0 0 22px rgba(255,221,68,.22);font-family:system-ui,Segoe UI,Arial;animation:creditTipPulse 1.4s ease-in-out infinite alternate}
+#credit-shop-tip b{color:#ffdd44}
+#credit-shop-tip small{display:block;color:#9fb0d0;font-size:10px;line-height:1.25;margin-top:2px}
+#credit-shop-tip button{margin-top:6px;background:#3a3010;border:1px solid #9a7a22;border-radius:5px;color:#ffdd44;padding:4px 7px;font-size:10px;font-weight:bold;cursor:pointer}
+#credit-shop-tip .tip-x{float:right;background:transparent;border:0;color:#8fa3cc;padding:0;margin:0;font-size:13px;line-height:13px}
+@keyframes creditTipPulse{from{transform:translateY(0);box-shadow:0 0 12px rgba(255,221,68,.16)}to{transform:translateY(-2px);box-shadow:0 0 24px rgba(255,221,68,.34)}}
 
 /* Panels (leaderboard, server list, ship shop, station shop) */
 .overlay-panel{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:50}
@@ -151,6 +157,12 @@ tr:hover td{background:#1a2a3a}
 <div id="player-count" style="display:none">👥 1</div>
 <div id="kill-feed"></div>
 <div id="score-popup"></div>
+<div id="credit-shop-tip">
+  <button class="tip-x" id="credit-tip-close" title="Dismiss">×</button>
+  <b>Need more credits?</b>
+  <small>Press <b>M</b> to open the Cash Shop and purchase credit packs.</small>
+  <button id="credit-tip-open">Open Cash Shop</button>
+</div>
 
 <!-- Chat -->
 <div id="chat-wrap" style="display:none">
@@ -369,7 +381,7 @@ window.addEventListener("keydown",e=>{
   if(key==="n"){toggleServerList();return;}
   if(key==="h"){toggleShipShop();return;}
   if(key==="b"){if(mode===MODE.SPACE&&!shopOpen&&!inventoryOpen&&!attrOpen)toggleBuildPanel();return;}
-  if(key==="m"){toggleCreditShop();return;}
+  if(key==="m"){hideCreditShopTip();toggleCreditShop();return;}
   if(key==="f"){toggleSocialPanel();return;}
   if(key==="j"){inviteNearestToParty();return;}
   if(key==="u"){inviteNearestToFaction();return;}
@@ -398,7 +410,13 @@ canvas.addEventListener("mousedown",e=>{
 window.addEventListener("mouseup",()=>{mouse.down=false;});
 canvas.addEventListener("wheel",e=>{
   if(domInputLocked(e.target)){clearLiveInput();return;}
-  if(inventoryOpen){
+  if(questLogOpen){
+    questLogScroll=clamp(questLogScroll+(e.deltaY>0?1:-1),0,maxQuestLogScroll());
+    e.preventDefault();
+  }else if(badgeLogOpen){
+    badgeLogScroll=clamp(badgeLogScroll+(e.deltaY>0?1:-1),0,maxBadgeLogScroll());
+    e.preventDefault();
+  }else if(inventoryOpen){
     inventoryScrollRows=clamp(inventoryScrollRows+(e.deltaY>0?1:-1),0,maxInventoryScrollRows());
     e.preventDefault();
   }else if(shopOpen&&shopTab==="sell"){
@@ -408,7 +426,9 @@ canvas.addEventListener("wheel",e=>{
 },{passive:false});
 function maxInventoryScrollRows(){return Math.max(0,Math.ceil(player.maxSlots/INV_COLS)-INV_VISIBLE_ROWS);}
 function maxShopInventoryScrollRows(){return Math.max(0,Math.ceil(player.maxSlots/INV_COLS)-SHOP_SELL_VISIBLE_ROWS);}
-function clampPanelScrolls(){inventoryScrollRows=clamp(inventoryScrollRows,0,maxInventoryScrollRows());shopInventoryScrollRows=clamp(shopInventoryScrollRows,0,maxShopInventoryScrollRows());}
+function maxQuestLogScroll(){return Math.max(0,questLog.length-QUEST_LOG_VISIBLE_ROWS);}
+function maxBadgeLogScroll(){return Math.max(0,Object.keys(badgeState?.badges||{}).length-BADGE_LOG_VISIBLE_ROWS);}
+function clampPanelScrolls(){inventoryScrollRows=clamp(inventoryScrollRows,0,maxInventoryScrollRows());shopInventoryScrollRows=clamp(shopInventoryScrollRows,0,maxShopInventoryScrollRows());questLogScroll=clamp(questLogScroll,0,maxQuestLogScroll());badgeLogScroll=clamp(badgeLogScroll,0,maxBadgeLogScroll());}
 
 /* ── Resources ── */
 const RES={
@@ -514,6 +534,8 @@ let myOwnedStations=new Map(); // key → {goods,shipCount}
 
 /* ── Game state ── */
 let gameOver=false,inventoryOpen=false,shopOpen=false,attrOpen=false,questLogOpen=false,badgeLogOpen=false;
+let questLogScroll=0,badgeLogScroll=0;
+const QUEST_LOG_VISIBLE_ROWS=6,BADGE_LOG_VISIBLE_ROWS=7;
 let shopTab="sell",shopSelectedSlot=null,shopSellQty=1,shopBuyItem=null,shopBuyQty=1,pendingShopBuy=null;
 let selectedSlot=null,nearStation=null,buildSlotIndex=null,planetLoading=false,oxygenDamageTimer=0;
 let inventoryScrollRows=0,shopInventoryScrollRows=0;
@@ -1374,6 +1396,25 @@ function toggleCreditShop(){
   el.style.display=el.style.display==="none"?"flex":"none";
   if(el.style.display!=="none")renderCreditShop();
 }
+function hideCreditShopTip(){const el=document.getElementById("credit-shop-tip");if(el)el.style.display="none";}
+function showCreditShopTip(){
+  if(!joined||isShown(document.getElementById("credit-panel"))||blockingDomPanelOpen())return;
+  const el=document.getElementById("credit-shop-tip");if(!el)return;
+  el.style.display="block";
+  clearTimeout(window._spaceEcoCreditTipHideTimer);
+  window._spaceEcoCreditTipHideTimer=setTimeout(()=>{hideCreditShopTip();},11000);
+}
+function scheduleCreditShopTip(){
+  clearInterval(window._spaceEcoCreditTipInterval);
+  setTimeout(showCreditShopTip,45000);
+  window._spaceEcoCreditTipInterval=setInterval(showCreditShopTip,4*60*1000);
+}
+function initCreditShopTip(){
+  const open=document.getElementById("credit-tip-open"),close=document.getElementById("credit-tip-close");
+  if(open)open.onclick=()=>{hideCreditShopTip();toggleCreditShop();};
+  if(close)close.onclick=hideCreditShopTip;
+}
+initCreditShopTip();
 function renderCreditShop(){
   document.getElementById("credit-market-current").textContent=player.credits;
   const status=document.getElementById("credit-pay-status");
@@ -1509,7 +1550,7 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   joinScreen.style.display="none";gameWrap.style.display="flex";
   document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
   pcEl.textContent=`👥 ${playerCount}`;
-  updateChunks();updateHud();
+  updateChunks();updateHud();scheduleCreditShopTip();
   // Start ping loop
   setInterval(()=>socket.emit("clientPing"),2000);
   requestAnimationFrame(tick);
@@ -1681,8 +1722,8 @@ socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield})=>{
 socket.on("shipBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
 socket.on("craftShipConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield,invSlots,maxSlots})=>{player.shipType=shipTypeKey;player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}ship.hp=hp;ship.maxHp=maxHp;ship.shield=shield;ship.maxShield=maxShield;incrementBadgeCounter("crafted",1);showFT(`Crafted: ${SHIP_TYPES[shipTypeKey]?.name}!`,ship.x,ship.y-18,"#ffdd44",13);updateHud();renderShipShop();});
 socket.on("craftShipDenied",({reason})=>{showFT(reason||"Craft denied",ship.x,ship.y-15,"#ff5544");});
-socket.on("stationQuestRewardConfirm",({questId,credits,invSlots,maxSlots,reward})=>{if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}updateHud();addChat("Quest",`Reward received: +${reward?.credits||0}cr +${reward?.xp||0}xp`,"#78ff8a");});
-socket.on("stationQuestRewardDenied",({reason})=>addChat("Quest",reason||"Quest reward denied.","#ff5544"));
+socket.on("stationQuestRewardConfirm",({questId,credits,invSlots,maxSlots,reward})=>{if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}const q=questById(questId);if(q){awardBadge("first_quest","First Contract","Turn in your first station quest.");incrementBadgeCounter("quests",1);removeQuestFromLog(questId);}updateHud();addChat("Quest",`Quest turned in: +${reward?.credits||0}cr +${reward?.xp||0}xp`,"#78ff8a");showFT("QUEST TURNED IN",ship.x,ship.y-24,"#78ff8a",11);});
+socket.on("stationQuestRewardDenied",({questId,reason})=>{const q=questById(questId);if(q)q.pendingTurnIn=false;saveQuestState();addChat("Quest",reason||"Quest reward denied.","#ff5544");});
 socket.on("shipPartRewardConfirm",({credits,invSlots,maxSlots,reward,reason})=>{if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}updateHud();addChat("Reward",`${reason||"Salvage"}: +${reward?.credits||0}cr, items secured.`,"#ffdd44");});
 socket.on("shipPartRewardDenied",({reason})=>showFT(reason||"Reward denied",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-25:ship.y-18,"#ff5544",9));
 
@@ -2335,7 +2376,7 @@ function getStationQuests(st){
   if(!st)return[];if(stationQuestCatalog[st.id])return stationQuestCatalog[st.id];
   const lv=stationLevel(st),tier=st.tier||"outpost",fac=st.faction||"Station";
   const res=(st.tierDef?.itemPool||["stone","copper","iron"])[Math.floor(Math.random()*(st.tierDef?.itemPool?.length||3))]||"stone";
-  const mk=(i,type,title,desc,target)=>({id:`sq_${st.id}_${i}`,stationId:st.id,stationName:`${st.tierDef?.name||"Station"} - ${fac}`,stationTier:tier,level:lv,type,title,description:desc,target,progress:0,status:"available",rewardCredits:Math.floor(450*lv+target*18),rewardXp:Math.floor(130*lv+target*7),parts:partRewardForLevel(lv)});
+  const mk=(i,type,title,desc,target)=>({id:`sq_${st.id}_${i}`,stationId:st.id,stationName:`${st.tierDef?.name||"Station"} - ${fac}`,stationX:Math.round(st.x||0),stationY:Math.round(st.y||0),stationTier:tier,level:lv,type,title,description:desc,target,progress:0,status:"available",rewardCredits:Math.floor(450*lv+target*18),rewardXp:Math.floor(130*lv+target*7),parts:partRewardForLevel(lv)});
   const qs=[
     mk(0,"mine",`Mine ${RES[res]?.name||res}`,`Collect ${Math.max(10,lv*10)} units of ${RES[res]?.name||res} for ${fac}.`,Math.max(10,lv*10)),
     mk(1,"trade",`Supply Run`, `Earn ${Math.max(600,lv*900)} credits from trading/selling goods.`,Math.max(600,lv*900)),
@@ -2345,17 +2386,57 @@ function getStationQuests(st){
   stationQuestCatalog[st.id]=qs;return qs;
 }
 function questById(id){return questLog.find(q=>q.id===id);}
-function acceptStationQuest(q){if(!q||questById(q.id))return;const copy=JSON.parse(JSON.stringify(q));copy.status="active";copy.acceptedAt=Date.now();questLog.push(copy);saveQuestState();showFT("Quest accepted",ship.x,ship.y-22,"#ffdd44",10);addChat("Quest",`${copy.title} accepted. Press V for Quest Log.`,"#ffdd44");}
+function acceptStationQuest(q){if(!q||questById(q.id))return;const copy=JSON.parse(JSON.stringify(q));copy.status="active";copy.progress=copy.progress||0;copy.acceptedAt=Date.now();copy.pendingTurnIn=false;questLog.push(copy);questLogScroll=0;saveQuestState();showFT("Quest accepted",ship.x,ship.y-22,"#ffdd44",10);addChat("Quest",`${copy.title} accepted. Press V for Quest Log.`,"#ffdd44");}
 function recordQuestProgress(type,amount=1,meta={}){let changed=false;for(const q of questLog){if(q.status!=="active"||q.type!==type)continue;if(type==="mine"&&meta.resource&&q.description&&!q.description.toLowerCase().includes((RES[meta.resource]?.name||meta.resource).toLowerCase()))continue;q.progress=Math.min(q.target,(q.progress||0)+amount);changed=true;if(q.progress>=q.target)completeQuest(q);}if(changed)saveQuestState();}
-function completeQuest(q){if(!q||q.status==="complete")return;q.status="complete";q.completedAt=Date.now();awardBadge("first_quest","First Contract","Complete your first station quest.");incrementBadgeCounter("quests",1);socket.emit("stationQuestReward",{questId:q.id,rewardCredits:q.rewardCredits,rewardXp:q.rewardXp,parts:q.parts});showFT("QUEST COMPLETE!",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-34:ship.y-30,"#78ff8a",14);addChat("Quest",`${q.title} complete! Rewards incoming.`,"#78ff8a");}
+function completeQuest(q){if(!q||q.status==="complete"||q.status==="turnedIn")return;q.status="complete";q.completedAt=Date.now();q.pendingTurnIn=false;questLogScroll=0;showFT("QUEST READY TO TURN IN!",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-34:ship.y-30,"#78ff8a",14);addChat("Quest",`${q.title} objective complete. Return to ${q.stationName||"the issuing station"} and open O → QUESTS to turn it in.`,"#78ff8a");}
+function turnInStationQuest(q,st){if(!q)return;if(q.status!=="complete"){showFT("Quest is not complete yet",ship.x,ship.y-18,"#ffcc44",9);return;}if(q.pendingTurnIn)return;if(st&&q.stationId&&q.stationId!==st.id){showFT("Wrong station",ship.x,ship.y-18,"#ff5544",9);addChat("Quest",`Turn this quest in at ${q.stationName||"the issuing station"}.`,"#ffcc44");return;}q.pendingTurnIn=true;saveQuestState();showFT("Turning in quest...",ship.x,ship.y-20,"#7be6ff",9);socket.emit("stationQuestReward",{questId:q.id,rewardCredits:q.rewardCredits,rewardXp:q.rewardXp,parts:q.parts});}
+function removeQuestFromLog(questId){const before=questLog.length;questLog=questLog.filter(q=>q.id!==questId);if(questLog.length!==before){questLogScroll=clamp(questLogScroll,0,maxQuestLogScroll());saveQuestState();}}
 function awardBadge(id,name,description){if(badgeState.badges[id])return;badgeState.badges[id]={id,name,description,earnedAt:Date.now()};saveQuestState();showFT(`BADGE: ${name}`,mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-48:ship.y-42,"#b86bff",13);addChat("Badge",`${name} unlocked!`,"#b86bff");}
 function incrementBadgeCounter(key,amount=1){badgeState.counters[key]=(badgeState.counters[key]||0)+amount;const n=badgeState.counters[key];if(key==="pirates"&&n>=10)awardBadge("pirate_breaker","Pirate Breaker","Destroy 10 pirates.");if(key==="quests"&&n>=10)awardBadge("contract_captain","Contract Captain","Complete 10 station quests.");if(key==="ruin_chests"&&n>=5)awardBadge("salvage_runner","Salvage Runner","Open 5 derelict chests.");if(key==="crafted"&&n>=1)awardBadge("shipwright","Shipwright","Craft your first ship.");saveQuestState();}
-function toggleQuestLog(){questLogOpen=!questLogOpen;if(questLogOpen){badgeLogOpen=false;inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;}}
-function toggleBadgeLog(){badgeLogOpen=!badgeLogOpen;if(badgeLogOpen){questLogOpen=false;inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;}}
-function drawQuestLogPanel(){const pw=430,ph=260,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#ffdd44";ctx.strokeRect(px,py,pw,ph);ctx.fillStyle="#ffdd44";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("QUEST LOG",px+pw/2,py+18);ctx.textAlign="left";ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("V:close · Station quests are accepted from the O shop's QUESTS tab",px+12,py+32);const list=questLog.slice(-7).reverse();if(!list.length){ctx.fillStyle="#5a6a7a";ctx.fillText("No quests yet. Visit a station and open O → QUESTS.",px+20,py+70);}list.forEach((q,i)=>{const y=py+52+i*28,pct=Math.floor(((q.progress||0)/(q.target||1))*100);ctx.fillStyle=q.status==="complete"?"#102416":"#101420";ctx.fillRect(px+12,y,pw-24,24);ctx.strokeStyle=q.status==="complete"?"#4a8a6a":"#2a3a5a";ctx.strokeRect(px+12,y,pw-24,24);ctx.fillStyle=q.status==="complete"?"#78ff8a":"#fff";ctx.font="bold 8px monospace";ctx.fillText(`${q.status==="complete"?"✓":"•"} ${q.title}`,px+18,y+9);ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(`${q.stationName} · ${q.progress||0}/${q.target} (${pct}%) · +${q.rewardCredits}cr +${q.rewardXp}xp`,px+18,y+19);});}
-function drawBadgeLogPanel(){const pw=390,ph=245,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#b86bff";ctx.strokeRect(px,py,pw,ph);ctx.fillStyle="#b86bff";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("BADGE LOG",px+pw/2,py+18);ctx.textAlign="left";ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("Y:close · badges track long-term milestones",px+12,py+32);const badges=Object.values(badgeState.badges||{});if(!badges.length){ctx.fillStyle="#5a6a7a";ctx.fillText("No badges unlocked yet.",px+20,py+70);}badges.slice(-8).reverse().forEach((b,i)=>{const y=py+52+i*23;ctx.fillStyle="#171022";ctx.fillRect(px+12,y,pw-24,19);ctx.strokeStyle="#513a7a";ctx.strokeRect(px+12,y,pw-24,19);ctx.fillStyle="#ffdd44";ctx.font="bold 8px monospace";ctx.fillText(`◆ ${b.name}`,px+18,y+8);ctx.fillStyle="#cdb9ff";ctx.font="7px monospace";ctx.fillText(b.description,px+18,y+16);});}
-function drawShopQuests(st,px,py,pw,ph){const qs=getStationQuests(st);ctx.fillStyle="#7a9aaa";ctx.font="bold 9px monospace";ctx.fillText("STATION QUEST BOARD",px+10,py+66);qs.forEach((q,i)=>{const y=py+76+i*42;if(y>py+ph-42)return;const active=questById(q.id);ctx.fillStyle=active?(active.status==="complete"?"#102416":"#241f10"):"#0f1419";ctx.fillRect(px+10,y,pw-20,36);ctx.strokeStyle=active?"#ffdd44":"#2a3a4a";ctx.strokeRect(px+10,y,pw-20,36);ctx.fillStyle=active?(active.status==="complete"?"#78ff8a":"#ffdd44"):"#fff";ctx.font="bold 8px monospace";ctx.fillText(`${q.title}  Lv${q.level}`,px+18,y+10);ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(q.description,px+18,y+20);ctx.fillText(`Reward: ${q.rewardCredits}cr + ${q.rewardXp}xp + ship parts`,px+18,y+30);ctx.fillStyle=active?"#334":"#173a2a";ctx.fillRect(px+pw-90,y+8,66,20);ctx.strokeStyle=active?"#667":"#4a8a6a";ctx.strokeRect(px+pw-90,y+8,66,20);ctx.fillStyle=active?"#aaa":"#78ff8a";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(active?(active.status==="complete"?"DONE":"ACTIVE"):"ACCEPT",px+pw-57,y+21);ctx.textAlign="left";});}
-function handleQuestClick(st,mx,my,px,py,pw,ph){const qs=getStationQuests(st);for(let i=0;i<qs.length;i++){const y=py+76+i*42,bx=px+pw-90,by=y+8,bw=66,bh=20;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh&&!questById(qs[i].id)){acceptStationQuest(qs[i]);return;}}}
+function toggleQuestLog(){questLogOpen=!questLogOpen;if(questLogOpen){questLogScroll=0;badgeLogOpen=false;inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;}}
+function toggleBadgeLog(){badgeLogOpen=!badgeLogOpen;if(badgeLogOpen){badgeLogScroll=0;questLogOpen=false;inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;}}
+function drawQuestLogPanel(){
+  clampPanelScrolls();
+  const pw=450,ph=274,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#ffdd44";ctx.lineWidth=1;ctx.strokeRect(px,py,pw,ph);
+  ctx.fillStyle="#ffdd44";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("QUEST LOG",px+pw/2,py+18);ctx.textAlign="left";
+  ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("V:close · Mouse wheel scroll · Completed quests must be turned in at a station",px+12,py+32);
+  const ordered=[...questLog].sort((a,b)=>{const rank=q=>q.status==="complete"?0:q.status==="active"?1:2;return rank(a)-rank(b)||(b.acceptedAt||0)-(a.acceptedAt||0);});
+  questLogScroll=clamp(questLogScroll,0,Math.max(0,ordered.length-QUEST_LOG_VISIBLE_ROWS));
+  const list=ordered.slice(questLogScroll,questLogScroll+QUEST_LOG_VISIBLE_ROWS);
+  if(!ordered.length){ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("No quests yet. Visit a station and open O → QUESTS.",px+20,py+70);}
+  list.forEach((q,i)=>{const y=py+52+i*34,pct=Math.floor(((q.progress||0)/(q.target||1))*100),ready=q.status==="complete";ctx.fillStyle=ready?"#102416":"#101420";ctx.fillRect(px+12,y,pw-28,30);ctx.strokeStyle=ready?"#4a8a6a":"#2a3a5a";ctx.strokeRect(px+12,y,pw-28,30);ctx.fillStyle=ready?"#78ff8a":"#fff";ctx.font="bold 8px monospace";ctx.fillText(`${ready?"✓ TURN IN":"• ACTIVE"} ${q.title}`,px+18,y+9);ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(`${q.progress||0}/${q.target} (${pct}%) · +${q.rewardCredits}cr +${q.rewardXp}xp · ${q.stationName||"Station"}`,px+18,y+19);ctx.fillStyle=ready?"#ffdd44":"#5f7799";ctx.fillText(ready?"Open O → QUESTS at the issuing station to receive rewards and clear this quest.":"Keep progressing the objective, then return to station.",px+18,y+28);});
+  if(ordered.length>QUEST_LOG_VISIBLE_ROWS){const trackX=px+pw-11,trackY=py+50,trackH=QUEST_LOG_VISIBLE_ROWS*34-4;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(18,trackH*(QUEST_LOG_VISIBLE_ROWS/ordered.length));const knobY=trackY+(trackH-knobH)*(questLogScroll/Math.max(1,ordered.length-QUEST_LOG_VISIBLE_ROWS));ctx.fillStyle="#ffdd44";ctx.fillRect(trackX,knobY,4,knobH);}
+  const readyCount=questLog.filter(q=>q.status==="complete").length;ctx.fillStyle=readyCount?"#78ff8a":"#6a7a8a";ctx.font="8px monospace";ctx.fillText(`${readyCount} ready to turn in · ${questLog.length} total active/completed quests`,px+14,py+ph-12);
+}
+function drawBadgeLogPanel(){
+  clampPanelScrolls();
+  const pw=400,ph=252,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#b86bff";ctx.strokeRect(px,py,pw,ph);
+  ctx.fillStyle="#b86bff";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("BADGE LOG",px+pw/2,py+18);ctx.textAlign="left";
+  ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("Y:close · Mouse wheel scroll · badges track long-term milestones",px+12,py+32);
+  const badges=Object.values(badgeState.badges||{}).sort((a,b)=>(b.earnedAt||0)-(a.earnedAt||0));
+  badgeLogScroll=clamp(badgeLogScroll,0,Math.max(0,badges.length-BADGE_LOG_VISIBLE_ROWS));
+  const visible=badges.slice(badgeLogScroll,badgeLogScroll+BADGE_LOG_VISIBLE_ROWS);
+  if(!badges.length){ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("No badges unlocked yet.",px+20,py+70);}
+  visible.forEach((b,i)=>{const y=py+52+i*24;ctx.fillStyle="#171022";ctx.fillRect(px+12,y,pw-28,20);ctx.strokeStyle="#513a7a";ctx.strokeRect(px+12,y,pw-28,20);ctx.fillStyle="#ffdd44";ctx.font="bold 8px monospace";ctx.fillText(`◆ ${b.name}`,px+18,y+8);ctx.fillStyle="#cdb9ff";ctx.font="7px monospace";ctx.fillText(b.description,px+18,y+16);});
+  if(badges.length>BADGE_LOG_VISIBLE_ROWS){const trackX=px+pw-11,trackY=py+50,trackH=BADGE_LOG_VISIBLE_ROWS*24-4;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(18,trackH*(BADGE_LOG_VISIBLE_ROWS/badges.length));const knobY=trackY+(trackH-knobH)*(badgeLogScroll/Math.max(1,badges.length-BADGE_LOG_VISIBLE_ROWS));ctx.fillStyle="#b86bff";ctx.fillRect(trackX,knobY,4,knobH);}
+}
+function drawShopQuests(st,px,py,pw,ph){
+  const qs=getStationQuests(st);
+  ctx.fillStyle="#7a9aaa";ctx.font="bold 9px monospace";ctx.fillText("STATION QUEST BOARD",px+10,py+66);
+  ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText("Accept contracts here. Completed contracts must be turned in here for rewards.",px+10,py+75);
+  qs.forEach((q,i)=>{const y=py+84+i*39;if(y>py+ph-42)return;const active=questById(q.id),ready=active?.status==="complete",pending=!!active?.pendingTurnIn;ctx.fillStyle=active?(ready?"#102416":"#241f10"):"#0f1419";ctx.fillRect(px+10,y,pw-20,34);ctx.strokeStyle=ready?"#78ff8a":active?"#ffdd44":"#2a3a4a";ctx.strokeRect(px+10,y,pw-20,34);ctx.fillStyle=ready?"#78ff8a":active?"#ffdd44":"#fff";ctx.font="bold 8px monospace";ctx.fillText(`${q.title}  Lv${q.level}`,px+18,y+9);ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(q.description,px+18,y+18);ctx.fillText(`Reward: ${q.rewardCredits}cr + ${q.rewardXp}xp + ship parts`,px+18,y+27);const bx=px+pw-92,by=y+7,bw=70,bh=20;let label="ACCEPT",fill="#173a2a",stroke="#4a8a6a",txt="#78ff8a";if(active){if(ready){label=pending?"TURNING":"TURN IN";fill=pending?"#24313a":"#2d4a22";stroke=pending?"#667":"#78ff8a";txt=pending?"#aaa":"#d6ff7b";}else{label="ACTIVE";fill="#334";stroke="#667";txt="#aaa";}}ctx.fillStyle=fill;ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=stroke;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=txt;ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(label,bx+bw/2,by+13);ctx.textAlign="left";});
+  const readyHere=questLog.filter(q=>q.stationId===st.id&&q.status==="complete").length;
+  if(readyHere){ctx.fillStyle="#78ff8a";ctx.font="bold 8px monospace";ctx.fillText(`${readyHere} completed quest(s) ready to turn in at this station.`,px+10,py+ph-40);}
+}
+function handleQuestClick(st,mx,my,px,py,pw,ph){
+  const qs=getStationQuests(st);
+  for(let i=0;i<qs.length;i++){const y=py+84+i*39,bx=px+pw-92,by=y+7,bw=70,bh=20;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){const active=questById(qs[i].id);if(active?.status==="complete"){turnInStationQuest(active,st);return;}if(!active){acceptStationQuest(qs[i]);return;}}}
+}
+
 
 /* ── Attr screen ── */
 const ATTRS=[{key:"damage",name:"Weapon Damage",icon:"⚔"},{key:"speed",name:"Engine Thrust",icon:"🚀"},{key:"cargoMax",name:"Cargo Hold",icon:"📦"},{key:"armor",name:"Hull Armor",icon:"🛡"},{key:"gasEfficiency",name:"Fuel Efficiency",icon:"⚡"},{key:"shieldRegen",name:"Shield Regen",icon:"🔵"}];
