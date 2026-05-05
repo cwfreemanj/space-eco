@@ -605,6 +605,7 @@ function broadcastChat(from,message,color){io.emit("chat",{from,message:String(m
 
 /* ── Owned stations ── */
 const ownedStations=new Map();
+const stationHazardDamageCooldowns=new Map();
 
 function ownedStationListFor(socketId){
   return [...ownedStations.values()].map(st=>({
@@ -961,7 +962,7 @@ io.on("connection",socket=>{
     p.credits-=cost;p[key]=(p[key]||1)+1;
     socket.emit("characterUpgradeConfirm",{kind,level:p[key],credits:p.credits});
   });
-  
+
   socket.on("tradeRequest",({targetId})=>{
     const p=players.get(socket.id),t=players.get(targetId);
     if(!p||!t||p.id===t.id){socket.emit("tradeDenied",{reason:"Invalid trade target."});return;}
@@ -1246,6 +1247,31 @@ io.on("connection",socket=>{
     socket.emit("ownedStationHitConfirm",{stationKey,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,damage:result.damage});
     io.emit("ownedStationDamaged",{stationKey,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,ownerName:st.ownerName,attackerName:p.name});
     if(result.destroyed)destroyOwnedStation(st,p);
+    broadcastOwnedStationsList();
+  });
+
+  socket.on("environmentalDamageOwnedStation",({stationKey,damage,source,x,y})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="space")return;
+    stationKey=String(stationKey||"");
+    const st=ownedStations.get(stationKey);if(!st||st.destroyed)return;
+    // This is used for client-side PvE hazards like pirate raiders.
+    // Keep it capped, proximity-checked, and rate-limited so it cannot become a free high-damage grief tool.
+    if(Math.hypot(p.x-st.x,p.y-st.y)>2600)return;
+    const declaredX=Number(x),declaredY=Number(y);
+    if(Number.isFinite(declaredX)&&Number.isFinite(declaredY)&&Math.hypot(declaredX-st.x,declaredY-st.y)>1800)return;
+    const now=Date.now(),coolKey=`${socket.id}|${stationKey}|${String(source||"hazard").slice(0,24)}`;
+    const last=stationHazardDamageCooldowns.get(coolKey)||0;
+    if(now-last<520)return;
+    stationHazardDamageCooldowns.set(coolKey,now);
+    const safeDamage=Math.max(1,Math.min(45,Number(damage)||8));
+    const result=applyStationDamage(st,safeDamage);
+    for(const sh of st.hiredShips){
+      if(sh.state==="respawning")sh.respawnAt=Math.min(sh.respawnAt||Infinity,Date.now()+5000);
+      else sh.state="defending";
+    }
+    io.emit("ownedStationDamaged",{stationKey,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,ownerName:st.ownerName,attackerName:String(source||"Pirate Raiders").slice(0,32)});
+    socket.emit("ownedStationHitConfirm",{stationKey,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,damage:result.damage});
+    if(result.destroyed)destroyOwnedStation(st,null);
     broadcastOwnedStationsList();
   });
 
