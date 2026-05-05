@@ -143,7 +143,7 @@ tr:hover td{background:#1a2a3a}
     <span class="pill"><b>📍</b> <span id="coords">0, 0</span></span>
     <span class="pill"><b>Ship:</b> <span id="shipname">Scout</span></span>
     <span class="pill"><b>Inv:</b> <span id="inv">(empty)</span></span>
-    <span class="pill hint"><b>WASD</b>move/fly <b>L</b>land/takeoff <b>Q</b>tool <b>R</b>trade <b>C</b>character <b>F</b>social <b>J</b>party <b>U</b>faction <b>O</b>shop <b>G</b>gas <b>I</b>inv <b>P</b>attrs <b>H</b>ships <b>B</b>build <b>M</b>credits <b>K</b>board <b>N</b>players <b>T</b>chat <b>Click</b>fire/mine</span>
+    <span class="pill hint"><b>WASD</b>move/fly <b>L</b>land/takeoff <b>Q</b>tool <b>R</b>trade <b>C</b>character <b>F</b>social <b>J</b>party <b>U</b>faction <b>O</b>shop <b>V</b>quests <b>Y</b>badges <b>G</b>gas <b>I</b>inv <b>P</b>attrs <b>H</b>ships <b>B</b>build <b>M</b>credits <b>K</b>board <b>N</b>players <b>T</b>chat <b>Click</b>fire/mine</span>
   </div>
   <canvas id="c" width="560" height="310"></canvas>
 </div>
@@ -325,7 +325,7 @@ function isShown(el){return !!el&&getComputedStyle(el).display!=="none"&&getComp
 function isTextControl(target){const el=target&&target.closest&&target.closest("input, textarea, select, button, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
 function joinScreenOpen(){return isShown(document.getElementById("join-screen"));}
 function blockingDomPanelOpen(){return BLOCKING_DOM_PANEL_IDS.some(id=>isShown(document.getElementById(id)));}
-function canvasPanelOpen(){return !!(inventoryOpen||shopOpen||attrOpen||characterOpen);}
+function canvasPanelOpen(){return !!(inventoryOpen||shopOpen||attrOpen||characterOpen||questLogOpen||badgeLogOpen);}
 function domInputLocked(target=document.activeElement){return chatFocused||joinScreenOpen()||isTextControl(target)||blockingDomPanelOpen();}
 function gameplayInputLocked(target=document.activeElement){return domInputLocked(target)||canvasPanelOpen();}
 function clearMovementInput(){["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," "].forEach(k=>keys.delete(k));mouse.down=false;mouse.clicked=false;}
@@ -363,6 +363,8 @@ window.addEventListener("keydown",e=>{
   keys.add(key);
   if([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(key))e.preventDefault();
   if(key==="t"){openChat();e.preventDefault();return;}
+  if(key==="v"){toggleQuestLog();e.preventDefault();return;}
+  if(key==="y"){toggleBadgeLog();e.preventDefault();return;}
   if(key==="k"){toggleLeaderboard();return;}
   if(key==="n"){toggleServerList();return;}
   if(key==="h"){toggleShipShop();return;}
@@ -416,7 +418,10 @@ const RES={
   fuel:{name:"Battery Pack",rarity:4,color:"#78ff8a",base:25},gas_canister:{name:"Gas Canister",rarity:2,color:"#aaff44",base:30},oxygen_tank:{name:"Oxygen Tank",rarity:2,color:"#7be6ff",base:35},
   ice_block:{name:"Ice Block",rarity:2,color:"#b9f3ff",base:4},lava_rock:{name:"Lava Rock",rarity:3,color:"#ff4d1a",base:12},
   magma_core:{name:"Magma Core",rarity:4,color:"#d63810",base:22},toxic_sludge:{name:"Toxic Sludge",rarity:3,color:"#a3d15c",base:8},
-  sand:{name:"Sand",rarity:1,color:"#f4d68f",base:2},grass_tuft:{name:"Grass",rarity:1,color:"#4db357",base:1}
+  sand:{name:"Sand",rarity:1,color:"#f4d68f",base:2},grass_tuft:{name:"Grass",rarity:1,color:"#4db357",base:1},
+  hull_plate:{name:"Hull Plate",rarity:5,color:"#9db0c8",base:85},engine_core:{name:"Engine Core",rarity:6,color:"#ff9b42",base:140},
+  shield_matrix:{name:"Shield Matrix",rarity:6,color:"#58a6ff",base:170},weapon_array:{name:"Weapon Array",rarity:6,color:"#ff4d6d",base:190},
+  cargo_pod:{name:"Cargo Pod",rarity:5,color:"#c49a6c",base:95},nav_chip:{name:"Nav Chip",rarity:6,color:"#b86bff",base:155},obelisk_core:{name:"Obelisk Core",rarity:8,color:"#fff0a8",base:800}
 };
 const GAS_COST=40,GAS_REFUEL=30,ENERGY_DRAIN=1.8,ENERGY_IDLE=0.15;
 
@@ -427,7 +432,11 @@ let SHIP_TYPES={
   fighter:{name:"Fighter",price:3500,description:"Combat-focused with strong weapons.",maxHp:130,maxShield:80,thrustMult:1.15,cargoMult:0.7,damageMult:1.8,shieldRegenMult:1.2,size:"medium"},
   interceptor:{name:"Interceptor",price:5000,description:"Extreme speed. Fragile but deadly fast.",maxHp:80,maxShield:50,thrustMult:1.6,cargoMult:0.5,damageMult:1.3,shieldRegenMult:1.5,size:"small"},
   dreadnought:{name:"Dreadnought",price:12000,description:"Tanky powerhouse. Slow but devastating.",maxHp:280,maxShield:150,thrustMult:0.55,cargoMult:1.5,damageMult:2.2,shieldRegenMult:0.7,size:"huge"},
-  phantom:{name:"Phantom",price:8000,description:"Balanced stealth raider.",maxHp:110,maxShield:90,thrustMult:1.3,cargoMult:0.9,damageMult:1.5,shieldRegenMult:1.4,size:"medium"},
+  phantom:{name:"Phantom",price:8000,description:"Balanced stealth raider.",maxHp:110,maxShield:90,thrustMult:1.3,cargoMult:0.9,damageMult:1.5,shieldRegenMult:1.4,size:"medium",specialty:"Raiding"},
+  miner_mantis:{name:"Miner Mantis",price:0,craftOnly:true,description:"Crafted mining cutter with expanded bay and ore scanner.",maxHp:145,maxShield:75,thrustMult:1.05,cargoMult:2.7,damageMult:1.05,shieldRegenMult:1.0,size:"large",specialty:"Mining + cargo",recipe:{credits:6000,hull_plate:4,engine_core:2,cargo_pod:4,copper:40,iron:30}},
+  guardian:{name:"Guardian",price:0,craftOnly:true,description:"Crafted escort cruiser built to protect stations and allies.",maxHp:230,maxShield:210,thrustMult:0.82,cargoMult:1.2,damageMult:1.65,shieldRegenMult:1.8,size:"large",specialty:"Defense escort",recipe:{credits:11000,hull_plate:8,shield_matrix:3,weapon_array:2,iron:70,gold:20}},
+  solar_sprinter:{name:"Solar Sprinter",price:0,craftOnly:true,description:"Crafted solar racer with excellent fuel efficiency and long-range scout speed.",maxHp:95,maxShield:95,thrustMult:1.85,cargoMult:0.85,damageMult:1.25,shieldRegenMult:1.45,size:"small",specialty:"Speed + fuel",recipe:{credits:14000,engine_core:5,nav_chip:3,crystal:25,fuel:20}},
+  obelisk_carrier:{name:"Obelisk Carrier",price:0,craftOnly:true,description:"Crafted mothership-class carrier with giant cargo, heavy shields, and command presence.",maxHp:390,maxShield:260,thrustMult:0.50,cargoMult:3.4,damageMult:2.35,shieldRegenMult:0.95,size:"huge",specialty:"Mother ship",recipe:{credits:45000,obelisk_core:1,hull_plate:16,shield_matrix:8,weapon_array:6,cargo_pod:10,crystal:70,gold:100,magma_core:40}},
 };
 let OWNED_STATION_TIERS={
   outpost:{name:"Personal Outpost",price:5000,maxShips:3,shipHireCost:500,collectRange:800},
@@ -492,6 +501,7 @@ const PLANET_ATTACK_RANGE=72;
 const pvpProjectiles=[];
 const localPlayerProjectiles=[];
 const enemyProjectiles=[];
+const allyProjectiles=[];
 let shootCooldown=0;
 const SHOOT_CD=0.22;
 const spaceDrops=[];
@@ -502,7 +512,7 @@ let ownedStationsList=[]; // [{key,x,y,tier,ownerName,shipCount,isOwn}]
 let myOwnedStations=new Map(); // key → {goods,shipCount}
 
 /* ── Game state ── */
-let gameOver=false,inventoryOpen=false,shopOpen=false,attrOpen=false;
+let gameOver=false,inventoryOpen=false,shopOpen=false,attrOpen=false,questLogOpen=false,badgeLogOpen=false;
 let shopTab="sell",shopSelectedSlot=null,shopSellQty=1,shopBuyItem=null,shopBuyQty=1,pendingShopBuy=null;
 let selectedSlot=null,nearStation=null,buildSlotIndex=null,planetLoading=false,oxygenDamageTimer=0;
 let inventoryScrollRows=0,shopInventoryScrollRows=0;
@@ -702,45 +712,54 @@ function updateTradeShip(ts,station,allPlanets,dt){
 /* ── Random events: pirate ambushes + wandering trade encounters ── */
 const randomEventStations=[];
 const eventPirates=[];
+const eventShipRuins=[];
+const specialEventPlanets=[];
+let activeRuin=null,ruinChests=[],ruinBaddies=[],ruinSurvivors=[];
 let randomEventTimer=180+Math.random()*60;
 let activeRandomOffer=null;
 function showRandomEventOffer(title,body,onAccept){
-  activeRandomOffer={title,body,onAccept,expires:Date.now()+30000};
-  const box=document.getElementById("random-event-banner"),txt=document.getElementById("random-event-text"),a=document.getElementById("random-event-accept"),d=document.getElementById("random-event-decline");
-  if(!box||!txt)return;
-  txt.innerHTML=`<b>${title}</b> — ${body}`;box.style.display="block";
-  if(a)a.onclick=()=>{const offer=activeRandomOffer;hideRandomEventOffer();if(offer&&offer.onAccept)offer.onAccept();};
-  if(d)d.onclick=()=>{hideRandomEventOffer();addChat("Event","Signal declined.","#ff8844");};
+  // Deprecated: exploration events now spawn directly into the galaxy instead of needing accept/decline.
+  addChat("Event",`${title}: ${body}`,"#ffdd44");
+  if(typeof onAccept==="function")onAccept();
 }
-function hideRandomEventOffer(){const box=document.getElementById("random-event-banner");if(box)box.style.display="none";activeRandomOffer=null;}
+function hideRandomEventOffer(){activeRandomOffer=null;}
 function spawnPirateAmbush(){
   const count=2+Math.floor(Math.random()*3)+Math.min(3,Math.floor(player.level/4));
   for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,r=360+Math.random()*190;eventPirates.push({id:`pir_${Date.now()}_${i}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,vx:0,vy:0,angle:a,hp:55+player.level*10,maxHp:55+player.level*10,damage:8+player.level*1.5,speed:75+Math.random()*35,shootTimer:0.8+Math.random()*0.9});}
   addChat("Event",`Pirate ambush! ${count} raiders dropped out of warp.`,"#ff5544");showFT("PIRATE AMBUSH!",ship.x,ship.y-35,"#ff5544",16);
 }
 function spawnTradeConvoy(){
-  const a=Math.random()*Math.PI*2,r=420+Math.random()*220;
-  const tierDef={name:"Galactic Trade Ark",color:"#ffdd66",glowColor:"rgba(255,221,102,.38)",size:34,priceMultSell:.95,priceMultBuy:1.45,factionName:"Wandering Exchange",factionColor:"#ffdd66",itemPool:["gold","crystal","fuel","gas_canister","oxygen_tank","magma_core","ice_block","copper","iron"],stockMin:16,stockMax:70,xpReward:240};
-  const st={id:`event_trade_${Date.now()}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,tier:"capital",tierDef,r:tierDef.size+14,faction:tierDef.factionName,factionColor:tierDef.factionColor,nearbyPlanets:Math.max(1,visiblePlanets.length),densityMult:1,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:600,expireAt:Date.now()+4*60*1000,...createNpcStationState("capital")};
-  st.hp=18000;st.maxHp=18000;st.shield=8000;st.maxShield=8000;
+  const a=Math.random()*Math.PI*2,r=520+Math.random()*420;
+  const tierDef={name:"Galactic Trade Ark",color:"#ffdd66",glowColor:"rgba(255,221,102,.38)",size:38,priceMultSell:.95,priceMultBuy:1.55,factionName:"Wandering Exchange",factionColor:"#ffdd66",itemPool:["hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip","obelisk_core","gold","crystal","fuel","gas_canister","oxygen_tank","magma_core","ice_block","copper","iron"],stockMin:8,stockMax:36,xpReward:360};
+  const st={id:`event_trade_${Date.now()}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,tier:"capital",tierDef,r:tierDef.size+18,faction:tierDef.factionName,factionColor:tierDef.factionColor,nearbyPlanets:Math.max(1,visiblePlanets.length),densityMult:1,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:600,expireAt:Date.now()+9*60*1000,specialTrade:true,...createNpcStationState("capital")};
+  st.hp=22000;st.maxHp=22000;st.shield=10000;st.maxShield=10000;
   randomEventStations.push(st);refreshBuyStock(st);updateChunks();
-  addChat("Event","A Galactic Trade Ark is broadcasting nearby. Fly to it and press O to trade before it jumps away.","#ffdd44");showFT("TRADE ARK SPAWNED",st.x,st.y-40,"#ffdd44",13);
+  addChat("Event","A Galactic Trade Ark has jumped nearby. It sells rare ship parts for crafting.","#ffdd44");showFT("TRADE ARK SPAWNED",st.x,st.y-40,"#ffdd44",13);
 }
-function spawnDerelictCache(){
-  const pool=["stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank"],n=12+Math.floor(Math.random()*14);
-  for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,r=80+Math.random()*260;spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,vx:(Math.random()-.5)*70,vy:(Math.random()-.5)*70,life:65});}
-  addChat("Event",`Derelict cache cracked open: ${n} salvage crates scattered nearby.`,"#78ff8a");showFT("SALVAGE FIELD",ship.x,ship.y-35,"#78ff8a",14);
+function makeRuinPreview(){
+  const c=document.createElement("canvas");c.width=32;c.height=32;const g=c.getContext("2d");g.fillStyle="#131820";g.fillRect(5,10,22,12);g.fillStyle="#4d5d73";g.fillRect(7,12,16,8);g.fillStyle="#ffdd66";g.fillRect(20,14,3,2);g.fillStyle="#7be6ff";g.fillRect(10,13,2,2);g.fillStyle="#111";g.fillRect(3,16,6,3);return c;
+}
+function spawnShipRuin(){
+  const a=Math.random()*Math.PI*2,r=480+Math.random()*520;
+  const ruin={id:`ruin_${Date.now()}_${Math.floor(Math.random()*9999)}`,seed:GALAXY_SEED+"|ruin|"+Date.now(),x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,radius:42,expireAt:Date.now()+12*60*1000,preview:makeRuinPreview(),name:"Derelict Ship Ruin",looted:false};
+  eventShipRuins.push(ruin);addChat("Event","A derelict ship ruin is drifting nearby. Fly close and press L to board it.","#78ff8a");showFT("SHIP RUIN DETECTED",ruin.x,ruin.y-35,"#78ff8a",13);
+}
+function makeSpecialPlanetPreview(pal){const prev=document.createElement("canvas");prev.width=32;prev.height=32;const g=prev.getContext("2d");for(let y=0;y<32;y++)for(let x=0;x<32;x++){if(Math.hypot(x-16,y-16)<=15){g.fillStyle=(x+y)%3?pal.a:pal.b;g.fillRect(x,y,1,1);}}g.fillStyle="#fff6";g.fillRect(10,8,3,1);g.fillRect(18,21,4,1);return prev;}
+function spawnSpecialPlanet(){
+  const a=Math.random()*Math.PI*2,r=650+Math.random()*620,pal={a:"#d6ff7b",b:"#7b5cff",sky:"#060817"};
+  const p={id:`special_planet_${Date.now()}`,seed:GALAXY_SEED+"|special|"+Date.now(),x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,radius:58,type:"volcanic",special:true,pal,preview:makeSpecialPlanetPreview(pal),resList:["copper","iron","gold","crystal","hull_plate","engine_core","nav_chip"]};
+  specialEventPlanets.push(p);addChat("Event","A special resource planet phased into this sector. Rare ship parts may appear in deep deposits.","#b86bff");showFT("SPECIAL PLANET",p.x,p.y-45,"#b86bff",14);
 }
 function updateRandomEvents(dt){
   if(mode!==MODE.SPACE||gameOver||!joined)return;
-  if(activeRandomOffer&&Date.now()>activeRandomOffer.expires)hideRandomEventOffer();
   randomEventTimer-=dt;
   if(randomEventTimer<=0){
     randomEventTimer=180+Math.random()*60;
     const roll=Math.random();
-    if(roll<0.48)spawnPirateAmbush();
-    else if(roll<0.78)showRandomEventOffer("Deep-Space Trade Ping","A huge Galactic Trade Ark can jump nearby for 4 minutes. Trade, raid, or ignore it?",spawnTradeConvoy);
-    else showRandomEventOffer("Derelict Salvage Signal","Accept coordinates to crack open a drifting cargo cache nearby.",spawnDerelictCache);
+    if(roll<0.42)spawnPirateAmbush();
+    else if(roll<0.66)spawnTradeConvoy();
+    else if(roll<0.84)spawnShipRuin();
+    else spawnSpecialPlanet();
   }
 }
 function updateEventPirates(dt){
@@ -750,7 +769,7 @@ function updateEventPirates(dt){
     if(d>140){ep.vx=lerp(ep.vx,Math.cos(ang)*ep.speed,0.055);ep.vy=lerp(ep.vy,Math.sin(ang)*ep.speed,0.055);}else{ep.vx*=0.96;ep.vy*=0.96;}
     if(ep.shootTimer<=0&&d<430){ep.shootTimer=1.1+Math.random()*0.7;const ba=ang+(Math.random()-.5)*0.18;enemyProjectiles.push({x:ep.x,y:ep.y,vx:Math.cos(ba)*230,vy:Math.sin(ba)*230,damage:ep.damage,life:2.6,source:"Pirate",sourceTarget:{type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y}});}
     ep.x+=ep.vx*dt;ep.y+=ep.vy*dt;ep.vx*=Math.pow(.985,dt*60);ep.vy*=Math.pow(.985,dt*60);
-    if(ep.hp<=0){const pool=["copper","iron","gold","fuel","gas_canister"],drops=2+Math.floor(Math.random()*4);for(let k=0;k<drops;k++)spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ep.x+(Math.random()-.5)*24,y:ep.y+(Math.random()-.5)*24,vx:(Math.random()-.5)*55,vy:(Math.random()-.5)*55,life:35});socket.emit("gainXp",{amount:35+Math.floor(player.level*8)});showFT("Pirate destroyed",ep.x,ep.y,"#ffcc44",10);eventPirates.splice(i,1);}
+    if(ep.hp<=0){const pool=["copper","iron","gold","fuel","gas_canister","hull_plate","weapon_array"],drops=2+Math.floor(Math.random()*4);for(let k=0;k<drops;k++)spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ep.x+(Math.random()-.5)*24,y:ep.y+(Math.random()-.5)*24,vx:(Math.random()-.5)*55,vy:(Math.random()-.5)*55,life:35});socket.emit("gainXp",{amount:35+Math.floor(player.level*8)});recordQuestProgress("pirate",1,{tier:"combat"});incrementBadgeCounter("pirates",1);showFT("Pirate destroyed",ep.x,ep.y,"#ffcc44",10);eventPirates.splice(i,1);}
   }
 }
 function drawEventPirates(camX,camY){
@@ -768,6 +787,7 @@ function updateChunks(){
   visiblePlanets=[];visibleStations=[];
   for(let dcx=-CHUNK_RADIUS;dcx<=CHUNK_RADIUS;dcx++)for(let dcy=-CHUNK_RADIUS;dcy<=CHUNK_RADIUS;dcy++){const{planets,stations}=generateChunk(cx0+dcx,cy0+dcy);for(const p of planets)visiblePlanets.push(p);for(const s of stations)visibleStations.push(s);}
   if(Array.isArray(randomEventStations))for(const st of randomEventStations)if(!st.expireAt||Date.now()<st.expireAt)visibleStations.push(st);
+  if(Array.isArray(specialEventPlanets))for(const p of specialEventPlanets)if(!p.expireAt||Date.now()<p.expireAt)visiblePlanets.push(p);
 }
 
 /* ── Planet mode ── */
@@ -862,7 +882,7 @@ const modeEl=document.getElementById("mode"),creditsEl=document.getElementById("
   eText=document.getElementById("energy-text"),o2Bar=document.getElementById("oxygen-bar-inner"),o2Text=document.getElementById("oxygen-text"),pcEl=document.getElementById("player-count");
 
 function updateHud(){
-  modeEl.textContent=mode===MODE.SPACE?"SPACE":"PLANET:"+(activePlanet?activePlanet.type.toUpperCase():"");
+  modeEl.textContent=mode===MODE.SPACE?"SPACE":(activeRuin?"SHIP RUIN":"PLANET:"+(activePlanet?activePlanet.type.toUpperCase():""));
   creditsEl.textContent=player.credits;
   scoreEl.textContent=player.score||0;
   lvlEl.textContent=player.level;
@@ -1111,13 +1131,22 @@ function callOwnedTradeShipsToAssist(target,label="target"){
   }
   return called;
 }
+function spawnAllyProjectileVisual(os,target){
+  if(!target)return;
+  const tx=target.x,ty=target.y,ang=angleToward(os.x,os.y,tx,ty),speed=360;
+  allyProjectiles.push({x:os.x,y:os.y,vx:Math.cos(ang)*speed,vy:Math.sin(ang)*speed,life:0.75,color:os.isOwn?"#ffee88":"#ff8844",tx,ty});
+}
+function updateAllyProjectiles(dt){
+  for(let i=allyProjectiles.length-1;i>=0;i--){const p=allyProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0||dist(p.x,p.y,p.tx,p.ty)<9)allyProjectiles.splice(i,1);}
+}
 function updateOwnedTradeShipAssist(os,st,dt){
   const target=resolveOwnedAssistTarget(os.assistTarget);
   if(!target){os.assistTarget=null;os.state="return";return false;}
   const tx=target.x,ty=target.y,d=dist(os.x,os.y,tx,ty),ang=angleToward(os.x,os.y,tx,ty);os.angle=ang;
   if(d>155){os.vx=lerp(os.vx,Math.cos(ang)*os.speed,0.085);os.vy=lerp(os.vy,Math.sin(ang)*os.speed,0.085);}else{os.vx*=0.94;os.vy*=0.94;}
   if(os.shootTimer<=0&&d<430){
-    os.shootTimer=0.62;
+    os.shootTimer=0.50+Math.random()*0.16;
+    spawnAllyProjectileVisual(os,target);
     if(target.type==="npcTradeShip"){
       aggroNpcStation(target.station);target.obj.hp-=os.damage;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);if(target.obj.hp<=0)killTradeShip(target.obj,target.station);
     }else if(target.type==="npcStation"){
@@ -1229,7 +1258,9 @@ function renderShipShop(){
       </div>
       <div style="margin-top:8px;text-align:right">
         ${owned?'<span style="color:#78ff8a;font-size:11px">Currently flying</span>'
-          :`<button onclick="buyShip('${key}')" style="background:${canAfford?"#1a3a2a":"#2a1a1a"};border:1px solid ${canAfford?"#4a8a6a":"#5a3a3a"};border-radius:4px;color:${canAfford?"#78ff8a":"#6a6a6a"};padding:4px 10px;cursor:${canAfford?"pointer":"default"};font-size:11px">${def.price===0?"FREE":def.price+"cr"}</button>`}
+          :(def.craftOnly||def.recipe)
+            ?`<div style="font-size:9px;color:#8fa3cc;text-align:left;margin-bottom:5px">${shipRecipeText(def.recipe)}</div><button onclick="craftShip('${key}')" style="background:${canCraftShipLocal(def.recipe)?"#3a3010":"#2a1a1a"};border:1px solid ${canCraftShipLocal(def.recipe)?"#b8942a":"#5a3a3a"};border-radius:4px;color:${canCraftShipLocal(def.recipe)?"#ffdd44":"#8a7777"};padding:4px 10px;cursor:${canCraftShipLocal(def.recipe)?"pointer":"default"};font-size:11px">CRAFT</button>`
+            :`<button onclick="buyShip('${key}')" style="background:${canAfford?"#1a3a2a":"#2a1a1a"};border:1px solid ${canAfford?"#4a8a6a":"#5a3a3a"};border-radius:4px;color:${canAfford?"#78ff8a":"#6a6a6a"};padding:4px 10px;cursor:${canAfford?"pointer":"default"};font-size:11px">${def.price===0?"FREE":def.price+"cr"}</button>`}
       </div>`;
     list.appendChild(div);
     // Draw ship preview
@@ -1240,7 +1271,7 @@ function drawShipPreview(key,def){
   const c=document.getElementById("shippreview_"+key);if(!c)return;
   const pc=c.getContext("2d");pc.clearRect(0,0,40,30);pc.fillStyle="#05060a";pc.fillRect(0,0,40,30);
   pc.save();pc.translate(20,15);
-  const colors={scout:"#aabbcc",hauler:"#88aadd",fighter:"#dd6644",interceptor:"#44ddcc",dreadnought:"#ddaa44",phantom:"#aa66dd"};
+  const colors={scout:"#aabbcc",hauler:"#88aadd",fighter:"#dd6644",interceptor:"#44ddcc",dreadnought:"#ddaa44",phantom:"#aa66dd",miner_mantis:"#9bd66f",guardian:"#58a6ff",solar_sprinter:"#ffdd66",obelisk_carrier:"#fff0a8"};
   pc.fillStyle=colors[key]||"#aabbcc";
   if(key==="scout"){pc.fillRect(-8,-5,16,10);pc.fillStyle="#ff7744";pc.fillRect(-10,-3,3,6);}
   else if(key==="hauler"){pc.fillRect(-12,-7,24,14);pc.fillStyle="#ff7744";pc.fillRect(-13,-4,3,8);}
@@ -1248,8 +1279,15 @@ function drawShipPreview(key,def){
   else if(key==="interceptor"){pc.beginPath();pc.moveTo(14,0);pc.lineTo(-8,-3);pc.lineTo(-5,0);pc.lineTo(-8,3);pc.closePath();pc.fill();pc.fillStyle="#ff7744";pc.fillRect(-9,-1,3,2);}
   else if(key==="dreadnought"){pc.fillRect(-14,-9,28,18);pc.fillStyle="#aa7722";pc.fillRect(-15,-5,4,10);pc.fillStyle=colors[key];pc.fillRect(-10,-12,6,4);pc.fillRect(-10,8,6,4);}
   else if(key==="phantom"){pc.beginPath();pc.moveTo(11,0);pc.lineTo(-9,-5);pc.lineTo(-7,0);pc.lineTo(-9,5);pc.closePath();pc.fill();pc.fillStyle="#7722aa";pc.fillRect(-10,-2,4,4);}
+  else if(key==="miner_mantis"){pc.fillRect(-12,-6,20,12);pc.fillStyle="#d6ff7b";pc.fillRect(6,-10,4,20);pc.fillRect(-16,-2,5,4);}
+  else if(key==="guardian"){pc.fillRect(-13,-8,26,16);pc.fillStyle="#58a6ff";pc.globalAlpha=.45;pc.beginPath();pc.arc(0,0,15,0,Math.PI*2);pc.stroke();pc.globalAlpha=1;}
+  else if(key==="solar_sprinter"){pc.beginPath();pc.moveTo(15,0);pc.lineTo(-10,-4);pc.lineTo(-5,0);pc.lineTo(-10,4);pc.closePath();pc.fill();pc.fillStyle="#ff9b42";pc.fillRect(-12,-1,4,2);}
+  else if(key==="obelisk_carrier"){pc.fillRect(-15,-10,30,20);pc.fillStyle="#111";pc.fillRect(-4,-14,8,28);pc.fillStyle="#fff0a8";pc.fillRect(10,-4,4,8);}
   pc.restore();
 }
+function shipRecipeText(recipe){if(!recipe)return"";const parts=Object.entries(recipe).map(([k,v])=>k==="credits"?`${v}cr`:`${RES[k]?.name||k} ${inventoryTotal(k)}/${v}`);return parts.join(" · ");}
+function canCraftShipLocal(recipe){if(!recipe)return false;if(player.credits<(recipe.credits||0))return false;for(const[k,v]of Object.entries(recipe)){if(k!=="credits"&&inventoryTotal(k)<v)return false;}return true;}
+function craftShip(key){const def=SHIP_TYPES[key];if(!def?.recipe)return;if(!canCraftShipLocal(def.recipe)){showFT("Missing credits or ship parts",ship.x,ship.y-18,"#ff5544",9);return;}socket.emit("craftShip",{shipTypeKey:key});document.getElementById("ship-panel").style.display="none";}
 function buyShip(key){
   const def=SHIP_TYPES[key];if(!def)return;
   if(player.credits<def.price&&def.price>0){showFT("Not enough credits",ship.x,ship.y-15,"#ff5544");return;}
@@ -1391,7 +1429,7 @@ function renderOwnedStations(){
 }
 function hireShip(stationKey){socket.emit("hireShip",{stationKey});}
 function collectStation(stationKey){socket.emit("collectOwnedStation",{stationKey});}
-window.buyShip=buyShip;window.buyStation=buyStation;window.hireShip=hireShip;window.collectStation=collectStation;window.startCreditPurchase=startCreditPurchase;window.toggleCreditShop=toggleCreditShop;
+window.buyShip=buyShip;window.craftShip=craftShip;window.buyStation=buyStation;window.hireShip=hireShip;window.collectStation=collectStation;window.startCreditPurchase=startCreditPurchase;window.toggleCreditShop=toggleCreditShop;
 
 /* ══════════════════════════════════════
    SOCKET.IO
@@ -1472,7 +1510,7 @@ socket.on("creditPurchaseDenied",({reason})=>{setCreditPayStatus(reason||"Credit
 socket.on("xpUpdate",({xp,level})=>{player.xp=xp;player.level=level;player.xpToNext=xpForLevel(level);updateHud();});
 socket.on("levelUp",({level,attrPoints})=>{player.level=level;player.attrPoints=attrPoints;showFT("LEVEL UP! +2 Attr Points",canvas.width/2,canvas.height/2,"#cc88ff",18);});
 socket.on("scoreUpdate",({score,delta,reason})=>{player.score=score;showScorePopup(delta,reason);updateHud();});
-socket.on("sellConfirm",({resourceType,quantity,earned,credits,prices})=>{serverPrices=prices;player.credits=credits;showFT(`+${earned}cr`,ship.x,ship.y-15,"#ffd15c");updateHud();});
+socket.on("sellConfirm",({resourceType,quantity,earned,credits,prices})=>{serverPrices=prices;player.credits=credits;recordQuestProgress("trade",earned||0,{resource:resourceType});showFT(`+${earned}cr`,ship.x,ship.y-15,"#ffd15c");updateHud();});
 socket.on("buyConfirm",({resourceType,quantity,cost,credits,prices})=>{
   serverPrices=prices;player.credits=credits;
   if(pendingShopBuy&&pendingShopBuy.type===resourceType){
@@ -1506,6 +1544,7 @@ socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
 socket.on("planetMineReward",({planetId,kind,x,y,qty})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
   showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
+  recordQuestProgress("mine",qty||1,{resource:kind});
   // Fallback for older servers that grant inventory but do not broadcast a
   // visible planetMineDrop event. Newer servers send planetMineDrop to everyone.
   const key=makeMineDropKey(planetId,kind,x,y);
@@ -1584,6 +1623,12 @@ socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield})=>{
   showFT(`Now flying: ${SHIP_TYPES[shipTypeKey]?.name}!`,ship.x,ship.y-15,"#ffdd44",12);updateHud();renderShipShop();
 });
 socket.on("shipBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
+socket.on("craftShipConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield,invSlots,maxSlots})=>{player.shipType=shipTypeKey;player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}ship.hp=hp;ship.maxHp=maxHp;ship.shield=shield;ship.maxShield=maxShield;incrementBadgeCounter("crafted",1);showFT(`Crafted: ${SHIP_TYPES[shipTypeKey]?.name}!`,ship.x,ship.y-18,"#ffdd44",13);updateHud();renderShipShop();});
+socket.on("craftShipDenied",({reason})=>{showFT(reason||"Craft denied",ship.x,ship.y-15,"#ff5544");});
+socket.on("stationQuestRewardConfirm",({questId,credits,invSlots,maxSlots,reward})=>{if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}updateHud();addChat("Quest",`Reward received: +${reward?.credits||0}cr +${reward?.xp||0}xp`,"#78ff8a");});
+socket.on("stationQuestRewardDenied",({reason})=>addChat("Quest",reason||"Quest reward denied.","#ff5544"));
+socket.on("shipPartRewardConfirm",({credits,invSlots,maxSlots,reward,reason})=>{if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}updateHud();addChat("Reward",`${reason||"Salvage"}: +${reward?.credits||0}cr, items secured.`,"#ffdd44");});
+socket.on("shipPartRewardDenied",({reason})=>showFT(reason||"Reward denied",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-25:ship.y-18,"#ff5544",9));
 
 socket.on("stationBuyConfirm",({key,x,y,tier,credits})=>{player.credits=credits;showFT(`Station built!`,ship.x,ship.y-15,"#ffcc44",12);updateHud();});
 socket.on("stationBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
@@ -1781,6 +1826,7 @@ function updateSpace(dt){
 
   // Player-owned station trade ship update
   updateOwnedTradeShips(dt);
+  updateAllyProjectiles(dt);
 
   // Space drops
   for(let i=spaceDrops.length-1;i>=0;i--){const d=spaceDrops[i];d.x+=d.vx*dt;d.y+=d.vy*dt;d.vx*=Math.pow(0.96,dt*60);d.vy*=Math.pow(0.96,dt*60);d.life-=dt;if(d.life<=0){spaceDrops.splice(i,1);continue;}if(dist(d.x,d.y,ship.x,ship.y)<18&&addToInventory(d.type,1)){showFT("+1 "+RES[d.type].name,ship.x,ship.y,"#78ff8a",9);spaceDrops.splice(i,1);}}
@@ -1790,6 +1836,8 @@ function updateSpace(dt){
 
   // Nearest station
   for(let rs=randomEventStations.length-1;rs>=0;rs--)if(randomEventStations[rs].expireAt&&Date.now()>randomEventStations[rs].expireAt)randomEventStations.splice(rs,1);
+  for(let rr=eventShipRuins.length-1;rr>=0;rr--)if(eventShipRuins[rr].expireAt&&Date.now()>eventShipRuins[rr].expireAt)eventShipRuins.splice(rr,1);
+  for(let sp=specialEventPlanets.length-1;sp>=0;sp--)if(specialEventPlanets[sp].expireAt&&Date.now()>specialEventPlanets[sp].expireAt)specialEventPlanets.splice(sp,1);
   nearStation=null;for(const st of visibleStations){if(!st.destroyed&&dist(ship.x,ship.y,st.x,st.y)<st.r+70){nearStation=st;break;}}
 
   // Keys
@@ -1838,8 +1886,45 @@ function enterPlanetWithLoadedMap(){
   socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});
   showFT("Planetfall",astronaut.x,astronaut.y-25,"#7be6ff",11);
 }
+
+function genRuinMap(ruin){
+  const W=150,H=55,tiles=new Uint8Array(W*H),hp=new Uint8Array(W*H),idx=(x,y)=>y*W+x;
+  for(let x=0;x<W;x++){tiles[idx(x,H-4)]=2;hp[idx(x,H-4)]=255;tiles[idx(x,8)]=2;hp[idx(x,8)]=255;}
+  for(let y=8;y<H-3;y++){tiles[idx(0,y)]=2;tiles[idx(W-1,y)]=2;hp[idx(0,y)]=hp[idx(W-1,y)]=255;}
+  for(let x=10;x<W-10;x++){if(x%26<18){tiles[idx(x,31)]=2;hp[idx(x,31)]=255;}if(x%38<16){tiles[idx(x,20)]=2;hp[idx(x,20)]=255;}}
+  for(let x=28;x<36;x++)tiles[idx(x,31)]=0;for(let x=72;x<80;x++)tiles[idx(x,20)]=0;
+  const rng=makeRng((ruin.seed||ruin.id)+"|inside");
+  ruinChests=[];ruinBaddies=[];ruinSurvivors=[];
+  for(let i=0;i<4;i++)ruinChests.push({id:`${ruin.id}_ch_${i}`,x:(20+i*28+rng()*10)*16,y:(i%2?29:18)*16-4,opened:false});
+  for(let i=0;i<3;i++)ruinBaddies.push({id:`${ruin.id}_bd_${i}`,x:(40+i*30)*16,y:30*16-6,vx:0,hp:35+player.level*8,maxHp:35+player.level*8,damage:5+player.level,hitTimer:0});
+  if(rng()<0.75)ruinSurvivors.push({id:`${ruin.id}_surv_0`,x:118*16,y:30*16-4,saved:false});
+  return {W,H,tiles,hp,heights:new Array(W).fill(H-4),planet:activePlanet};
+}
+function enterShipRuin(ruin){
+  activeRuin=ruin;activePlanet={id:ruin.id,seed:ruin.seed,type:"ship_ruin",special:true,x:ruin.x,y:ruin.y,radius:42,pal:{sky:"#05060a",a:"#7be6ff",b:"#2f3744"},resList:["iron","copper","hull_plate","engine_core"]};
+  planetMap=genRuinMap(ruin);mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;planetPlayers.clear();
+  astronaut.x=14*16;astronaut.y=(planetMap.H-5)*16-8;astronaut.vx=0;astronaut.vy=0;landedShip.x=8*16;landedShip.y=(planetMap.H-4)*16-4;drops.length=0;planetTool="weapon";
+  socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});showFT("Boarded derelict",astronaut.x,astronaut.y-25,"#78ff8a",12);
+  awardBadge("first_boarding","Boarding Party","Board your first derelict ship ruin.");
+}
+function updateRuinContents(dt){
+  if(!activeRuin)return;
+  for(const b of ruinBaddies){if(b.hp<=0)continue;b.hitTimer=Math.max(0,(b.hitTimer||0)-dt);const d=dist(b.x,b.y,astronaut.x,astronaut.y);const dir=Math.sign(astronaut.x-b.x)||1;if(d<280)b.vx=lerp(b.vx,dir*45,0.06);else b.vx*=0.9;b.x+=b.vx*dt;const tx=Math.floor(b.x/16),ty=Math.floor((b.y+2)/16);if(!tileAt(tx,ty+1))b.vx*=-1;if(d<18&&b.hitTimer<=0){b.hitTimer=1.1;socket.emit("oxygenDamage",{damage:b.damage});showFT("Boarder hit!",astronaut.x,astronaut.y-25,"#ff5544",9);}}
+  if(keys.has("e")){keys.delete("e");let acted=false;for(const c of ruinChests){if(!c.opened&&dist(astronaut.x,astronaut.y,c.x,c.y)<30){c.opened=true;acted=true;const pool=["hull_plate","engine_core","cargo_pod","shield_matrix","weapon_array","nav_chip","gold","crystal"];const item=pool[Math.floor(Math.random()*pool.length)],qty=item.includes("_")?1:3;socket.emit("shipPartReward",{items:[{type:item,qty}],credits:150+player.level*55,xp:60+player.level*18,reason:"Ruin Chest"});recordQuestProgress("ruin",1,{});incrementBadgeCounter("ruin_chests",1);showFT(`Chest: ${RES[item]?.name||item}`,c.x,c.y-20,"#ffdd44",10);break;}}
+    if(!acted)for(const s of ruinSurvivors){if(!s.saved&&dist(astronaut.x,astronaut.y,s.x,s.y)<32){s.saved=true;socket.emit("shipPartReward",{items:[{type:"nav_chip",qty:1}],credits:800+player.level*80,xp:180+player.level*30,reason:"Survivor Rescue"});recordQuestProgress("rescue",1,{});awardBadge("first_rescue","Signal Savior","Rescue a survivor from a derelict.");showFT("Survivor rescued",s.x,s.y-20,"#78ff8a",10);break;}}
+  }
+}
+function drawRuinContents(cam){
+  if(!activeRuin)return;
+  for(const c of ruinChests){const x=c.x-cam.x,y=c.y-cam.y;ctx.fillStyle=c.opened?"#3a2a12":"#b8792a";ctx.fillRect(x-6,y-7,12,10);ctx.fillStyle="#ffdd44";ctx.fillRect(x-4,y-8,8,2);if(!c.opened&&dist(astronaut.x,astronaut.y,c.x,c.y)<34){ctx.fillStyle="#ffdd44";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("E: Open",x,y-12);ctx.textAlign="left";}}
+  for(const b of ruinBaddies){if(b.hp<=0)continue;const x=b.x-cam.x,y=b.y-cam.y;ctx.fillStyle="#ff5544";ctx.fillRect(x-5,y-12,10,12);ctx.fillStyle="#ffdd44";ctx.fillRect(x-2,y-9,4,3);const hp=clamp(b.hp/b.maxHp,0,1);ctx.fillStyle="#300";ctx.fillRect(x-12,y-17,24,2);ctx.fillStyle="#ff5544";ctx.fillRect(x-12,y-17,24*hp,2);}
+  for(const s of ruinSurvivors){const x=s.x-cam.x,y=s.y-cam.y;ctx.fillStyle=s.saved?"#4a8a6a":"#7be6ff";ctx.fillRect(x-4,y-13,8,13);if(!s.saved&&dist(astronaut.x,astronaut.y,s.x,s.y)<34){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("E: Rescue",x,y-16);ctx.textAlign="left";}}
+}
+
 function landOnNearestPlanet(){
   if(planetLoading){showFT("Landing sequence already started...",ship.x,ship.y-18,"#7be6ff",9);return;}
+  const nearestRuin=eventShipRuins.filter(r=>!r.expireAt||Date.now()<r.expireAt).map(r=>({r,d:dist(ship.x,ship.y,r.x,r.y)})).sort((a,b)=>a.d-b.d)[0];
+  if(nearestRuin&&nearestRuin.d<85){enterShipRuin(nearestRuin.r);return;}
   const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];
   if(!nearest||nearest.d>=nearest.p.radius+60)return;
   activePlanet=nearest.p;planetLoading=true;
@@ -1847,10 +1932,11 @@ function landOnNearestPlanet(){
   showFT("Loading planet map...",ship.x,ship.y-18,"#7be6ff",10);
 }
 function leavePlanet(){
-  ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;ship.vx*=0.2;ship.vy*=0.2;
-  mode=MODE.SPACE;oxygen.current=oxygen.max;planetLoading=false;
+  if(activePlanet){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;}ship.vx*=0.2;ship.vy*=0.2;
+  mode=MODE.SPACE;oxygen.current=oxygen.max;planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;
   socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});
   updateChunks();
+  showFT("Takeoff!",ship.x,ship.y-20,"#7be6ff",11);
 }
 function useOxygenTank(){
   if(oxygen.current>=oxygen.max)return false;
@@ -1897,6 +1983,14 @@ function drawSpace(){
   for(const p of visiblePlanets){const px=p.x-camX,py=p.y-camY;if(px<-80||py<-80||px>canvas.width+80||py>canvas.height+80)continue;ctx.drawImage(p.preview,px-16,py-16);if(dist(ship.x,ship.y,p.x,p.y)<p.radius+70){ctx.fillStyle="#b9f3ff";ctx.font="8px monospace";ctx.fillText("L: Land",px-14,py-p.radius/2-4);}
     // Coordinate label on minimap planet hover (shown in space too near player)
     if(dist(ship.x,ship.y,p.x,p.y)<p.radius+120){ctx.save();ctx.globalAlpha=0.55;ctx.fillStyle="#7be6ff";ctx.font="7px monospace";ctx.textAlign="center";ctx.fillText(`(${Math.round(p.x)},${Math.round(p.y)})`,px,py+p.radius/2+14);ctx.restore();ctx.globalAlpha=1;}
+  }
+
+  // Ship ruins
+  for(const ru of eventShipRuins){
+    if(ru.expireAt&&Date.now()>ru.expireAt)continue;
+    const rx=ru.x-camX,ry=ru.y-camY;if(rx<-80||ry<-80||rx>canvas.width+80||ry>canvas.height+80)continue;
+    ctx.save();ctx.globalAlpha=0.95;ctx.translate(rx,ry);ctx.rotate(Math.sin(Date.now()/3000)*0.08);ctx.fillStyle="#2f3744";ctx.fillRect(-22,-9,44,18);ctx.fillStyle="#10151d";ctx.fillRect(-14,-6,12,12);ctx.fillStyle="#78ff8a";ctx.fillRect(8,-4,5,3);ctx.strokeStyle="#7be6ff";ctx.globalAlpha=0.45;ctx.strokeRect(-25,-12,50,24);ctx.restore();ctx.globalAlpha=1;
+    ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("SHIP RUIN",rx,ry-20);if(dist(ship.x,ship.y,ru.x,ru.y)<75)ctx.fillText("L: Board",rx,ry+24);ctx.textAlign="left";
   }
 
   // Owned stations
@@ -1971,6 +2065,10 @@ function drawSpace(){
     else if(op.shipType==="interceptor"){ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-8,-3);ctx.lineTo(-5,0);ctx.lineTo(-8,3);ctx.closePath();ctx.fill();}
     else if(op.shipType==="dreadnought"){ctx.fillRect(-14,-9,28,18);ctx.fillStyle="#aa7722";ctx.fillRect(-15,-5,4,10);}
     else if(op.shipType==="phantom"){ctx.beginPath();ctx.moveTo(11,0);ctx.lineTo(-9,-5);ctx.lineTo(-7,0);ctx.lineTo(-9,5);ctx.closePath();ctx.fill();}
+    else if(op.shipType==="miner_mantis"){ctx.fillRect(-12,-6,20,12);ctx.fillRect(6,-10,4,20);}
+    else if(op.shipType==="guardian"){ctx.fillRect(-13,-8,26,16);ctx.strokeStyle="#58a6ff";ctx.globalAlpha=.5;ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}
+    else if(op.shipType==="solar_sprinter"){ctx.beginPath();ctx.moveTo(15,0);ctx.lineTo(-10,-4);ctx.lineTo(-5,0);ctx.lineTo(-10,4);ctx.closePath();ctx.fill();}
+    else if(op.shipType==="obelisk_carrier"){ctx.fillRect(-16,-10,32,20);ctx.fillRect(-4,-15,8,30);}
     else{ctx.fillRect(-6,-4,12,8);} // scout default
     ctx.restore();
     // Name, HP, shield
@@ -1985,6 +2083,7 @@ function drawSpace(){
   for(const p of pvpProjectiles){const px2=p.x-camX,py2=p.y-camY;const own=p.ownerId===player.id;ctx.fillStyle=own?"#ffff44":"#ff6622";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=4;ctx.beginPath();ctx.arc(px2,py2,2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of localPlayerProjectiles){ctx.fillStyle="#ffff44";ctx.shadowColor="#ffff44";ctx.shadowBlur=4;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of enemyProjectiles){ctx.fillStyle="#ff4422";ctx.shadowColor="#ff4422";ctx.shadowBlur=4;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
+  for(const p of allyProjectiles){ctx.fillStyle=p.color||"#ffee88";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.35;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,6,0,Math.PI*2);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;}
   ctx.shadowBlur=0;
 
   // Space drops
@@ -2000,6 +2099,10 @@ function drawSpace(){
     else if(stype==="interceptor"){ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-8,-3);ctx.lineTo(-5,0);ctx.lineTo(-8,3);ctx.closePath();ctx.fill();ctx.fillStyle="#ff7744";ctx.fillRect(-9,-1,3,2);}
     else if(stype==="dreadnought"){ctx.fillRect(-14,-9,28,18);ctx.fillStyle="#aa7722";ctx.fillRect(-15,-5,4,10);ctx.fillStyle=shipColor;ctx.fillRect(-10,-12,6,4);ctx.fillRect(-10,8,6,4);}
     else if(stype==="phantom"){ctx.beginPath();ctx.moveTo(11,0);ctx.lineTo(-9,-5);ctx.lineTo(-7,0);ctx.lineTo(-9,5);ctx.closePath();ctx.fill();ctx.fillStyle="#7722aa";ctx.fillRect(-10,-2,4,4);}
+    else if(stype==="miner_mantis"){ctx.fillRect(-12,-6,20,12);ctx.fillStyle="#d6ff7b";ctx.fillRect(6,-10,4,20);ctx.fillStyle="#ff7744";ctx.fillRect(-15,-2,4,4);}
+    else if(stype==="guardian"){ctx.fillRect(-13,-8,26,16);ctx.strokeStyle="#58a6ff";ctx.globalAlpha=.55;ctx.beginPath();ctx.arc(0,0,17,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;ctx.fillStyle="#ff7744";ctx.fillRect(-16,-3,4,6);}
+    else if(stype==="solar_sprinter"){ctx.beginPath();ctx.moveTo(15,0);ctx.lineTo(-10,-4);ctx.lineTo(-5,0);ctx.lineTo(-10,4);ctx.closePath();ctx.fill();ctx.fillStyle="#ff9b42";ctx.fillRect(-12,-1,4,2);}
+    else if(stype==="obelisk_carrier"){ctx.fillRect(-16,-10,32,20);ctx.fillStyle="#111";ctx.fillRect(-4,-15,8,30);ctx.fillStyle="#fff0a8";ctx.fillRect(10,-4,4,8);}
     else{ctx.fillRect(-6,-4,12,8);ctx.fillStyle="#ff7744";ctx.fillRect(-8,-2,2,4);}
     if(keys.has("w")){ctx.globalAlpha=0.7;ctx.fillStyle="#ff8830";ctx.beginPath();ctx.arc(-9,0,5,0,Math.PI*2);ctx.fill();}
     ctx.restore();ctx.globalAlpha=1;
@@ -2026,6 +2129,8 @@ function drawSpace(){
   if(shopOpen&&nearStation)drawShop(nearStation);
   if(inventoryOpen)drawInventory();
   if(attrOpen)drawAttrScreen();
+  if(questLogOpen)drawQuestLogPanel();
+  if(badgeLogOpen)drawBadgeLogPanel();
   if(gameOver)drawGameOver();
 }
 
@@ -2037,6 +2142,9 @@ function drawMinimap(){
   const wm=(wx,wy)=>({x:mmX+mmW/2+(wx-ship.x)/mmRange*mmW/2,y:mmY+mmH/2+(wy-ship.y)/mmRange*mmH/2});
   for(const p of visiblePlanets){const m=wm(p.x,p.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=p.pal.a;ctx.beginPath();ctx.arc(m.x,m.y,clamp(p.radius/18,1.5,4),0,Math.PI*2);ctx.fill();}
   for(const st of visibleStations){const m=wm(st.x,st.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=st.factionColor;ctx.fillRect(m.x-2,m.y-2,4,4);}
+  // Ship ruins on minimap
+  for(const ru of eventShipRuins){const m=wm(ru.x,ru.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle="#78ff8a";ctx.fillRect(m.x-1.5,m.y-1.5,3,3);}
+
   // Owned stations on minimap
   for(const ost of ownedStationsList){const m=wm(ost.x,ost.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=ost.isOwn?"#ffcc44":"#aaaaaa";ctx.fillRect(m.x-2,m.y-2,4,4);}
   for(const os of ownedTradeShips.values()){const m=wm(os.x,os.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=os.isOwn?"#ffee88":"#bbbbbb";ctx.beginPath();ctx.arc(m.x,m.y,1.5,0,Math.PI*2);ctx.fill();}
@@ -2054,10 +2162,10 @@ function drawShop(st){
   ctx.fillStyle="#111620";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle=st.tierDef.color;ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
   ctx.fillStyle=st.tierDef.color;ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText(st.tierDef.name+" Station — "+st.faction,px+pw/2,py+16);
   ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(`Credits: ${player.credits} | ${st.nearbyPlanets} planets nearby`,px+pw/2,py+28);ctx.textAlign="left";
-  const tabs=["sell","buy"];tabs.forEach((t,i)=>{const tx=px+10+i*80,ty=py+34,tw=75,th=18;ctx.fillStyle=shopTab===t?"#1a2a3e":"#0b1020";ctx.fillRect(tx,ty,tw,th);ctx.strokeStyle=shopTab===t?st.tierDef.color:"#2a3a5a";ctx.lineWidth=1;ctx.strokeRect(tx,ty,tw,th);ctx.fillStyle=shopTab===t?"#fff":"#6a8a9a";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(t.toUpperCase(),tx+tw/2,ty+13);ctx.textAlign="left";});
+  const tabs=["sell","buy","quests"];tabs.forEach((t,i)=>{const tx=px+10+i*80,ty=py+34,tw=75,th=18;ctx.fillStyle=shopTab===t?"#1a2a3e":"#0b1020";ctx.fillRect(tx,ty,tw,th);ctx.strokeStyle=shopTab===t?st.tierDef.color:"#2a3a5a";ctx.lineWidth=1;ctx.strokeRect(tx,ty,tw,th);ctx.fillStyle=shopTab===t?"#fff":"#6a8a9a";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(t.toUpperCase(),tx+tw/2,ty+13);ctx.textAlign="left";});
   const sec=Math.ceil(st.buyStockTimer);ctx.fillStyle="#5a7a6a";ctx.font="8px monospace";ctx.fillText(`Restock: ${Math.floor(sec/60)}:${String(sec%60).padStart(2,"0")}`,px+180,py+48);
   ctx.strokeStyle="#1a2a3e";ctx.beginPath();ctx.moveTo(px+5,py+55);ctx.lineTo(px+pw-5,py+55);ctx.stroke();
-  if(shopTab==="sell")drawShopSell(st,px,py,pw,ph);else drawShopBuy(st,px,py,pw,ph);
+  if(shopTab==="sell")drawShopSell(st,px,py,pw,ph);else if(shopTab==="buy")drawShopBuy(st,px,py,pw,ph);else drawShopQuests(st,px,py,pw,ph);
   const gx=px+10,gy=py+ph-28,gw=130,gh=20,gasPrice=stationGasPrice(),can1=player.credits>=gasPrice;
   ctx.fillStyle=can1?"#1a3a1a":"#2a1a1a";ctx.fillRect(gx,gy,gw,gh);ctx.strokeStyle=can1?"#4a8a4a":"#5a3a3a";ctx.lineWidth=1;ctx.strokeRect(gx,gy,gw,gh);ctx.fillStyle=can1?"#aaff44":"#6a6a6a";ctx.font="bold 8px monospace";ctx.fillText(`Buy Gas: ${gasPrice}cr (+${GAS_REFUEL}%)`,gx+5,gy+14);
   ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText("O:close | H:ships | B:build",px+160,py+ph-15);
@@ -2109,9 +2217,9 @@ function drawShopBuy(st,px,py,pw,ph){
 function handleShopClick(mx,my){
   if(!nearStation)return;const st=nearStation;
   const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
-  const tabs=["sell","buy"];for(let i=0;i<tabs.length;i++){const tx=px+10+i*80,ty=py+34,tw=75,th=18;if(mx>=tx&&mx<=tx+tw&&my>=ty&&my<=ty+th){shopTab=tabs[i];shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;return;}}
+  const tabs=["sell","buy","quests"];for(let i=0;i<tabs.length;i++){const tx=px+10+i*80,ty=py+34,tw=75,th=18;if(mx>=tx&&mx<=tx+tw&&my>=ty&&my<=ty+th){shopTab=tabs[i];shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;return;}}
   const gx=px+10,gy=py+ph-28,gw=130,gh=20;if(mx>=gx&&mx<=gx+gw&&my>=gy&&my<=gy+gh){const gasPrice=stationGasPrice();if(player.credits>=gasPrice){showFT("Buying gas canister",ship.x,ship.y-15,"#aaff44");socket.emit("buy",{resourceType:"gas_canister",quantity:1,pricePerUnit:gasPrice});}return;}
-  if(shopTab==="sell")handleSellClick(st,mx,my,px,py,pw,ph);else handleBuyClick(st,mx,my,px,py,pw,ph);
+  if(shopTab==="sell")handleSellClick(st,mx,my,px,py,pw,ph);else if(shopTab==="buy")handleBuyClick(st,mx,my,px,py,pw,ph);else handleQuestClick(st,mx,my,px,py,pw,ph);
 }
 
 function handleSellClick(st,mx,my,px,py,pw,ph){
@@ -2150,6 +2258,45 @@ function handleBuyClick(st,mx,my,px,py,pw,ph){
     }
   }
 }
+
+
+/* ── Quest log + badge log ── */
+const QUEST_STORAGE_KEY="spaceEco.questLog.v2";
+const BADGE_STORAGE_KEY="spaceEco.badges.v2";
+let stationQuestCatalog={};
+let questLog=[];
+let badgeState={badges:{},counters:{}};
+function loadQuestState(){try{questLog=JSON.parse(localStorage.getItem(QUEST_STORAGE_KEY)||"[]");}catch(_){questLog=[];}try{badgeState=JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY)||"{}")||{};}catch(_){badgeState={};}badgeState.badges=badgeState.badges||{};badgeState.counters=badgeState.counters||{};}
+function saveQuestState(){try{localStorage.setItem(QUEST_STORAGE_KEY,JSON.stringify(questLog.slice(-80)));localStorage.setItem(BADGE_STORAGE_KEY,JSON.stringify(badgeState));}catch(_){}}
+loadQuestState();
+function inventoryTotal(type){ensureClientInventorySlots();return player.invSlots.reduce((n,s)=>n+(s.type===type?(s.count||0):0),0);}
+function stationLevel(st){return ({outpost:1,standard:3,advanced:6,capital:10}[st?.tier]||1)+(st?.specialTrade?3:0);}
+function partRewardForLevel(lv){const parts=["hull_plate","engine_core","cargo_pod","shield_matrix","weapon_array","nav_chip"];const out=[{type:parts[Math.min(parts.length-1,Math.floor(Math.random()*Math.min(parts.length,2+Math.floor(lv/3))))],qty:1+Math.floor(lv/6)}];if(lv>=10&&Math.random()<0.18)out.push({type:"obelisk_core",qty:1});return out;}
+function getStationQuests(st){
+  if(!st)return[];if(stationQuestCatalog[st.id])return stationQuestCatalog[st.id];
+  const lv=stationLevel(st),tier=st.tier||"outpost",fac=st.faction||"Station";
+  const res=(st.tierDef?.itemPool||["stone","copper","iron"])[Math.floor(Math.random()*(st.tierDef?.itemPool?.length||3))]||"stone";
+  const mk=(i,type,title,desc,target)=>({id:`sq_${st.id}_${i}`,stationId:st.id,stationName:`${st.tierDef?.name||"Station"} - ${fac}`,stationTier:tier,level:lv,type,title,description:desc,target,progress:0,status:"available",rewardCredits:Math.floor(450*lv+target*18),rewardXp:Math.floor(130*lv+target*7),parts:partRewardForLevel(lv)});
+  const qs=[
+    mk(0,"mine",`Mine ${RES[res]?.name||res}`,`Collect ${Math.max(10,lv*10)} units of ${RES[res]?.name||res} for ${fac}.`,Math.max(10,lv*10)),
+    mk(1,"trade",`Supply Run`, `Earn ${Math.max(600,lv*900)} credits from trading/selling goods.`,Math.max(600,lv*900)),
+    mk(2,"pirate",`Defend the Route`, `Destroy ${Math.max(2,Math.ceil(lv/2))} pirate ships near trade lanes.`,Math.max(2,Math.ceil(lv/2)))
+  ];
+  if(lv>=6)qs.push(mk(3,"ruin",`Recover Derelict Tech`,`Open ${Math.max(1,Math.ceil(lv/5))} chests inside ship ruins.`,Math.max(1,Math.ceil(lv/5))));
+  stationQuestCatalog[st.id]=qs;return qs;
+}
+function questById(id){return questLog.find(q=>q.id===id);}
+function acceptStationQuest(q){if(!q||questById(q.id))return;const copy=JSON.parse(JSON.stringify(q));copy.status="active";copy.acceptedAt=Date.now();questLog.push(copy);saveQuestState();showFT("Quest accepted",ship.x,ship.y-22,"#ffdd44",10);addChat("Quest",`${copy.title} accepted. Press V for Quest Log.`,"#ffdd44");}
+function recordQuestProgress(type,amount=1,meta={}){let changed=false;for(const q of questLog){if(q.status!=="active"||q.type!==type)continue;if(type==="mine"&&meta.resource&&q.description&&!q.description.toLowerCase().includes((RES[meta.resource]?.name||meta.resource).toLowerCase()))continue;q.progress=Math.min(q.target,(q.progress||0)+amount);changed=true;if(q.progress>=q.target)completeQuest(q);}if(changed)saveQuestState();}
+function completeQuest(q){if(!q||q.status==="complete")return;q.status="complete";q.completedAt=Date.now();awardBadge("first_quest","First Contract","Complete your first station quest.");incrementBadgeCounter("quests",1);socket.emit("stationQuestReward",{questId:q.id,rewardCredits:q.rewardCredits,rewardXp:q.rewardXp,parts:q.parts});showFT("QUEST COMPLETE!",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-34:ship.y-30,"#78ff8a",14);addChat("Quest",`${q.title} complete! Rewards incoming.`,"#78ff8a");}
+function awardBadge(id,name,description){if(badgeState.badges[id])return;badgeState.badges[id]={id,name,description,earnedAt:Date.now()};saveQuestState();showFT(`BADGE: ${name}`,mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-48:ship.y-42,"#b86bff",13);addChat("Badge",`${name} unlocked!`,"#b86bff");}
+function incrementBadgeCounter(key,amount=1){badgeState.counters[key]=(badgeState.counters[key]||0)+amount;const n=badgeState.counters[key];if(key==="pirates"&&n>=10)awardBadge("pirate_breaker","Pirate Breaker","Destroy 10 pirates.");if(key==="quests"&&n>=10)awardBadge("contract_captain","Contract Captain","Complete 10 station quests.");if(key==="ruin_chests"&&n>=5)awardBadge("salvage_runner","Salvage Runner","Open 5 derelict chests.");if(key==="crafted"&&n>=1)awardBadge("shipwright","Shipwright","Craft your first ship.");saveQuestState();}
+function toggleQuestLog(){questLogOpen=!questLogOpen;if(questLogOpen){badgeLogOpen=false;inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;}}
+function toggleBadgeLog(){badgeLogOpen=!badgeLogOpen;if(badgeLogOpen){questLogOpen=false;inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;}}
+function drawQuestLogPanel(){const pw=430,ph=260,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#ffdd44";ctx.strokeRect(px,py,pw,ph);ctx.fillStyle="#ffdd44";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("QUEST LOG",px+pw/2,py+18);ctx.textAlign="left";ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("V:close · Station quests are accepted from the O shop's QUESTS tab",px+12,py+32);const list=questLog.slice(-7).reverse();if(!list.length){ctx.fillStyle="#5a6a7a";ctx.fillText("No quests yet. Visit a station and open O → QUESTS.",px+20,py+70);}list.forEach((q,i)=>{const y=py+52+i*28,pct=Math.floor(((q.progress||0)/(q.target||1))*100);ctx.fillStyle=q.status==="complete"?"#102416":"#101420";ctx.fillRect(px+12,y,pw-24,24);ctx.strokeStyle=q.status==="complete"?"#4a8a6a":"#2a3a5a";ctx.strokeRect(px+12,y,pw-24,24);ctx.fillStyle=q.status==="complete"?"#78ff8a":"#fff";ctx.font="bold 8px monospace";ctx.fillText(`${q.status==="complete"?"✓":"•"} ${q.title}`,px+18,y+9);ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(`${q.stationName} · ${q.progress||0}/${q.target} (${pct}%) · +${q.rewardCredits}cr +${q.rewardXp}xp`,px+18,y+19);});}
+function drawBadgeLogPanel(){const pw=390,ph=245,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#b86bff";ctx.strokeRect(px,py,pw,ph);ctx.fillStyle="#b86bff";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("BADGE LOG",px+pw/2,py+18);ctx.textAlign="left";ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("Y:close · badges track long-term milestones",px+12,py+32);const badges=Object.values(badgeState.badges||{});if(!badges.length){ctx.fillStyle="#5a6a7a";ctx.fillText("No badges unlocked yet.",px+20,py+70);}badges.slice(-8).reverse().forEach((b,i)=>{const y=py+52+i*23;ctx.fillStyle="#171022";ctx.fillRect(px+12,y,pw-24,19);ctx.strokeStyle="#513a7a";ctx.strokeRect(px+12,y,pw-24,19);ctx.fillStyle="#ffdd44";ctx.font="bold 8px monospace";ctx.fillText(`◆ ${b.name}`,px+18,y+8);ctx.fillStyle="#cdb9ff";ctx.font="7px monospace";ctx.fillText(b.description,px+18,y+16);});}
+function drawShopQuests(st,px,py,pw,ph){const qs=getStationQuests(st);ctx.fillStyle="#7a9aaa";ctx.font="bold 9px monospace";ctx.fillText("STATION QUEST BOARD",px+10,py+66);qs.forEach((q,i)=>{const y=py+76+i*42;if(y>py+ph-42)return;const active=questById(q.id);ctx.fillStyle=active?(active.status==="complete"?"#102416":"#241f10"):"#0f1419";ctx.fillRect(px+10,y,pw-20,36);ctx.strokeStyle=active?"#ffdd44":"#2a3a4a";ctx.strokeRect(px+10,y,pw-20,36);ctx.fillStyle=active?(active.status==="complete"?"#78ff8a":"#ffdd44"):"#fff";ctx.font="bold 8px monospace";ctx.fillText(`${q.title}  Lv${q.level}`,px+18,y+10);ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(q.description,px+18,y+20);ctx.fillText(`Reward: ${q.rewardCredits}cr + ${q.rewardXp}xp + ship parts`,px+18,y+30);ctx.fillStyle=active?"#334":"#173a2a";ctx.fillRect(px+pw-90,y+8,66,20);ctx.strokeStyle=active?"#667":"#4a8a6a";ctx.strokeRect(px+pw-90,y+8,66,20);ctx.fillStyle=active?"#aaa":"#78ff8a";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(active?(active.status==="complete"?"DONE":"ACTIVE"):"ACCEPT",px+pw-57,y+21);ctx.textAlign="left";});}
+function handleQuestClick(st,mx,my,px,py,pw,ph){const qs=getStationQuests(st);for(let i=0;i<qs.length;i++){const y=py+76+i*42,bx=px+pw-90,by=y+8,bw=66,bh=20;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh&&!questById(qs[i].id)){acceptStationQuest(qs[i]);return;}}}
 
 /* ── Attr screen ── */
 const ATTRS=[{key:"damage",name:"Weapon Damage",icon:"⚔"},{key:"speed",name:"Engine Thrust",icon:"🚀"},{key:"cargoMax",name:"Cargo Hold",icon:"📦"},{key:"armor",name:"Hull Armor",icon:"🛡"},{key:"gasEfficiency",name:"Fuel Efficiency",icon:"⚡"},{key:"shieldRegen",name:"Shield Regen",icon:"🔵"}];
@@ -2212,7 +2359,8 @@ function updatePlanet(dt){
   if(astronaut.y>bottomY){astronaut.y=bottomY;astronaut.vy=0;astronaut.onGround=true;}
   if(!controlsLocked&&keys.has("x")){keys.delete("x");useOxygenTank();}
   if(!controlsLocked&&keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
-  if(!controlsLocked&&mouse.down&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon")planetWeaponAttack();else doMining(dt);}
+  if(!controlsLocked&&mouse.down&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon")planetWeaponAttack();else if(!activeRuin)doMining(dt);}
+  if(activeRuin)updateRuinContents(dt);
   for(let i=drops.length-1;i>=0;i--){
     const it=drops[i];
     it.age=(it.age||0)+dt;
@@ -2233,7 +2381,7 @@ function updatePlanet(dt){
   updateHud();
 }
 function drawPlanet(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle=activePlanet.pal.sky;ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle=(activePlanet?.pal?.sky)||"#05060a";ctx.fillRect(0,0,canvas.width,canvas.height);
   const cam=planetCamera(),TP=16,x0=Math.floor(cam.x/TP),y0=Math.floor(cam.y/TP),x1=Math.ceil((cam.x+canvas.width)/TP),y1=Math.ceil((cam.y+canvas.height)/TP);
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=tileAt(x,y);if(!t)continue;const px2=x*TP-cam.x,py2=y*TP-cam.y;ctx.fillStyle=TILECOLORS[t]||"#6b7075";ctx.fillRect(px2,py2,TP,TP);ctx.globalAlpha=0.3;ctx.fillStyle="#fff";ctx.fillRect(px2+3,py2+3,1,1);ctx.globalAlpha=1;}
   const sx2=landedShip.x-cam.x,sy2=landedShip.y-cam.y;ctx.fillStyle="#ccc";ctx.fillRect(sx2-6,sy2-10,12,10);ctx.fillRect(sx2-2,sy2-14,4,4);ctx.fillStyle="#78ff8a";ctx.font="9px monospace";ctx.fillText("Ship (L)",sx2-12,sy2-18);
@@ -2252,6 +2400,7 @@ function drawPlanet(){
     ctx.fillStyle=pr.ownerId===player.id?"#ffdd44":"#ff6655";ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=.45;ctx.strokeStyle=pr.ownerId===player.id?"#ffdd44":"#ff6655";ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   }
+  if(activeRuin)drawRuinContents(cam);
   const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle=character.cosmeticColor||"#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=character.suitColor||"#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
   for(const it of drops){
     const dx=it.x-cam.x,dy=it.y-cam.y,col=RES[it.kind]?.color||"#fff";
@@ -2269,10 +2418,12 @@ function drawPlanet(){
   if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
   const ox=8,oy=24,ow=90,oh=7,op=clamp(oxygen.current/oxygen.max,0,1);ctx.fillStyle="#07101b";ctx.fillRect(ox,oy,ow,oh);ctx.fillStyle=op>0.5?"#7be6ff":op>0.25?"#ffcc44":"#ff5544";ctx.fillRect(ox,oy,ow*op,oh);ctx.strokeStyle="#2a4a7a";ctx.strokeRect(ox,oy,ow,oh);ctx.fillStyle="#cfe2ff";ctx.font="8px monospace";ctx.fillText(`O2 ${Math.ceil(op*100)}%`,ox,oy+17);
   // Show planet coordinates
-  ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(`Planet: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})`,canvas.width/2,16);ctx.textAlign="left";
-  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(`Tool:${planetTool.toUpperCase()} | Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"shoot":"mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
+  ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(`${activeRuin?"Ruin":"Planet"}: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})`,canvas.width/2,16);ctx.textAlign="left";
+  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(activeRuin?`Derelict: E:interact  Q:tool  I:inv  L:exit  Click:shoot`:`Tool:${planetTool.toUpperCase()} | Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"shoot":"mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
   if(inventoryOpen)drawInventory();
   if(characterOpen)drawCharacterPanel();
+  if(questLogOpen)drawQuestLogPanel();
+  if(badgeLogOpen)drawBadgeLogPanel();
 }
 
 
@@ -2283,7 +2434,21 @@ function nearestPlanetPlayer(maxD=70){let best=null,bd=maxD;for(const [,pp] of p
 function nearestSpacePlayer(maxD=180){let best=null,bd=maxD;for(const [,op] of otherPlayers){if(op.mode!=="space")continue;const d=dist(ship.x,ship.y,op.x,op.y);if(d<bd){bd=d;best=op;}}return best;}
 function sendTradeRequestToNearest(){const t=mode===MODE.PLANET?nearestPlanetPlayer(95):nearestSpacePlayer(220);if(!t){showFT("No nearby player to trade with",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-28:ship.y-20,"#ffcc44",9);return;}socket.emit("tradeRequest",{targetId:t.id});}
 function respondToTradeRequest(accepted){if(!pendingTradeRequest||Date.now()>pendingTradeRequest.expires){pendingTradeRequest=null;hideTradeRequestBanner();return;}socket.emit("tradeResponse",{targetId:pendingTradeRequest.fromId,accepted:!!accepted});pendingTradeRequest=null;hideTradeRequestBanner();tradeStatus=accepted?"Trade accepted.":"Trade declined.";}
-function planetWeaponAttack(){if(planetAttackCooldown>0||!activePlanet)return;planetAttackCooldown=0.55;const cam=planetCamera();socket.emit("planetFireProjectile",{planetId:activePlanet.id,x:astronaut.x,y:astronaut.y-8,targetX:mouse.x+cam.x,targetY:mouse.y+cam.y});showFT("Pew!",astronaut.x,astronaut.y-22,"#ffdd44",8);}
+function planetWeaponAttack(){
+  if(planetAttackCooldown>0||!activePlanet)return;
+  const cam=planetCamera(),wx=mouse.x+cam.x,wy=mouse.y+cam.y;
+  if(activeRuin){
+    for(const b of ruinBaddies){
+      if(b.hp>0&&dist(wx,wy,b.x,b.y)<28&&dist(astronaut.x,astronaut.y,b.x,b.y)<PLANET_ATTACK_RANGE+40){
+        planetAttackCooldown=0.28;const dmg=planetWeaponDamage();b.hp-=dmg;showFT("-"+Math.round(dmg),b.x,b.y-16,"#ffdd44",8);
+        if(b.hp<=0){socket.emit("shipPartReward",{items:[{type:Math.random()<0.5?"weapon_array":"hull_plate",qty:1}],credits:120+player.level*25,xp:60+player.level*15,reason:"Ruin Baddie"});showFT("Baddie down",b.x,b.y-20,"#78ff8a",9);}
+        return;
+      }
+    }
+    planetAttackCooldown=0.22;showFT("Miss",astronaut.x,astronaut.y-22,"#ffcc44",7);return;
+  }
+  planetAttackCooldown=0.55;socket.emit("planetFireProjectile",{planetId:activePlanet.id,x:astronaut.x,y:astronaut.y-8,targetX:wx,targetY:wy});showFT("Pew!",astronaut.x,astronaut.y-22,"#ffdd44",8);
+}
 function inventoryTypeCounts(){const out={};for(const s of player.invSlots){if(s.type&&s.count>0)out[s.type]=(out[s.type]||0)+s.count;}return out;}
 function normalizeTradeItems(items){const counts=inventoryTypeCounts(),used={};const out=[];for(const it of items||[]){const type=it.type;if(!type||!RES[type])continue;const max=Math.max(0,(counts[type]||0)-(used[type]||0));const q=clamp(Math.floor(Number(it.quantity)||0),0,max);if(q>0){used[type]=(used[type]||0)+q;out.push({type,quantity:q});}}return out;}
 function showTradeRequestBanner(){const b=document.getElementById("trade-request-banner"),t=document.getElementById("trade-request-text");if(!b||!pendingTradeRequest)return;if(t)t.innerHTML=`<b>${pendingTradeRequest.fromName}</b> wants to trade with you`;b.style.display="block";}
@@ -2338,7 +2503,7 @@ function tick(now){
   const dt=Math.min(0.033,(now-last)/1000);last=now;
   sendInput();
   if(gameOver){drawSpace();updateHud();requestAnimationFrame(tick);return;}
-  if(mode===MODE.SPACE){if(!planetLoading&&(activePlanet||planetMap)){activePlanet=null;planetMap=null;}updateSpace(dt);drawSpace();if(characterOpen)drawCharacterPanel();}
+  if(mode===MODE.SPACE){if(!planetLoading&&(activePlanet||planetMap)){activeRuin=null;activePlanet=null;planetMap=null;}updateSpace(dt);drawSpace();if(characterOpen)drawCharacterPanel();}
   else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;planetPlayers.clear();updateSpace(dt);drawSpace();if(characterOpen)drawCharacterPanel();}else drawPlanet();}
   updateHud();requestAnimationFrame(tick);
 }
