@@ -488,6 +488,7 @@ const ship={
 };
 const energy=ship.energy;
 const oxygen={current:100,max:100,drainRate:2.2};
+const jetpack={current:100,max:100,drainRate:46,rechargeRate:18,groundRechargeMult:1.9,airRechargeMult:0.45,thrust:360,active:false};
 function cargoUsed(){let n=0;for(const s of player.invSlots)if(s.type)n+=s.count;return n;}
 
 /* ── Other players, projectiles, drops ── */
@@ -715,7 +716,9 @@ const eventPirates=[];
 const eventShipRuins=[];
 const specialEventPlanets=[];
 let activeRuin=null,ruinChests=[],ruinBaddies=[],ruinSurvivors=[];
-let randomEventTimer=180+Math.random()*60;
+// Discovery pacing: first event appears quickly, then discoveries refresh often and stay longer.
+let randomEventTimer=22+Math.random()*18;
+let eventRadarPulseTimer=0;
 let activeRandomOffer=null;
 function showRandomEventOffer(title,body,onAccept){
   // Deprecated: exploration events now spawn directly into the galaxy instead of needing accept/decline.
@@ -725,41 +728,66 @@ function showRandomEventOffer(title,body,onAccept){
 function hideRandomEventOffer(){activeRandomOffer=null;}
 function spawnPirateAmbush(){
   const count=2+Math.floor(Math.random()*3)+Math.min(3,Math.floor(player.level/4));
-  for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,r=360+Math.random()*190;eventPirates.push({id:`pir_${Date.now()}_${i}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,vx:0,vy:0,angle:a,hp:55+player.level*10,maxHp:55+player.level*10,damage:8+player.level*1.5,speed:75+Math.random()*35,shootTimer:0.8+Math.random()*0.9});}
+  for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,r=260+Math.random()*160;eventPirates.push({id:`pir_${Date.now()}_${i}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,vx:0,vy:0,angle:a,hp:55+player.level*10,maxHp:55+player.level*10,damage:8+player.level*1.5,speed:75+Math.random()*35,shootTimer:0.8+Math.random()*0.9});}
   addChat("Event",`Pirate ambush! ${count} raiders dropped out of warp.`,"#ff5544");showFT("PIRATE AMBUSH!",ship.x,ship.y-35,"#ff5544",16);
 }
 function spawnTradeConvoy(){
-  const a=Math.random()*Math.PI*2,r=520+Math.random()*420;
+  const a=Math.random()*Math.PI*2,r=300+Math.random()*340;
   const tierDef={name:"Galactic Trade Ark",color:"#ffdd66",glowColor:"rgba(255,221,102,.38)",size:38,priceMultSell:.95,priceMultBuy:1.55,factionName:"Wandering Exchange",factionColor:"#ffdd66",itemPool:["hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip","obelisk_core","gold","crystal","fuel","gas_canister","oxygen_tank","magma_core","ice_block","copper","iron"],stockMin:8,stockMax:36,xpReward:360};
-  const st={id:`event_trade_${Date.now()}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,tier:"capital",tierDef,r:tierDef.size+18,faction:tierDef.factionName,factionColor:tierDef.factionColor,nearbyPlanets:Math.max(1,visiblePlanets.length),densityMult:1,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:600,expireAt:Date.now()+9*60*1000,specialTrade:true,...createNpcStationState("capital")};
+  const st={id:`event_trade_${Date.now()}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,tier:"capital",tierDef,r:tierDef.size+18,faction:tierDef.factionName,factionColor:tierDef.factionColor,nearbyPlanets:Math.max(1,visiblePlanets.length),densityMult:1,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:600,expireAt:Date.now()+22*60*1000,specialTrade:true,...createNpcStationState("capital")};
   st.hp=22000;st.maxHp=22000;st.shield=10000;st.maxShield=10000;
   randomEventStations.push(st);refreshBuyStock(st);updateChunks();
-  addChat("Event","A Galactic Trade Ark has jumped nearby. It sells rare ship parts for crafting.","#ffdd44");showFT("TRADE ARK SPAWNED",st.x,st.y-40,"#ffdd44",13);
+  addChat("Event",`A Galactic Trade Ark jumped nearby at ${Math.round(st.x)}, ${Math.round(st.y)}. Follow the yellow radar beacon.`,"#ffdd44");showFT("TRADE ARK SPAWNED",st.x,st.y-40,"#ffdd44",13);
 }
 function makeRuinPreview(){
   const c=document.createElement("canvas");c.width=32;c.height=32;const g=c.getContext("2d");g.fillStyle="#131820";g.fillRect(5,10,22,12);g.fillStyle="#4d5d73";g.fillRect(7,12,16,8);g.fillStyle="#ffdd66";g.fillRect(20,14,3,2);g.fillStyle="#7be6ff";g.fillRect(10,13,2,2);g.fillStyle="#111";g.fillRect(3,16,6,3);return c;
 }
 function spawnShipRuin(){
-  const a=Math.random()*Math.PI*2,r=480+Math.random()*520;
-  const ruin={id:`ruin_${Date.now()}_${Math.floor(Math.random()*9999)}`,seed:GALAXY_SEED+"|ruin|"+Date.now(),x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,radius:42,expireAt:Date.now()+12*60*1000,preview:makeRuinPreview(),name:"Derelict Ship Ruin",looted:false};
-  eventShipRuins.push(ruin);addChat("Event","A derelict ship ruin is drifting nearby. Fly close and press L to board it.","#78ff8a");showFT("SHIP RUIN DETECTED",ruin.x,ruin.y-35,"#78ff8a",13);
+  const a=Math.random()*Math.PI*2,r=260+Math.random()*360;
+  const ruin={id:`ruin_${Date.now()}_${Math.floor(Math.random()*9999)}`,seed:GALAXY_SEED+"|ruin|"+Date.now(),x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,radius:42,expireAt:Date.now()+25*60*1000,preview:makeRuinPreview(),name:"Derelict Ship Ruin",looted:false};
+  eventShipRuins.push(ruin);addChat("Event",`Derelict ship ruin detected at ${Math.round(ruin.x)}, ${Math.round(ruin.y)}. Follow the green radar beacon and press L to board.`,"#78ff8a");showFT("SHIP RUIN DETECTED",ruin.x,ruin.y-35,"#78ff8a",13);
 }
 function makeSpecialPlanetPreview(pal){const prev=document.createElement("canvas");prev.width=32;prev.height=32;const g=prev.getContext("2d");for(let y=0;y<32;y++)for(let x=0;x<32;x++){if(Math.hypot(x-16,y-16)<=15){g.fillStyle=(x+y)%3?pal.a:pal.b;g.fillRect(x,y,1,1);}}g.fillStyle="#fff6";g.fillRect(10,8,3,1);g.fillRect(18,21,4,1);return prev;}
 function spawnSpecialPlanet(){
-  const a=Math.random()*Math.PI*2,r=650+Math.random()*620,pal={a:"#d6ff7b",b:"#7b5cff",sky:"#060817"};
+  const a=Math.random()*Math.PI*2,r=340+Math.random()*420,pal={a:"#d6ff7b",b:"#7b5cff",sky:"#060817"};
   const p={id:`special_planet_${Date.now()}`,seed:GALAXY_SEED+"|special|"+Date.now(),x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,radius:58,type:"volcanic",special:true,pal,preview:makeSpecialPlanetPreview(pal),resList:["copper","iron","gold","crystal","hull_plate","engine_core","nav_chip"]};
-  specialEventPlanets.push(p);addChat("Event","A special resource planet phased into this sector. Rare ship parts may appear in deep deposits.","#b86bff");showFT("SPECIAL PLANET",p.x,p.y-45,"#b86bff",14);
+  specialEventPlanets.push(p);addChat("Event",`Special resource planet appeared at ${Math.round(p.x)}, ${Math.round(p.y)}. Follow the violet radar beacon.`,"#b86bff");showFT("SPECIAL PLANET",p.x,p.y-45,"#b86bff",14);
+}
+function activeDiscoveryCount(range=1800){
+  const now=Date.now();let n=0;
+  for(const st of randomEventStations)if((!st.expireAt||now<st.expireAt)&&dist(ship.x,ship.y,st.x,st.y)<range)n++;
+  for(const ru of eventShipRuins)if((!ru.expireAt||now<ru.expireAt)&&dist(ship.x,ship.y,ru.x,ru.y)<range)n++;
+  for(const p of specialEventPlanets)if((!p.expireAt||now<p.expireAt)&&dist(ship.x,ship.y,p.x,p.y)<range)n++;
+  return n;
+}
+function spawnDiscoveryEvent(){
+  const nearby=activeDiscoveryCount(2000);
+  const roll=Math.random();
+  // If the player cannot find anything, favor discoverable locations over more pirate pressure.
+  if(nearby<2){
+    if(roll<0.38)spawnShipRuin();
+    else if(roll<0.72)spawnTradeConvoy();
+    else spawnSpecialPlanet();
+    return;
+  }
+  if(roll<0.30)spawnPirateAmbush();
+  else if(roll<0.55)spawnTradeConvoy();
+  else if(roll<0.78)spawnShipRuin();
+  else spawnSpecialPlanet();
 }
 function updateRandomEvents(dt){
   if(mode!==MODE.SPACE||gameOver||!joined)return;
+  eventRadarPulseTimer-=dt;
+  if(eventRadarPulseTimer<=0){
+    eventRadarPulseTimer=18;
+    // Keep at least one or two discoveries within radar range so exploration does not feel empty.
+    if(activeDiscoveryCount(1700)<1)randomEventTimer=Math.min(randomEventTimer,3+Math.random()*4);
+    else if(activeDiscoveryCount(2400)<2)randomEventTimer=Math.min(randomEventTimer,10+Math.random()*8);
+  }
   randomEventTimer-=dt;
   if(randomEventTimer<=0){
-    randomEventTimer=180+Math.random()*60;
-    const roll=Math.random();
-    if(roll<0.42)spawnPirateAmbush();
-    else if(roll<0.66)spawnTradeConvoy();
-    else if(roll<0.84)spawnShipRuin();
-    else spawnSpecialPlanet();
+    randomEventTimer=48+Math.random()*32;
+    spawnDiscoveryEvent();
   }
 }
 function updateEventPirates(dt){
@@ -778,6 +806,34 @@ function drawEventPirates(camX,camY){
 function tryHitEventPirates(p){
   for(let k=eventPirates.length-1;k>=0;k--){const ep=eventPirates[k];if(dist(p.x,p.y,ep.x,ep.y)<12){callOwnedTradeShipsToAssist({type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y},"pirate");ep.hp-=p.damage;showFT("-"+Math.round(p.damage),ep.x,ep.y,"#ffcc44",9);return true;}}
   return false;
+}
+function getEventBeacons(){
+  const now=Date.now(),beacons=[];
+  for(const st of randomEventStations){if(st.expireAt&&now>st.expireAt)continue;beacons.push({x:st.x,y:st.y,label:"TRADE ARK",hint:"O:trade",color:"#ffdd44",kind:"ark"});}
+  for(const ru of eventShipRuins){if(ru.expireAt&&now>ru.expireAt)continue;beacons.push({x:ru.x,y:ru.y,label:"SHIP RUIN",hint:"L:board",color:"#78ff8a",kind:"ruin"});}
+  for(const p of specialEventPlanets){if(p.expireAt&&now>p.expireAt)continue;beacons.push({x:p.x,y:p.y,label:"SPECIAL PLANET",hint:"L:land",color:"#b86bff",kind:"planet"});}
+  return beacons.sort((a,b)=>dist(ship.x,ship.y,a.x,a.y)-dist(ship.x,ship.y,b.x,b.y));
+}
+function drawEventRadarOverlay(){
+  const beacons=getEventBeacons();
+  if(!beacons.length)return;
+  const x=8,y=92,w=190,h=14+Math.min(3,beacons.length)*13;
+  ctx.save();
+  ctx.fillStyle="rgba(4,7,18,.78)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#31506f";ctx.strokeRect(x,y,w,h);
+  ctx.fillStyle="#9fc8ff";ctx.font="bold 7px monospace";ctx.fillText("EVENT RADAR",x+6,y+9);
+  for(let i=0;i<Math.min(3,beacons.length);i++){const b=beacons[i],d=Math.round(dist(ship.x,ship.y,b.x,b.y));ctx.fillStyle=b.color;ctx.font="8px monospace";ctx.fillText(`${b.label} ${d}m · ${b.hint}`,x+8,y+22+i*13);}
+  // Draw strong edge arrows for off-screen discoveries.
+  const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
+  for(const b of beacons.slice(0,4)){
+    const sx=b.x-camX,sy=b.y-camY;
+    if(sx>=18&&sy>=18&&sx<=canvas.width-18&&sy<=canvas.height-18)continue;
+    const ang=angleToward(canvas.width/2,canvas.height/2,sx,sy);
+    const ex=clamp(canvas.width/2+Math.cos(ang)*(canvas.width/2-24),24,canvas.width-24);
+    const ey=clamp(canvas.height/2+Math.sin(ang)*(canvas.height/2-24),24,canvas.height-24);
+    ctx.save();ctx.translate(ex,ey);ctx.rotate(ang);ctx.fillStyle=b.color;ctx.globalAlpha=.95;ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-8,-6);ctx.lineTo(-5,0);ctx.lineTo(-8,6);ctx.closePath();ctx.fill();ctx.restore();
+    ctx.fillStyle=b.color;ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(b.label,ex,ey-10);ctx.textAlign="left";
+  }
+  ctx.restore();ctx.globalAlpha=1;
 }
 
 /* ── Chunks ── */
@@ -1933,7 +1989,7 @@ function landOnNearestPlanet(){
 }
 function leavePlanet(){
   if(activePlanet){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;}ship.vx*=0.2;ship.vy*=0.2;
-  mode=MODE.SPACE;oxygen.current=oxygen.max;planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;
+  mode=MODE.SPACE;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;
   socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});
   updateChunks();
   showFT("Takeoff!",ship.x,ship.y-20,"#7be6ff",11);
@@ -2126,6 +2182,7 @@ function drawSpace(){
   ctx.globalAlpha=1;
 
   drawMinimap();
+  drawEventRadarOverlay();
   if(shopOpen&&nearStation)drawShop(nearStation);
   if(inventoryOpen)drawInventory();
   if(attrOpen)drawAttrScreen();
@@ -2142,8 +2199,10 @@ function drawMinimap(){
   const wm=(wx,wy)=>({x:mmX+mmW/2+(wx-ship.x)/mmRange*mmW/2,y:mmY+mmH/2+(wy-ship.y)/mmRange*mmH/2});
   for(const p of visiblePlanets){const m=wm(p.x,p.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=p.pal.a;ctx.beginPath();ctx.arc(m.x,m.y,clamp(p.radius/18,1.5,4),0,Math.PI*2);ctx.fill();}
   for(const st of visibleStations){const m=wm(st.x,st.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=st.factionColor;ctx.fillRect(m.x-2,m.y-2,4,4);}
-  // Ship ruins on minimap
-  for(const ru of eventShipRuins){const m=wm(ru.x,ru.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle="#78ff8a";ctx.fillRect(m.x-1.5,m.y-1.5,3,3);}
+  // Discovery beacons on minimap
+  for(const st of randomEventStations){const m=wm(st.x,st.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.strokeStyle="#ffdd44";ctx.strokeRect(m.x-3,m.y-3,6,6);}
+  for(const sp of specialEventPlanets){const m=wm(sp.x,sp.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.strokeStyle="#b86bff";ctx.beginPath();ctx.arc(m.x,m.y,4,0,Math.PI*2);ctx.stroke();}
+  for(const ru of eventShipRuins){const m=wm(ru.x,ru.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle="#78ff8a";ctx.fillRect(m.x-2,m.y-2,4,4);}
 
   // Owned stations on minimap
   for(const ost of ownedStationsList){const m=wm(ost.x,ost.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=ost.isOwn?"#ffcc44":"#aaaaaa";ctx.fillRect(m.x-2,m.y-2,4,4);}
@@ -2353,6 +2412,16 @@ function updatePlanet(dt){
   let ax=0;if(!controlsLocked&&keys.has("a"))ax-=move;if(!controlsLocked&&keys.has("d"))ax+=move;
   astronaut.vx=lerp(astronaut.vx,ax,0.15);
   if(!controlsLocked&&keys.has("w")&&astronaut.onGround){astronaut.vy=-jump;astronaut.onGround=false;}
+  const wantsJetpack=!controlsLocked&&!astronaut.onGround&&(keys.has("w")||keys.has("shift"));
+  jetpack.active=wantsJetpack&&jetpack.current>0;
+  if(jetpack.active){
+    astronaut.vy-=jetpack.thrust*dt;
+    astronaut.vy=Math.max(astronaut.vy,-230);
+    jetpack.current=clamp(jetpack.current-jetpack.drainRate*dt,0,jetpack.max);
+  }else{
+    const mult=astronaut.onGround?jetpack.groundRechargeMult:jetpack.airRechargeMult;
+    jetpack.current=clamp(jetpack.current+jetpack.rechargeRate*mult*dt,0,jetpack.max);
+  }
   astronaut.vy+=grav*dt;astronaut.x+=astronaut.vx*dt;astronaut.x=clamp(astronaut.x,8,planetMap.W*16-8);collidePlanet(astronaut,true);
   astronaut.y+=astronaut.vy*dt;astronaut.onGround=false;collidePlanet(astronaut,false);
   const bottomY=(planetMap.H-2)*16;
@@ -2401,7 +2470,15 @@ function drawPlanet(){
     ctx.globalAlpha=.45;ctx.strokeStyle=pr.ownerId===player.id?"#ffdd44":"#ff6655";ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   }
   if(activeRuin)drawRuinContents(cam);
-  const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;ctx.fillStyle=character.cosmeticColor||"#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=character.suitColor||"#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);
+  const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;
+  if(jetpack.active){
+    ctx.save();
+    const flick=2+Math.sin(Date.now()/55)*2;
+    ctx.globalAlpha=.82;ctx.fillStyle="#ff9b42";ctx.beginPath();ctx.moveTo(ax2-5,ay2);ctx.lineTo(ax2-1,ay2+9+flick);ctx.lineTo(ax2+2,ay2);ctx.closePath();ctx.fill();
+    ctx.fillStyle="#ffdd66";ctx.beginPath();ctx.moveTo(ax2+2,ay2);ctx.lineTo(ax2+5,ay2+7+flick);ctx.lineTo(ax2+6,ay2);ctx.closePath();ctx.fill();
+    ctx.restore();ctx.globalAlpha=1;
+  }
+  ctx.fillStyle=character.cosmeticColor||"#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=character.suitColor||"#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);ctx.fillStyle="#38465c";ctx.fillRect(ax2-7,ay2-7,2,7);ctx.fillRect(ax2+5,ay2-7,2,7);
   for(const it of drops){
     const dx=it.x-cam.x,dy=it.y-cam.y,col=RES[it.kind]?.color||"#fff";
     if(dx<-12||dy<-12||dx>canvas.width+12||dy>canvas.height+12)continue;
@@ -2417,9 +2494,10 @@ function drawPlanet(){
   const bp=buildableSlot();
   if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
   const ox=8,oy=24,ow=90,oh=7,op=clamp(oxygen.current/oxygen.max,0,1);ctx.fillStyle="#07101b";ctx.fillRect(ox,oy,ow,oh);ctx.fillStyle=op>0.5?"#7be6ff":op>0.25?"#ffcc44":"#ff5544";ctx.fillRect(ox,oy,ow*op,oh);ctx.strokeStyle="#2a4a7a";ctx.strokeRect(ox,oy,ow,oh);ctx.fillStyle="#cfe2ff";ctx.font="8px monospace";ctx.fillText(`O2 ${Math.ceil(op*100)}%`,ox,oy+17);
+  const jp=clamp(jetpack.current/jetpack.max,0,1),jy=oy+24;ctx.fillStyle="#07101b";ctx.fillRect(ox,jy,ow,oh);ctx.fillStyle=jp>0.45?"#ffdd66":jp>0.18?"#ff9b42":"#ff5544";ctx.fillRect(ox,jy,ow*jp,oh);ctx.strokeStyle="#6a4a1a";ctx.strokeRect(ox,jy,ow,oh);ctx.fillStyle="#ffe2a0";ctx.font="8px monospace";ctx.fillText(`JET ${Math.ceil(jp*100)}%`,ox,jy+17);
   // Show planet coordinates
   ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(`${activeRuin?"Ruin":"Planet"}: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})`,canvas.width/2,16);ctx.textAlign="left";
-  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(activeRuin?`Derelict: E:interact  Q:tool  I:inv  L:exit  Click:shoot`:`Tool:${planetTool.toUpperCase()} | Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"shoot":"mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
+  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(activeRuin?`Derelict: E:interact  Q:tool  I:inv  L:exit  W/Shift:jetpack  Click:shoot`:`Tool:${planetTool.toUpperCase()} | W/Shift:jetpack  Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"shoot":"mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
   if(inventoryOpen)drawInventory();
   if(characterOpen)drawCharacterPanel();
   if(questLogOpen)drawQuestLogPanel();
