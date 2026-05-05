@@ -88,12 +88,16 @@ console.log("Space Eco persistence config", {
 
 /* ── Ship types (synced to client) ── */
 const SHIP_TYPES = {
-  scout:       { name:"Scout",       price:0,     description:"Starter ship. Fast and agile.",           maxHp:100, maxShield:60,  thrustMult:1.00, cargoMult:1.0, damageMult:1.0, shieldRegenMult:1.0, size:"small"  },
-  hauler:      { name:"Hauler",      price:2500,  description:"Massive cargo hold. Built for trading.",  maxHp:160, maxShield:40,  thrustMult:0.70, cargoMult:2.2, damageMult:0.8, shieldRegenMult:0.8, size:"large"  },
-  fighter:     { name:"Fighter",     price:3500,  description:"Combat-focused with strong weapons.",     maxHp:130, maxShield:80,  thrustMult:1.15, cargoMult:0.7, damageMult:1.8, shieldRegenMult:1.2, size:"medium" },
-  interceptor: { name:"Interceptor", price:5000,  description:"Extreme speed. Fragile but deadly fast.", maxHp:80,  maxShield:50,  thrustMult:1.60, cargoMult:0.5, damageMult:1.3, shieldRegenMult:1.5, size:"small"  },
-  dreadnought: { name:"Dreadnought", price:12000, description:"Tanky powerhouse. Slow but devastating.", maxHp:280, maxShield:150, thrustMult:0.55, cargoMult:1.5, damageMult:2.2, shieldRegenMult:0.7, size:"huge"   },
-  phantom:     { name:"Phantom",     price:8000,  description:"Balanced stealth raider.",               maxHp:110, maxShield:90,  thrustMult:1.30, cargoMult:0.9, damageMult:1.5, shieldRegenMult:1.4, size:"medium" },
+  scout:       { name:"Scout",       price:0,     description:"Starter ship. Fast and agile.",           maxHp:100, maxShield:60,  thrustMult:1.00, cargoMult:1.0, damageMult:1.0, shieldRegenMult:1.0, size:"small", specialty:"Starter"  },
+  hauler:      { name:"Hauler",      price:2500,  description:"Massive cargo hold. Built for trading.",  maxHp:160, maxShield:40,  thrustMult:0.70, cargoMult:2.2, damageMult:0.8, shieldRegenMult:0.8, size:"large", specialty:"Bulk cargo"  },
+  fighter:     { name:"Fighter",     price:3500,  description:"Combat-focused with strong weapons.",     maxHp:130, maxShield:80,  thrustMult:1.15, cargoMult:0.7, damageMult:1.8, shieldRegenMult:1.2, size:"medium", specialty:"Dogfighting" },
+  interceptor: { name:"Interceptor", price:5000,  description:"Extreme speed. Fragile but deadly fast.", maxHp:80,  maxShield:50,  thrustMult:1.60, cargoMult:0.5, damageMult:1.3, shieldRegenMult:1.5, size:"small", specialty:"Speed"  },
+  dreadnought: { name:"Dreadnought", price:12000, description:"Tanky powerhouse. Slow but devastating.", maxHp:280, maxShield:150, thrustMult:0.55, cargoMult:1.5, damageMult:2.2, shieldRegenMult:0.7, size:"huge", specialty:"Siege"   },
+  phantom:     { name:"Phantom",     price:8000,  description:"Balanced stealth raider.",               maxHp:110, maxShield:90,  thrustMult:1.30, cargoMult:0.9, damageMult:1.5, shieldRegenMult:1.4, size:"medium", specialty:"Raiding" },
+  miner_mantis:{ name:"Miner Mantis",price:0,craftOnly:true,description:"Crafted mining cutter with expanded bay and ore scanner.",maxHp:145,maxShield:75,thrustMult:1.05,cargoMult:2.7,damageMult:1.05,shieldRegenMult:1.0,size:"large",specialty:"Mining + cargo",recipe:{credits:6000,hull_plate:4,engine_core:2,cargo_pod:4,copper:40,iron:30}},
+  guardian:    { name:"Guardian",price:0,craftOnly:true,description:"Crafted escort cruiser built to protect stations and allies.",maxHp:230,maxShield:210,thrustMult:0.82,cargoMult:1.2,damageMult:1.65,shieldRegenMult:1.8,size:"large",specialty:"Defense escort",recipe:{credits:11000,hull_plate:8,shield_matrix:3,weapon_array:2,iron:70,gold:20}},
+  solar_sprinter:{ name:"Solar Sprinter",price:0,craftOnly:true,description:"Crafted solar racer with excellent fuel efficiency and long-range scout speed.",maxHp:95,maxShield:95,thrustMult:1.85,cargoMult:0.85,damageMult:1.25,shieldRegenMult:1.45,size:"small",specialty:"Speed + fuel",recipe:{credits:14000,engine_core:5,nav_chip:3,crystal:25,fuel:20}},
+  obelisk_carrier:{ name:"Obelisk Carrier",price:0,craftOnly:true,description:"Crafted mothership-class carrier with giant cargo, heavy shields, and command presence.",maxHp:390,maxShield:260,thrustMult:0.50,cargoMult:3.4,damageMult:2.35,shieldRegenMult:0.95,size:"huge",specialty:"Mother ship",recipe:{credits:45000,obelisk_core:1,hull_plate:16,shield_matrix:8,weapon_array:6,cargo_pod:10,crystal:70,gold:100,magma_core:40}},
 };
 
 /* ── Owned station tiers ── */
@@ -236,9 +240,9 @@ function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=
 function sfc32(a,b,c,d){return()=>{a|=0;b|=0;c|=0;d|=0;let t=(a+b|0)+d|0;d=d+1|0;a=b^b>>>9;b=c+(c<<3)|0;c=(c<<21|c>>>11);c=c+t|0;return(t>>>0)/4294967296;};}
 function makeRng(s){const seed=xmur3(s);return sfc32(seed(),seed(),seed(),seed());}
 
-const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft"];
-const RES_BASE={dirt:1,stone:3,copper:9,iron:10,gold:40,crystal:60,fuel:25,gas_canister:30,oxygen_tank:35,ice_block:4,lava_rock:12,magma_core:22,toxic_sludge:8,sand:2,grass_tuft:1};
-const RES_RARITY={dirt:1,stone:2,copper:3,iron:3,gold:5,crystal:6,fuel:4,gas_canister:2,oxygen_tank:2,ice_block:2,lava_rock:3,magma_core:4,toxic_sludge:3,sand:1,grass_tuft:1};
+const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft","hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip","obelisk_core"];
+const RES_BASE={dirt:1,stone:3,copper:9,iron:10,gold:40,crystal:60,fuel:25,gas_canister:30,oxygen_tank:35,ice_block:4,lava_rock:12,magma_core:22,toxic_sludge:8,sand:2,grass_tuft:1,hull_plate:85,engine_core:140,shield_matrix:170,weapon_array:190,cargo_pod:95,nav_chip:155,obelisk_core:800};
+const RES_RARITY={dirt:1,stone:2,copper:3,iron:3,gold:5,crystal:6,fuel:4,gas_canister:2,oxygen_tank:2,ice_block:2,lava_rock:3,magma_core:4,toxic_sludge:3,sand:1,grass_tuft:1,hull_plate:5,engine_core:6,shield_matrix:6,weapon_array:6,cargo_pod:5,nav_chip:6,obelisk_core:8};
 const econRng=makeRng(GALAXY_SEED+"|economy");
 const economy={
   drift:Object.fromEntries(RES_KEYS.map(k=>[k,1])),
@@ -305,6 +309,25 @@ function removeInventory(p,type,amount){
   if(inventoryCount(p,type)<rem)return false;
   for(let i=(p.maxSlots||24)-1;i>=0;i--){const s=p.invSlots[i];if(s?.type===type){const rm=Math.min(s.count,rem);s.count-=rm;rem-=rm;if(s.count<=0)p.invSlots[i]={type:null,count:0};if(rem<=0)return true;}}
   return true;
+}
+function recipeItems(recipe){return Object.entries(recipe||{}).filter(([k,v])=>k!=="credits"&&RES_KEYS.includes(k)&&Math.floor(Number(v)||0)>0).map(([type,qty])=>({type,qty:Math.floor(Number(qty)||0)}));}
+function canCraftRecipe(p,recipe){
+  const credits=Math.max(0,Math.floor(Number(recipe?.credits)||0));
+  if((p.credits||0)<credits)return {ok:false,reason:`Need ${credits} credits.`};
+  for(const it of recipeItems(recipe)){if(inventoryCount(p,it.type)<it.qty)return {ok:false,reason:`Need ${it.qty}x ${it.type}.`};}
+  return {ok:true};
+}
+function consumeCraftRecipe(p,recipe){for(const it of recipeItems(recipe))removeInventory(p,it.type,it.qty);p.credits=(p.credits||0)-Math.max(0,Math.floor(Number(recipe?.credits)||0));}
+function grantRewardBundle(p,{credits=0,xp=0,items=[]}={},reason="reward"){
+  credits=Math.max(0,Math.min(100000,Math.floor(Number(credits)||0)));
+  xp=Math.max(0,Math.min(25000,Math.floor(Number(xp)||0)));
+  const normalized=[];
+  for(const it of Array.isArray(items)?items:[]){const type=String(it.type||"");const qty=Math.max(1,Math.min(48,Math.floor(Number(it.qty)||0)));if(RES_KEYS.includes(type))normalized.push({type,qty});}
+  for(const it of normalized){if(!canFitInventory(p,it.type,it.qty))return {ok:false,reason:"Inventory full for reward items."};}
+  if(credits>0)p.credits=(p.credits||0)+credits;
+  for(const it of normalized)addInventory(p,it.type,it.qty);
+  if(xp>0)grantXp(p,xp,reason);
+  return {ok:true,credits,xp,items:normalized};
 }
 function validateTradeItems(p,items){
   const need={};for(const it of items||[]){const type=String(it.type||"");const q=Math.max(0,Math.floor(Number(it.quantity)||0));if(!RES_KEYS.includes(type)||q<=0)return false;need[type]=(need[type]||0)+q;}
@@ -1057,12 +1080,46 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);if(!p)return;
     const def=SHIP_TYPES[shipTypeKey];
     if(!def){socket.emit("shipBuyDenied",{reason:"Unknown ship."});return;}
+    if(def.craftOnly||def.recipe){socket.emit("shipBuyDenied",{reason:"This ship must be crafted from parts."});return;}
     if(p.shipType===shipTypeKey){socket.emit("shipBuyDenied",{reason:"Already own this ship."});return;}
     if(p.credits<def.price){socket.emit("shipBuyDenied",{reason:`Need ${def.price}cr.`});return;}
     p.credits-=def.price;p.shipType=shipTypeKey;p.maxHp=def.maxHp;p.hp=def.maxHp;p.maxShield=def.maxShield;p.shield=def.maxShield;
     socket.emit("shipBuyConfirm",{shipTypeKey,credits:p.credits,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});
     syncAndPersist(p,"buy_ship");
     broadcastChat("Server",`${p.name} upgraded to a ${def.name}!`,"#ffdd44");
+  });
+
+  socket.on("craftShip",({shipTypeKey})=>{
+    const p=players.get(socket.id);if(!p)return;
+    shipTypeKey=String(shipTypeKey||"");
+    const def=SHIP_TYPES[shipTypeKey];
+    if(!def||!def.recipe){socket.emit("craftShipDenied",{reason:"Unknown craftable ship."});return;}
+    if(p.shipType===shipTypeKey){socket.emit("craftShipDenied",{reason:"Already flying this ship."});return;}
+    const check=canCraftRecipe(p,def.recipe);
+    if(!check.ok){socket.emit("craftShipDenied",{reason:check.reason||"Missing parts."});return;}
+    consumeCraftRecipe(p,def.recipe);
+    p.shipType=shipTypeKey;p.maxHp=def.maxHp;p.hp=def.maxHp;p.maxShield=def.maxShield;p.shield=def.maxShield;
+    socket.emit("craftShipConfirm",{shipTypeKey,credits:p.credits,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield,invSlots:p.invSlots,maxSlots:p.maxSlots});
+    syncAndPersist(p,"craft_ship");
+    broadcastChat("Server",`${p.name} crafted a ${def.name}!`,"#ffdd44");
+  });
+
+  socket.on("stationQuestReward",({questId,rewardCredits,rewardXp,parts})=>{
+    const p=players.get(socket.id);if(!p)return;
+    const items=[];
+    for(const it of Array.isArray(parts)?parts:[]){items.push({type:String(it.type||""),qty:Math.max(1,Math.min(12,Math.floor(Number(it.qty)||1)))});}
+    const bundle=grantRewardBundle(p,{credits:Math.min(50000,Math.floor(Number(rewardCredits)||0)),xp:Math.min(15000,Math.floor(Number(rewardXp)||0)),items},"Station Quest");
+    if(!bundle.ok){socket.emit("stationQuestRewardDenied",{questId,reason:bundle.reason});return;}
+    socket.emit("stationQuestRewardConfirm",{questId,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,reward:bundle});
+    syncAndPersist(p,"station_quest_reward");
+  });
+
+  socket.on("shipPartReward",({items,credits,xp,reason})=>{
+    const p=players.get(socket.id);if(!p)return;
+    const bundle=grantRewardBundle(p,{credits:Math.min(25000,Math.floor(Number(credits)||0)),xp:Math.min(8000,Math.floor(Number(xp)||0)),items:Array.isArray(items)?items:[]},safeText(reason||"Salvage",40));
+    if(!bundle.ok){socket.emit("shipPartRewardDenied",{reason:bundle.reason});return;}
+    socket.emit("shipPartRewardConfirm",{credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,reward:bundle,reason:safeText(reason||"Salvage",40)});
+    syncAndPersist(p,"ship_part_reward");
   });
 
   socket.on("buyStation",({x,y,tier})=>{
