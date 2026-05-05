@@ -961,7 +961,7 @@ io.on("connection",socket=>{
     p.credits-=cost;p[key]=(p[key]||1)+1;
     socket.emit("characterUpgradeConfirm",{kind,level:p[key],credits:p.credits});
   });
-
+  
   socket.on("tradeRequest",({targetId})=>{
     const p=players.get(socket.id),t=players.get(targetId);
     if(!p||!t||p.id===t.id){socket.emit("tradeDenied",{reason:"Invalid trade target."});return;}
