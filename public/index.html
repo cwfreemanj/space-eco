@@ -730,7 +730,7 @@ function updateTradeShip(ts,station,allPlanets,dt){
       }
       if(ts.hp<ts.maxHp*0.2){ts.state="flee";ts.stateTimer=5;}
       if(target.type==="player"&&td>650&&!station.destroyed){ts.state="return";ts.stateTimer=3;}
-      if(target.type==="pirate"&&td>950&&!station.destroyed){ts.combatTarget=null;ts.state="return";ts.stateTimer=2;}
+      if(target.type==="pirate"&&td>1650&&!station.destroyed&&(station.underPirateAttackTimer||0)<=0){ts.combatTarget=null;ts.state="return";ts.stateTimer=2;}
     }
     ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;
   }
@@ -748,17 +748,21 @@ const eventPirates=[];
 const eventShipRuins=[];
 const specialEventPlanets=[];
 const warProjectiles=[]; // visual beams/bolts for pirate-vs-station and ship-vs-raider battles
+const eventLootCrates=[];      // Supply Drop crates in space
+const eventAsteroidFields=[];  // Ore-rich temporary asteroid fields
+const activeSpaceEffects={nebulaStorm:0,tradeConvoy:0,solarFlare:0,bountyHunt:0};
+let solarFlarePulseTimer=0;
 let activeRuin=null,ruinChests=[],ruinBaddies=[],ruinSurvivors=[];
 // Discovery pacing: first event appears quickly, then discoveries refresh often and stay longer.
 let randomEventTimer=22+Math.random()*18;
 let eventRadarPulseTimer=0;
 // Separate station-war timer: busy NPC/ally stations can draw raider attacks and become battle zones.
-let stationWarEventTimer=150+Math.random()*150;
+let stationWarEventTimer=80+Math.random()*90;
 // Raider/pirate pressure is intentionally on its own slower timer.
 // Discovery events can still appear often, but hostile ambushes should feel special,
-// not constant: one pirate ambush every 7–10 minutes.
-const PIRATE_AMBUSH_MIN_DELAY=7*60*1000;
-const PIRATE_AMBUSH_MAX_DELAY=10*60*1000;
+// not constant: one pirate ambush every 3–5 minutes, with counts scaled by nearby traffic.
+const PIRATE_AMBUSH_MIN_DELAY=3*60*1000;
+const PIRATE_AMBUSH_MAX_DELAY=5*60*1000;
 let nextPirateAmbushAt=Date.now()+PIRATE_AMBUSH_MIN_DELAY+Math.random()*(PIRATE_AMBUSH_MAX_DELAY-PIRATE_AMBUSH_MIN_DELAY);
 function scheduleNextPirateAmbush(){nextPirateAmbushAt=Date.now()+PIRATE_AMBUSH_MIN_DELAY+Math.random()*(PIRATE_AMBUSH_MAX_DELAY-PIRATE_AMBUSH_MIN_DELAY);}
 function pirateAmbushReady(){return Date.now()>=nextPirateAmbushAt;}
@@ -769,12 +773,41 @@ function showRandomEventOffer(title,body,onAccept){
   if(typeof onAccept==="function")onAccept();
 }
 function hideRandomEventOffer(){activeRandomOffer=null;}
-function spawnPirateAmbush(){
-  if(!pirateAmbushReady())return false;
+function nearbyRaidPressure(x=ship.x,y=ship.y,range=1450){
+  let ships=0,stations=0;
+  for(const st of visibleStations){
+    if(st.destroyed||dist(x,y,st.x,st.y)>range)continue;
+    stations++;ships+=(st.tradeShips||[]).filter(ts=>ts.hp>0).length;
+  }
+  for(const st of ownedStationsList){
+    if(st.destroyed||dist(x,y,st.x,st.y)>range)continue;
+    stations++;
+  }
+  for(const os of ownedTradeShips.values())if(!os.disabled&&os.hp>0&&dist(x,y,os.x,os.y)<range)ships++;
+  for(const[,op]of otherPlayers)if(op.mode==="space"&&dist(x,y,op.x,op.y)<range)ships++;
+  const pressure=ships+stations*2;
+  return {ships,stations,pressure};
+}
+function raiderCountForProximity(base=2,x=ship.x,y=ship.y,fixed=null){
+  if(Number.isFinite(fixed))return Math.max(1,Math.floor(fixed));
+  const p=nearbyRaidPressure(x,y);
+  return clamp(base+Math.floor(p.pressure/3)+Math.floor(player.level/6),3,14);
+}
+function spawnRaidersAt(x,y,count,targetRaw={type:"player"},prefix="raid",label="Raiders"){
+  const pressure=nearbyRaidPressure(x,y);
+  for(let i=0;i<count;i++){
+    const a=Math.random()*Math.PI*2,r=260+Math.random()*190;
+    const hp=58+player.level*10+Math.min(60,pressure.pressure*3);
+    eventPirates.push({id:`${prefix}_${Date.now()}_${i}_${Math.floor(Math.random()*9999)}`,x:x+Math.cos(a)*r,y:y+Math.sin(a)*r,vx:0,vy:0,angle:a,hp,maxHp:hp,damage:8+player.level*1.45+Math.min(10,pressure.pressure*0.45),speed:82+Math.random()*42,shootTimer:0.45+Math.random()*0.75,target:targetRaw,retargetTimer:0.1});
+  }
+  addChat("Event",`${label}: ${count} raiders detected near ${Math.round(x)}, ${Math.round(y)} (${pressure.ships} ships / ${pressure.stations} stations nearby).`,"#ff5544");
+  showFT(label.toUpperCase(),x,y-42,"#ff5544",16);
+}
+function spawnPirateAmbush(opts={}){
+  if(!opts.force&& !pirateAmbushReady())return false;
   scheduleNextPirateAmbush();
-  const count=2+Math.floor(Math.random()*3)+Math.min(3,Math.floor(player.level/4));
-  for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,r=260+Math.random()*160;eventPirates.push({id:`pir_${Date.now()}_${i}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,vx:0,vy:0,angle:a,hp:55+player.level*10,maxHp:55+player.level*10,damage:8+player.level*1.5,speed:75+Math.random()*35,shootTimer:0.8+Math.random()*0.9,target:{type:"player"},retargetTimer:0});}
-  addChat("Event",`Pirate ambush! ${count} raiders dropped out of warp.`,"#ff5544");showFT("PIRATE AMBUSH!",ship.x,ship.y-35,"#ff5544",16);
+  const count=raiderCountForProximity(3,ship.x,ship.y,opts.fixedCount);
+  spawnRaidersAt(ship.x,ship.y,count,opts.targetRaw||{type:"player"},opts.prefix||"pir",opts.label||"Pirate Ambush");
   return true;
 }
 function spawnTradeConvoy(){
@@ -804,25 +837,99 @@ function activeDiscoveryCount(range=1800){
   for(const st of randomEventStations)if((!st.expireAt||now<st.expireAt)&&dist(ship.x,ship.y,st.x,st.y)<range)n++;
   for(const ru of eventShipRuins)if((!ru.expireAt||now<ru.expireAt)&&dist(ship.x,ship.y,ru.x,ru.y)<range)n++;
   for(const p of specialEventPlanets)if((!p.expireAt||now<p.expireAt)&&dist(ship.x,ship.y,p.x,p.y)<range)n++;
+  for(const f of eventAsteroidFields)if((!f.expireAt||now<f.expireAt)&&dist(ship.x,ship.y,f.x,f.y)<range)n++;
+  for(const c of eventLootCrates)if(!c.opened&&(!c.expireAt||now<c.expireAt)&&dist(ship.x,ship.y,c.x,c.y)<range)n++;
   return n;
 }
+function startSpaceEffect(key,duration,label,color="#ffdd44"){
+  activeSpaceEffects[key]=Math.max(activeSpaceEffects[key]||0,duration);
+  addChat("Event",`${label} active for ${Math.round(duration)}s.`,color);
+  showFT(label,ship.x,ship.y-42,color,15);
+}
+function spawnNebulaStorm(){startSpaceEffect("nebulaStorm",20,"⚡ Nebula Storm — thrust reduced 20%","#b86bff");}
+function spawnTradeConvoyEvent(){startSpaceEffect("tradeConvoy",90,"💰 Trade Convoy — NPC kills drop bonus loot","#ffdd44");spawnTradeConvoy();}
+function spawnPirateRaidEvent(){spawnPirateAmbush({force:true,fixedCount:4,label:"☠ Pirate Raid",prefix:"raid"});}
+function spawnAsteroidField(){
+  const a=Math.random()*Math.PI*2,r=360+Math.random()*440;
+  const f={id:`ast_${Date.now()}_${Math.floor(Math.random()*9999)}`,x:ship.x+Math.cos(a)*r,y:ship.y+Math.sin(a)*r,radius:210+Math.random()*60,expireAt:Date.now()+16*60*1000,oreTimer:0};
+  eventAsteroidFields.push(f);
+  addChat("Event",`🪨 Asteroid Field at ${Math.round(f.x)}, ${Math.round(f.y)} — ore-rich zone detected.`,"#b9f3ff");showFT("ASTEROID FIELD",f.x,f.y-38,"#b9f3ff",14);
+}
+function spawnSupplyDrop(){
+  const cx=ship.x+(Math.random()-.5)*520,cy=ship.y+(Math.random()-.5)*520;
+  for(let i=0;i<8;i++){const a=Math.PI*2*(i/8)+Math.random()*0.35,r=80+Math.random()*150;eventLootCrates.push({id:`crate_${Date.now()}_${i}`,x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r,vx:(Math.random()-.5)*12,vy:(Math.random()-.5)*12,opened:false,expireAt:Date.now()+12*60*1000});}
+  addChat("Event",`📦 Supply Drop: 8 loot crates drifting near ${Math.round(cx)}, ${Math.round(cy)}.`,"#78ff8a");showFT("SUPPLY DROP",cx,cy-38,"#78ff8a",14);
+}
+function spawnSolarFlare(){startSpaceEffect("solarFlare",15,"☀ Solar Flare — shields draining","#ff9b42");solarFlarePulseTimer=0.1;}
+function spawnBountyHunt(){startSpaceEffect("bountyHunt",150,"💀 Bounty Hunt — all pilots marked","#ff5544");}
+function spawnFactionWarEvent(){
+  if(maybeSpawnStationWarEvent({force:true,label:"⚔ Faction War"}))return;
+  spawnRaidersAt(ship.x+260,ship.y+120,raiderCountForProximity(4),{type:"player"},"facwar","⚔ Faction War");
+}
+function spawnNamedSpaceEvent(){
+  const roll=Math.random();
+  if(roll<0.12)spawnNebulaStorm();
+  else if(roll<0.25)spawnTradeConvoyEvent();
+  else if(roll<0.39)spawnPirateRaidEvent();
+  else if(roll<0.52)spawnAsteroidField();
+  else if(roll<0.66)spawnFactionWarEvent();
+  else if(roll<0.79)spawnSupplyDrop();
+  else if(roll<0.90)spawnSolarFlare();
+  else spawnBountyHunt();
+}
+function updateSpaceEventObjects(dt){
+  const now=Date.now();
+  for(const k of Object.keys(activeSpaceEffects))activeSpaceEffects[k]=Math.max(0,(activeSpaceEffects[k]||0)-dt);
+  if(activeSpaceEffects.nebulaStorm>0){ship.vx*=Math.pow(0.996,dt*60);ship.vy*=Math.pow(0.996,dt*60);}
+  if(activeSpaceEffects.solarFlare>0){solarFlarePulseTimer-=dt;if(solarFlarePulseTimer<=0){solarFlarePulseTimer=0.85;socket.emit("npcHitPlayer",{damage:4+Math.min(8,player.level*0.4),source:"Solar Flare"});}}
+  for(let i=eventAsteroidFields.length-1;i>=0;i--){
+    const f=eventAsteroidFields[i];if(f.expireAt&&now>f.expireAt){eventAsteroidFields.splice(i,1);continue;}
+    f.oreTimer-=dt;
+    if(f.oreTimer<=0&&dist(ship.x,ship.y,f.x,f.y)<f.radius+180){
+      f.oreTimer=1.2+Math.random()*1.5;
+      const pool=["stone","copper","iron","gold","crystal"];
+      const a=Math.random()*Math.PI*2,r=Math.random()*f.radius;
+      spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:f.x+Math.cos(a)*r,y:f.y+Math.sin(a)*r,vx:(Math.random()-.5)*30,vy:(Math.random()-.5)*30,life:30});
+    }
+  }
+  for(let i=eventLootCrates.length-1;i>=0;i--){
+    const c=eventLootCrates[i];c.x+=c.vx*dt;c.y+=c.vy*dt;c.vx*=Math.pow(.994,dt*60);c.vy*=Math.pow(.994,dt*60);
+    if(c.expireAt&&now>c.expireAt){eventLootCrates.splice(i,1);continue;}
+    if(!c.opened&&dist(c.x,c.y,ship.x,ship.y)<24){
+      c.opened=true;const pool=["fuel","gas_canister","oxygen_tank","copper","iron","gold","crystal","hull_plate","cargo_pod","nav_chip"];const item=pool[Math.floor(Math.random()*pool.length)];
+      socket.emit("shipPartReward",{items:[{type:item,qty:item.includes("_")?1:2+Math.floor(Math.random()*3)}],credits:120+player.level*30,xp:35+player.level*8,reason:"Supply Drop"});
+      showFT(`Crate: ${RES[item]?.name||item}`,c.x,c.y-18,"#78ff8a",10);eventLootCrates.splice(i,1);
+    }
+  }
+}
+function drawExtraSpaceEvents(camX,camY){
+  const now=Date.now();
+  for(const f of eventAsteroidFields){if(f.expireAt&&now>f.expireAt)continue;const x=f.x-camX,y=f.y-camY;if(x<-260||y<-260||x>canvas.width+260||y>canvas.height+260)continue;ctx.save();ctx.globalAlpha=.16;ctx.fillStyle="#b9f3ff";ctx.beginPath();ctx.arc(x,y,f.radius,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.55;ctx.strokeStyle="#b9f3ff";ctx.setLineDash([6,5]);ctx.beginPath();ctx.arc(x,y,f.radius,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#b9f3ff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText("ORE FIELD",x,y-f.radius-8);ctx.restore();ctx.textAlign="left";}
+  for(const c of eventLootCrates){const x=c.x-camX,y=c.y-camY;if(x<-30||y<-30||x>canvas.width+30||y>canvas.height+30)continue;ctx.save();ctx.translate(x,y);ctx.rotate(Date.now()/900);ctx.fillStyle="#2a3a1a";ctx.fillRect(-6,-6,12,12);ctx.strokeStyle="#78ff8a";ctx.strokeRect(-6,-6,12,12);ctx.fillStyle="#ffdd44";ctx.fillRect(-2,-6,4,12);ctx.restore();}
+  if(activeSpaceEffects.nebulaStorm>0){ctx.save();ctx.globalAlpha=.08+.04*Math.sin(Date.now()/120);ctx.fillStyle="#b86bff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore();}
+  if(activeSpaceEffects.solarFlare>0){ctx.save();ctx.globalAlpha=.10+.05*Math.sin(Date.now()/80);ctx.fillStyle="#ff9b42";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore();}
+}
 function spawnDiscoveryEvent(){
-  const nearby=activeDiscoveryCount(2000);
+  const nearby=activeDiscoveryCount(2200);
   const roll=Math.random();
   const raidersReady=pirateAmbushReady();
-  // If the player cannot find anything, favor discoverable locations over more pirate pressure.
+  // If the player cannot find anything, favor discoverable locations and the new named events.
   if(nearby<2){
-    if(roll<0.38)spawnShipRuin();
-    else if(roll<0.72)spawnTradeConvoy();
-    else spawnSpecialPlanet();
+    if(roll<0.20)spawnShipRuin();
+    else if(roll<0.38)spawnTradeConvoyEvent();
+    else if(roll<0.54)spawnSpecialPlanet();
+    else if(roll<0.70)spawnAsteroidField();
+    else if(roll<0.84)spawnSupplyDrop();
+    else spawnNamedSpaceEvent();
     return;
   }
-  // Raiders only enter the event table when their 7–10 minute cooldown is ready.
-  // Otherwise we keep spawning exploration content instead of forcing combat spam.
-  if(raidersReady&&roll<0.30){spawnPirateAmbush();return;}
-  if(roll<0.36)spawnTradeConvoy();
-  else if(roll<0.68)spawnShipRuin();
-  else spawnSpecialPlanet();
+  if(raidersReady&&roll<0.36){spawnPirateAmbush();return;}
+  if(roll<0.22)spawnNamedSpaceEvent();
+  else if(roll<0.42)spawnTradeConvoyEvent();
+  else if(roll<0.58)spawnShipRuin();
+  else if(roll<0.74)spawnSpecialPlanet();
+  else if(roll<0.87)spawnAsteroidField();
+  else spawnSupplyDrop();
 }
 function updateRandomEvents(dt){
   if(mode!==MODE.SPACE||gameOver||!joined)return;
@@ -835,12 +942,12 @@ function updateRandomEvents(dt){
   }
   randomEventTimer-=dt;
   if(randomEventTimer<=0){
-    randomEventTimer=48+Math.random()*32;
+    randomEventTimer=34+Math.random()*24;
     spawnDiscoveryEvent();
   }
   stationWarEventTimer-=dt;
   if(stationWarEventTimer<=0){
-    stationWarEventTimer=240+Math.random()*180;
+    stationWarEventTimer=105+Math.random()*90;
     maybeSpawnStationWarEvent();
   }
 }
@@ -860,33 +967,106 @@ function resolveRaiderTarget(raw){
   }
   return null;
 }
-function raiderCandidateTargets(ep,range=1550){
+function raiderTargetKey(raw){
+  if(!raw)return "";
+  if(raw.type==="player")return "player";
+  if(raw.type==="npcStation")return `npcStation:${raw.stationId}`;
+  if(raw.type==="npcTradeShip")return `npcTradeShip:${raw.stationId}:${raw.shipId}`;
+  if(raw.type==="ownedStation")return `ownedStation:${raw.stationKey}`;
+  if(raw.type==="ownedTradeShip")return `ownedTradeShip:${raw.stationKey}:${raw.shipId}`;
+  return raw.type||"";
+}
+function raiderCandidateTargets(ep,range=1850){
   const out=[];
-  if(mode===MODE.SPACE&&!gameOver&&dist(ep.x,ep.y,ship.x,ship.y)<range)out.push({raw:{type:"player"},x:ship.x,y:ship.y,priority:1.0,label:"player"});
+  const add=(raw,x,y,priority,label)=>{
+    if(!Number.isFinite(x)||!Number.isFinite(y))return;
+    const d=dist(ep.x,ep.y,x,y);
+    if(d<=range)out.push({raw,x,y,d,priority,label,type:raw.type});
+  };
+  if(mode===MODE.SPACE&&!gameOver){
+    const pd=dist(ep.x,ep.y,ship.x,ship.y);
+    // Player remains valid, but no longer overwhelms every nearby defender.
+    if(pd<range)add({type:"player"},ship.x,ship.y,pd<260?1.05:0.62,"player");
+  }
   for(const st of visibleStations){
-    if(st.destroyed||dist(ep.x,ep.y,st.x,st.y)>range)continue;
-    const shipCount=(st.tradeShips||[]).length;
-    out.push({raw:{type:"npcStation",stationId:st.id},x:st.x,y:st.y,priority:1.45+Math.min(0.65,shipCount*0.08),label:"NPC station"});
-    for(const ts of st.tradeShips||[])if(ts.hp>0&&dist(ep.x,ep.y,ts.x,ts.y)<range)out.push({raw:{type:"npcTradeShip",stationId:st.id,shipId:ts.id},x:ts.x,y:ts.y,priority:1.25,label:"NPC trade ship"});
+    if(st.destroyed)continue;
+    const sd=dist(ep.x,ep.y,st.x,st.y);
+    const shipCount=(st.tradeShips||[]).filter(ts=>ts.hp>0).length;
+    const stationHot=(st.underPirateAttackTimer||0)>0;
+    if(sd<range)add({type:"npcStation",stationId:st.id},st.x,st.y,1.55+Math.min(0.75,shipCount*0.10)+(stationHot?0.55:0),"NPC station");
+    for(const ts of st.tradeShips||[]){
+      if(ts.hp<=0)continue;
+      const td=dist(ep.x,ep.y,ts.x,ts.y);
+      const activelyTargeting=ts.combatTarget?.type==="pirate"&&ts.combatTarget.pirateId===ep.id;
+      const combatBonus=activelyTargeting?1.45:(ts.state==="combat"?0.55:0);
+      if(td<range)add({type:"npcTradeShip",stationId:st.id,shipId:ts.id},ts.x,ts.y,1.55+combatBonus,"NPC trade ship");
+    }
   }
   for(const st of ownedStationsList){
-    if(st.destroyed||dist(ep.x,ep.y,st.x,st.y)>range)continue;
-    const nearOwnedShips=[...ownedTradeShips.values()].filter(os=>os.stationKey===st.key&&!os.disabled&&dist(os.x,os.y,st.x,st.y)<800).length;
-    out.push({raw:{type:"ownedStation",stationKey:st.key},x:st.x,y:st.y,priority:1.5+Math.min(0.7,nearOwnedShips*0.12),label:st.isOwn?"ally station":"player station"});
+    if(st.destroyed)continue;
+    const sd=dist(ep.x,ep.y,st.x,st.y);
+    const nearOwnedShips=[...ownedTradeShips.values()].filter(os=>os.stationKey===st.key&&!os.disabled&&os.hp>0&&dist(os.x,os.y,st.x,st.y)<900).length;
+    const stationHot=Date.now()<(st.underAttackUntil||0);
+    if(sd<range)add({type:"ownedStation",stationKey:st.key},st.x,st.y,1.6+Math.min(0.85,nearOwnedShips*0.13)+(stationHot?0.45:0),st.isOwn?"ally station":"player station");
   }
   for(const os of ownedTradeShips.values()){
-    if(os.disabled||os.hp<=0)continue;const st=ownedStationsList.find(s=>s.key===os.stationKey&&!s.destroyed);if(!st)continue;
-    if(dist(ep.x,ep.y,os.x,os.y)<range)out.push({raw:{type:"ownedTradeShip",stationKey:st.key,shipId:os.id},x:os.x,y:os.y,priority:1.25,label:os.isOwn?"ally trade ship":"player trade ship"});
+    if(os.disabled||os.hp<=0)continue;
+    const st=ownedStationsList.find(s=>s.key===os.stationKey&&!s.destroyed);if(!st)continue;
+    const td=dist(ep.x,ep.y,os.x,os.y);
+    const activelyTargeting=os.assistTarget?.type==="pirate"&&os.assistTarget.pirateId===ep.id;
+    const combatBonus=activelyTargeting?1.55:(os.state==="assist"?0.75:0);
+    if(td<range)add({type:"ownedTradeShip",stationKey:st.key,shipId:os.id},os.x,os.y,1.6+combatBonus,os.isOwn?"ally trade ship":"player trade ship");
   }
   return out;
 }
 function chooseRaiderTarget(ep,current=null){
-  if(current&&dist(ep.x,ep.y,current.x,current.y)<1250)return current;
-  const candidates=raiderCandidateTargets(ep,1700);
+  const candidates=raiderCandidateTargets(ep,1900);
   if(!candidates.length)return null;
-  candidates.sort((a,b)=>(dist(ep.x,ep.y,a.x,a.y)/(a.priority||1))-(dist(ep.x,ep.y,b.x,b.y)/(b.priority||1)));
-  const raw=candidates[0].raw;
-  return resolveRaiderTarget(raw)||{...candidates[0],type:raw.type,raw};
+  for(const c of candidates)c.score=c.d/Math.max(0.25,c.priority||1);
+  candidates.sort((a,b)=>a.score-b.score);
+
+  const currentKey=current?raiderTargetKey(current.raw):"";
+  const currentCandidate=currentKey?candidates.find(c=>raiderTargetKey(c.raw)===currentKey):null;
+  const best=candidates[0];
+  const bestDefender=candidates.find(c=>c.raw.type!=="player");
+  const hotDefender=candidates.filter(c=>c.raw.type!=="player"&&(c.priority>=2.35||c.d<720)).sort((a,b)=>a.score-b.score)[0];
+
+  // Main fix: pirate ships do not stay glued to the player.
+  // Any nearby defender or attacker can pull aggro, especially once it fires.
+  let chosen=best;
+  if(currentCandidate&&currentCandidate.raw.type!=="player"&&currentCandidate.d<1650&&(!hotDefender||currentCandidate.score<=hotDefender.score*1.35)){
+    chosen=currentCandidate;
+  }else if(currentCandidate&&currentCandidate.raw.type==="player"){
+    if(hotDefender)chosen=hotDefender;
+    else if(bestDefender&&bestDefender.d<1050)chosen=bestDefender;
+    else chosen=best;
+  }else if(hotDefender){
+    chosen=hotDefender;
+  }
+
+  const raw=chosen.raw;
+  return resolveRaiderTarget(raw)||{...chosen,type:raw.type,raw};
+}
+function alertNearbyDefendersAgainstRaider(ep){
+  if(!ep||ep.hp<=0)return;
+  let alerted=0;
+  for(const st of visibleStations){
+    if(st.destroyed)continue;
+    let close=dist(ep.x,ep.y,st.x,st.y)<1280;
+    if(!close){
+      for(const ts of st.tradeShips||[]){if(ts.hp>0&&dist(ep.x,ep.y,ts.x,ts.y)<1180){close=true;break;}}
+    }
+    if(close){alertNpcDefendersAgainstRaider(st,ep,ep.x,ep.y);alerted++;}
+  }
+  for(const st of ownedStationsList){
+    if(st.destroyed)continue;
+    let close=dist(ep.x,ep.y,st.x,st.y)<1450;
+    if(!close){
+      for(const os of ownedTradeShips.values()){if(!os.disabled&&os.hp>0&&os.stationKey===st.key&&dist(ep.x,ep.y,os.x,os.y)<1280){close=true;break;}}
+    }
+    if(close){alertOwnedDefendersAgainstRaider(st,ep,"raider");alerted++;}
+  }
+  if(alerted>0)ep.defenderAlertTimer=0.75+Math.random()*0.35;
 }
 function spawnWarProjectile(x1,y1,x2,y2,color="#ff5544",speed=340){
   const a=angleToward(x1,y1,x2,y2);warProjectiles.push({x:x1,y:y1,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,tx:x2,ty:y2,life:1,color});
@@ -895,7 +1075,7 @@ function alertNpcDefendersAgainstRaider(st,ep,centerX=ep.x,centerY=ep.y){
   if(!st||st.destroyed||!ep)return;
   st.underPirateAttackTimer=Math.max(st.underPirateAttackTimer||0,35);
   for(const ts of st.tradeShips||[]){
-    if(dist(ts.x,ts.y,centerX,centerY)<TRADE_SHIP_ALERT_RANGE+360||dist(ts.x,ts.y,st.x,st.y)<st.r+520){
+    if(dist(ts.x,ts.y,centerX,centerY)<1180||dist(ts.x,ts.y,st.x,st.y)<st.r+620||dist(ts.x,ts.y,ep.x,ep.y)<1180){
       ts.state="combat";ts.stateTimer=999;ts.combatTarget={type:"pirate",pirateId:ep.id};ts.shootTimer=Math.min(ts.shootTimer||0,0.25+Math.random()*0.25);
     }
   }
@@ -905,7 +1085,7 @@ function alertOwnedDefendersAgainstRaider(stOrKey,ep,label="raider"){
   const stationKey=typeof stOrKey==="string"?stOrKey:stOrKey?.key;
   const raw={type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y};
   for(const os of ownedTradeShips.values()){
-    if(!os.isOwn||os.disabled)continue;
+    if(os.disabled||os.hp<=0)continue;
     const st=ownedStationsList.find(s=>s.key===os.stationKey&&!s.destroyed);if(!st)continue;
     const sameStation=stationKey&&os.stationKey===stationKey;
     const nearBattle=dist(os.x,os.y,ep.x,ep.y)<1550||dist(st.x,st.y,ep.x,ep.y)<1700||dist(ship.x,ship.y,ep.x,ep.y)<1350;
@@ -977,7 +1157,7 @@ function resolveNpcTradeShipCombatTarget(ts,station){
     ts.combatTarget=null;
   }
   if((station.underPirateAttackTimer||0)>0){
-    let nearest=null,bd=Infinity;for(const ep of eventPirates){const d=dist(ts.x,ts.y,ep.x,ep.y);if(d<bd&&d<820){bd=d;nearest=ep;}}
+    let nearest=null,bd=Infinity;for(const ep of eventPirates){const d=dist(ts.x,ts.y,ep.x,ep.y);if(d<bd&&d<1300){bd=d;nearest=ep;}}
     if(nearest){ts.combatTarget={type:"pirate",pirateId:nearest.id};return {type:"pirate",x:nearest.x,y:nearest.y,obj:nearest};}
   }
   if(station.destroyed||station.underAttackTimer>0||station.playerRep==="hostile")return {type:"player",x:ship.x,y:ship.y,obj:ship};
@@ -999,21 +1179,22 @@ function busyStationWarZones(){
   }
   zones.sort((a,b)=>b.count-a.count);return zones;
 }
-function maybeSpawnStationWarEvent(){
+function maybeSpawnStationWarEvent(opts={}){
   if(mode!==MODE.SPACE||gameOver||!joined)return false;
-  if(eventPirates.filter(p=>dist(p.x,p.y,ship.x,ship.y)<2400).length>10)return false;
+  if(!opts.force&&eventPirates.filter(p=>dist(p.x,p.y,ship.x,ship.y)<2400).length>10)return false;
   const zones=busyStationWarZones();if(!zones.length)return false;
   const z=zones[Math.floor(Math.random()*Math.min(3,zones.length))];
-  const count=clamp(2+Math.ceil(z.count/2)+Math.floor(player.level/6),3,9);
+  const count=clamp(2+Math.ceil(z.count/2)+Math.floor(player.level/6),3,12);
   for(let i=0;i<count;i++){
     const a=Math.random()*Math.PI*2,r=260+Math.random()*180;
     const hp=65+player.level*10+z.count*5;
     const raw=z.kind==="npc"?{type:"npcStation",stationId:z.station.id}:{type:"ownedStation",stationKey:z.station.key};
     eventPirates.push({id:`war_pir_${Date.now()}_${i}`,x:z.x+Math.cos(a)*r,y:z.y+Math.sin(a)*r,vx:0,vy:0,angle:a,hp,maxHp:hp,damage:9+player.level*1.6+Math.min(8,z.count),speed:80+Math.random()*38,shootTimer:0.4+Math.random()*0.8,target:raw,retargetTimer:0});
   }
-  addChat("War",`Raider warband attacking a busy trade zone near ${Math.round(z.x)}, ${Math.round(z.y)}! ${count} raiders detected.`,"#ff5544");
-  showFT("SPACE WAR!",z.x,z.y-42,"#ff5544",16);
-  if(z.kind==="npc")alertNpcDefendersAgainstRaider(z.station,eventPirates[eventPirates.length-1],z.x,z.y);else alertOwnedDefendersAgainstRaider(z.station,eventPirates[eventPirates.length-1],"warband");
+  addChat("War",`${opts.label||"Raider warband"} attacking a busy trade zone near ${Math.round(z.x)}, ${Math.round(z.y)}! ${count} raiders detected.`,"#ff5544");
+  showFT(opts.label||"SPACE WAR!",z.x,z.y-42,"#ff5544",16);
+  const spawned=eventPirates.slice(Math.max(0,eventPirates.length-count));
+  for(const ep of spawned){if(z.kind==="npc")alertNpcDefendersAgainstRaider(z.station,ep,z.x,z.y);else alertOwnedDefendersAgainstRaider(z.station,ep,"warband");}
   return true;
 }
 function updateWarProjectiles(dt){
@@ -1025,6 +1206,8 @@ function updateEventPirates(dt){
     const ep=eventPirates[i];
     ep.shootTimer=Math.max(0,ep.shootTimer-dt);
     ep.retargetTimer=Math.max(0,(ep.retargetTimer||0)-dt);
+    ep.defenderAlertTimer=Math.max(0,(ep.defenderAlertTimer||0)-dt);
+    if(ep.defenderAlertTimer<=0)alertNearbyDefendersAgainstRaider(ep);
     let target=resolveRaiderTarget(ep.target);
     if(!target||ep.retargetTimer<=0){
       target=chooseRaiderTarget(ep,target);
@@ -1047,7 +1230,8 @@ function updateEventPirates(dt){
     if(ep.hp<=0){
       const pool=["copper","iron","gold","fuel","gas_canister","hull_plate","weapon_array"],drops=2+Math.floor(Math.random()*4);
       for(let k=0;k<drops;k++)spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ep.x+(Math.random()-.5)*24,y:ep.y+(Math.random()-.5)*24,vx:(Math.random()-.5)*55,vy:(Math.random()-.5)*55,life:35});
-      socket.emit("gainXp",{amount:35+Math.floor(player.level*8)});recordQuestProgress("pirate",1,{tier:"combat"});incrementBadgeCounter("pirates",1);
+      socket.emit("gainXp",{amount:55+Math.floor(player.level*10)});recordQuestProgress("pirate",1,{tier:"combat"});incrementBadgeCounter("pirates",1);
+      showScorePopup(25,"Rep + XP");
       showFT("Pirate destroyed",ep.x,ep.y,"#ffcc44",10);eventPirates.splice(i,1);
     }
   }
@@ -1061,19 +1245,23 @@ function tryHitEventPirates(p){
 }
 function getEventBeacons(){
   const now=Date.now(),beacons=[];
-  for(const st of randomEventStations){if(st.expireAt&&now>st.expireAt)continue;beacons.push({x:st.x,y:st.y,label:"TRADE ARK",hint:"O:trade",color:"#ffdd44",kind:"ark"});}
+  for(const st of randomEventStations){if(st.expireAt&&now>st.expireAt)continue;beacons.push({x:st.x,y:st.y,label:"TRADE CONVOY",hint:"O:trade",color:"#ffdd44",kind:"ark"});}
   for(const ru of eventShipRuins){if(ru.expireAt&&now>ru.expireAt)continue;beacons.push({x:ru.x,y:ru.y,label:"SHIP RUIN",hint:"L:board",color:"#78ff8a",kind:"ruin"});}
   for(const p of specialEventPlanets){if(p.expireAt&&now>p.expireAt)continue;beacons.push({x:p.x,y:p.y,label:"SPECIAL PLANET",hint:"L:land",color:"#b86bff",kind:"planet"});}
+  for(const f of eventAsteroidFields){if(f.expireAt&&now>f.expireAt)continue;beacons.push({x:f.x,y:f.y,label:"ASTEROID FIELD",hint:"ore-rich",color:"#b9f3ff",kind:"asteroid"});}
+  for(const c of eventLootCrates){if(c.opened||c.expireAt&&now>c.expireAt)continue;beacons.push({x:c.x,y:c.y,label:"SUPPLY CRATE",hint:"collect",color:"#78ff8a",kind:"crate"});}
+  for(const ep of eventPirates){if(ep.hp>0)beacons.push({x:ep.x,y:ep.y,label:"RAIDER",hint:"combat",color:"#ff5544",kind:"raider"});}
+  if(activeSpaceEffects.bountyHunt>0){for(const[,op]of otherPlayers)if(op.mode==="space")beacons.push({x:op.x,y:op.y,label:`BOUNTY ${op.name||"PILOT"}`,hint:"pilot",color:"#ff8844",kind:"bounty"});}
   return beacons.sort((a,b)=>dist(ship.x,ship.y,a.x,a.y)-dist(ship.x,ship.y,b.x,b.y));
 }
 function drawEventRadarOverlay(){
   const beacons=getEventBeacons();
   if(!beacons.length)return;
-  const x=8,y=92,w=190,h=14+Math.min(3,beacons.length)*13;
+  const x=8,y=92,w=230,h=14+Math.min(4,beacons.length)*14;
   ctx.save();
   ctx.fillStyle="rgba(4,7,18,.78)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#31506f";ctx.strokeRect(x,y,w,h);
   ctx.fillStyle="#9fc8ff";ctx.font="bold 7px monospace";ctx.fillText("EVENT RADAR",x+6,y+9);
-  for(let i=0;i<Math.min(3,beacons.length);i++){const b=beacons[i],d=Math.round(dist(ship.x,ship.y,b.x,b.y));ctx.fillStyle=b.color;ctx.font="8px monospace";ctx.fillText(`${b.label} ${d}m · ${b.hint}`,x+8,y+22+i*13);}
+  for(let i=0;i<Math.min(4,beacons.length);i++){const b=beacons[i],d=Math.round(dist(ship.x,ship.y,b.x,b.y));ctx.fillStyle=b.color;ctx.font="8px monospace";ctx.fillText(`${b.label} ${d}m @ ${Math.round(b.x)},${Math.round(b.y)} · ${b.hint}`,x+8,y+22+i*14);}
   // Draw strong edge arrows for off-screen discoveries.
   const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
   for(const b of beacons.slice(0,4)){
@@ -1083,7 +1271,7 @@ function drawEventRadarOverlay(){
     const ex=clamp(canvas.width/2+Math.cos(ang)*(canvas.width/2-24),24,canvas.width-24);
     const ey=clamp(canvas.height/2+Math.sin(ang)*(canvas.height/2-24),24,canvas.height-24);
     ctx.save();ctx.translate(ex,ey);ctx.rotate(ang);ctx.fillStyle=b.color;ctx.globalAlpha=.95;ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-8,-6);ctx.lineTo(-5,0);ctx.lineTo(-8,6);ctx.closePath();ctx.fill();ctx.restore();
-    ctx.fillStyle=b.color;ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(b.label,ex,ey-10);ctx.textAlign="left";
+    ctx.fillStyle=b.color;ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(`${b.label} (${Math.round(b.x)},${Math.round(b.y)})`,ex,ey-10);ctx.textAlign="left";
   }
   ctx.restore();ctx.globalAlpha=1;
 }
@@ -1108,6 +1296,10 @@ let mode=MODE.SPACE,activePlanet=null,planetMap=null;
 const astronaut={x:0,y:0,vx:0,vy:0,w:10,h:14,onGround:false};
 let landedShip={x:0,y:0};
 const drops=[];
+const planetEnemies=[];
+const planetLocalProjectiles=[];
+const planetEnemyProjectiles=[];
+let planetQuestTrader=null;
 
 function genPlanetMap(planet){
   const rng=makeRng(planet.seed+"|map"),W=320,H=140,sy2=45+randInt(rng,-6,6);
@@ -1179,6 +1371,63 @@ function doMining(dt){
   socket.emit("minePlanetTile",{planetId:activePlanet.id,tx,ty,power:planetMiningPower()});
 }
 function planetCamera(){return{x:clamp(astronaut.x-canvas.width/2,0,planetMap.W*16-canvas.width),y:clamp(astronaut.y-canvas.height/2,0,planetMap.H*16-canvas.height)};}
+
+function initPlanetNPCs(planet){
+  planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;
+  if(!planetMap||activeRuin)return;
+  const rng=makeRng((planet.seed||planet.id)+"|surface_npcs_v2");
+  const types=["digger","shooter","charger","skitter","shieldbug"];
+  const count=clamp(6+Math.floor(player.level/2)+randInt(rng,0,5),6,18);
+  for(let i=0;i<count;i++){
+    const col=clamp(randInt(rng,8,planetMap.W-9),2,planetMap.W-3),sy=surfaceYAtColumn(col);
+    const type=types[i%types.length],hp={digger:38,shooter:32,charger:48,skitter:24,shieldbug:72}[type]+player.level*7;
+    planetEnemies.push({id:`pnpc_${planet.id}_${i}`,type,x:col*16+8,y:sy*16-8,w:12,h:13,vx:0,vy:0,onGround:false,hp,maxHp:hp,damage:{digger:7,shooter:6,charger:11,skitter:5,shieldbug:9}[type]+player.level*0.7,shootTimer:1+rng()*2,hitTimer:0,burrowTimer:rng()*4,dir:rng()<0.5?-1:1});
+  }
+  const qcol=clamp(findLandingColumn()+randInt(rng,5,14),5,planetMap.W-5),qy=surfaceYAtColumn(qcol)*16-8;
+  planetQuestTrader={id:`ptrader_${planet.id}`,x:qcol*16+8,y:qy,quest:{title:"Planet Survey Contract",target:3+Math.floor(player.level/3),progress:0,complete:false},stock:["oxygen_tank","gas_canister","fuel","hull_plate","nav_chip"],tradeCooldown:0};
+  addChat("Planet",`Planet NPCs detected. Find the trader at local ${Math.round(planetQuestTrader.x)}, ${Math.round(planetQuestTrader.y)} and press E nearby.`,"#7be6ff");
+}
+function damagePlanetPlayer(amount,source="Planet NPC"){
+  socket.emit("planetNpcDamage",{damage:Math.max(1,Math.min(30,Math.round(amount))),source});
+  showFT(source,astronaut.x,astronaut.y-28,"#ff5544",9);
+}
+function firePlanetEnemyProjectile(e){
+  const ang=angleToward(e.x,e.y-8,astronaut.x,astronaut.y-8);
+  planetEnemyProjectiles.push({x:e.x,y:e.y-9,vx:Math.cos(ang)*155,vy:Math.sin(ang)*155,damage:e.damage,life:2.8,color:e.type==="shooter"?"#ff8844":"#a3d15c"});
+}
+function updatePlanetNPCs(dt){
+  if(activeRuin||!planetMap)return;
+  const grav=400;
+  for(const e of planetEnemies){
+    if(e.hp<=0)continue;
+    e.hitTimer=Math.max(0,(e.hitTimer||0)-dt);e.shootTimer=Math.max(0,(e.shootTimer||0)-dt);
+    const d=dist(e.x,e.y,astronaut.x,astronaut.y),dir=Math.sign(astronaut.x-e.x)||e.dir||1;e.dir=dir;
+    let speed={digger:38,shooter:24,charger:86,skitter:118,shieldbug:28}[e.type]||45;
+    if(e.type==="digger"){e.burrowTimer=(e.burrowTimer||0)-dt;if(e.burrowTimer<=0&&d<360){e.burrowTimer=3+Math.random()*3;e.x=clamp(astronaut.x+(Math.random()<0.5?-1:1)*(70+Math.random()*90),16,planetMap.W*16-16);e.y=surfaceYAtColumn(Math.floor(e.x/16))*16-8;showFT("DIGGER!",e.x,e.y-18,"#ff8844",8);}}
+    if(e.type==="shooter"&&d<330&&e.shootTimer<=0){e.shootTimer=1.15+Math.random()*0.65;firePlanetEnemyProjectile(e);}
+    if(e.type==="charger"&&d<260)speed*=1.45;
+    if(d<420&&e.type!=="shooter")e.vx=lerp(e.vx,dir*speed,0.08);else e.vx*=Math.pow(.88,dt*60);
+    e.vy+=grav*dt;e.x+=e.vx*dt;e.x=clamp(e.x,8,planetMap.W*16-8);collidePlanet(e,true);e.y+=e.vy*dt;e.onGround=false;collidePlanet(e,false);
+    if(d<18&&e.hitTimer<=0){e.hitTimer=0.95;damagePlanetPlayer(e.damage,`${e.type} hit`);}
+  }
+  for(let i=planetEnemyProjectiles.length-1;i>=0;i--){const p=planetEnemyProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0){planetEnemyProjectiles.splice(i,1);continue;}if(dist(p.x,p.y,astronaut.x,astronaut.y-8)<10){damagePlanetPlayer(p.damage,"projectile hit");planetEnemyProjectiles.splice(i,1);}}
+  for(let i=planetLocalProjectiles.length-1;i>=0;i--){const p=planetLocalProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0){planetLocalProjectiles.splice(i,1);continue;}const tx=Math.floor(p.x/16),ty=Math.floor(p.y/16);if(tileAt(tx,ty)){planetLocalProjectiles.splice(i,1);continue;}for(const e of planetEnemies){if(e.hp>0&&dist(p.x,p.y,e.x,e.y-8)<13){const dmg=p.damage*(e.type==="shieldbug"?0.65:1);e.hp-=dmg;showFT("-"+Math.round(dmg),e.x,e.y-20,"#ffdd44",8);if(e.hp<=0){const reward=e.type==="shieldbug"?"shield_matrix":(Math.random()<.5?"copper":"iron");socket.emit("shipPartReward",{items:[{type:reward,qty:1}],credits:65+player.level*18,xp:25+player.level*7,reason:`Planet ${e.type}`});if(planetQuestTrader?.quest&&!planetQuestTrader.quest.complete){planetQuestTrader.quest.progress++;if(planetQuestTrader.quest.progress>=planetQuestTrader.quest.target){planetQuestTrader.quest.complete=true;showFT("Quest ready: Trader",planetQuestTrader.x,planetQuestTrader.y-22,"#78ff8a",10);}}}planetLocalProjectiles.splice(i,1);break;}}}
+  if(planetQuestTrader){planetQuestTrader.tradeCooldown=Math.max(0,(planetQuestTrader.tradeCooldown||0)-dt);if(keys.has("e")&&dist(astronaut.x,astronaut.y,planetQuestTrader.x,planetQuestTrader.y)<34){keys.delete("e");interactPlanetTrader();}}
+}
+function interactPlanetTrader(){
+  if(!planetQuestTrader)return;
+  const q=planetQuestTrader.quest;
+  if(q.complete){q.complete=false;q.progress=0;q.target+=2;socket.emit("shipPartReward",{items:[{type:"nav_chip",qty:1},{type:"oxygen_tank",qty:2}],credits:900+player.level*120,xp:220+player.level*35,reason:"Planet Quest"});showFT("Quest turned in!",planetQuestTrader.x,planetQuestTrader.y-24,"#78ff8a",11);return;}
+  if((planetQuestTrader.tradeCooldown||0)<=0){const item=planetQuestTrader.stock[Math.floor(Math.random()*planetQuestTrader.stock.length)];planetQuestTrader.tradeCooldown=6;socket.emit("shipPartReward",{items:[{type:item,qty:item.includes("_")?1:2}],credits:0,xp:10,reason:"Planet Trader Gift"});showFT(`Trader gift: ${RES[item]?.name||item}`,planetQuestTrader.x,planetQuestTrader.y-24,"#ffdd44",9);}
+  addChat("Planet Trader",`${q.title}: defeat ${q.progress}/${q.target} hostile NPCs. Press E after completion for special items.`,"#ffdd44");
+}
+function drawPlanetNPCs(cam){
+  if(activeRuin)return;
+  for(const e of planetEnemies){if(e.hp<=0)continue;const x=e.x-cam.x,y=e.y-cam.y;if(x<-30||y<-40||x>canvas.width+30||y>canvas.height+30)continue;const col={digger:"#b8792a",shooter:"#ff8844",charger:"#ff3344",skitter:"#a3d15c",shieldbug:"#58a6ff"}[e.type]||"#ff5544";ctx.fillStyle=col;ctx.fillRect(x-6,y-13,12,13);ctx.fillStyle="#111";ctx.fillRect(x-3,y-10,2,2);ctx.fillRect(x+2,y-10,2,2);const hp=clamp(e.hp/e.maxHp,0,1);ctx.fillStyle="#300";ctx.fillRect(x-14,y-18,28,2);ctx.fillStyle=hp>.5?"#ffcc44":"#ff5544";ctx.fillRect(x-14,y-18,28*hp,2);ctx.fillStyle=col;ctx.font="6px monospace";ctx.textAlign="center";ctx.fillText(e.type,x,y+8);ctx.textAlign="left";}
+  for(const p of planetEnemyProjectiles){const x=p.x-cam.x,y=p.y-cam.y;ctx.fillStyle=p.color||"#ff8844";ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();}
+  for(const p of planetLocalProjectiles){const x=p.x-cam.x,y=p.y-cam.y;ctx.fillStyle="#ffdd44";ctx.shadowColor="#ffdd44";ctx.shadowBlur=6;ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
+  if(planetQuestTrader){const x=planetQuestTrader.x-cam.x,y=planetQuestTrader.y-cam.y;ctx.fillStyle="#ffdd44";ctx.fillRect(x-5,y-14,10,14);ctx.fillStyle="#7be6ff";ctx.fillRect(x-3,y-11,6,3);ctx.fillStyle="#ffdd44";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("QUEST/TRADER",x,y-20);if(dist(astronaut.x,astronaut.y,planetQuestTrader.x,planetQuestTrader.y)<38)ctx.fillText("E: Talk / Trade",x,y-26);ctx.textAlign="left";}
+}
 
 /* ── HUD elements ── */
 const modeEl=document.getElementById("mode"),creditsEl=document.getElementById("credits"),
@@ -1260,8 +1509,9 @@ function damageShip(amount){
 /* ── Kill trade ship (NPC) ── */
 function killTradeShip(ts,station){
   for(const[r,q]of Object.entries(ts.lootCarried||{}))for(let i=0;i<q;i++)spaceDrops.push({type:r,x:ts.x+(Math.random()-0.5)*20,y:ts.y+(Math.random()-0.5)*20,vx:(Math.random()-0.5)*30,vy:(Math.random()-0.5)*30,life:25});
-  const pool=station.tierDef.itemPool,dc=randInt(makeRng(ts.id+Date.now()),1,4);
+  const pool=station.tierDef.itemPool,dc=randInt(makeRng(ts.id+Date.now()),1,4)+(activeSpaceEffects.tradeConvoy>0?3:0);
   for(let i=0;i<dc;i++)spaceDrops.push({type:pool[Math.floor(Math.random()*pool.length)],x:ts.x+(Math.random()-0.5)*30,y:ts.y+(Math.random()-0.5)*30,vx:(Math.random()-0.5)*40,vy:(Math.random()-0.5)*40,life:25});
+  if(activeSpaceEffects.tradeConvoy>0)showFT("CONVOY BONUS LOOT",ts.x,ts.y-18,"#ffdd44",9);
   socket.emit("gainXp",{amount:station.tierDef.xpReward});
   showFT(`+${station.tierDef.xpReward} XP`,ts.x,ts.y,"#cc88ff");
   for(const ots of station.tradeShips)if(ots!==ts&&dist(ots.x,ots.y,ts.x,ts.y)<TRADE_SHIP_ALERT_RANGE){ots.state="combat";ots.stateTimer=999;}
@@ -1477,9 +1727,9 @@ function updateOwnedTradeShip(os,st,dt){
   if(os.disabled)return;
   os.stateTimer=Math.max(0,os.stateTimer-dt);os.shootTimer=Math.max(0,os.shootTimer-dt);
   if(os.assistTarget){if(updateOwnedTradeShipAssist(os,st,dt)){os.x+=os.vx*dt;os.y+=os.vy*dt;os.vx*=Math.pow(0.97,dt*60);os.vy*=Math.pow(0.97,dt*60);return;}}
-  if(os.isOwn){
-    let nearPirate=null,bd=Infinity;for(const ep of eventPirates){const d=Math.min(dist(ep.x,ep.y,st.x,st.y),dist(ep.x,ep.y,os.x,os.y));if(d<bd&&d<1350){bd=d;nearPirate=ep;}}
-    if(nearPirate&&(Date.now()<(st.underAttackUntil||0)||bd<900)){os.assistTarget={type:"pirate",pirateId:nearPirate.id,x:nearPirate.x,y:nearPirate.y};os.state="assist";os.aggro=true;os.stateTimer=20;}
+  {
+    let nearPirate=null,bd=Infinity;for(const ep of eventPirates){const d=Math.min(dist(ep.x,ep.y,st.x,st.y),dist(ep.x,ep.y,os.x,os.y));if(d<bd&&d<1550){bd=d;nearPirate=ep;}}
+    if(nearPirate){os.assistTarget={type:"pirate",pirateId:nearPirate.id,x:nearPirate.x,y:nearPirate.y};os.state="assist";os.aggro=true;os.stateTimer=24;}
   }
   if(!os.isOwn&&(st.destroyed||Date.now()<(st.underAttackUntil||0))&&os.state!=="combat"){os.state="combat";os.aggro=true;os.stateTimer=999;}
   else if(os.isOwn&&(st.destroyed||Date.now()<(st.underAttackUntil||0))&&os.state!=="assist"){os.state="return";os.aggro=false;}
@@ -2020,7 +2270,8 @@ function sendInput(){
     if(assistTarget)callOwnedTradeShipsToAssist(assistTarget,assistTarget.label||"target");
     shootCooldownTimer=SHOOT_CD;
   }
-  socket.emit("input",{rotLeft:keys.has("a"),rotRight:keys.has("d"),thrust:keys.has("w"),brake:keys.has("s"),shootX,shootY});
+  const stormThrottle=activeSpaceEffects.nebulaStorm>0 && Math.floor(performance.now()/220)%5===0;
+  socket.emit("input",{rotLeft:keys.has("a"),rotRight:keys.has("d"),thrust:keys.has("w")&&!stormThrottle,brake:keys.has("s"),shootX,shootY});
   mouse.clicked=false;
 }
 
@@ -2044,6 +2295,7 @@ function updateSpace(dt){
   else if(spd>5)energy.current=Math.max(0,energy.current-ENERGY_IDLE*ship.gasEfficiency*dt);
   if(energy.current<=0){gameOver=true;return;}
   updateRandomEvents(dt);
+  updateSpaceEventObjects(dt);
   updateEventPirates(dt);
   updateWarProjectiles(dt);
 
@@ -2217,6 +2469,7 @@ function enterPlanetWithLoadedMap(){
   astronaut.x=col*16+8;astronaut.y=surfaceY*16-10;astronaut.vx=0;astronaut.vy=0;astronaut.onGround=false;
   placeLandedShipNear(col);
   drops.length=0;
+  initPlanetNPCs(activePlanet);
   socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});
   showFT("Planetfall",astronaut.x,astronaut.y-25,"#7be6ff",11);
 }
@@ -2267,7 +2520,7 @@ function landOnNearestPlanet(){
 }
 function leavePlanet(){
   if(activePlanet){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;}ship.vx*=0.2;ship.vy*=0.2;
-  mode=MODE.SPACE;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;
+  mode=MODE.SPACE;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;
   socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});
   updateChunks();
   showFT("Takeoff!",ship.x,ship.y-20,"#7be6ff",11);
@@ -2460,6 +2713,7 @@ function drawSpace(){
   for(const ft of floatingTexts){const camFtX=ft.x-camX,camFtY=ft.y-camY;ctx.save();ctx.globalAlpha=clamp(ft.life,0,1);ctx.fillStyle=ft.color;ctx.font=`bold ${ft.size}px monospace`;ctx.textAlign="center";ctx.fillText(ft.text,camFtX,camFtY);ctx.restore();}
   ctx.globalAlpha=1;
 
+  drawExtraSpaceEvents(camX,camY);
   drawMinimap();
   drawEventRadarOverlay();
   if(shopOpen&&nearStation)drawShop(nearStation);
@@ -2482,6 +2736,9 @@ function drawMinimap(){
   for(const st of randomEventStations){const m=wm(st.x,st.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.strokeStyle="#ffdd44";ctx.strokeRect(m.x-3,m.y-3,6,6);}
   for(const sp of specialEventPlanets){const m=wm(sp.x,sp.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.strokeStyle="#b86bff";ctx.beginPath();ctx.arc(m.x,m.y,4,0,Math.PI*2);ctx.stroke();}
   for(const ru of eventShipRuins){const m=wm(ru.x,ru.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle="#78ff8a";ctx.fillRect(m.x-2,m.y-2,4,4);}
+  for(const f of eventAsteroidFields){const m=wm(f.x,f.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.strokeStyle="#b9f3ff";ctx.beginPath();ctx.arc(m.x,m.y,4,0,Math.PI*2);ctx.stroke();}
+  for(const c of eventLootCrates){const m=wm(c.x,c.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.strokeStyle="#78ff8a";ctx.strokeRect(m.x-2,m.y-2,4,4);}
+  for(const ep of eventPirates){const m=wm(ep.x,ep.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle="#ff5544";ctx.beginPath();ctx.arc(m.x,m.y,2,0,Math.PI*2);ctx.fill();}
 
   // Owned stations on minimap
   for(const ost of ownedStationsList){const m=wm(ost.x,ost.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=ost.isOwn?"#ffcc44":"#aaaaaa";ctx.fillRect(m.x-2,m.y-2,4,4);}
@@ -2752,6 +3009,7 @@ function updatePlanet(dt){
   if(!controlsLocked&&keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
   if(!controlsLocked&&mouse.down&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon")planetWeaponAttack();else if(!activeRuin)doMining(dt);}
   if(activeRuin)updateRuinContents(dt);
+  else updatePlanetNPCs(dt);
   for(let i=drops.length-1;i>=0;i--){
     const it=drops[i];
     it.age=(it.age||0)+dt;
@@ -2792,6 +3050,7 @@ function drawPlanet(){
     ctx.globalAlpha=.45;ctx.strokeStyle=pr.ownerId===player.id?"#ffdd44":"#ff6655";ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   }
   if(activeRuin)drawRuinContents(cam);
+  else drawPlanetNPCs(cam);
   const ax2=astronaut.x-cam.x,ay2=astronaut.y-cam.y;
   if(jetpack.active){
     ctx.save();
@@ -2847,7 +3106,10 @@ function planetWeaponAttack(){
     }
     planetAttackCooldown=0.22;showFT("Miss",astronaut.x,astronaut.y-22,"#ffcc44",7);return;
   }
-  planetAttackCooldown=0.55;socket.emit("planetFireProjectile",{planetId:activePlanet.id,x:astronaut.x,y:astronaut.y-8,targetX:wx,targetY:wy});showFT("Pew!",astronaut.x,astronaut.y-22,"#ffdd44",8);
+  planetAttackCooldown=0.18;
+  const sx=astronaut.x,sy=astronaut.y-8,ang=angleToward(sx,sy,wx,wy);
+  planetLocalProjectiles.push({x:sx,y:sy,vx:Math.cos(ang)*310,vy:Math.sin(ang)*310,damage:planetWeaponDamage(),life:1.55});
+  socket.emit("planetFireProjectile",{planetId:activePlanet.id,x:sx,y:sy,targetX:wx,targetY:wy});
 }
 function inventoryTypeCounts(){const out={};for(const s of player.invSlots){if(s.type&&s.count>0)out[s.type]=(out[s.type]||0)+s.count;}return out;}
 function normalizeTradeItems(items){const counts=inventoryTypeCounts(),used={};const out=[];for(const it of items||[]){const type=it.type;if(!type||!RES[type])continue;const max=Math.max(0,(counts[type]||0)-(used[type]||0));const q=clamp(Math.floor(Number(it.quantity)||0),0,max);if(q>0){used[type]=(used[type]||0)+q;out.push({type,quantity:q});}}return out;}
