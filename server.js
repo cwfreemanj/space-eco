@@ -80,6 +80,34 @@ const WIX_PERSIST_URL = cleanEnvUrl(process.env.WIX_PERSIST_URL || process.env.P
 const WIX_PERSIST_SECRET = process.env.WIX_PERSIST_SECRET || process.env.SPACE_ECO_PERSIST_SECRET || PURCHASE_WEBHOOK_SECRET || "";
 const socketsByMemberId = new Map();
 const persistTimers = new Map();
+
+function cancelPersistTimerForPlayerId(playerId){
+  if(persistTimers.has(playerId)){
+    clearTimeout(persistTimers.get(playerId));
+    persistTimers.delete(playerId);
+  }
+}
+function isCurrentAccountSocket(p){
+  if(!p?.memberId)return true;
+  return socketsByMemberId.get(String(p.memberId))===p.id;
+}
+function claimMemberSocket(memberId, socketId){
+  memberId=String(memberId||"");
+  if(!memberId)return;
+  const previousId=socketsByMemberId.get(memberId);
+  if(previousId&&previousId!==socketId){
+    const oldPlayer=players?.get?.(previousId);
+    if(oldPlayer){
+      oldPlayer.suppressPersist=true;
+      oldPlayer.supersededBy=socketId;
+      cancelPersistTimerForPlayerId(previousId);
+      io.to(previousId).emit("accountSuperseded",{reason:"Your account was opened in another game session."});
+    }
+    const oldSocket=io.sockets.sockets.get(previousId);
+    if(oldSocket)setTimeout(()=>{try{oldSocket.disconnect(true);}catch(_){/* noop */}},250);
+  }
+  socketsByMemberId.set(memberId,socketId);
+}
 console.log("Space Eco persistence config", {
   hasGameAuthSecret: !!WIX_GAME_AUTH_SECRET,
   hasPersistUrl: !!WIX_PERSIST_URL,
@@ -329,7 +357,7 @@ function defaultPlayer(id, name, x, y) {
     vx:0, vy:0, angle:0,
     hp:100, maxHp:100, shield:60, maxShield:60,
     level:1, xp:0, attrPoints:0,
-    credits:300, color:randomShipColor(), shipType:"scout",
+    credits:300, maxSlots:24, invSlots:emptySlots(24), color:randomShipColor(), shipType:"scout",
     input:{ rotLeft:false, rotRight:false, thrust:false, brake:false, shootX:null, shootY:null },
     shootCooldown:0, lastSeen:Date.now(), mode:"space", planetId:null,
     attrs:{ damage:1, speed:1, cargoMax:1, armor:1, gasEfficiency:1, shieldRegen:1 },
@@ -453,6 +481,67 @@ function normalizeInventorySlots(slots,maxSlots=24){
   }
   return out;
 }
+function getAuthInventoryPayload(auth){
+  if(!auth||typeof auth!=="object")return undefined;
+  if(auth.invSlots!==undefined)return auth.invSlots;
+  if(auth.inventory!==undefined)return auth.inventory;
+  if(auth.items!==undefined)return auth.items;
+  return undefined;
+}
+function authHasInventoryPayload(auth){return getAuthInventoryPayload(auth)!==undefined;}
+function slotCountNeededForInventoryPayload(payload){
+  if(Array.isArray(payload))return Math.max(24,Math.min(96,payload.length||24));
+  if(payload&&typeof payload==="object"){
+    let stacks=0;
+    for(const [type,val] of Object.entries(payload)){
+      if(!RES_KEYS.includes(type))continue;
+      const count=Math.max(0,Math.floor(Number(val)||0));
+      if(count>0)stacks+=Math.ceil(count/24);
+    }
+    return Math.max(24,Math.min(96,stacks||24));
+  }
+  return 24;
+}
+function cleanClientWixSnapshot(snapshot,memberId){
+  if(!snapshot||typeof snapshot!=="object")return null;
+  if(snapshot.memberId&&String(snapshot.memberId)!==String(memberId))return null;
+  const out={memberId:String(memberId)};
+  if(typeof snapshot.displayName==="string")out.displayName=sanitizeName(snapshot.displayName);
+  if(typeof snapshot.credits==="number"&&Number.isFinite(snapshot.credits))out.credits=Math.max(0,Math.floor(snapshot.credits));
+  if(typeof snapshot.maxSlots==="number"&&Number.isFinite(snapshot.maxSlots))out.maxSlots=Math.max(24,Math.min(96,Math.floor(snapshot.maxSlots)));
+  if(Array.isArray(snapshot.invSlots))out.invSlots=snapshot.invSlots;
+  else if(snapshot.inventory&&typeof snapshot.inventory==="object")out.inventory=snapshot.inventory;
+  else if(snapshot.items&&typeof snapshot.items==="object")out.items=snapshot.items;
+  if(typeof snapshot.shipType==="string"&&SHIP_TYPES[snapshot.shipType])out.shipType=snapshot.shipType;
+  if(typeof snapshot.level==="number")out.level=Math.max(1,Math.floor(snapshot.level));
+  if(typeof snapshot.xp==="number")out.xp=Math.max(0,Math.floor(snapshot.xp));
+  if(snapshot.attrs&&typeof snapshot.attrs==="object")out.attrs=snapshot.attrs;
+  if(snapshot.badgeRewards&&typeof snapshot.badgeRewards==="object")out.badgeRewards=snapshot.badgeRewards;
+  if(Array.isArray(snapshot.activeMercs))out.activeMercs=snapshot.activeMercs;
+  if(snapshot.buildings&&typeof snapshot.buildings==="object")out.buildings=snapshot.buildings;
+  return out;
+}
+function combineAuthWithClientSnapshot(auth,snapshot){
+  if(!auth)return auth;
+  const snap=cleanClientWixSnapshot(snapshot,auth.memberId);
+  if(!snap)return auth;
+  const out={...auth};
+  // Signed token data wins when it contains a value. The snapshot fills gaps when
+  // Wix sends member auth separately from the persisted inventory payload.
+  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","activeMercs","buildings"]){
+    if(out[k]===undefined&&snap[k]!==undefined)out[k]=snap[k];
+  }
+  if(!authHasInventoryPayload(out)&&authHasInventoryPayload(snap)){
+    if(snap.invSlots!==undefined)out.invSlots=snap.invSlots;
+    else if(snap.inventory!==undefined)out.inventory=snap.inventory;
+    else if(snap.items!==undefined)out.items=snap.items;
+  }
+  return out;
+}
+function inventoryFingerprint(slots,maxSlots=24,credits=0){
+  const norm=normalizeInventorySlots(slots,maxSlots);
+  return `${Math.max(0,Math.floor(Number(credits)||0))}|${maxSlots}|`+norm.map(s=>s?.type?`${s.type}:${s.count}`:"-").join(",");
+}
 function inventoryCounts(p){const o={};for(const s of p.invSlots||[])if(s?.type&&s.count>0)o[s.type]=(o[s.type]||0)+s.count;return o;}
 function inventoryCount(p,type){let n=0;for(const s of p.invSlots||[])if(s.type===type)n+=s.count;return n;}
 function canFitInventory(p,type,amount){
@@ -512,6 +601,8 @@ function emitInventorySync(p,reason="sync"){
 }
 async function persistPlayerNow(p,reason="update"){
   if(!p?.memberId){console.warn("Wix persistence skipped: player has no memberId", p?.id, reason);return;}
+  if(p.suppressPersist||!isCurrentAccountSocket(p)){console.warn("Wix persistence skipped: superseded account socket", p?.id, p?.memberId, reason);return;}
+  if(!p.persistenceLoaded){console.warn("Wix persistence skipped: account inventory snapshot not loaded yet", p?.id, p?.memberId, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
   const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),reason,updatedAt:Date.now()};
   try{
@@ -524,6 +615,8 @@ async function persistPlayerNow(p,reason="update"){
 }
 function persistPlayerSoon(p,reason="update",delay=1200){
   if(!p?.memberId)return;
+  if(p.suppressPersist||!isCurrentAccountSocket(p))return;
+  if(!p.persistenceLoaded){console.warn("Wix persistence delayed/skipped until inventory snapshot loads", p?.id, p?.memberId, reason);return;}
   if(persistTimers.has(p.id))clearTimeout(persistTimers.get(p.id));
   persistTimers.set(p.id,setTimeout(()=>{persistTimers.delete(p.id);persistPlayerNow(p,reason);},delay));
 }
@@ -537,19 +630,38 @@ function mergeInventoryIntoPlayer(p,slotsOrCounts){
 }
 function applyAuthAccountToPlayer(p,auth){
   if(!auth)return;
-  p.memberId=String(auth.memberId);p.accountLoaded=true;
+  const memberId=String(auth.memberId||"");
+  if(memberId)p.memberId=memberId;
+  p.accountLoaded=true;
   p.name=sanitizeName(auth.displayName||p.name||"Pilot");
+  const authInventory=getAuthInventoryPayload(auth);
+
+  let desiredSlots;
+  if(auth.maxSlots!==undefined){
+    const slots=Number(auth.maxSlots);
+    if(Number.isFinite(slots))desiredSlots=Math.max(24,Math.min(96,Math.floor(slots)));
+  }
+  if(desiredSlots===undefined&&Array.isArray(authInventory))desiredSlots=Math.max(24,Math.min(96,authInventory.length||24));
+  if(desiredSlots===undefined&&authInventory&&typeof authInventory==="object")desiredSlots=slotCountNeededForInventoryPayload(authInventory);
+  if(desiredSlots===undefined)desiredSlots=Math.max(24,Math.min(96,Math.floor(Number(p.maxSlots)||24)));
+  p.maxSlots=desiredSlots;
+
   if(auth.credits!==undefined){
     const credits=Number(auth.credits);
     if(Number.isFinite(credits))p.credits=Math.max(0,Math.floor(credits));
   }
-  if(auth.maxSlots!==undefined){
-    const slots=Number(auth.maxSlots);
-    if(Number.isFinite(slots))p.maxSlots=Math.max(24,Math.min(96,Math.floor(slots)));
-  }else p.maxSlots=Math.max(24,Math.min(96,Math.floor(Number(p.maxSlots)||24)));
-  const authInventory=(auth.invSlots!==undefined)?auth.invSlots:((auth.inventory!==undefined)?auth.inventory:auth.items);
-  if(authInventory!==undefined)p.invSlots=normalizeInventorySlots(authInventory,p.maxSlots);
-  else if(!Array.isArray(p.invSlots))p.invSlots=emptySlots(p.maxSlots);
+  if(authInventory!==undefined){
+    p.invSlots=normalizeInventorySlots(authInventory,p.maxSlots);
+    p.persistenceLoaded=true;
+    p.loadedInventoryFingerprint=inventoryFingerprint(p.invSlots,p.maxSlots,p.credits||0);
+  }else{
+    // Never replace an existing/default inventory with an empty array just because
+    // the auth token did not contain inventory. That was one source of lost saves.
+    if(!Array.isArray(p.invSlots))p.invSlots=emptySlots(p.maxSlots);
+    if(p.invSlots.length<p.maxSlots){
+      while(p.invSlots.length<p.maxSlots)p.invSlots.push({type:null,count:0});
+    }else if(p.invSlots.length>p.maxSlots)p.invSlots.length=p.maxSlots;
+  }
   if(auth.shipType&&SHIP_TYPES[auth.shipType])p.shipType=auth.shipType;
   if(auth.level)p.level=Math.max(1,Math.floor(Number(auth.level)||1));
   if(auth.xp!==undefined)p.xp=Math.max(0,Math.floor(Number(auth.xp)||0));
@@ -558,38 +670,40 @@ function applyAuthAccountToPlayer(p,auth){
   if(Array.isArray(auth.activeMercs))p.activeMercs=normalizeMercs(auth.activeMercs,p);
   if(auth.buildings&&typeof auth.buildings==="object")p.savedBuildings=auth.buildings;
 }
-function linkAuthAccountToPlayer(p,auth){
-  if(!auth)return {ok:false,alreadyLinked:false};
-  const memberId=String(auth.memberId||"");
-  if(!memberId)return {ok:false,alreadyLinked:false};
-
-  // IMPORTANT: Wix can post SPACE_ECO_AUTH several times while the iframe boots.
-  // The old code reapplied the saved Wix inventory and then merged the current
-  // in-game inventory every time, which duplicated credits/items on login.
-  // Once this socket is already linked to the same member, treat later auth
-  // messages as idempotent pings. Do not reload, merge, or persist inventory.
-  if(p.accountLoaded&&String(p.memberId||"")===memberId){
-    p.name=sanitizeName(auth.displayName||p.name||"Pilot");
-    return {ok:true,alreadyLinked:true};
-  }
-
-  const currentInv=p.invSlots||emptySlots(p.maxSlots||24);
-  const currentCounts=inventoryCounts({invSlots:currentInv});
+function applyPersistedSnapshotPreservingSession(p,auth){
+  const currentCounts=inventoryCounts({invSlots:p.invSlots||emptySlots(p.maxSlots||24)});
   const currentCredits=Math.floor(Number(p.credits)||300);
   const sessionCreditDelta=currentCredits-300;
   applyAuthAccountToPlayer(p,auth);
-  // If Wix auth arrives after launch for the first time, keep anything earned
-  // during that short anonymous session exactly once.
   for(const [type,count] of Object.entries(currentCounts)){
     if(count>0&&!addInventory(p,type,count)){
-      // Last-resort fallback so late auth never deletes freshly collected loot.
       p.credits=(p.credits||0)+(RES_BASE[type]||1)*count;
     }
   }
   if(sessionCreditDelta!==0)p.credits=Math.max(0,(p.credits||0)+sessionCreditDelta);
+}
+function linkAuthAccountToPlayer(p,auth){
+  if(!auth)return {ok:false,alreadyLinked:false};
+  const memberId=String(auth.memberId||"");
+  if(!memberId)return {ok:false,alreadyLinked:false};
+  const hasSnapshot=authHasInventoryPayload(auth);
+
+  // Repeated auth pings for the same account are harmless. If the first ping had
+  // only memberId and the later ping carries the real Wix inventory snapshot,
+  // apply that snapshot once and preserve items earned during the short guest window.
+  if(p.accountLoaded&&String(p.memberId||"")===memberId){
+    p.name=sanitizeName(auth.displayName||p.name||"Pilot");
+    if(!p.persistenceLoaded&&hasSnapshot){
+      applyPersistedSnapshotPreservingSession(p,auth);
+      return {ok:true,alreadyLinked:false,lateSnapshot:true};
+    }
+    return {ok:true,alreadyLinked:true};
+  }
+
+  if(hasSnapshot)applyPersistedSnapshotPreservingSession(p,auth);
+  else applyAuthAccountToPlayer(p,auth);
   return {ok:true,alreadyLinked:false};
 }
-
 
 function normalizeStorageSlots(slots,maxSlots=24){
   maxSlots=Math.max(24,Math.min(100,Math.floor(Number(maxSlots)||24)));
@@ -1157,15 +1271,15 @@ function contributeFactionXp(p,amount,reason="XP"){
 io.on("connection",socket=>{
   if(players.size>=MAX_PLAYERS){socket.emit("serverFull");socket.disconnect(true);return;}
 
-  socket.on("join",({name,token})=>{
+  socket.on("join",({name,token,wixSnapshot})=>{
     if(players.has(socket.id))return;
-    const auth=verifyGameToken(token);
+    const auth=combineAuthWithClientSnapshot(verifyGameToken(token),wixSnapshot);
     const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
     applyAuthAccountToPlayer(p,auth);
     players.set(socket.id,p);
-    if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
+    if(p.memberId)claimMemberSocket(p.memberId,socket.id);
     restorePersistentBuildingsForPlayer(p);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc)});
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc),persistenceLoaded:!!p.persistenceLoaded});
     emitInventorySync(p,"login");
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
@@ -1177,18 +1291,19 @@ io.on("connection",socket=>{
     socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
   });
 
-  socket.on("linkAccount",({token})=>{
+  socket.on("linkAccount",({token,wixSnapshot})=>{
     const p=players.get(socket.id);if(!p)return;
-    const auth=verifyGameToken(token);
+    const auth=combineAuthWithClientSnapshot(verifyGameToken(token),wixSnapshot);
     if(!auth){socket.emit("accountLinkDenied",{reason:"Invalid or expired Wix login token."});return;}
     if(p.accountLoaded&&p.memberId&&p.memberId!==String(auth.memberId)){socket.emit("accountLinkDenied",{reason:"This socket is already linked to another account."});return;}
     const linkResult=linkAuthAccountToPlayer(p,auth);
     if(!linkResult.ok){socket.emit("accountLinkDenied",{reason:"Could not link Wix account."});return;}
-    if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
+    if(p.memberId)claimMemberSocket(p.memberId,socket.id);
     if(!linkResult.alreadyLinked)restorePersistentBuildingsForPlayer(p);
-    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,alreadyLinked:!!linkResult.alreadyLinked});
+    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,alreadyLinked:!!linkResult.alreadyLinked,persistenceLoaded:!!p.persistenceLoaded});
     emitInventorySync(p,linkResult.alreadyLinked?"account_link_confirmed":"account_linked");
-    if(!linkResult.alreadyLinked)persistPlayerSoon(p,"account_linked");
+    if(!p.persistenceLoaded)socket.emit("accountSyncPending",{reason:"Waiting for Wix inventory snapshot before saving."});
+    if(!linkResult.alreadyLinked&&p.persistenceLoaded)persistPlayerSoon(p,"account_linked");
     emitPlayerStructures(socket);
   });
 
@@ -1942,7 +2057,7 @@ io.on("connection",socket=>{
 
   socket.on("disconnect",()=>{
     const p=players.get(socket.id);
-    if(p){broadcastChat("Server",`${p.name} has left the galaxy.`,"#ff8888");socket.broadcast.emit("playerLeft",{id:socket.id});persistPlayerNow(p,"disconnect");if(p.memberId)socketsByMemberId.delete(p.memberId);}
+    if(p){broadcastChat("Server",`${p.name} has left the galaxy.`,"#ff8888");socket.broadcast.emit("playerLeft",{id:socket.id});if(p.memberId){if(isCurrentAccountSocket(p)){persistPlayerNow(p,"disconnect");socketsByMemberId.delete(String(p.memberId));}else{cancelPersistTimerForPlayerId(p.id);}}else persistPlayerNow(p,"disconnect");}
     for(const ts of [...tradeSessions.values()])if(ts.a===socket.id||ts.b===socket.id)cancelTrade(ts,"Trade cancelled: player disconnected.");
     if(p?.partyId)leaveParty(socket.id,"Disconnected from party.");
     if(p?.factionId){const f=factions.get(p.factionId);if(f)emitFactionState(f.id);}
