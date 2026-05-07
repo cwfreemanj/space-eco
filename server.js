@@ -559,13 +559,27 @@ function applyAuthAccountToPlayer(p,auth){
   if(auth.buildings&&typeof auth.buildings==="object")p.savedBuildings=auth.buildings;
 }
 function linkAuthAccountToPlayer(p,auth){
-  if(!auth)return false;
+  if(!auth)return {ok:false,alreadyLinked:false};
+  const memberId=String(auth.memberId||"");
+  if(!memberId)return {ok:false,alreadyLinked:false};
+
+  // IMPORTANT: Wix can post SPACE_ECO_AUTH several times while the iframe boots.
+  // The old code reapplied the saved Wix inventory and then merged the current
+  // in-game inventory every time, which duplicated credits/items on login.
+  // Once this socket is already linked to the same member, treat later auth
+  // messages as idempotent pings. Do not reload, merge, or persist inventory.
+  if(p.accountLoaded&&String(p.memberId||"")===memberId){
+    p.name=sanitizeName(auth.displayName||p.name||"Pilot");
+    return {ok:true,alreadyLinked:true};
+  }
+
   const currentInv=p.invSlots||emptySlots(p.maxSlots||24);
   const currentCounts=inventoryCounts({invSlots:currentInv});
   const currentCredits=Math.floor(Number(p.credits)||300);
   const sessionCreditDelta=currentCredits-300;
   applyAuthAccountToPlayer(p,auth);
-  // If Wix auth arrives after launch, keep anything earned in that short unauthenticated session.
+  // If Wix auth arrives after launch for the first time, keep anything earned
+  // during that short anonymous session exactly once.
   for(const [type,count] of Object.entries(currentCounts)){
     if(count>0&&!addInventory(p,type,count)){
       // Last-resort fallback so late auth never deletes freshly collected loot.
@@ -573,7 +587,7 @@ function linkAuthAccountToPlayer(p,auth){
     }
   }
   if(sessionCreditDelta!==0)p.credits=Math.max(0,(p.credits||0)+sessionCreditDelta);
-  return true;
+  return {ok:true,alreadyLinked:false};
 }
 
 
@@ -1159,7 +1173,6 @@ io.on("connection",socket=>{
     emitOwnedStationsList(socket);
     emitPlayerStructures(socket);
     emitCivilizationZones(socket);
-    emitCivilizationZones(socket);
     const mercCat=generateMercOffersForPlayer(p);
     socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
   });
@@ -1169,12 +1182,13 @@ io.on("connection",socket=>{
     const auth=verifyGameToken(token);
     if(!auth){socket.emit("accountLinkDenied",{reason:"Invalid or expired Wix login token."});return;}
     if(p.accountLoaded&&p.memberId&&p.memberId!==String(auth.memberId)){socket.emit("accountLinkDenied",{reason:"This socket is already linked to another account."});return;}
-    linkAuthAccountToPlayer(p,auth);
+    const linkResult=linkAuthAccountToPlayer(p,auth);
+    if(!linkResult.ok){socket.emit("accountLinkDenied",{reason:"Could not link Wix account."});return;}
     if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
-    restorePersistentBuildingsForPlayer(p);
-    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots});
-    emitInventorySync(p,"account_linked");
-    persistPlayerSoon(p,"account_linked");
+    if(!linkResult.alreadyLinked)restorePersistentBuildingsForPlayer(p);
+    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,alreadyLinked:!!linkResult.alreadyLinked});
+    emitInventorySync(p,linkResult.alreadyLinked?"account_link_confirmed":"account_linked");
+    if(!linkResult.alreadyLinked)persistPlayerSoon(p,"account_linked");
     emitPlayerStructures(socket);
   });
 
