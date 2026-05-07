@@ -546,6 +546,9 @@ let maxActiveMercs=5;
 let selectedStorageKey=null;
 const generatedCivZones=new Map();
 let visibleCivZones=[];
+let civilizationZonesList=[];
+let civilizationZonesById=new Map();
+let civilizationBuildMenuTier="outpost";
 
 /* ── Game state ── */
 let gameOver=false,inventoryOpen=false,shopOpen=false,attrOpen=false,questLogOpen=false,badgeLogOpen=false;
@@ -644,13 +647,73 @@ function randomFactionName(rng){
   const b=["Compact","Union","League","Haven","Collective","Accord","Protectorate","Guild","Crown","Assembly","Network","Sanctum"];
   return `${a[Math.floor(rng()*a.length)]} ${b[Math.floor(rng()*b.length)]}`;
 }
+function syncCivilizationZones(list){
+  civilizationZonesList=Array.isArray(list)?list:[];
+  civilizationZonesById=new Map(civilizationZonesList.map(z=>[z.zoneId,z]));
+  for(const z of generatedCivZones.values())if(z)decorateCivilizationZone(z);
+  applyCivilizationRecordsToGeneratedStations();
+}
+function civZoneRecord(id){return civilizationZonesById.get(id)||null;}
+function clientEconomyIndex(){
+  const keys=["copper","iron","gold","crystal","fuel","gas_canister","hull_plate","engine_core","weapon_array"];
+  let cur=0,base=0,n=0;
+  for(const k of keys){cur+=price(k);base+=RES[k]?.base||1;n++;}
+  return n&&base?clamp(cur/base,0.75,1.85):1;
+}
+function estimateCivZoneCost(zone,stationCount){
+  const count=Math.max(2,stationCount||zone.baseStationCount||5);
+  return Math.max(65000,Math.round((35000+zone.radius*55+count*12500)*clientEconomyIndex()/500)*500);
+}
+function estimateCivStationCost(zone,tier){
+  const base={outpost:9000,standard:18000,advanced:38000,capital:76000}[tier]||18000;
+  const rec=civZoneRecord(zone.id)||{};
+  const sizeMult=clamp(zone.radius/430,0.9,1.6),stationMult=1+Math.min(0.75,(rec.builtStations?.length||0)*0.08);
+  return Math.round(base*sizeMult*stationMult*clientEconomyIndex()/250)*250;
+}
+function decorateCivilizationZone(zone){
+  const rec=civZoneRecord(zone.id);
+  zone.ownerName=rec?.ownerName||null;
+  zone.isOwn=!!rec?.isOwn;
+  zone.taxPerMinute=rec?.taxPerMinute||0;
+  zone.builtStations=Array.isArray(rec?.builtStations)?rec.builtStations:[];
+  zone.stationCosts=rec?.stationCosts||{};
+  return zone;
+}
+function makeCivilizationSuperStation(zone,baseStationCount){
+  const tier=STATION_TIERS.capital,rec=civZoneRecord(zone.id);
+  const st={id:`${zone.id}|super`,x:zone.x,y:zone.y,tier:"capital",tierDef:{...tier,name:"Super Station",shipCount:tier.shipCount+3,size:tier.size+12,glowColor:"rgba(255,221,68,0.55)"},r:tier.size+34,faction:zone.ownerName?`${zone.ownerName}'s ${zone.name}`:zone.name,factionColor:zone.color,nearbyPlanets:5,densityMult:1.6,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300,civilizationZoneId:zone.id,civilizationZoneName:zone.name,civBaseStationCount:baseStationCount,isCivSuperStation:true,civOwnerName:rec?.ownerName||null,civOwned:!!rec?.owned,civIsOwn:!!rec?.isOwn,civTaxPerMinute:rec?.taxPerMinute||0,...createNpcStationState("capital")};
+  st.maxHp=Math.floor(st.maxHp*2.2);st.hp=st.maxHp;st.maxShield=Math.floor(st.maxShield*2.4);st.shield=st.maxShield;
+  refreshBuyStock(st);initTradeShips(st,[]);
+  return st;
+}
+function makeOwnedCivilizationStation(zone,recStation){
+  if(!recStation||!STATION_TIERS[recStation.tier])return null;
+  const tier=STATION_TIERS[recStation.tier];
+  const st={id:recStation.id,x:recStation.x,y:recStation.y,tier:recStation.tier,tierDef:{...tier,spawnChance:1,shipCount:tier.shipCount+1},r:tier.size+9,faction:`${recStation.ownerName||zone.ownerName||"Owner"}'s ${zone.name}`,factionColor:zone.color,nearbyPlanets:4,densityMult:1.45,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300,civilizationZoneId:zone.id,isOwnedCivStation:true,civOwnerName:recStation.ownerName||zone.ownerName||"Owner",...createNpcStationState(recStation.tier)};
+  st.maxHp=Math.floor(st.maxHp*1.35);st.hp=st.maxHp;st.maxShield=Math.floor(st.maxShield*1.28);st.shield=st.maxShield;
+  refreshBuyStock(st);initTradeShips(st,visiblePlanets||[]);return st;
+}
+function applyCivilizationRecordsToGeneratedStations(){
+  for(const [key,stations] of generatedStations){
+    for(const rec of civilizationZonesList){
+      const zone=[...generatedCivZones.values()].find(z=>z&&z.id===rec.zoneId);
+      if(!zone)continue;decorateCivilizationZone(zone);
+      const superSt=stations.find(st=>st.id===`${zone.id}|super`);if(superSt){superSt.civOwnerName=rec.ownerName;superSt.civOwned=!!rec.owned;superSt.civIsOwn=!!rec.isOwn;superSt.civTaxPerMinute=rec.taxPerMinute||0;superSt.faction=rec.ownerName?`${rec.ownerName}'s ${zone.name}`:zone.name;}
+      for(const bs of rec.builtStations||[])if(!stations.some(st=>st.id===bs.id)){const st=makeOwnedCivilizationStation(zone,bs);if(st)stations.push(st);}
+    }
+  }
+}
+function civZonePayloadFromStation(st){
+  const z=visibleCivZones.find(z=>z.id===st.civilizationZoneId)||{};
+  return {zoneId:st.civilizationZoneId,name:st.civilizationZoneName||st.faction,x:Math.round(st.x),y:Math.round(st.y),radius:Math.round(z.radius||430),baseStationCount:st.civBaseStationCount||5,color:st.factionColor||"#ffdd44"};
+}
 function civilizationZoneForChunk(cx,cy){
   const key=chunkKey(cx,cy);if(generatedCivZones.has(key))return generatedCivZones.get(key);
   const skip=(cx===0&&cy===0),rng=makeRng(GALAXY_SEED+"|civzone|"+key);
   if(skip||rng()>0.18){generatedCivZones.set(key,null);return null;}
   const bx=cx*CHUNK_SIZE,by=cy*CHUNK_SIZE;
   const color=["#7be6ff","#78ff8a","#ffdd44","#cc88ff","#ff8844"][Math.floor(rng()*5)];
-  const zone={id:`civ_${key}`,x:bx+(rng()-.5)*CHUNK_SIZE*.45,y:by+(rng()-.5)*CHUNK_SIZE*.45,radius:360+rng()*190,name:randomFactionName(rng),color,turrets:[]};
+  const zone=decorateCivilizationZone({id:`civ_${key}`,x:bx+(rng()-.5)*CHUNK_SIZE*.45,y:by+(rng()-.5)*CHUNK_SIZE*.45,radius:360+rng()*190,name:randomFactionName(rng),color,turrets:[]});
   const tc=4+Math.floor(rng()*4);
   for(let i=0;i<tc;i++){const a=Math.PI*2*i/tc+rng()*0.4,r=zone.radius*(0.72+rng()*0.22);zone.turrets.push({id:`${zone.id}_tur_${i}`,x:zone.x+Math.cos(a)*r,y:zone.y+Math.sin(a)*r,range:720,damage:16+Math.floor(rng()*9),cooldown:0,color});}
   generatedCivZones.set(key,zone);return zone;
@@ -704,7 +767,11 @@ function generateChunk(cx,cy){
       const crng=makeRng(GALAXY_SEED+"|civstations|"+key);
       const tiers=["standard","standard","advanced","outpost","capital"];
       const count=3+Math.floor(crng()*3);
+      zone.baseStationCount=count+1;
+      const superStation=makeCivilizationSuperStation(zone,count+1);stations.push(superStation);
       for(let ci=0;ci<count;ci++){const st=makeCivilizationStation(zone,ci,tiers[Math.floor(crng()*tiers.length)],crng);stations.push(st);initTradeShips(st,planets);refreshBuyStock(st);}
+      const rec=civZoneRecord(zone.id);
+      for(const bs of rec?.builtStations||[]){const st=makeOwnedCivilizationStation(zone,bs);if(st)stations.push(st);}
     }
     generatedStations.set(key,stations);
   }
@@ -2207,7 +2274,7 @@ function updateDefenseTurrets(dt){
   }
 }
 function drawCivilizationZones(camX,camY){
-  for(const z of visibleCivZones){const x=z.x-camX,y=z.y-camY;if(x<-z.radius||y<-z.radius||x>canvas.width+z.radius||y>canvas.height+z.radius)continue;ctx.save();ctx.globalAlpha=.09;ctx.fillStyle=z.color;ctx.beginPath();ctx.arc(x,y,z.radius,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.38;ctx.strokeStyle=z.color;ctx.setLineDash([10,8]);ctx.beginPath();ctx.arc(x,y,z.radius,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=z.color;ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(`CIV ZONE: ${z.name}`,x,y-z.radius-8);ctx.restore();ctx.textAlign="left";
+  for(const z of visibleCivZones){const x=z.x-camX,y=z.y-camY;if(x<-z.radius||y<-z.radius||x>canvas.width+z.radius||y>canvas.height+z.radius)continue;ctx.save();ctx.globalAlpha=.09;ctx.fillStyle=z.color;ctx.beginPath();ctx.arc(x,y,z.radius,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.38;ctx.strokeStyle=z.color;ctx.setLineDash([10,8]);ctx.beginPath();ctx.arc(x,y,z.radius,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=z.color;ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(`CIV ZONE: ${z.name}`,x,y-z.radius-8);if(z.ownerName){ctx.fillStyle="#78ff8a";ctx.font="7px monospace";ctx.fillText(`Owner: ${z.ownerName} · ${Math.floor(z.taxPerMinute||0)}cr/min`,x,y-z.radius+4);}ctx.restore();ctx.textAlign="left";
     for(const t of z.turrets||[]){const tx=t.x-camX,ty=t.y-camY;if(tx<-40||ty<-40||tx>canvas.width+40||ty>canvas.height+40)continue;ctx.fillStyle=t.color;ctx.beginPath();ctx.moveTo(tx,ty-8);ctx.lineTo(tx+8,ty+8);ctx.lineTo(tx-8,ty+8);ctx.closePath();ctx.fill();ctx.strokeStyle="#fff8";ctx.stroke();}
   }
 }
@@ -2278,7 +2345,7 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   joinScreen.style.display="none";gameWrap.style.display="flex";
   document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
   pcEl.textContent=`👥 ${playerCount}`;
-  updateChunks();updateHud();scheduleCreditShopTip();
+  socket.emit("requestCivilizationZones");updateChunks();updateHud();scheduleCreditShopTip();
   // Start ping loop
   setInterval(()=>socket.emit("clientPing"),2000);
   requestAnimationFrame(tick);
@@ -2474,6 +2541,11 @@ socket.on("stationBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff554
 socket.on("hireConfirm",({stationKey,shipCount,credits})=>{player.credits=credits;showFT(`Ship hired! Fleet: ${shipCount}`,ship.x,ship.y-15,"#78ff8a");updateHud();});
 socket.on("hireDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
 socket.on("ownedStationsList",(list)=>{ownedStationsList=list;ensureOwnedTradeShips();renderOwnedStations&&renderOwnedStations();});
+socket.on("civilizationZonesList",(list)=>{syncCivilizationZones(list);updateHud();});
+socket.on("civilizationZoneBought",({zone,credits,cost})=>{if(typeof credits==="number")player.credits=credits;syncCivilizationZones([...(civilizationZonesList.filter(z=>z.zoneId!==zone.zoneId)),zone]);showFT(`ZONE OWNED! -${Number(cost||0).toLocaleString()}cr`,ship.x,ship.y-28,"#ffdd44",13);addChat("Civ Zone",`${zone.name} is now yours. Taxes: ${zone.taxPerMinute}cr/min.`,"#ffdd44");updateHud();});
+socket.on("civilizationStationBuilt",({zone,station,credits,cost})=>{if(typeof credits==="number")player.credits=credits;syncCivilizationZones([...(civilizationZonesList.filter(z=>z.zoneId!==zone.zoneId)),zone]);showFT(`${STATION_TIERS[station?.tier]?.name||"Station"} built`,station?.x||ship.x,station?.y||ship.y-20,"#78ff8a",12);addChat("Civ Zone",`Built a ${STATION_TIERS[station?.tier]?.name||"station"} in ${zone.name}. New taxes: ${zone.taxPerMinute}cr/min.`,"#78ff8a");updateHud();});
+socket.on("civilizationTaxCollected",({zoneName,amount,credits,offline})=>{if(typeof credits==="number")player.credits=credits;updateHud();showFT(`+${Number(amount||0).toLocaleString()}cr zone tax${offline?" saved":""}`,ship.x,ship.y-34,"#ffdd44",11);if(zoneName)addChat("Taxes",`${zoneName}: +${Number(amount||0).toLocaleString()}cr collected.`,"#ffdd44");});
+socket.on("civilizationZoneDenied",({reason})=>{showFT(reason||"Civilization zone action denied",ship.x,ship.y-24,"#ff5544",9);});
 socket.on("ownedStationUpdate",({stationKey,goodsCount,shipCount})=>{showFT(`Station: ${goodsCount} goods ready`,ship.x,ship.y,"#ffcc44",9);});
 socket.on("ownedStationGoods",({stationKey,goods})=>{let added=0;for(const v of Object.values(goods||{}))added+=Number(v)||0;showFT(`Collected ${added} items from station`,ship.x,ship.y-15,"#78ff8a",11);updateHud();});
 socket.on("ownedStationDamaged",({stationKey,hp,maxHp,shield,maxShield,ownerName,attackerName})=>{const st=ownedStationsList.find(s=>s.key===stationKey);if(st){Object.assign(st,{hp,maxHp,shield,maxShield,underAttackUntil:Date.now()+45000});ensureOwnedTradeShips();}});
@@ -2573,10 +2645,33 @@ function updateSpace(dt){
   const now=performance.now();
   for(const[,op]of otherPlayers){const age=(now-op.lastUpdate)/1000;op.renderX=lerp(op.renderX||op.x,op.x+op.vx*age,0.25);op.renderY=lerp(op.renderY||op.y,op.y+op.vy*age,0.25);op.renderAngle=angleLerp(op.renderAngle||op.angle,op.angle,0.2);}
 
-  // NPC enemy projectiles → player
+  // NPC enemy projectiles → player, NPC ships, and NPC stations.
+  // Friendly fire is intentional: trade ships can accidentally damage their own convoy/station during busy fights.
   for(let i=enemyProjectiles.length-1;i>=0;i--){
     const p=enemyProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
     if(p.life<=0){enemyProjectiles.splice(i,1);continue;}
+    let consumed=false;
+    for(const st of visibleStations){
+      for(let j=st.tradeShips.length-1;j>=0;j--){
+        const ts=st.tradeShips[j];
+        if(p.sourceTarget?.type==="npcTradeShip"&&p.sourceTarget.stationId===st.id&&p.sourceTarget.shipId===ts.id)continue;
+        if(ts.hp>0&&dist(p.x,p.y,ts.x,ts.y)<(ts.size||5)+5){
+          const ff=Math.max(1,Math.round((p.damage||8)*0.65));
+          ts.hp-=ff;showFT(`FRIENDLY -${ff}`,ts.x,ts.y,"#ffcc44",8);
+          if(ts.hp<=0)killTradeShip(ts,st);else{ts.state="combat";ts.stateTimer=Math.max(ts.stateTimer||0,4);}
+          enemyProjectiles.splice(i,1);consumed=true;break;
+        }
+      }
+      if(consumed)break;
+      if(!st.destroyed&&!(p.sourceTarget?.type==="npcStation"&&p.sourceTarget.stationId===st.id)&&dist(p.x,p.y,st.x,st.y)<(st.tierDef?.size||18)+12){
+        const ff=Math.max(1,Math.round((p.damage||8)*0.45));
+        let dmg=ff;if(st.shield>0){const abs=Math.min(st.shield,dmg);st.shield-=abs;dmg-=abs;}if(dmg>0)st.hp=Math.max(0,st.hp-dmg);
+        st.shieldRegenTimer=8;showFT(`FRIENDLY -${ff}`,st.x,st.y-18,"#ffcc44",8);
+        if(st.hp<=0)destroyNpcStation(st);
+        enemyProjectiles.splice(i,1);consumed=true;break;
+      }
+    }
+    if(consumed)continue;
     if(dist(p.x,p.y,ship.x,ship.y)<10){
       // Let the server apply NPC/trade-ship damage.
       // Applying local damage here first can get overwritten by the next worldState,
@@ -2889,8 +2984,8 @@ function drawSpace(){
     else{for(let k=0;k<10;k++){const a=k*Math.PI/5-Math.PI/2,r2=k%2===0?tier.size:tier.size*0.5;k===0?ctx.moveTo(sx+Math.cos(a)*r2,sy2+Math.sin(a)*r2):ctx.lineTo(sx+Math.cos(a)*r2,sy2+Math.sin(a)*r2);}ctx.closePath();}
     ctx.fill();ctx.stroke();
     drawStationBars(sx,sy2-tier.size-24,Math.max(34,tier.size*2.2),st.hp,st.maxHp,st.shield,st.maxShield);
-    ctx.fillStyle=st.destroyed?"#ff5544":"#fff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(st.destroyed?"DESTROYED "+tier.name:tier.name,sx,sy2-tier.size-4);ctx.fillStyle=tier.factionColor;ctx.font="7px monospace";ctx.fillText(st.faction,sx,sy2-tier.size-33);ctx.textAlign="left";
-    if(!st.destroyed&&dist(ship.x,ship.y,st.x,st.y)<st.r+70){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("O: Trade",sx,sy2+tier.size+12);ctx.textAlign="left";}
+    ctx.fillStyle=st.destroyed?"#ff5544":"#fff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(st.destroyed?"DESTROYED "+tier.name:(st.isCivSuperStation?"SUPER STATION":tier.name),sx,sy2-tier.size-4);ctx.fillStyle=tier.factionColor;ctx.font="7px monospace";ctx.fillText(st.faction,sx,sy2-tier.size-33);if(st.isCivSuperStation&&st.civOwnerName){ctx.fillStyle="#78ff8a";ctx.fillText(`Owned by ${st.civOwnerName}`,sx,sy2-tier.size-43);}ctx.textAlign="left";
+    if(!st.destroyed&&dist(ship.x,ship.y,st.x,st.y)<st.r+70){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText(st.isCivSuperStation?"O: Super Station":"O: Trade",sx,sy2+tier.size+12);ctx.textAlign="left";}
   }
 
   // NPC Trade ships (separate pass — no station culling)
@@ -3029,8 +3124,47 @@ function drawMinimap(){
 }
 
 /* ── Shop (same structure as before, wired to server) ── */
+function drawCivilizationSuperStationMenu(st){
+  const zone=visibleCivZones.find(z=>z.id===st.civilizationZoneId)||{id:st.civilizationZoneId,name:st.civilizationZoneName||st.faction,radius:430,baseStationCount:st.civBaseStationCount||5,color:st.factionColor};
+  const rec=civZoneRecord(zone.id),owned=!!rec?.owned,isOwn=!!rec?.isOwn,stationCount=rec?.stationCount||zone.baseStationCount||st.civBaseStationCount||5;
+  const pw=470,ph=280,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  ctx.fillStyle="rgba(0,0,0,0.84)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#111620";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle=zone.color||"#ffdd44";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
+  ctx.fillStyle=zone.color||"#ffdd44";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText(`★ ${zone.name} SUPER STATION`,px+pw/2,py+16);
+  ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(`Credits: ${player.credits} · Zone radius: ${Math.round(zone.radius)} · Stations: ${stationCount}`,px+pw/2,py+30);ctx.textAlign="left";
+  ctx.fillStyle="rgba(255,221,68,.08)";ctx.fillRect(px+12,py+42,pw-24,55);ctx.strokeStyle="#4a3a16";ctx.strokeRect(px+12,py+42,pw-24,55);
+  ctx.fillStyle=owned?(isOwn?"#78ff8a":"#ffcc44"):"#ffdd44";ctx.font="bold 10px monospace";ctx.fillText(owned?`OWNER: ${rec.ownerName}${isOwn?" (YOU)":""}`:"UNOWNED CIVILIZATION ZONE",px+22,py+58);
+  ctx.fillStyle="#d6e1ff";ctx.font="8px monospace";
+  ctx.fillText(`Taxes: ${(rec?.taxPerMinute||0).toLocaleString()}cr / minute from stations in this zone`,px+22,py+72);
+  ctx.fillText("Buy the zone to collect automatic station taxes and build more stations inside it.",px+22,py+86);
+  if(!owned){
+    const cost=estimateCivZoneCost(zone,stationCount),can=player.credits>=cost,bx=px+115,by=py+114,bw=240,bh=28;
+    ctx.fillStyle=can?"#173a2a":"#351818";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=can?"#78ff8a":"#884444";ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=can?"#78ff8a":"#ff7777";ctx.font="bold 10px monospace";ctx.textAlign="center";ctx.fillText(`BUY ENTIRE ZONE — ${cost.toLocaleString()}cr`,bx+bw/2,by+18);ctx.textAlign="left";
+  }else if(isOwn){
+    ctx.fillStyle="#ffdd44";ctx.font="bold 10px monospace";ctx.fillText("BUILD MORE STATIONS",px+18,py+116);
+    const tiers=["outpost","standard","advanced","capital"],startY=py+128;
+    tiers.forEach((tier,i)=>{const def=STATION_TIERS[tier],cost=(rec.stationCosts&&rec.stationCosts[tier])||estimateCivStationCost(zone,tier),can=player.credits>=cost,bx=px+18+(i%2)*220,by=startY+Math.floor(i/2)*44,bw=205,bh=36;ctx.fillStyle=can?"#102416":"#241014";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=def.color;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=def.color;ctx.font="bold 9px monospace";ctx.fillText(def.name,bx+8,by+13);ctx.fillStyle=can?"#78ff8a":"#ff7777";ctx.font="8px monospace";ctx.fillText(`${cost.toLocaleString()}cr · random placement in zone`,bx+8,by+27);});
+  }else{
+    ctx.fillStyle="#ffcc44";ctx.font="bold 10px monospace";ctx.textAlign="center";ctx.fillText("This civilization is already owned by another player.",px+pw/2,py+150);ctx.textAlign="left";
+  }
+  ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText("O:close · Taxes are collected every minute while the zone is owned",px+18,py+ph-14);
+}
+function handleCivilizationSuperStationClick(st,mx,my){
+  const zone=visibleCivZones.find(z=>z.id===st.civilizationZoneId)||{id:st.civilizationZoneId,name:st.civilizationZoneName||st.faction,radius:430,baseStationCount:st.civBaseStationCount||5,color:st.factionColor};
+  const rec=civZoneRecord(zone.id),owned=!!rec?.owned,isOwn=!!rec?.isOwn;
+  const pw=470,ph=280,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  if(!owned){
+    const bx=px+115,by=py+114,bw=240,bh=28;
+    if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){socket.emit("buyCivilizationZone",civZonePayloadFromStation(st));showFT("Buying civilization zone...",ship.x,ship.y-20,"#ffdd44",10);}return;
+  }
+  if(isOwn){
+    const tiers=["outpost","standard","advanced","capital"],startY=py+128;
+    tiers.forEach((tier,i)=>{const bx=px+18+(i%2)*220,by=startY+Math.floor(i/2)*44,bw=205,bh=36;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){socket.emit("buildCivilizationStation",{zoneId:zone.id,tier});showFT(`Building ${STATION_TIERS[tier].name}...`,ship.x,ship.y-20,"#78ff8a",10);}});
+  }
+}
 function drawShop(st){
   if(!st)return;
+  if(st.isCivSuperStation){drawCivilizationSuperStationMenu(st);return;}
   ctx.fillStyle="rgba(0,0,0,0.82)";ctx.fillRect(0,0,canvas.width,canvas.height);
   const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
   ctx.fillStyle="#111620";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle=st.tierDef.color;ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
@@ -3090,6 +3224,7 @@ function drawShopBuy(st,px,py,pw,ph){
 
 function handleShopClick(mx,my){
   if(!nearStation)return;const st=nearStation;
+  if(st.isCivSuperStation){handleCivilizationSuperStationClick(st,mx,my);return;}
   const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
   const tabs=["sell","buy","quests","hire"];for(let i=0;i<tabs.length;i++){const tx=px+10+i*80,ty=py+34,tw=75,th=18;if(mx>=tx&&mx<=tx+tw&&my>=ty&&my<=ty+th){shopTab=tabs[i];shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;if(shopTab==="hire")socket.emit("requestMercOffers");return;}}
   const gx=px+10,gy=py+ph-28,gw=130,gh=20;if(mx>=gx&&mx<=gx+gw&&my>=gy&&my<=gy+gh){const gasPrice=stationGasPrice();if(player.credits>=gasPrice){showFT("Buying gas canister",ship.x,ship.y-15,"#aaff44");socket.emit("buy",{resourceType:"gas_canister",quantity:1,pricePerUnit:gasPrice});}return;}
