@@ -80,6 +80,7 @@ const WIX_PERSIST_URL = cleanEnvUrl(process.env.WIX_PERSIST_URL || process.env.P
 const WIX_PERSIST_SECRET = process.env.WIX_PERSIST_SECRET || process.env.SPACE_ECO_PERSIST_SECRET || PURCHASE_WEBHOOK_SECRET || "";
 const socketsByMemberId = new Map();
 const persistTimers = new Map();
+const accountLastGoodSnapshots = new Map(); // memberId -> last trusted non-destructive inventory snapshot kept in server memory
 
 function cancelPersistTimerForPlayerId(playerId){
   if(persistTimers.has(playerId)){
@@ -98,6 +99,7 @@ function claimMemberSocket(memberId, socketId){
   if(previousId&&previousId!==socketId){
     const oldPlayer=players?.get?.(previousId);
     if(oldPlayer){
+      rememberTrustedSnapshot(oldPlayer,"superseded_by_new_socket");
       oldPlayer.suppressPersist=true;
       oldPlayer.supersededBy=socketId;
       cancelPersistTimerForPlayerId(previousId);
@@ -489,6 +491,62 @@ function getAuthInventoryPayload(auth){
   return undefined;
 }
 function authHasInventoryPayload(auth){return getAuthInventoryPayload(auth)!==undefined;}
+function inventoryPayloadHasItems(payload){
+  if(Array.isArray(payload))return payload.some(s=>s&&RES_KEYS.includes(String(s.type||""))&&Math.floor(Number(s.count)||0)>0);
+  if(payload&&typeof payload==="object"){
+    return Object.entries(payload).some(([type,val])=>RES_KEYS.includes(type)&&Math.floor(Number(val)||0)>0);
+  }
+  return false;
+}
+function objectHasAnyValue(obj){
+  if(!obj||typeof obj!=="object")return false;
+  return Object.keys(obj).length>0;
+}
+function authHasNonDefaultProgress(auth){
+  if(!auth||typeof auth!=="object")return false;
+  if(Number(auth.credits)>300)return true;
+  if(Number(auth.maxSlots)>24)return true;
+  if(auth.shipType&&auth.shipType!=="scout")return true;
+  if(Number(auth.level)>1||Number(auth.xp)>0)return true;
+  if(Array.isArray(auth.activeMercs)&&auth.activeMercs.length>0)return true;
+  if(objectHasAnyValue(auth.buildings)||objectHasAnyValue(auth.badgeRewards))return true;
+  if(auth.attrs&&typeof auth.attrs==="object"&&Object.entries(auth.attrs).some(([_,v])=>Number(v)>1))return true;
+  return false;
+}
+function authSnapshotExplicitlyReady(auth){
+  return !!(auth&&(auth.persistenceLoaded===true||auth.savedGameReady===true||auth.snapshotReady===true||auth.inventoryReady===true||auth.allowEmptyInventory===true));
+}
+function isTrustedAccountSnapshot(auth){
+  if(!auth||typeof auth!=="object")return false;
+  const inv=getAuthInventoryPayload(auth);
+  if(inv!==undefined&&inventoryPayloadHasItems(inv))return true;
+  if(authHasNonDefaultProgress(auth))return true;
+  return authSnapshotExplicitlyReady(auth);
+}
+function trustedSnapshotForPlayer(p,reason="cache"){
+  if(!p?.memberId)return null;
+  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
+}
+function rememberTrustedSnapshot(p,reason="update"){
+  if(!p?.memberId||!p.persistenceLoaded)return;
+  const snap=trustedSnapshotForPlayer(p,reason);
+  if(snap)accountLastGoodSnapshots.set(String(p.memberId),snap);
+}
+function patchAuthWithCachedSnapshotIfSafer(auth){
+  if(!auth?.memberId)return auth;
+  const memberId=String(auth.memberId);
+  const cached=accountLastGoodSnapshots.get(memberId);
+  if(!cached)return auth;
+  const incomingTrusted=isTrustedAccountSnapshot(auth);
+  const incomingHasItems=inventoryPayloadHasItems(getAuthInventoryPayload(auth));
+  const cachedHasItems=inventoryPayloadHasItems(cached.invSlots);
+  // If Wix/browser posts an empty or partial startup payload, never let it erase
+  // a trusted snapshot we already saw/saved during this server process.
+  if(!incomingTrusted||(cachedHasItems&&!incomingHasItems&&!authHasNonDefaultProgress(auth))){
+    return {...cached,memberId,displayName:auth.displayName||cached.displayName};
+  }
+  return auth;
+}
 function slotCountNeededForInventoryPayload(payload){
   if(Array.isArray(payload))return Math.max(24,Math.min(96,payload.length||24));
   if(payload&&typeof payload==="object"){
@@ -519,6 +577,9 @@ function cleanClientWixSnapshot(snapshot,memberId){
   if(snapshot.badgeRewards&&typeof snapshot.badgeRewards==="object")out.badgeRewards=snapshot.badgeRewards;
   if(Array.isArray(snapshot.activeMercs))out.activeMercs=snapshot.activeMercs;
   if(snapshot.buildings&&typeof snapshot.buildings==="object")out.buildings=snapshot.buildings;
+  for(const flag of ["persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
+    if(snapshot[flag]===true)out[flag]=true;
+  }
   return out;
 }
 function combineAuthWithClientSnapshot(auth,snapshot){
@@ -528,7 +589,7 @@ function combineAuthWithClientSnapshot(auth,snapshot){
   const out={...auth};
   // Signed token data wins when it contains a value. The snapshot fills gaps when
   // Wix sends member auth separately from the persisted inventory payload.
-  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","activeMercs","buildings"]){
+  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","activeMercs","buildings","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
     if(out[k]===undefined&&snap[k]!==undefined)out[k]=snap[k];
   }
   if(!authHasInventoryPayload(out)&&authHasInventoryPayload(snap)){
@@ -597,7 +658,7 @@ function validateTradeItems(p,items){
 }
 function emitInventorySync(p,reason="sync"){
   if(!p?.id)return;
-  io.to(p.id).emit("inventorySync",{credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),reason});
+  io.to(p.id).emit("inventorySync",{credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),reason,persistenceLoaded:!!p.persistenceLoaded,accountLoaded:!!p.accountLoaded,memberId:p.memberId||null});
 }
 async function persistPlayerNow(p,reason="update"){
   if(!p?.memberId){console.warn("Wix persistence skipped: player has no memberId", p?.id, reason);return;}
@@ -610,6 +671,8 @@ async function persistPlayerNow(p,reason="update"){
     if(!res.ok){
       const text = await res.text().catch(()=>"");
       console.warn("Wix persistence failed response:", res.status, text.slice(0,300));
+    }else{
+      rememberTrustedSnapshot(p,reason);
     }
   }catch(err){console.warn("Wix persistence failed:",err?.message||err);}
 }
@@ -630,11 +693,13 @@ function mergeInventoryIntoPlayer(p,slotsOrCounts){
 }
 function applyAuthAccountToPlayer(p,auth){
   if(!auth)return;
+  auth=patchAuthWithCachedSnapshotIfSafer(auth);
   const memberId=String(auth.memberId||"");
   if(memberId)p.memberId=memberId;
   p.accountLoaded=true;
   p.name=sanitizeName(auth.displayName||p.name||"Pilot");
   const authInventory=getAuthInventoryPayload(auth);
+  const trustedSnapshot=isTrustedAccountSnapshot(auth);
 
   let desiredSlots;
   if(auth.maxSlots!==undefined){
@@ -646,14 +711,18 @@ function applyAuthAccountToPlayer(p,auth){
   if(desiredSlots===undefined)desiredSlots=Math.max(24,Math.min(96,Math.floor(Number(p.maxSlots)||24)));
   p.maxSlots=desiredSlots;
 
-  if(auth.credits!==undefined){
+  if(auth.credits!==undefined&&trustedSnapshot){
+    const credits=Number(auth.credits);
+    if(Number.isFinite(credits))p.credits=Math.max(0,Math.floor(credits));
+  }else if(auth.credits!==undefined&&Number(auth.credits)>300){
     const credits=Number(auth.credits);
     if(Number.isFinite(credits))p.credits=Math.max(0,Math.floor(credits));
   }
-  if(authInventory!==undefined){
+  if(authInventory!==undefined&&trustedSnapshot){
     p.invSlots=normalizeInventorySlots(authInventory,p.maxSlots);
     p.persistenceLoaded=true;
     p.loadedInventoryFingerprint=inventoryFingerprint(p.invSlots,p.maxSlots,p.credits||0);
+    rememberTrustedSnapshot(p,"account_snapshot_loaded");
   }else{
     // Never replace an existing/default inventory with an empty array just because
     // the auth token did not contain inventory. That was one source of lost saves.
@@ -684,23 +753,28 @@ function applyPersistedSnapshotPreservingSession(p,auth){
 }
 function linkAuthAccountToPlayer(p,auth){
   if(!auth)return {ok:false,alreadyLinked:false};
+  auth=patchAuthWithCachedSnapshotIfSafer(auth);
   const memberId=String(auth.memberId||"");
   if(!memberId)return {ok:false,alreadyLinked:false};
   const hasSnapshot=authHasInventoryPayload(auth);
+  const trustedSnapshot=isTrustedAccountSnapshot(auth);
 
   // Repeated auth pings for the same account are harmless. If the first ping had
   // only memberId and the later ping carries the real Wix inventory snapshot,
   // apply that snapshot once and preserve items earned during the short guest window.
   if(p.accountLoaded&&String(p.memberId||"")===memberId){
     p.name=sanitizeName(auth.displayName||p.name||"Pilot");
-    if(!p.persistenceLoaded&&hasSnapshot){
+    if(!p.persistenceLoaded&&hasSnapshot&&trustedSnapshot){
       applyPersistedSnapshotPreservingSession(p,auth);
       return {ok:true,alreadyLinked:false,lateSnapshot:true};
+    }
+    if(!p.persistenceLoaded&&hasSnapshot&&!trustedSnapshot){
+      return {ok:true,alreadyLinked:true,waitingForTrustedSnapshot:true};
     }
     return {ok:true,alreadyLinked:true};
   }
 
-  if(hasSnapshot)applyPersistedSnapshotPreservingSession(p,auth);
+  if(hasSnapshot&&trustedSnapshot)applyPersistedSnapshotPreservingSession(p,auth);
   else applyAuthAccountToPlayer(p,auth);
   return {ok:true,alreadyLinked:false};
 }
@@ -1277,7 +1351,11 @@ io.on("connection",socket=>{
     const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
     applyAuthAccountToPlayer(p,auth);
     players.set(socket.id,p);
-    if(p.memberId)claimMemberSocket(p.memberId,socket.id);
+    if(p.memberId){
+      claimMemberSocket(p.memberId,socket.id);
+      const cached=accountLastGoodSnapshots.get(String(p.memberId));
+      if(cached&&inventoryPayloadHasItems(cached.invSlots)&&!inventoryPayloadHasItems(p.invSlots))applyPersistedSnapshotPreservingSession(p,cached);
+    }
     restorePersistentBuildingsForPlayer(p);
     socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc),persistenceLoaded:!!p.persistenceLoaded});
     emitInventorySync(p,"login");
@@ -1298,7 +1376,11 @@ io.on("connection",socket=>{
     if(p.accountLoaded&&p.memberId&&p.memberId!==String(auth.memberId)){socket.emit("accountLinkDenied",{reason:"This socket is already linked to another account."});return;}
     const linkResult=linkAuthAccountToPlayer(p,auth);
     if(!linkResult.ok){socket.emit("accountLinkDenied",{reason:"Could not link Wix account."});return;}
-    if(p.memberId)claimMemberSocket(p.memberId,socket.id);
+    if(p.memberId){
+      claimMemberSocket(p.memberId,socket.id);
+      const cached=accountLastGoodSnapshots.get(String(p.memberId));
+      if(cached&&inventoryPayloadHasItems(cached.invSlots)&&!inventoryPayloadHasItems(p.invSlots))applyPersistedSnapshotPreservingSession(p,cached);
+    }
     if(!linkResult.alreadyLinked)restorePersistentBuildingsForPlayer(p);
     socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,alreadyLinked:!!linkResult.alreadyLinked,persistenceLoaded:!!p.persistenceLoaded});
     emitInventorySync(p,linkResult.alreadyLinked?"account_link_confirmed":"account_linked");
