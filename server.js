@@ -453,7 +453,7 @@ app.post("/api/grant-credits", (req,res)=>{
 const pvpProjectiles=[];
 const planetProjectiles=[];
 const SHOOT_CD=0.22, PROJ_SPEED=280, PROJ_LIFE=2.2, BASE_DAMAGE=18;
-const PLANET_PROJ_SPEED=245, PLANET_PROJ_LIFE=1.7, PLANET_PROJ_HIT_RADIUS=11;
+const PLANET_PROJ_SPEED=310, PLANET_PROJ_LIFE=1.55, PLANET_PROJ_HIT_RADIUS=12;
 
 function tickProjectiles(dt){
   for(let i=pvpProjectiles.length-1;i>=0;i--){
@@ -942,8 +942,9 @@ io.on("connection",socket=>{
     if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(targetX)||!Number.isFinite(targetY))return;
     if(Math.hypot(x-(p.planetX||0),y-((p.planetY||0)-8))>50)return;
     const ang=Math.atan2(targetY-y,targetX-x);
-    p.planetShootAt=now+520;
+    p.planetShootAt=now+180;
     planetProjectiles.push({id:`pp_${p.id}_${now}_${Math.floor(Math.random()*9999)}`,planetId,ownerId:p.id,ownerName:p.name,x,y,vx:Math.cos(ang)*PLANET_PROJ_SPEED,vy:Math.sin(ang)*PLANET_PROJ_SPEED,damage:planetWeaponDamage(p),life:PLANET_PROJ_LIFE});
+    socket.emit("planetShotAccepted",{planetId,x,y,targetX,targetY,cooldownMs:180});
   });
 
   socket.on("characterCosmetic",({cosmeticColor,suitColor})=>{
@@ -1038,6 +1039,21 @@ io.on("connection",socket=>{
       p.deaths=(p.deaths||0)+1;
       socket.emit("youDied",{killedBy:"Oxygen Depletion"});
       setTimeout(()=>{const rp=players.get(socket.id);if(!rp)return;const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;rp.x=sp.x;rp.y=sp.y;rp.hp=rp.maxHp;rp.shield=rp.maxShield;rp.energy=100;socket.emit("respawn",{x:rp.x,y:rp.y});},3000);
+    }
+  });
+
+  socket.on("planetNpcDamage",({damage,source})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="planet")return;
+    const dmg=Math.max(1,Math.min(30,Number(damage)||7));
+    p.hp=Math.max(0,p.hp-dmg);
+    const attackerName=safeText(source||"Planet NPC",40);
+    socket.emit("planetHit",{damage:dmg,hp:p.hp,attackerName});
+    if(p.hp<=0){
+      p.deaths=(p.deaths||0)+1;
+      socket.emit("youDied",{killedBy:attackerName});
+      io.emit("playerKilled",{victimId:p.id,victimName:p.name,killerId:null,killerName:attackerName});
+      setTimeout(()=>{const rp=players.get(socket.id);if(!rp)return;const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;rp.x=sp.x;rp.y=sp.y;rp.hp=rp.maxHp;rp.shield=rp.maxShield;rp.energy=100;socket.emit("respawn",{x:rp.x,y:rp.y});},3000);
+      broadcastLeaderboard();
     }
   });
 
@@ -1345,4 +1361,3 @@ io.on("connection",socket=>{
 
 const PORT=process.env.PORT||3000;
 server.listen(PORT,()=>{console.log(`🚀 ${SERVER_NAME} on port ${PORT} | ${TICK_RATE}Hz | Max:${MAX_PLAYERS}`);});
-
