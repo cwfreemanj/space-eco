@@ -133,87 +133,6 @@ const MERC_NAME_B = ["Wing","Guard","Fang","Lance","Ranger","Halo","Blade","Shie
 const ownedStructures = new Map();
 const mercCatalogs = new Map();
 
-/* ── Civilization zone ownership/taxes ── */
-const ownedCivilizationZones = new Map(); // zoneId -> persistent zone ownership record
-const CIV_ZONE_STATION_TIERS = {
-  outpost:{name:"Outpost",buildCost:38000,taxBonus:90,weight:1},
-  standard:{name:"Standard Station",buildCost:75000,taxBonus:175,weight:2},
-  advanced:{name:"Advanced Station",buildCost:145000,taxBonus:340,weight:4},
-  capital:{name:"Capital Station",buildCost:325000,taxBonus:650,weight:8}
-};
-const CIV_ZONE_MAX_BUILT_STATIONS = 12;
-const CIV_ZONE_TAX_INTERVAL_MS = 60 * 1000;
-function sanitizeZoneId(id){return String(id||"").replace(/[^a-zA-Z0-9_,|:\-]/g,"").slice(0,80);}
-function roundTo(n,step=2500){return Math.max(step,Math.ceil((Number(n)||0)/step)*step);}
-function civilizationZoneQuote(raw={}){
-  const radius=Math.max(280,Math.min(760,Number(raw.radius)||420));
-  const baseStations=Math.max(4,Math.min(10,Math.floor(Number(raw.stationCount||raw.baseStationCount)||5)));
-  const builtStations=Array.isArray(raw.builtStations)?raw.builtStations:[];
-  let builtWeight=0;
-  for(const st of builtStations){const tier=CIV_ZONE_STATION_TIERS[st.tier]||CIV_ZONE_STATION_TIERS.outpost;builtWeight+=tier.weight;}
-  const sizeMult=radius>=520?1.18:radius>=440?1.08:1.0;
-  const purchasePrice=roundTo((110000 + radius*120 + baseStations*42000 + 90000) * sizeMult);
-  const taxPerMinute=Math.floor((400 + baseStations*130 + radius*0.65 + builtWeight*65) * sizeMult);
-  return {purchasePrice,taxPerMinute,baseStations,radius,builtWeight};
-}
-function civilizationStationBuildCost(tier,zone){
-  const def=CIV_ZONE_STATION_TIERS[tier]||CIV_ZONE_STATION_TIERS.outpost;
-  const builtCount=Array.isArray(zone?.builtStations)?zone.builtStations.length:0;
-  const sizeMult=Math.max(1,Math.min(1.45,(Number(zone?.radius)||420)/460));
-  return roundTo(def.buildCost * sizeMult * Math.pow(1.12,builtCount));
-}
-function publicCivilizationZone(z,viewerId){
-  const quote=civilizationZoneQuote(z);
-  return {id:z.id,name:z.name,x:Math.round(z.x),y:Math.round(z.y),radius:Math.round(z.radius),color:z.color||"#ffdd44",ownerId:z.ownerId||null,ownerName:z.ownerName||"",isOwn:z.ownerId===viewerId,baseStationCount:z.baseStationCount||quote.baseStations,builtStations:Array.isArray(z.builtStations)?z.builtStations:[],purchasePrice:z.purchasePrice||quote.purchasePrice,taxPerMinute:z.taxPerMinute||quote.taxPerMinute,lastTaxAt:z.lastTaxAt||0,boughtAt:z.boughtAt||0};
-}
-function civilizationZonesFor(viewerId){return [...ownedCivilizationZones.values()].map(z=>publicCivilizationZone(z,viewerId));}
-function emitCivilizationZones(socket){socket.emit("civilizationZonesState",{zones:civilizationZonesFor(socket.id),buildTiers:CIV_ZONE_STATION_TIERS,maxBuilt:CIV_ZONE_MAX_BUILT_STATIONS});}
-function broadcastCivilizationZones(){for(const sock of io.sockets.sockets.values())emitCivilizationZones(sock);}
-function civilizationZoneSnapshotForPlayer(p){
-  const memberId=p.memberId||"";
-  return [...ownedCivilizationZones.values()].filter(z=>z.ownerId===p.id||(memberId&&z.ownerMemberId===memberId)).map(z=>({id:z.id,name:z.name,x:Math.round(z.x),y:Math.round(z.y),radius:Math.round(z.radius),color:z.color,ownerName:z.ownerName,baseStationCount:z.baseStationCount,builtStations:Array.isArray(z.builtStations)?z.builtStations:[],purchasePrice:z.purchasePrice,taxPerMinute:z.taxPerMinute,lastTaxAt:z.lastTaxAt||0,boughtAt:z.boughtAt||Date.now()}));
-}
-function restoreCivilizationZonesForPlayer(p){
-  if(!p?.memberId)return;
-  for(const z of ownedCivilizationZones.values())if(z.ownerMemberId===p.memberId){z.ownerId=p.id;z.ownerName=p.name;}
-  const src=[];
-  if(Array.isArray(p.savedCivilizationZones))src.push(...p.savedCivilizationZones);
-  const b=p.savedBuildings||{};
-  if(Array.isArray(b.civilizationZones))src.push(...b.civilizationZones);
-  for(const rec of src){
-    if(!rec||typeof rec!=="object")continue;
-    const id=sanitizeZoneId(rec.id);if(!id)continue;
-    const quote=civilizationZoneQuote(rec);
-    const existing=ownedCivilizationZones.get(id);
-    if(existing&&existing.ownerMemberId&&existing.ownerMemberId!==p.memberId)continue;
-    const z={id,name:safeText(rec.name||"Civilization Zone",48),x:Math.round(Number(rec.x)||0),y:Math.round(Number(rec.y)||0),radius:quote.radius,color:safeText(rec.color,16)||"#ffdd44",ownerId:p.id,ownerMemberId:p.memberId,ownerName:p.name,baseStationCount:quote.baseStations,builtStations:[],purchasePrice:Number(rec.purchasePrice)||quote.purchasePrice,taxPerMinute:Number(rec.taxPerMinute)||quote.taxPerMinute,lastTaxAt:Number(rec.lastTaxAt)||Date.now(),boughtAt:Number(rec.boughtAt)||Date.now()};
-    for(const bs of Array.isArray(rec.builtStations)?rec.builtStations:[]){
-      const tier=CIV_ZONE_STATION_TIERS[bs.tier]?bs.tier:"outpost";
-      z.builtStations.push({id:sanitizeZoneId(bs.id)||`${id}_built_${z.builtStations.length}`,tier,x:Math.round(Number(bs.x)||z.x),y:Math.round(Number(bs.y)||z.y),builtAt:Number(bs.builtAt)||Date.now()});
-      if(z.builtStations.length>=CIV_ZONE_MAX_BUILT_STATIONS)break;
-    }
-    const q2=civilizationZoneQuote(z);z.taxPerMinute=Number(rec.taxPerMinute)||q2.taxPerMinute;
-    ownedCivilizationZones.set(id,z);
-  }
-}
-function tickCivilizationZoneTaxes(){
-  const now=Date.now();
-  for(const z of ownedCivilizationZones.values()){
-    if(!z.ownerId)continue;
-    if(!z.lastTaxAt)z.lastTaxAt=now;
-    if(now-z.lastTaxAt<CIV_ZONE_TAX_INTERVAL_MS)continue;
-    const p=players.get(z.ownerId);if(!p)continue;
-    const ticks=Math.min(5,Math.floor((now-z.lastTaxAt)/CIV_ZONE_TAX_INTERVAL_MS));
-    const quote=civilizationZoneQuote(z);z.taxPerMinute=quote.taxPerMinute;
-    const amount=Math.max(1,Math.floor(quote.taxPerMinute*ticks));
-    z.lastTaxAt+=ticks*CIV_ZONE_TAX_INTERVAL_MS;
-    p.credits=(p.credits||0)+amount;
-    io.to(p.id).emit("civilizationZoneTax",{zoneId:z.id,zoneName:z.name,amount,credits:p.credits,taxPerMinute:quote.taxPerMinute});
-    io.to(p.id).emit("creditUpdate",{credits:p.credits});
-    persistPlayerSoon(p,"civilization_zone_tax");
-  }
-}
-
 /* ── Player-built station defense stats ── */
 function stationDefenseStats(tier){
   const table={
@@ -378,52 +297,23 @@ function verifyGameToken(token){
   return data;
 }
 function emptySlots(n=24){return Array(n).fill(null).map(()=>({type:null,count:0}));}
-const PLAYER_MAX_STACK=24;
-function normalizeSlotRecord(rec){
-  if(!rec)return null;
-  if(typeof rec==="string")return null;
-  const rawType=String(rec.type||rec.kind||rec.resourceType||rec.id||rec.item||"");
-  const type=RES_KEYS.includes(rawType)?rawType:"";
-  const rawCount=(rec.count!==undefined?rec.count:(rec.qty!==undefined?rec.qty:(rec.quantity!==undefined?rec.quantity:rec.amount)));
-  const count=Math.max(0,Math.min(9999,Math.floor(Number(rawCount)||0)));
-  return type&&count>0?{type,count}:null;
-}
 function normalizeInventorySlots(slots,maxSlots=24){
   maxSlots=Math.max(24,Math.min(96,Math.floor(Number(maxSlots)||24)));
   const out=emptySlots(maxSlots);
   if(Array.isArray(slots)){
+    for(let i=0;i<Math.min(slots.length,maxSlots);i++){
+      const type=String(slots[i]?.type||"");const count=Math.max(0,Math.min(9999,Math.floor(Number(slots[i]?.count)||0)));
+      if(type&&RES_KEYS.includes(type)&&count>0)out[i]={type,count};
+    }
+  }else if(slots&&typeof slots==="object"){
     let idx=0;
-    for(const rec of slots){
-      const s=normalizeSlotRecord(rec);
-      if(!s)continue;
-      let count=s.count;
-      while(count>0&&idx<maxSlots){const put=Math.min(PLAYER_MAX_STACK,count);out[idx++]={type:s.type,count:put};count-=put;}
+    for(const [type,val] of Object.entries(slots)){
+      let count=Math.max(0,Math.min(9999,Math.floor(Number(val)||0)));
+      if(!RES_KEYS.includes(type)||count<=0)continue;
+      while(count>0&&idx<maxSlots){const put=Math.min(24,count);out[idx++]={type,count:put};count-=put;}
     }
-    return out;
-  }
-  const counts={};
-  if(slots&&typeof slots==="object"){
-    for(const [key,val] of Object.entries(slots)){
-      if(RES_KEYS.includes(key)){
-        const n=(val&&typeof val==="object")?(val.count??val.qty??val.quantity??val.amount):val;
-        const count=Math.max(0,Math.min(9999,Math.floor(Number(n)||0)));
-        if(count>0)counts[key]=(counts[key]||0)+count;
-      }else{
-        const s=normalizeSlotRecord(val);if(s)counts[s.type]=(counts[s.type]||0)+s.count;
-      }
-    }
-  }
-  let idx=0;
-  for(const type of RES_KEYS){
-    let count=counts[type]||0;
-    while(count>0&&idx<maxSlots){const put=Math.min(PLAYER_MAX_STACK,count);out[idx++]={type,count:put};count-=put;}
   }
   return out;
-}
-function sanitizePlayerInventory(p){
-  if(!p)return;
-  p.maxSlots=Math.max(24,Math.min(96,Math.floor(Number(p.maxSlots)||24)));
-  p.invSlots=normalizeInventorySlots(p.invSlots,p.maxSlots);
 }
 function inventoryCounts(p){const o={};for(const s of p.invSlots||[])if(s?.type&&s.count>0)o[s.type]=(o[s.type]||0)+s.count;return o;}
 function inventoryCount(p,type){let n=0;for(const s of p.invSlots||[])if(s.type===type)n+=s.count;return n;}
@@ -480,14 +370,12 @@ function validateTradeItems(p,items){
 }
 function emitInventorySync(p,reason="sync"){
   if(!p?.id)return;
-  sanitizePlayerInventory(p);
   io.to(p.id).emit("inventorySync",{credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),reason});
 }
 async function persistPlayerNow(p,reason="update"){
-  sanitizePlayerInventory(p);
   if(!p?.memberId){console.warn("Wix persistence skipped: player has no memberId", p?.id, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
-  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},activeMercs:(p.activeMercs||[]).map(publicMerc),civilizationZones:civilizationZoneSnapshotForPlayer(p),buildings:buildingSnapshotForPlayer(p),reason,updatedAt:Date.now()};
+  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),reason,updatedAt:Date.now()};
   try{
     const res = await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
     if(!res.ok){
@@ -517,37 +405,7 @@ function applyAuthAccountToPlayer(p,auth){
   if(auth.attrs&&typeof auth.attrs==="object")p.attrs={...p.attrs,...auth.attrs};
   if(auth.badgeRewards&&typeof auth.badgeRewards==="object")p.badgeRewards={...auth.badgeRewards};
   p.activeMercs=normalizeMercs(auth.activeMercs||[],p);
-  if(Array.isArray(auth.civilizationZones))p.savedCivilizationZones=auth.civilizationZones;
   if(auth.buildings&&typeof auth.buildings==="object")p.savedBuildings=auth.buildings;
-}
-function applyVerifiedWixSnapshotToPlayer(p,auth,snapshot){
-  try{
-    if(!p||!auth||!snapshot||typeof snapshot!=="object")return false;
-    const snapMember=snapshot.memberId?String(snapshot.memberId):String(auth.memberId);
-    if(String(auth.memberId)!==snapMember)return false;
-    // This fixes iframe timing: sometimes Wix posts the saved account data separately
-    // from the signed token. Only accept bounded, normalized fields after the token
-    // has proven the member identity.
-    if(typeof snapshot.displayName==="string")p.name=sanitizeName(snapshot.displayName||p.name);
-    if(typeof snapshot.credits==="number")p.credits=Math.max(0,Math.min(50000000,Math.floor(Number(snapshot.credits)||0)));
-    if(snapshot.maxSlots!==undefined)p.maxSlots=Math.max(24,Math.min(96,Math.floor(Number(snapshot.maxSlots)||24)));
-    const invSource=(Array.isArray(snapshot.invSlots)||snapshot.inventory)?(snapshot.invSlots||snapshot.inventory):null;
-    if(invSource)p.invSlots=normalizeInventorySlots(invSource,p.maxSlots);
-    if(snapshot.shipType&&SHIP_TYPES[snapshot.shipType])p.shipType=snapshot.shipType;
-    if(snapshot.level)p.level=Math.max(1,Math.min(999,Math.floor(Number(snapshot.level)||1)));
-    if(snapshot.xp!==undefined)p.xp=Math.max(0,Math.min(99999999,Math.floor(Number(snapshot.xp)||0)));
-    if(snapshot.attrs&&typeof snapshot.attrs==="object")p.attrs={...p.attrs,...snapshot.attrs};
-    if(snapshot.badgeRewards&&typeof snapshot.badgeRewards==="object")p.badgeRewards={...snapshot.badgeRewards};
-    if(Array.isArray(snapshot.activeMercs))p.activeMercs=normalizeMercs(snapshot.activeMercs,p);
-    if(Array.isArray(snapshot.civilizationZones))p.savedCivilizationZones=snapshot.civilizationZones.filter(Boolean).slice(0,24);
-    if(snapshot.buildings&&typeof snapshot.buildings==="object")p.savedBuildings=snapshot.buildings;
-    sanitizePlayerInventory(p);
-    return true;
-  }catch(err){
-    console.error("Wix account snapshot hydrate failed",err);
-    sanitizePlayerInventory(p);
-    return false;
-  }
 }
 
 
@@ -596,8 +454,7 @@ function buildingSnapshotForPlayer(p){
   const structures=[...ownedStructures.values()].filter(st=>st.ownerId===p.id||(memberId&&st.ownerMemberId===memberId)).map(st=>({
     key:st.key,type:st.type,x:Math.round(st.x),y:Math.round(st.y),ownerName:st.ownerName,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,storageSlots:st.storageSlots,invSlots:st.invSlots||[],damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now()
   }));
-  const civilizationZones=civilizationZoneSnapshotForPlayer(p);
-  return {stations,structures,civilizationZones};
+  return {stations,structures};
 }
 function restorePersistentBuildingsForPlayer(p){
   if(!p?.memberId)return;
@@ -606,7 +463,6 @@ function restorePersistentBuildingsForPlayer(p){
   for(const st of ownedStructures.values())if(st.ownerMemberId===p.memberId){st.ownerId=p.id;st.ownerName=p.name;}
   const b=p.savedBuildings||{};
   for(const rec of Array.isArray(b.stations)?b.stations:[]){
-    if(!rec||typeof rec!=="object")continue;
     const tier=OWNED_STATION_TIERS[rec.tier]?rec.tier:"outpost";
     const x=Math.round(Number(rec.x)||0),y=Math.round(Number(rec.y)||0),key=String(rec.key||`${Math.round(x/100)}_${Math.round(y/100)}`);
     let st=ownedStations.get(key);
@@ -617,7 +473,6 @@ function restorePersistentBuildingsForPlayer(p){
     }
   }
   for(const rec of Array.isArray(b.structures)?b.structures:[]){
-    if(!rec||typeof rec!=="object")continue;
     const type=PLAYER_STRUCTURE_TYPES[rec.type]?rec.type:"storage_facility";
     const x=Math.round(Number(rec.x)||0),y=Math.round(Number(rec.y)||0),key=String(rec.key||`${type}_${Math.round(x/80)}_${Math.round(y/80)}`);
     let st=ownedStructures.get(key);
@@ -667,14 +522,7 @@ function generateMercOffersForPlayer(p,force=false){
 function publicMerc(m){return {id:m.id,name:m.name,role:m.role,roleName:m.roleName,rarity:m.rarity,rarityName:m.rarityName,color:m.color,level:m.level,hp:m.hp,maxHp:m.maxHp,shield:m.shield,maxShield:m.maxShield,damage:m.damage,speed:m.speed,x:m.x,y:m.y};}
 function normalizeMercs(list,p){
   if(!Array.isArray(list))return [];
-  const out=[];
-  for(const raw of list){
-    if(!raw||typeof raw!=="object")continue;
-    const m=raw;const i=out.length;
-    out.push({id:String(m.id||`merc_${Date.now()}_${i}`),name:safeText(m.name,32)||"Mercenary",role:String(m.role||"escort"),roleName:safeText(m.roleName,24)||"Escort",rarity:String(m.rarity||"common"),rarityName:safeText(m.rarityName,24)||"Common",color:safeText(m.color,16)||"#9db0c8",level:Math.max(1,Math.floor(Number(m.level)||1)),hp:Math.max(1,Math.floor(Number(m.hp)||m.maxHp||70)),maxHp:Math.max(1,Math.floor(Number(m.maxHp)||70)),shield:Math.max(0,Math.floor(Number(m.shield)||m.maxShield||35)),maxShield:Math.max(0,Math.floor(Number(m.maxShield)||35)),damage:Math.max(1,Math.floor(Number(m.damage)||10)),speed:Math.max(40,Math.floor(Number(m.speed)||100)),x:Number(m.x)||p.x,y:Number(m.y)||p.y,lastShotAt:0});
-    if(out.length>=MAX_ACTIVE_MERCS)break;
-  }
-  return out;
+  return list.slice(0,MAX_ACTIVE_MERCS).map((m,i)=>({id:String(m.id||`merc_${Date.now()}_${i}`),name:safeText(m.name,32)||"Mercenary",role:String(m.role||"escort"),roleName:safeText(m.roleName,24)||"Escort",rarity:String(m.rarity||"common"),rarityName:safeText(m.rarityName,24)||"Common",color:safeText(m.color,16)||"#9db0c8",level:Math.max(1,Math.floor(Number(m.level)||1)),hp:Math.max(1,Math.floor(Number(m.hp)||m.maxHp||70)),maxHp:Math.max(1,Math.floor(Number(m.maxHp)||70)),shield:Math.max(0,Math.floor(Number(m.shield)||m.maxShield||35)),maxShield:Math.max(0,Math.floor(Number(m.maxShield)||35)),damage:Math.max(1,Math.floor(Number(m.damage)||10)),speed:Math.max(40,Math.floor(Number(m.speed)||100)),x:Number(m.x)||p.x,y:Number(m.y)||p.y,lastShotAt:0}));
 }
 
 
@@ -948,7 +796,7 @@ setInterval(()=>{
 let lastTick=Date.now(),ecoTimer=0,lbTimer=0,slTimer=0,socialTimer=0;
 setInterval(()=>{
   const now=Date.now(),dt=Math.min((now-lastTick)/1000,0.05);lastTick=now;
-  economy.tick();tickPlayers(dt);tickProjectiles(dt);tickPlanetProjectiles(dt);tickOwnedStationDefense(dt);tickPlayerStructures(dt);tickCivilizationZoneTaxes();broadcastWorldState();
+  economy.tick();tickPlayers(dt);tickProjectiles(dt);tickPlanetProjectiles(dt);tickOwnedStationDefense(dt);tickPlayerStructures(dt);broadcastWorldState();
   ecoTimer+=dt;if(ecoTimer>=5){io.emit("economyUpdate",economy.snapshot());ecoTimer=0;}
   lbTimer+=dt; if(lbTimer>=10){broadcastLeaderboard();lbTimer=0;}
   slTimer+=dt; if(slTimer>=3){broadcastServerList();broadcastOwnedStationsList();slTimer=0;}
@@ -1100,38 +948,23 @@ function contributeFactionXp(p,amount,reason="XP"){
 io.on("connection",socket=>{
   if(players.size>=MAX_PLAYERS){socket.emit("serverFull");socket.disconnect(true);return;}
 
-  socket.on("join",(payload={})=>{
-    try{
-      const {name,token,accountState}=payload||{};
-      if(players.has(socket.id))return;
-      const auth=verifyGameToken(token);
-      const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
-      applyAuthAccountToPlayer(p,auth);
-      // Account snapshots are optional and are now usually hydrated after welcome.
-      // Keep this backward-compatible but never let bad snapshot data break launch.
-      if(auth&&accountState)applyVerifiedWixSnapshotToPlayer(p,auth,accountState);
-      sanitizePlayerInventory(p);
-      players.set(socket.id,p);
-      if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
-      restorePersistentBuildingsForPlayer(p);
-      restoreCivilizationZonesForPlayer(p);
-      socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,civilizationZoneBuildTiers:CIV_ZONE_STATION_TIERS,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc),civilizationZones:civilizationZonesFor(socket.id)});
-      emitInventorySync(p,"login");
-      socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
-      broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
-      broadcastLeaderboard();broadcastServerList();
-      emitOwnedStationsList(socket);
-      emitPlayerStructures(socket);
-      emitCivilizationZones(socket);
-      const mercCat=generateMercOffersForPlayer(p);
-      socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
-    }catch(err){
-      console.error("Join failed",err);
-      const p=players.get(socket.id);
-      if(p?.memberId&&socketsByMemberId.get(p.memberId)===socket.id)socketsByMemberId.delete(p.memberId);
-      players.delete(socket.id);
-      socket.emit("joinDenied",{reason:"Launch failed while loading saved account data. Please refresh and try again."});
-    }
+  socket.on("join",({name,token})=>{
+    if(players.has(socket.id))return;
+    const auth=verifyGameToken(token);
+    const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
+    applyAuthAccountToPlayer(p,auth);
+    players.set(socket.id,p);
+    if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
+    restorePersistentBuildingsForPlayer(p);
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc)});
+    emitInventorySync(p,"login");
+    socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
+    broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
+    broadcastLeaderboard();broadcastServerList();
+    emitOwnedStationsList(socket);
+    emitPlayerStructures(socket);
+    const mercCat=generateMercOffersForPlayer(p);
+    socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
   });
 
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
@@ -1373,27 +1206,6 @@ io.on("connection",socket=>{
     }
   });
 
-  socket.on("hydrateAccountState",({token,accountState}={})=>{
-    try{
-      const p=players.get(socket.id);if(!p)return;
-      const auth=verifyGameToken(token);
-      if(!auth||String(auth.memberId)!==String(p.memberId||"")){socket.emit("inventorySyncDenied",{reason:"Account sync denied: invalid member token."});return;}
-      if(applyVerifiedWixSnapshotToPlayer(p,auth,accountState)){
-        restorePersistentBuildingsForPlayer(p);
-        restoreCivilizationZonesForPlayer(p);
-        emitInventorySync(p,"wix_account_hydrate");
-        emitPlayerStructures(socket);
-        emitCivilizationZones(socket);
-        persistPlayerSoon(p,"wix_account_hydrate");
-      }else{
-        emitInventorySync(p,"wix_account_hydrate_noop");
-      }
-    }catch(err){
-      console.error("hydrateAccountState failed",err);
-      socket.emit("inventorySyncDenied",{reason:"Saved account sync failed, but launch is safe."});
-    }
-  });
-
   socket.on("requestInventorySync",()=>{const p=players.get(socket.id);if(p)emitInventorySync(p,"requested");});
 
   socket.on("buyInventorySlot",()=>{
@@ -1412,7 +1224,7 @@ io.on("connection",socket=>{
     if(!removeInventory(p,resourceType,quantity)){socket.emit("sellDenied",{reason:"You do not have that quantity in your server inventory."});return;}
     const earned=pr*quantity;p.credits+=earned;p.tradingVolume=(p.tradingVolume||0)+earned;
     economy.sold(resourceType,quantity);addScore(p,Math.floor(earned*0.1),"Trade");
-    socket.emit("sellConfirm",{resourceType,quantity,earned,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});
+    socket.emit("sellConfirm",{resourceType,quantity,earned,credits:p.credits,prices:economy.snapshot()});
     syncAndPersist(p,"sell_resource");
   });
 
@@ -1436,7 +1248,7 @@ io.on("connection",socket=>{
     const cost=unitPrice*quantity;if(p.credits<cost){socket.emit("buyDenied",{reason:"Insufficient credits."});return;}
     if(!canFitInventory(p,resourceType,quantity)){socket.emit("buyDenied",{reason:"Inventory full."});return;}
     p.credits-=cost;economy.bought(resourceType,quantity);addInventory(p,resourceType,quantity);
-    socket.emit("buyConfirm",{resourceType,quantity,cost,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});
+    socket.emit("buyConfirm",{resourceType,quantity,cost,credits:p.credits,prices:economy.snapshot()});
     syncAndPersist(p,"buy_resource");
   });
 
@@ -1537,48 +1349,6 @@ io.on("connection",socket=>{
     socket.emit("hireConfirm",{stationKey,shipCount:st.hiredShips.length,credits:p.credits});
     socket.emit("creditUpdate",{credits:p.credits});
     broadcastOwnedStationsList();
-  });
-
-  socket.on("requestCivilizationZones",()=>{emitCivilizationZones(socket);});
-
-  socket.on("buyCivilizationZone",({zone})=>{
-    const p=players.get(socket.id);if(!p)return;
-    zone=zone||{};const id=sanitizeZoneId(zone.id);if(!id){socket.emit("civilizationZoneDenied",{reason:"Zone ID missing."});return;}
-    if(ownedCivilizationZones.has(id)){socket.emit("civilizationZoneDenied",{reason:"This civilization zone already has an owner."});return;}
-    const x=Math.round(Number(zone.x)||p.x),y=Math.round(Number(zone.y)||p.y);
-    const capX=Math.round(Number(zone.capitalX)||x),capY=Math.round(Number(zone.capitalY)||y);
-    if(Math.hypot(p.x-capX,p.y-capY)>780){socket.emit("civilizationZoneDenied",{reason:"Dock at the mega capital station to buy this zone."});return;}
-    const quote=civilizationZoneQuote(zone);
-    if((p.credits||0)<quote.purchasePrice){socket.emit("civilizationZoneDenied",{reason:`Need ${quote.purchasePrice}cr to buy this zone.`});return;}
-    p.credits-=quote.purchasePrice;
-    const rec={id,name:safeText(zone.name||"Civilization Zone",48),x,y,radius:quote.radius,color:safeText(zone.color,16)||"#ffdd44",ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,baseStationCount:quote.baseStations,builtStations:[],purchasePrice:quote.purchasePrice,taxPerMinute:quote.taxPerMinute,lastTaxAt:Date.now(),boughtAt:Date.now()};
-    ownedCivilizationZones.set(id,rec);
-    syncAndPersist(p,"buy_civilization_zone");
-    socket.emit("civilizationZonePurchaseConfirm",{zone:publicCivilizationZone(rec,p.id),credits:p.credits});
-    socket.emit("creditUpdate",{credits:p.credits});
-    broadcastCivilizationZones();
-    broadcastChat("Civilization",`${p.name} purchased ${rec.name} for ${quote.purchasePrice} credits!`,rec.color||"#ffdd44");
-  });
-
-  socket.on("buildCivilizationZoneStation",({zoneId,tier})=>{
-    const p=players.get(socket.id);if(!p)return;
-    zoneId=sanitizeZoneId(zoneId);tier=String(tier||"outpost");
-    const z=ownedCivilizationZones.get(zoneId);if(!z||z.ownerId!==p.id){socket.emit("civilizationZoneDenied",{reason:"You do not own this zone."});return;}
-    if(!CIV_ZONE_STATION_TIERS[tier]){socket.emit("civilizationZoneDenied",{reason:"Unknown station tier."});return;}
-    if((z.builtStations||[]).length>=CIV_ZONE_MAX_BUILT_STATIONS){socket.emit("civilizationZoneDenied",{reason:`Max ${CIV_ZONE_MAX_BUILT_STATIONS} added stations in this zone.`});return;}
-    if(Math.hypot(p.x-z.x,p.y-z.y)>z.radius+520){socket.emit("civilizationZoneDenied",{reason:"Return to the zone capital to build more stations."});return;}
-    const cost=civilizationStationBuildCost(tier,z);
-    if((p.credits||0)<cost){socket.emit("civilizationZoneDenied",{reason:`Need ${cost}cr to build this station.`});return;}
-    const idx=(z.builtStations||[]).length;
-    const rng=makeRng(`${GALAXY_SEED}|ownedCivStation|${zoneId}|${idx}|${tier}`);
-    const a=rng()*Math.PI*2,r=(Number(z.radius)||420)*(0.25+rng()*0.48);
-    const rec={id:`${zoneId}_built_${idx}_${tier}`,tier,x:Math.round(z.x+Math.cos(a)*r),y:Math.round(z.y+Math.sin(a)*r),builtAt:Date.now()};
-    p.credits-=cost;z.builtStations.push(rec);
-    z.taxPerMinute=civilizationZoneQuote(z).taxPerMinute;
-    syncAndPersist(p,"build_civilization_zone_station");
-    socket.emit("civilizationZoneBuildConfirm",{zone:publicCivilizationZone(z,p.id),station:rec,cost,credits:p.credits});
-    socket.emit("creditUpdate",{credits:p.credits});
-    broadcastCivilizationZones();
   });
 
   socket.on("requestMercOffers",()=>{
