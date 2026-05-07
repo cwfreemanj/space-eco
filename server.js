@@ -181,6 +181,7 @@ function restoreCivilizationZonesForPlayer(p){
   const b=p.savedBuildings||{};
   if(Array.isArray(b.civilizationZones))src.push(...b.civilizationZones);
   for(const rec of src){
+    if(!rec||typeof rec!=="object")continue;
     const id=sanitizeZoneId(rec.id);if(!id)continue;
     const quote=civilizationZoneQuote(rec);
     const existing=ownedCivilizationZones.get(id);
@@ -520,27 +521,33 @@ function applyAuthAccountToPlayer(p,auth){
   if(auth.buildings&&typeof auth.buildings==="object")p.savedBuildings=auth.buildings;
 }
 function applyVerifiedWixSnapshotToPlayer(p,auth,snapshot){
-  if(!p||!auth||!snapshot||typeof snapshot!=="object")return false;
-  const snapMember=snapshot.memberId?String(snapshot.memberId):String(auth.memberId);
-  if(String(auth.memberId)!==snapMember)return false;
-  // This fixes iframe timing: sometimes Wix posts the saved account data separately
-  // from the signed token. Only accept bounded, normalized fields after the token
-  // has proven the member identity.
-  if(typeof snapshot.displayName==="string")p.name=sanitizeName(snapshot.displayName||p.name);
-  if(typeof snapshot.credits==="number")p.credits=Math.max(0,Math.min(50000000,Math.floor(Number(snapshot.credits)||0)));
-  if(snapshot.maxSlots!==undefined)p.maxSlots=Math.max(24,Math.min(96,Math.floor(Number(snapshot.maxSlots)||24)));
-  const invSource=Array.isArray(snapshot.invSlots)||snapshot.inventory?snapshot.invSlots||snapshot.inventory:null;
-  if(invSource)p.invSlots=normalizeInventorySlots(invSource,p.maxSlots);
-  if(snapshot.shipType&&SHIP_TYPES[snapshot.shipType])p.shipType=snapshot.shipType;
-  if(snapshot.level)p.level=Math.max(1,Math.min(999,Math.floor(Number(snapshot.level)||1)));
-  if(snapshot.xp!==undefined)p.xp=Math.max(0,Math.min(99999999,Math.floor(Number(snapshot.xp)||0)));
-  if(snapshot.attrs&&typeof snapshot.attrs==="object")p.attrs={...p.attrs,...snapshot.attrs};
-  if(snapshot.badgeRewards&&typeof snapshot.badgeRewards==="object")p.badgeRewards={...snapshot.badgeRewards};
-  if(Array.isArray(snapshot.activeMercs))p.activeMercs=normalizeMercs(snapshot.activeMercs,p);
-  if(Array.isArray(snapshot.civilizationZones))p.savedCivilizationZones=snapshot.civilizationZones;
-  if(snapshot.buildings&&typeof snapshot.buildings==="object")p.savedBuildings=snapshot.buildings;
-  sanitizePlayerInventory(p);
-  return true;
+  try{
+    if(!p||!auth||!snapshot||typeof snapshot!=="object")return false;
+    const snapMember=snapshot.memberId?String(snapshot.memberId):String(auth.memberId);
+    if(String(auth.memberId)!==snapMember)return false;
+    // This fixes iframe timing: sometimes Wix posts the saved account data separately
+    // from the signed token. Only accept bounded, normalized fields after the token
+    // has proven the member identity.
+    if(typeof snapshot.displayName==="string")p.name=sanitizeName(snapshot.displayName||p.name);
+    if(typeof snapshot.credits==="number")p.credits=Math.max(0,Math.min(50000000,Math.floor(Number(snapshot.credits)||0)));
+    if(snapshot.maxSlots!==undefined)p.maxSlots=Math.max(24,Math.min(96,Math.floor(Number(snapshot.maxSlots)||24)));
+    const invSource=(Array.isArray(snapshot.invSlots)||snapshot.inventory)?(snapshot.invSlots||snapshot.inventory):null;
+    if(invSource)p.invSlots=normalizeInventorySlots(invSource,p.maxSlots);
+    if(snapshot.shipType&&SHIP_TYPES[snapshot.shipType])p.shipType=snapshot.shipType;
+    if(snapshot.level)p.level=Math.max(1,Math.min(999,Math.floor(Number(snapshot.level)||1)));
+    if(snapshot.xp!==undefined)p.xp=Math.max(0,Math.min(99999999,Math.floor(Number(snapshot.xp)||0)));
+    if(snapshot.attrs&&typeof snapshot.attrs==="object")p.attrs={...p.attrs,...snapshot.attrs};
+    if(snapshot.badgeRewards&&typeof snapshot.badgeRewards==="object")p.badgeRewards={...snapshot.badgeRewards};
+    if(Array.isArray(snapshot.activeMercs))p.activeMercs=normalizeMercs(snapshot.activeMercs,p);
+    if(Array.isArray(snapshot.civilizationZones))p.savedCivilizationZones=snapshot.civilizationZones.filter(Boolean).slice(0,24);
+    if(snapshot.buildings&&typeof snapshot.buildings==="object")p.savedBuildings=snapshot.buildings;
+    sanitizePlayerInventory(p);
+    return true;
+  }catch(err){
+    console.error("Wix account snapshot hydrate failed",err);
+    sanitizePlayerInventory(p);
+    return false;
+  }
 }
 
 
@@ -599,6 +606,7 @@ function restorePersistentBuildingsForPlayer(p){
   for(const st of ownedStructures.values())if(st.ownerMemberId===p.memberId){st.ownerId=p.id;st.ownerName=p.name;}
   const b=p.savedBuildings||{};
   for(const rec of Array.isArray(b.stations)?b.stations:[]){
+    if(!rec||typeof rec!=="object")continue;
     const tier=OWNED_STATION_TIERS[rec.tier]?rec.tier:"outpost";
     const x=Math.round(Number(rec.x)||0),y=Math.round(Number(rec.y)||0),key=String(rec.key||`${Math.round(x/100)}_${Math.round(y/100)}`);
     let st=ownedStations.get(key);
@@ -609,6 +617,7 @@ function restorePersistentBuildingsForPlayer(p){
     }
   }
   for(const rec of Array.isArray(b.structures)?b.structures:[]){
+    if(!rec||typeof rec!=="object")continue;
     const type=PLAYER_STRUCTURE_TYPES[rec.type]?rec.type:"storage_facility";
     const x=Math.round(Number(rec.x)||0),y=Math.round(Number(rec.y)||0),key=String(rec.key||`${type}_${Math.round(x/80)}_${Math.round(y/80)}`);
     let st=ownedStructures.get(key);
@@ -658,7 +667,14 @@ function generateMercOffersForPlayer(p,force=false){
 function publicMerc(m){return {id:m.id,name:m.name,role:m.role,roleName:m.roleName,rarity:m.rarity,rarityName:m.rarityName,color:m.color,level:m.level,hp:m.hp,maxHp:m.maxHp,shield:m.shield,maxShield:m.maxShield,damage:m.damage,speed:m.speed,x:m.x,y:m.y};}
 function normalizeMercs(list,p){
   if(!Array.isArray(list))return [];
-  return list.slice(0,MAX_ACTIVE_MERCS).map((m,i)=>({id:String(m.id||`merc_${Date.now()}_${i}`),name:safeText(m.name,32)||"Mercenary",role:String(m.role||"escort"),roleName:safeText(m.roleName,24)||"Escort",rarity:String(m.rarity||"common"),rarityName:safeText(m.rarityName,24)||"Common",color:safeText(m.color,16)||"#9db0c8",level:Math.max(1,Math.floor(Number(m.level)||1)),hp:Math.max(1,Math.floor(Number(m.hp)||m.maxHp||70)),maxHp:Math.max(1,Math.floor(Number(m.maxHp)||70)),shield:Math.max(0,Math.floor(Number(m.shield)||m.maxShield||35)),maxShield:Math.max(0,Math.floor(Number(m.maxShield)||35)),damage:Math.max(1,Math.floor(Number(m.damage)||10)),speed:Math.max(40,Math.floor(Number(m.speed)||100)),x:Number(m.x)||p.x,y:Number(m.y)||p.y,lastShotAt:0}));
+  const out=[];
+  for(const raw of list){
+    if(!raw||typeof raw!=="object")continue;
+    const m=raw;const i=out.length;
+    out.push({id:String(m.id||`merc_${Date.now()}_${i}`),name:safeText(m.name,32)||"Mercenary",role:String(m.role||"escort"),roleName:safeText(m.roleName,24)||"Escort",rarity:String(m.rarity||"common"),rarityName:safeText(m.rarityName,24)||"Common",color:safeText(m.color,16)||"#9db0c8",level:Math.max(1,Math.floor(Number(m.level)||1)),hp:Math.max(1,Math.floor(Number(m.hp)||m.maxHp||70)),maxHp:Math.max(1,Math.floor(Number(m.maxHp)||70)),shield:Math.max(0,Math.floor(Number(m.shield)||m.maxShield||35)),maxShield:Math.max(0,Math.floor(Number(m.maxShield)||35)),damage:Math.max(1,Math.floor(Number(m.damage)||10)),speed:Math.max(40,Math.floor(Number(m.speed)||100)),x:Number(m.x)||p.x,y:Number(m.y)||p.y,lastShotAt:0});
+    if(out.length>=MAX_ACTIVE_MERCS)break;
+  }
+  return out;
 }
 
 
@@ -1084,27 +1100,38 @@ function contributeFactionXp(p,amount,reason="XP"){
 io.on("connection",socket=>{
   if(players.size>=MAX_PLAYERS){socket.emit("serverFull");socket.disconnect(true);return;}
 
-  socket.on("join",({name,token,accountState})=>{
-    if(players.has(socket.id))return;
-    const auth=verifyGameToken(token);
-    const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
-    applyAuthAccountToPlayer(p,auth);
-    applyVerifiedWixSnapshotToPlayer(p,auth,accountState);
-    sanitizePlayerInventory(p);
-    players.set(socket.id,p);
-    if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
-    restorePersistentBuildingsForPlayer(p);
-    restoreCivilizationZonesForPlayer(p);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,civilizationZoneBuildTiers:CIV_ZONE_STATION_TIERS,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc),civilizationZones:civilizationZonesFor(socket.id)});
-    emitInventorySync(p,"login");
-    socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
-    broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
-    broadcastLeaderboard();broadcastServerList();
-    emitOwnedStationsList(socket);
-    emitPlayerStructures(socket);
-    emitCivilizationZones(socket);
-    const mercCat=generateMercOffersForPlayer(p);
-    socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
+  socket.on("join",(payload={})=>{
+    try{
+      const {name,token,accountState}=payload||{};
+      if(players.has(socket.id))return;
+      const auth=verifyGameToken(token);
+      const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
+      applyAuthAccountToPlayer(p,auth);
+      // Account snapshots are optional and are now usually hydrated after welcome.
+      // Keep this backward-compatible but never let bad snapshot data break launch.
+      if(auth&&accountState)applyVerifiedWixSnapshotToPlayer(p,auth,accountState);
+      sanitizePlayerInventory(p);
+      players.set(socket.id,p);
+      if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
+      restorePersistentBuildingsForPlayer(p);
+      restoreCivilizationZonesForPlayer(p);
+      socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,civilizationZoneBuildTiers:CIV_ZONE_STATION_TIERS,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc),civilizationZones:civilizationZonesFor(socket.id)});
+      emitInventorySync(p,"login");
+      socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
+      broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
+      broadcastLeaderboard();broadcastServerList();
+      emitOwnedStationsList(socket);
+      emitPlayerStructures(socket);
+      emitCivilizationZones(socket);
+      const mercCat=generateMercOffersForPlayer(p);
+      socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
+    }catch(err){
+      console.error("Join failed",err);
+      const p=players.get(socket.id);
+      if(p?.memberId&&socketsByMemberId.get(p.memberId)===socket.id)socketsByMemberId.delete(p.memberId);
+      players.delete(socket.id);
+      socket.emit("joinDenied",{reason:"Launch failed while loading saved account data. Please refresh and try again."});
+    }
   });
 
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
@@ -1346,17 +1373,24 @@ io.on("connection",socket=>{
     }
   });
 
-  socket.on("hydrateAccountState",({token,accountState})=>{
-    const p=players.get(socket.id);if(!p)return;
-    const auth=verifyGameToken(token);
-    if(!auth||String(auth.memberId)!==String(p.memberId||"")){socket.emit("inventorySyncDenied",{reason:"Account sync denied: invalid member token."});return;}
-    if(applyVerifiedWixSnapshotToPlayer(p,auth,accountState)){
-      restorePersistentBuildingsForPlayer(p);
-      restoreCivilizationZonesForPlayer(p);
-      emitInventorySync(p,"wix_account_hydrate");
-      emitPlayerStructures(socket);
-      emitCivilizationZones(socket);
-      persistPlayerSoon(p,"wix_account_hydrate");
+  socket.on("hydrateAccountState",({token,accountState}={})=>{
+    try{
+      const p=players.get(socket.id);if(!p)return;
+      const auth=verifyGameToken(token);
+      if(!auth||String(auth.memberId)!==String(p.memberId||"")){socket.emit("inventorySyncDenied",{reason:"Account sync denied: invalid member token."});return;}
+      if(applyVerifiedWixSnapshotToPlayer(p,auth,accountState)){
+        restorePersistentBuildingsForPlayer(p);
+        restoreCivilizationZonesForPlayer(p);
+        emitInventorySync(p,"wix_account_hydrate");
+        emitPlayerStructures(socket);
+        emitCivilizationZones(socket);
+        persistPlayerSoon(p,"wix_account_hydrate");
+      }else{
+        emitInventorySync(p,"wix_account_hydrate_noop");
+      }
+    }catch(err){
+      console.error("hydrateAccountState failed",err);
+      socket.emit("inventorySyncDenied",{reason:"Saved account sync failed, but launch is safe."});
     }
   });
 
