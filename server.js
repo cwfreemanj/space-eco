@@ -107,6 +107,32 @@ const OWNED_STATION_TIERS = {
   fortress: { name:"War Fortress",      price:40000, maxShips:10, shipHireCost:2500, collectRange:2200 },
 };
 
+/* ── Player structures + mercenaries ── */
+const PLAYER_STRUCTURE_TYPES = {
+  storage_facility:{name:"Storage Facility",price:4500,maxSlots:100,startSlots:24,maxHp:1800,maxShield:650,shieldRegen:12,size:16},
+  defense_turret:{name:"Defense Turret",price:5500,maxHp:1500,maxShield:900,shieldRegen:18,baseDamage:18,baseRange:900,size:13}
+};
+const MERC_OFFER_RESET_MS = 5 * 60 * 1000;
+const MAX_MERC_OFFERS = 12;
+const MAX_ACTIVE_MERCS = 5;
+const MERC_RARITIES = [
+  {key:"common",name:"Common",weight:46,mult:1.00,color:"#9db0c8"},
+  {key:"uncommon",name:"Uncommon",weight:27,mult:1.22,color:"#78ff8a"},
+  {key:"rare",name:"Rare",weight:16,mult:1.55,color:"#7be6ff"},
+  {key:"epic",name:"Epic",weight:8,mult:2.05,color:"#cc88ff"},
+  {key:"legendary",name:"Legendary",weight:3,mult:3.05,color:"#ffdd44"}
+];
+const MERC_ROLES = [
+  {key:"escort",name:"Escort",baseHp:72,baseShield:42,baseDamage:10,baseSpeed:108},
+  {key:"gunship",name:"Gunship",baseHp:90,baseShield:48,baseDamage:15,baseSpeed:88},
+  {key:"interceptor",name:"Interceptor",baseHp:56,baseShield:34,baseDamage:11,baseSpeed:142},
+  {key:"bulwark",name:"Bulwark",baseHp:130,baseShield:86,baseDamage:9,baseSpeed:72}
+];
+const MERC_NAME_A = ["Nova","Solar","Iron","Violet","Crimson","Obelisk","Frontier","Quantum","Starlace","Aegis","Comet","Aurora"];
+const MERC_NAME_B = ["Wing","Guard","Fang","Lance","Ranger","Halo","Blade","Shield","Viper","Drift","Spear","Sentinel"];
+const ownedStructures = new Map();
+const mercCatalogs = new Map();
+
 /* ── Player-built station defense stats ── */
 function stationDefenseStats(tier){
   const table={
@@ -349,7 +375,7 @@ function emitInventorySync(p,reason="sync"){
 async function persistPlayerNow(p,reason="update"){
   if(!p?.memberId){console.warn("Wix persistence skipped: player has no memberId", p?.id, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
-  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},reason,updatedAt:Date.now()};
+  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),reason,updatedAt:Date.now()};
   try{
     const res = await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
     if(!res.ok){
@@ -378,6 +404,125 @@ function applyAuthAccountToPlayer(p,auth){
   if(auth.xp!==undefined)p.xp=Math.max(0,Math.floor(Number(auth.xp)||0));
   if(auth.attrs&&typeof auth.attrs==="object")p.attrs={...p.attrs,...auth.attrs};
   if(auth.badgeRewards&&typeof auth.badgeRewards==="object")p.badgeRewards={...auth.badgeRewards};
+  p.activeMercs=normalizeMercs(auth.activeMercs||[],p);
+  if(auth.buildings&&typeof auth.buildings==="object")p.savedBuildings=auth.buildings;
+}
+
+
+function normalizeStorageSlots(slots,maxSlots=24){
+  maxSlots=Math.max(24,Math.min(100,Math.floor(Number(maxSlots)||24)));
+  const out=emptySlots(maxSlots);
+  if(Array.isArray(slots)){
+    for(let i=0;i<Math.min(slots.length,maxSlots);i++){
+      const type=String(slots[i]?.type||"");const count=Math.max(0,Math.min(9999,Math.floor(Number(slots[i]?.count)||0)));
+      if(type&&RES_KEYS.includes(type)&&count>0)out[i]={type,count};
+    }
+  }
+  return out;
+}
+function structureDefaultState(type){
+  const def=PLAYER_STRUCTURE_TYPES[type]||PLAYER_STRUCTURE_TYPES.storage_facility;
+  return {hp:def.maxHp,maxHp:def.maxHp,shield:def.maxShield,maxShield:def.maxShield,shieldRegenTimer:0,damageLevel:1,shieldLevel:1,storageSlots:def.startSlots||24,invSlots:emptySlots(def.startSlots||24),destroyed:false,underAttackUntil:0};
+}
+function structureUpgradeCost(st,kind){
+  if(kind==="storage")return Math.floor(450+Math.max(0,(st.storageSlots||24)-24)*42);
+  const level=kind==="damage"?Math.max(1,st.damageLevel||1):Math.max(1,st.shieldLevel||1);
+  return Math.floor((kind==="damage"?900:1050)*Math.pow(1.58,level-1));
+}
+function publicStructure(st,viewerId){
+  return {
+    key:st.key,type:st.type,ownerId:st.ownerId,ownerName:st.ownerName,x:Math.round(st.x),y:Math.round(st.y),
+    isOwn:st.ownerId===viewerId,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,
+    destroyed:!!st.destroyed,storageSlots:st.storageSlots||0,storageUsed:Array.isArray(st.invSlots)?st.invSlots.filter(x=>x?.type&&x.count>0).length:0,
+    storage:st.ownerId===viewerId?st.invSlots:undefined,damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,
+    damage:turretDamage(st),range:turretRange(st)
+  };
+}
+function playerStructuresFor(viewerId){return [...ownedStructures.values()].map(st=>publicStructure(st,viewerId));}
+function emitPlayerStructures(socket){socket.emit("playerStructuresList",playerStructuresFor(socket.id));}
+function broadcastPlayerStructuresList(){for(const sock of io.sockets.sockets.values())emitPlayerStructures(sock);}
+function turretDamage(st){return Math.floor((PLAYER_STRUCTURE_TYPES.defense_turret.baseDamage||18)*(1+0.38*Math.max(0,(st.damageLevel||1)-1)));}
+function turretRange(st){return Math.floor((PLAYER_STRUCTURE_TYPES.defense_turret.baseRange||900)*(1+0.08*Math.max(0,(st.damageLevel||1)-1)));}
+function canFitStorage(st,type,amount){const fake={invSlots:st.invSlots,maxSlots:st.storageSlots};return canFitInventory(fake,type,amount);}
+function addStorage(st,type,amount){const fake={invSlots:st.invSlots,maxSlots:st.storageSlots};const ok=addInventory(fake,type,amount);st.invSlots=fake.invSlots;return ok;}
+function removeStorage(st,type,amount){const fake={invSlots:st.invSlots,maxSlots:st.storageSlots};const ok=removeInventory(fake,type,amount);st.invSlots=fake.invSlots;return ok;}
+function buildingSnapshotForPlayer(p){
+  const memberId=p.memberId||"";
+  const stations=[...ownedStations.values()].filter(st=>st.ownerId===p.id||(memberId&&st.ownerMemberId===memberId)).map(st=>({
+    key:st.key,x:Math.round(st.x),y:Math.round(st.y),tier:st.tier,ownerName:st.ownerName,hiredShips:st.hiredShips||[],accumulatedGoods:st.accumulatedGoods||{},hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now()
+  }));
+  const structures=[...ownedStructures.values()].filter(st=>st.ownerId===p.id||(memberId&&st.ownerMemberId===memberId)).map(st=>({
+    key:st.key,type:st.type,x:Math.round(st.x),y:Math.round(st.y),ownerName:st.ownerName,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,storageSlots:st.storageSlots,invSlots:st.invSlots||[],damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now()
+  }));
+  return {stations,structures};
+}
+function restorePersistentBuildingsForPlayer(p){
+  if(!p?.memberId)return;
+  // Reclaim already-loaded process memory buildings after reconnect.
+  for(const st of ownedStations.values())if(st.ownerMemberId===p.memberId){st.ownerId=p.id;st.ownerName=p.name;}
+  for(const st of ownedStructures.values())if(st.ownerMemberId===p.memberId){st.ownerId=p.id;st.ownerName=p.name;}
+  const b=p.savedBuildings||{};
+  for(const rec of Array.isArray(b.stations)?b.stations:[]){
+    const tier=OWNED_STATION_TIERS[rec.tier]?rec.tier:"outpost";
+    const x=Math.round(Number(rec.x)||0),y=Math.round(Number(rec.y)||0),key=String(rec.key||`${Math.round(x/100)}_${Math.round(y/100)}`);
+    let st=ownedStations.get(key);
+    if(!st||st.ownerMemberId===p.memberId||st.ownerId===p.id){
+      const base={key,ownerId:p.id,ownerMemberId:p.memberId,ownerName:p.name,x,y,tier,hiredShips:Array.isArray(rec.hiredShips)?rec.hiredShips.slice(0,20):[],accumulatedGoods:rec.accumulatedGoods||{},createdAt:rec.createdAt||Date.now(),...makeStationState(tier)};
+      base.hp=Math.max(0,Math.min(base.maxHp,Number(rec.hp) || base.hp));base.shield=Math.max(0,Math.min(base.maxShield,Number(rec.shield) || base.shield));base.destroyed=!!rec.destroyed;
+      ownedStations.set(key,{...(st||{}),...base});
+    }
+  }
+  for(const rec of Array.isArray(b.structures)?b.structures:[]){
+    const type=PLAYER_STRUCTURE_TYPES[rec.type]?rec.type:"storage_facility";
+    const x=Math.round(Number(rec.x)||0),y=Math.round(Number(rec.y)||0),key=String(rec.key||`${type}_${Math.round(x/80)}_${Math.round(y/80)}`);
+    let st=ownedStructures.get(key);
+    if(!st||st.ownerMemberId===p.memberId||st.ownerId===p.id){
+      const base={key,type,ownerId:p.id,ownerMemberId:p.memberId,ownerName:p.name,x,y,createdAt:rec.createdAt||Date.now(),...structureDefaultState(type)};
+      base.storageSlots=Math.max(24,Math.min(100,Math.floor(Number(rec.storageSlots)||base.storageSlots||24)));
+      base.invSlots=normalizeStorageSlots(rec.invSlots,base.storageSlots);
+      base.damageLevel=Math.max(1,Math.min(12,Math.floor(Number(rec.damageLevel)||1)));
+      base.shieldLevel=Math.max(1,Math.min(12,Math.floor(Number(rec.shieldLevel)||1)));
+      base.maxShield=Math.floor(base.maxShield*(1+0.32*(base.shieldLevel-1)));
+      base.shield=Math.max(0,Math.min(base.maxShield,Number(rec.shield)||base.shield));base.hp=Math.max(0,Math.min(base.maxHp,Number(rec.hp)||base.hp));base.destroyed=!!rec.destroyed;
+      ownedStructures.set(key,{...(st||{}),...base});
+    }
+  }
+}
+function tickPlayerStructures(dt){
+  for(const st of ownedStructures.values()){
+    if(st.destroyed)continue;
+    st.shieldRegenTimer=Math.max(0,(st.shieldRegenTimer||0)-dt);
+    if(st.shieldRegenTimer<=0&&st.shield<st.maxShield){const def=PLAYER_STRUCTURE_TYPES[st.type]||PLAYER_STRUCTURE_TYPES.storage_facility;st.shield=Math.min(st.maxShield,st.shield+(def.shieldRegen||10)*dt);}
+  }
+}
+function applyStructureDamage(st,rawDamage){
+  const raw=Math.max(0,Math.min(250,Number(rawDamage)||0));if(raw<=0||!st||st.destroyed)return {damage:0,destroyed:false};
+  let dmg=raw;if(st.shield>0){const abs=Math.min(st.shield,dmg);st.shield-=abs;dmg-=abs;}if(dmg>0)st.hp=Math.max(0,st.hp-dmg);
+  st.shieldRegenTimer=6;st.underAttackUntil=Date.now()+35000;return {damage:raw,destroyed:st.hp<=0};
+}
+function pickMercRarity(rng){let total=MERC_RARITIES.reduce((a,b)=>a+b.weight,0),roll=rng()*total;for(const rr of MERC_RARITIES){roll-=rr.weight;if(roll<=0)return rr;}return MERC_RARITIES[0];}
+function generateMercOffersForPlayer(p,force=false){
+  const now=Date.now();let cat=mercCatalogs.get(p.id);
+  if(!force&&cat&&cat.expires>now&&Array.isArray(cat.offers)&&cat.offers.length)return cat;
+  const rng=makeRng(`${GALAXY_SEED}|merc|${p.memberId||p.id}|${Math.floor(now/MERC_OFFER_RESET_MS)}`);
+  const offers=[];
+  for(let i=0;i<MAX_MERC_OFFERS;i++){
+    const rarity=pickMercRarity(rng),role=MERC_ROLES[Math.floor(rng()*MERC_ROLES.length)];
+    const lv=Math.max(1,Math.floor((p.level||1)*(0.75+rng()*0.55)+i/5));
+    const statLuck=0.92+rng()*0.22;
+    const maxHp=Math.floor((role.baseHp+lv*6)*rarity.mult*statLuck);
+    const maxShield=Math.floor((role.baseShield+lv*4)*rarity.mult*(0.9+rng()*0.25));
+    const damage=Math.floor((role.baseDamage+lv*1.1)*rarity.mult*(0.92+rng()*0.22));
+    const speed=Math.floor(role.baseSpeed*(0.92+rng()*0.18)*(rarity.key==="legendary"?1.08:1));
+    const price=Math.floor((550+lv*185+maxHp*2+maxShield*2+damage*42)*rarity.mult);
+    offers.push({id:`mo_${Math.floor(now/MERC_OFFER_RESET_MS)}_${i}_${Math.floor(rng()*999999)}`,name:`${MERC_NAME_A[Math.floor(rng()*MERC_NAME_A.length)]} ${MERC_NAME_B[Math.floor(rng()*MERC_NAME_B.length)]}`,role:role.key,roleName:role.name,rarity:rarity.key,rarityName:rarity.name,color:rarity.color,level:lv,maxHp,maxShield,damage,speed,price});
+  }
+  cat={expires:now+MERC_OFFER_RESET_MS-(now%MERC_OFFER_RESET_MS),offers};mercCatalogs.set(p.id,cat);return cat;
+}
+function publicMerc(m){return {id:m.id,name:m.name,role:m.role,roleName:m.roleName,rarity:m.rarity,rarityName:m.rarityName,color:m.color,level:m.level,hp:m.hp,maxHp:m.maxHp,shield:m.shield,maxShield:m.maxShield,damage:m.damage,speed:m.speed,x:m.x,y:m.y};}
+function normalizeMercs(list,p){
+  if(!Array.isArray(list))return [];
+  return list.slice(0,MAX_ACTIVE_MERCS).map((m,i)=>({id:String(m.id||`merc_${Date.now()}_${i}`),name:safeText(m.name,32)||"Mercenary",role:String(m.role||"escort"),roleName:safeText(m.roleName,24)||"Escort",rarity:String(m.rarity||"common"),rarityName:safeText(m.rarityName,24)||"Common",color:safeText(m.color,16)||"#9db0c8",level:Math.max(1,Math.floor(Number(m.level)||1)),hp:Math.max(1,Math.floor(Number(m.hp)||m.maxHp||70)),maxHp:Math.max(1,Math.floor(Number(m.maxHp)||70)),shield:Math.max(0,Math.floor(Number(m.shield)||m.maxShield||35)),maxShield:Math.max(0,Math.floor(Number(m.maxShield)||35)),damage:Math.max(1,Math.floor(Number(m.damage)||10)),speed:Math.max(40,Math.floor(Number(m.speed)||100)),x:Number(m.x)||p.x,y:Number(m.y)||p.y,lastShotAt:0}));
 }
 
 
@@ -651,7 +796,7 @@ setInterval(()=>{
 let lastTick=Date.now(),ecoTimer=0,lbTimer=0,slTimer=0,socialTimer=0;
 setInterval(()=>{
   const now=Date.now(),dt=Math.min((now-lastTick)/1000,0.05);lastTick=now;
-  economy.tick();tickPlayers(dt);tickProjectiles(dt);tickPlanetProjectiles(dt);tickOwnedStationDefense(dt);broadcastWorldState();
+  economy.tick();tickPlayers(dt);tickProjectiles(dt);tickPlanetProjectiles(dt);tickOwnedStationDefense(dt);tickPlayerStructures(dt);broadcastWorldState();
   ecoTimer+=dt;if(ecoTimer>=5){io.emit("economyUpdate",economy.snapshot());ecoTimer=0;}
   lbTimer+=dt; if(lbTimer>=10){broadcastLeaderboard();lbTimer=0;}
   slTimer+=dt; if(slTimer>=3){broadcastServerList();broadcastOwnedStationsList();slTimer=0;}
@@ -810,12 +955,16 @@ io.on("connection",socket=>{
     applyAuthAccountToPlayer(p,auth);
     players.set(socket.id,p);
     if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots});
+    restorePersistentBuildingsForPlayer(p);
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc)});
     emitInventorySync(p,"login");
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
     broadcastLeaderboard();broadcastServerList();
     emitOwnedStationsList(socket);
+    emitPlayerStructures(socket);
+    const mercCat=generateMercOffersForPlayer(p);
+    socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
   });
 
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
@@ -1180,10 +1329,10 @@ io.on("connection",socket=>{
     const key=`${Math.round(x/100)}_${Math.round(y/100)}`;
     if(ownedStations.has(key)){socket.emit("stationBuyDenied",{reason:"Location occupied."});return;}
     p.credits-=td.price;syncAndPersist(p,"buy_station");
-    const st={key,ownerId:p.id,ownerName:p.name,x,y,tier,hiredShips:[],accumulatedGoods:{},...makeStationState(tier)};
+    const st={key,ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,x,y,tier,hiredShips:[],accumulatedGoods:{},createdAt:Date.now(),...makeStationState(tier)};
     ownedStations.set(key,st);addScore(p,1000,"Station Built");
     socket.emit("stationBuyConfirm",{key,x,y,tier,credits:p.credits});
-    broadcastOwnedStationsList();
+    broadcastOwnedStationsList();persistPlayerSoon(p,"buy_station_buildings");
     broadcastChat("Server",`${p.name} built a ${td.name} at (${Math.round(x)}, ${Math.round(y)})!`,"#ffcc44");
   });
 
@@ -1196,9 +1345,119 @@ io.on("connection",socket=>{
     if(p.credits<td.shipHireCost){socket.emit("hireDenied",{reason:`Need ${td.shipHireCost}cr.`});return;}
     p.credits-=td.shipHireCost;syncAndPersist(p,"hire_station_ship");
     st.hiredShips.push({id:`os_${stationKey}_${Date.now()}_${Math.floor(Math.random()*9999)}`,state:(Date.now()<(st.underAttackUntil||0)?"defending":"collecting"),cargo:{},createdAt:Date.now(),respawnAt:0});
+    persistPlayerSoon(p,"hire_station_ship_building");
     socket.emit("hireConfirm",{stationKey,shipCount:st.hiredShips.length,credits:p.credits});
     socket.emit("creditUpdate",{credits:p.credits});
     broadcastOwnedStationsList();
+  });
+
+  socket.on("requestMercOffers",()=>{
+    const p=players.get(socket.id);if(!p)return;
+    const cat=generateMercOffersForPlayer(p);
+    socket.emit("mercOffers",{offers:cat.offers,expires:cat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
+  });
+
+  socket.on("hireMerc",({offerId})=>{
+    const p=players.get(socket.id);if(!p)return;
+    p.activeMercs=normalizeMercs(p.activeMercs||[],p);
+    if(p.activeMercs.length>=MAX_ACTIVE_MERCS){socket.emit("mercHireDenied",{reason:`Max ${MAX_ACTIVE_MERCS} mercenary ships active.`});return;}
+    const cat=generateMercOffersForPlayer(p);
+    const offer=cat.offers.find(o=>o.id===String(offerId||""));
+    if(!offer){socket.emit("mercHireDenied",{reason:"That mercenary contract expired."});return;}
+    if((p.credits||0)<offer.price){socket.emit("mercHireDenied",{reason:`Need ${offer.price}cr.`});return;}
+    p.credits-=offer.price;
+    const merc={...offer,id:`merc_${p.id}_${Date.now()}_${Math.floor(Math.random()*9999)}`,hp:offer.maxHp,shield:offer.maxShield,x:p.x+Math.random()*40-20,y:p.y+Math.random()*40-20,lastShotAt:0};
+    p.activeMercs.push(merc);
+    syncAndPersist(p,"hire_merc");
+    socket.emit("mercHireConfirm",{merc:publicMerc(merc),credits:p.credits,activeMercs:p.activeMercs.map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
+  });
+
+  socket.on("mercDestroyed",({mercId})=>{
+    const p=players.get(socket.id);if(!p)return;
+    const before=(p.activeMercs||[]).length;p.activeMercs=(p.activeMercs||[]).filter(m=>m.id!==String(mercId||""));
+    if(p.activeMercs.length!==before){persistPlayerSoon(p,"merc_destroyed");socket.emit("mercState",{activeMercs:p.activeMercs.map(publicMerc),maxActive:MAX_ACTIVE_MERCS});}
+  });
+
+  socket.on("mercAttackPlayer",({targetId,mercId,damage,x,y})=>{
+    const owner=players.get(socket.id),target=players.get(String(targetId||""));
+    if(!owner||!target||owner.mode!=="space"||target.mode!=="space"||target.hp<=0)return;
+    if(owner.id===target.id||areAllied(owner,target))return;
+    const merc=(owner.activeMercs||[]).find(m=>m.id===String(mercId||""));if(!merc)return;
+    const now=Date.now();if(merc.lastShotAt&&now-merc.lastShotAt<520)return;
+    const declaredX=Number(x),declaredY=Number(y);
+    if(Math.hypot(owner.x-target.x,owner.y-target.y)>2200)return;
+    if(Number.isFinite(declaredX)&&Number.isFinite(declaredY)&&Math.hypot(target.x-declaredX,target.y-declaredY)>560)return;
+    merc.lastShotAt=now;
+    const raw=Math.max(1,Math.min(70,Number(damage)||merc.damage||10));
+    let dmg=raw/(1+((target.attrs.armor-1)*0.2));
+    if(target.shield>0){const abs=Math.min(target.shield,dmg);target.shield-=abs;dmg-=abs;}
+    target.hp=Math.max(0,target.hp-dmg);target.shieldRegenTimer=5;
+    io.to(target.id).emit("hit",{damage:Math.round(raw),hp:target.hp,shield:target.shield,by:`${owner.name}'s mercenary`});
+    if(target.hp<=0){target.deaths=(target.deaths||0)+1;owner.kills=(owner.kills||0)+1;addScore(owner,220,"Mercenary Kill");io.to(target.id).emit("youDied",{killedBy:`${owner.name}'s mercenary`});io.emit("playerKilled",{victimId:target.id,victimName:target.name,killerId:owner.id,killerName:owner.name});broadcastLeaderboard();}
+  });
+
+  socket.on("requestPlayerStructures",()=>{emitPlayerStructures(socket);});
+
+  socket.on("buyStructure",({type,x,y})=>{
+    const p=players.get(socket.id);if(!p)return;
+    type=String(type||"");const def=PLAYER_STRUCTURE_TYPES[type];if(!def){socket.emit("structureDenied",{reason:"Unknown structure."});return;}
+    x=Math.round(Number(x)||p.x);y=Math.round(Number(y)||p.y);
+    if(Math.hypot(p.x-x,p.y-y)>320){socket.emit("structureDenied",{reason:"Build closer to your ship."});return;}
+    if((p.credits||0)<def.price){socket.emit("structureDenied",{reason:`Need ${def.price}cr.`});return;}
+    const key=`${type}_${Math.round(x/80)}_${Math.round(y/80)}`;
+    if(ownedStructures.has(key)||ownedStations.has(`${Math.round(x/100)}_${Math.round(y/100)}`)){socket.emit("structureDenied",{reason:"Location occupied."});return;}
+    p.credits-=def.price;
+    const st={key,type,ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,x,y,createdAt:Date.now(),...structureDefaultState(type)};
+    ownedStructures.set(key,st);syncAndPersist(p,"buy_structure");
+    socket.emit("structureBuildConfirm",{structure:publicStructure(st,p.id),credits:p.credits});broadcastPlayerStructuresList();
+  });
+
+  socket.on("depositStorageItem",({structureKey,resourceType,quantity})=>{
+    const p=players.get(socket.id);if(!p)return;const st=ownedStructures.get(String(structureKey||""));
+    resourceType=String(resourceType||"");quantity=Math.max(1,Math.min(999,Math.floor(Number(quantity)||1)));
+    if(!st||st.ownerId!==p.id||st.type!=="storage_facility"||st.destroyed){socket.emit("storageDenied",{reason:"Storage unavailable."});return;}
+    if(!RES_KEYS.includes(resourceType)||inventoryCount(p,resourceType)<quantity){socket.emit("storageDenied",{reason:"You do not have that item."});return;}
+    if(!canFitStorage(st,resourceType,quantity)){socket.emit("storageDenied",{reason:"Storage slots full."});return;}
+    removeInventory(p,resourceType,quantity);addStorage(st,resourceType,quantity);syncAndPersist(p,"storage_deposit");
+    socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits});broadcastPlayerStructuresList();
+  });
+
+  socket.on("withdrawStorageItem",({structureKey,resourceType,quantity})=>{
+    const p=players.get(socket.id);if(!p)return;const st=ownedStructures.get(String(structureKey||""));
+    resourceType=String(resourceType||"");quantity=Math.max(1,Math.min(999,Math.floor(Number(quantity)||1)));
+    if(!st||st.ownerId!==p.id||st.type!=="storage_facility"||st.destroyed){socket.emit("storageDenied",{reason:"Storage unavailable."});return;}
+    if(!RES_KEYS.includes(resourceType)||inventoryCount({invSlots:st.invSlots,maxSlots:st.storageSlots},resourceType)<quantity){socket.emit("storageDenied",{reason:"Storage does not have that item."});return;}
+    if(!canFitInventory(p,resourceType,quantity)){socket.emit("storageDenied",{reason:"Inventory slots full."});return;}
+    removeStorage(st,resourceType,quantity);addInventory(p,resourceType,quantity);syncAndPersist(p,"storage_withdraw");
+    socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits});broadcastPlayerStructuresList();
+  });
+
+  socket.on("upgradeStorageSlots",({structureKey})=>{
+    const p=players.get(socket.id);if(!p)return;const st=ownedStructures.get(String(structureKey||""));
+    if(!st||st.ownerId!==p.id||st.type!=="storage_facility"||st.destroyed)return;
+    if((st.storageSlots||24)>=100){socket.emit("storageDenied",{reason:"Storage is already maxed."});return;}
+    const cost=structureUpgradeCost(st,"storage");if((p.credits||0)<cost){socket.emit("storageDenied",{reason:`Need ${cost}cr.`});return;}
+    p.credits-=cost;const old=st.storageSlots||24;st.storageSlots=Math.min(100,old+4);st.invSlots=normalizeStorageSlots(st.invSlots,st.storageSlots);
+    syncAndPersist(p,"storage_upgrade");socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits});broadcastPlayerStructuresList();
+  });
+
+  socket.on("upgradeTurret",({structureKey,kind})=>{
+    const p=players.get(socket.id);if(!p)return;const st=ownedStructures.get(String(structureKey||""));kind=kind==="shield"?"shield":"damage";
+    if(!st||st.ownerId!==p.id||st.type!=="defense_turret"||st.destroyed)return;
+    const cost=structureUpgradeCost(st,kind);if((p.credits||0)<cost){socket.emit("structureDenied",{reason:`Need ${cost}cr.`});return;}
+    p.credits-=cost;
+    if(kind==="damage")st.damageLevel=Math.min(12,(st.damageLevel||1)+1);
+    else{st.shieldLevel=Math.min(12,(st.shieldLevel||1)+1);st.maxShield=Math.floor((PLAYER_STRUCTURE_TYPES.defense_turret.maxShield||900)*(1+0.32*((st.shieldLevel||1)-1)));st.shield=st.maxShield;}
+    syncAndPersist(p,"turret_upgrade");socket.emit("structureUpdate",{structure:publicStructure(st,p.id),credits:p.credits});broadcastPlayerStructuresList();
+  });
+
+  socket.on("environmentalDamagePlayerStructure",({structureKey,damage,source,x,y})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="space")return;const st=ownedStructures.get(String(structureKey||""));if(!st||st.destroyed)return;
+    if(Math.hypot(p.x-st.x,p.y-st.y)>2800)return;
+    const declaredX=Number(x),declaredY=Number(y);if(Number.isFinite(declaredX)&&Number.isFinite(declaredY)&&Math.hypot(declaredX-st.x,declaredY-st.y)>1600)return;
+    const result=applyStructureDamage(st,damage);io.emit("playerStructureDamaged",{structureKey:st.key,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,ownerName:st.ownerName,attackerName:String(source||"Raider").slice(0,32)});
+    if(result.destroyed){st.destroyed=true;io.emit("playerStructureDestroyed",{structureKey:st.key,x:st.x,y:st.y,type:st.type,ownerName:st.ownerName});}
+    broadcastPlayerStructuresList();const owner=players.get(st.ownerId);if(owner)persistPlayerSoon(owner,"structure_damage");
   });
 
   socket.on("collectOwnedStation",({stationKey})=>{
@@ -1246,6 +1505,7 @@ io.on("connection",socket=>{
       sh.state="respawning";sh.respawnAt=Date.now()+delay;sh.cargo={};
     }
     socket.emit("ownedTradeShipDestroyConfirm",{stationKey,shipId});
+    const owner=players.get(st.ownerId);if(owner)persistPlayerSoon(owner,"station_ship_destroyed");
     broadcastOwnedStationsList();
   });
 
