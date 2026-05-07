@@ -654,6 +654,17 @@ function syncCivilizationZones(list){
   applyCivilizationRecordsToGeneratedStations();
 }
 function civZoneRecord(id){return civilizationZonesById.get(id)||null;}
+function civZoneHomeKey(zoneId){
+  const id=String(zoneId||"");
+  return id.startsWith("civ_") ? id.slice(4) : null;
+}
+function parseCivChunkKey(key){
+  const m=/^(-?\d+),(-?\d+)$/.exec(String(key||""));
+  return m ? {cx:Number(m[1]),cy:Number(m[2])} : null;
+}
+function ownedCivStationShipCount(tier){
+  return {outpost:2,standard:3,advanced:4,capital:5}[tier] || 3;
+}
 function clientEconomyIndex(){
   const keys=["copper","iron","gold","crystal","fuel","gas_canister","hull_plate","engine_core","weapon_array"];
   let cur=0,base=0,n=0;
@@ -689,17 +700,60 @@ function makeCivilizationSuperStation(zone,baseStationCount){
 function makeOwnedCivilizationStation(zone,recStation){
   if(!recStation||!STATION_TIERS[recStation.tier])return null;
   const tier=STATION_TIERS[recStation.tier];
-  const st={id:recStation.id,x:recStation.x,y:recStation.y,tier:recStation.tier,tierDef:{...tier,spawnChance:1,shipCount:tier.shipCount+1},r:tier.size+9,faction:`${recStation.ownerName||zone.ownerName||"Owner"}'s ${zone.name}`,factionColor:zone.color,nearbyPlanets:4,densityMult:1.45,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300,civilizationZoneId:zone.id,isOwnedCivStation:true,civOwnerName:recStation.ownerName||zone.ownerName||"Owner",...createNpcStationState(recStation.tier)};
+  const ownedShipCount=ownedCivStationShipCount(recStation.tier);
+  const st={id:recStation.id,x:recStation.x,y:recStation.y,tier:recStation.tier,tierDef:{...tier,spawnChance:1,shipCount:ownedShipCount},r:tier.size+9,faction:`${recStation.ownerName||zone.ownerName||"Owner"}'s ${zone.name}`,factionColor:zone.color,nearbyPlanets:4,densityMult:1.45,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300,civilizationZoneId:zone.id,isOwnedCivStation:true,civOwnerName:recStation.ownerName||zone.ownerName||"Owner",...createNpcStationState(recStation.tier)};
   st.maxHp=Math.floor(st.maxHp*1.35);st.hp=st.maxHp;st.maxShield=Math.floor(st.maxShield*1.28);st.shield=st.maxShield;
   refreshBuyStock(st);initTradeShips(st,visiblePlanets||[]);return st;
 }
 function applyCivilizationRecordsToGeneratedStations(){
-  for(const [key,stations] of generatedStations){
-    for(const rec of civilizationZonesList){
-      const zone=[...generatedCivZones.values()].find(z=>z&&z.id===rec.zoneId);
-      if(!zone)continue;decorateCivilizationZone(zone);
-      const superSt=stations.find(st=>st.id===`${zone.id}|super`);if(superSt){superSt.civOwnerName=rec.ownerName;superSt.civOwned=!!rec.owned;superSt.civIsOwn=!!rec.isOwn;superSt.civTaxPerMinute=rec.taxPerMinute||0;superSt.faction=rec.ownerName?`${rec.ownerName}'s ${zone.name}`:zone.name;}
-      for(const bs of rec.builtStations||[])if(!stations.some(st=>st.id===bs.id)){const st=makeOwnedCivilizationStation(zone,bs);if(st)stations.push(st);}
+  // PATCH: Player-built civilization stations belong only to the chunk that owns
+  // their civilization zone. The earlier patch inserted every built station into
+  // every already-generated chunk, so each visible chunk displayed its own copy
+  // of the same station and each copy spawned its own trade ships.
+  const records=Array.isArray(civilizationZonesList)?civilizationZonesList:[];
+  const activeBuiltIds=new Set();
+  for(const rec of records)for(const bs of rec.builtStations||[])if(bs?.id)activeBuiltIds.add(bs.id);
+
+  // Clean stale/stray copies from cached chunks and de-dupe by station id.
+  for(const [chunkKeyValue,stations] of generatedStations){
+    const seen=new Set();
+    for(let i=stations.length-1;i>=0;i--){
+      const st=stations[i];
+      if(!st?.id)continue;
+      const duplicate=seen.has(st.id);
+      const ownedBuilt=!!st.isOwnedCivStation;
+      const homeKey=ownedBuilt?civZoneHomeKey(st.civilizationZoneId):null;
+      const wrongChunk=ownedBuilt&&homeKey&&chunkKeyValue!==homeKey;
+      const staleBuilt=ownedBuilt&&!activeBuiltIds.has(st.id);
+      if(duplicate||wrongChunk||staleBuilt){stations.splice(i,1);continue;}
+      seen.add(st.id);
+    }
+  }
+
+  // Apply ownership and built-station records only to the civilization zone's
+  // home chunk. If that chunk is not generated yet, generateChunk will add them
+  // once when the player approaches it.
+  for(const rec of records){
+    const homeKey=civZoneHomeKey(rec.zoneId);
+    if(!homeKey)continue;
+    let zone=generatedCivZones.get(homeKey);
+    if(!zone){const parts=parseCivChunkKey(homeKey);if(parts)zone=civilizationZoneForChunk(parts.cx,parts.cy);}
+    if(!zone)continue;
+    decorateCivilizationZone(zone);
+    const stations=generatedStations.get(homeKey);
+    if(!stations)continue;
+    const superSt=stations.find(st=>st.id===`${zone.id}|super`);
+    if(superSt){
+      superSt.civOwnerName=rec.ownerName;
+      superSt.civOwned=!!rec.owned;
+      superSt.civIsOwn=!!rec.isOwn;
+      superSt.civTaxPerMinute=rec.taxPerMinute||0;
+      superSt.faction=rec.ownerName?`${rec.ownerName}'s ${zone.name}`:zone.name;
+    }
+    for(const bs of rec.builtStations||[]){
+      if(!bs?.id||stations.some(st=>st.id===bs.id))continue;
+      const st=makeOwnedCivilizationStation(zone,bs);
+      if(st)stations.push(st);
     }
   }
 }
@@ -771,7 +825,7 @@ function generateChunk(cx,cy){
       const superStation=makeCivilizationSuperStation(zone,count+1);stations.push(superStation);
       for(let ci=0;ci<count;ci++){const st=makeCivilizationStation(zone,ci,tiers[Math.floor(crng()*tiers.length)],crng);stations.push(st);initTradeShips(st,planets);refreshBuyStock(st);}
       const rec=civZoneRecord(zone.id);
-      for(const bs of rec?.builtStations||[]){const st=makeOwnedCivilizationStation(zone,bs);if(st)stations.push(st);}
+      for(const bs of rec?.builtStations||[]){if(!bs?.id||stations.some(s=>s.id===bs.id))continue;const st=makeOwnedCivilizationStation(zone,bs);if(st)stations.push(st);}
     }
     generatedStations.set(key,stations);
   }
@@ -1481,8 +1535,10 @@ let chunkTimer=0;
 function updateChunks(){
   const cx0=Math.round(ship.x/CHUNK_SIZE),cy0=Math.round(ship.y/CHUNK_SIZE);
   visiblePlanets=[];visibleStations=[];visibleCivZones=[];
-  for(let dcx=-CHUNK_RADIUS;dcx<=CHUNK_RADIUS;dcx++)for(let dcy=-CHUNK_RADIUS;dcy<=CHUNK_RADIUS;dcy++){const cx=cx0+dcx,cy=cy0+dcy;const{planets,stations}=generateChunk(cx,cy);for(const p of planets)visiblePlanets.push(p);for(const s of stations)visibleStations.push(s);const z=civilizationZoneForChunk(cx,cy);if(z)visibleCivZones.push(z);}
-  if(Array.isArray(randomEventStations))for(const st of randomEventStations)if(!st.expireAt||Date.now()<st.expireAt)visibleStations.push(st);
+  const visibleStationIds=new Set();
+  function pushVisibleStation(st){if(!st?.id||visibleStationIds.has(st.id))return;visibleStationIds.add(st.id);visibleStations.push(st);}
+  for(let dcx=-CHUNK_RADIUS;dcx<=CHUNK_RADIUS;dcx++)for(let dcy=-CHUNK_RADIUS;dcy<=CHUNK_RADIUS;dcy++){const cx=cx0+dcx,cy=cy0+dcy;const{planets,stations}=generateChunk(cx,cy);for(const p of planets)visiblePlanets.push(p);for(const s of stations)pushVisibleStation(s);const z=civilizationZoneForChunk(cx,cy);if(z)visibleCivZones.push(z);}
+  if(Array.isArray(randomEventStations))for(const st of randomEventStations)if(!st.expireAt||Date.now()<st.expireAt)pushVisibleStation(st);
   if(Array.isArray(specialEventPlanets))for(const p of specialEventPlanets)if(!p.expireAt||Date.now()<p.expireAt)visiblePlanets.push(p);
 }
 
