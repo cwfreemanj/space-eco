@@ -2147,15 +2147,42 @@ const CREDIT_PACKAGES={
 };
 const WIX_PARENT_ORIGIN="*";
 let wixGameToken=null,wixMemberId=null; // Production: replace with your Wix site origin, e.g. "https://www.getfirstpage.com"
-let wixLinkInFlightToken=null,wixLinkedToken=null,wixSyncedNoticeShown=false;
+let wixAuthSnapshot=null,wixLinkInFlightToken=null,wixLinkedToken=null,wixSyncedNoticeShown=false;
+function buildWixAuthSnapshot(msg){
+  if(!msg||typeof msg!=="object")return null;
+  const snap={};
+  if(msg.memberId)snap.memberId=msg.memberId;
+  if(typeof msg.displayName==="string")snap.displayName=msg.displayName;
+  if(typeof msg.credits==="number")snap.credits=msg.credits;
+  if(typeof msg.maxSlots==="number")snap.maxSlots=msg.maxSlots;
+  if(Array.isArray(msg.invSlots))snap.invSlots=msg.invSlots;
+  else if(msg.inventory&&typeof msg.inventory==="object")snap.inventory=msg.inventory;
+  else if(msg.items&&typeof msg.items==="object")snap.items=msg.items;
+  if(typeof msg.shipType==="string")snap.shipType=msg.shipType;
+  if(typeof msg.level==="number")snap.level=msg.level;
+  if(typeof msg.xp==="number")snap.xp=msg.xp;
+  if(msg.attrs&&typeof msg.attrs==="object")snap.attrs=msg.attrs;
+  if(msg.badgeRewards&&typeof msg.badgeRewards==="object")snap.badgeRewards=msg.badgeRewards;
+  if(Array.isArray(msg.activeMercs))snap.activeMercs=msg.activeMercs;
+  if(msg.buildings&&typeof msg.buildings==="object")snap.buildings=msg.buildings;
+  return Object.keys(snap).length>1?snap:null;
+}
+function wixSnapshotKey(){
+  if(!wixGameToken)return "";
+  let snapKey="nosnap";
+  if(wixAuthSnapshot){
+    try{snapKey=JSON.stringify(wixAuthSnapshot);}catch(_){snapKey="snapshot";}
+  }
+  return wixGameToken+"|"+snapKey;
+}
 function maybeLinkWixAccount(){
   if(!joined||!socket||!socket.connected||!wixGameToken)return false;
-  // Wix can send the same auth payload repeatedly while the iframe loads.
-  // Only send one link request per token so the server does not receive
-  // duplicate account-link events during startup.
-  if(wixLinkedToken===wixGameToken||wixLinkInFlightToken===wixGameToken)return false;
-  wixLinkInFlightToken=wixGameToken;
-  socket.emit("linkAccount",{token:wixGameToken});
+  // Wix can post auth more than once. De-dupe by token + snapshot contents, not
+  // just token, because the inventory snapshot may arrive a moment after join.
+  const linkKey=wixSnapshotKey();
+  if(wixLinkedToken===linkKey||wixLinkInFlightToken===linkKey)return false;
+  wixLinkInFlightToken=linkKey;
+  socket.emit("linkAccount",{token:wixGameToken,wixSnapshot:wixAuthSnapshot});
   return true;
 }
 function toggleCreditShop(){
@@ -2226,9 +2253,16 @@ window.addEventListener("message",(event)=>{
   if(!msg||typeof msg!=="object")return;
   if(msg.type==="SPACE_ECO_AUTH"){
     const oldToken=wixGameToken;
+    const oldKey=wixSnapshotKey();
     wixGameToken=msg.token||wixGameToken;wixMemberId=msg.memberId||wixMemberId;
+    const nextSnapshot=buildWixAuthSnapshot(msg);
+    if(nextSnapshot)wixAuthSnapshot=nextSnapshot;
+    const newKey=wixSnapshotKey();
     if(wixGameToken&&oldToken&&oldToken!==wixGameToken){
       wixLinkInFlightToken=null;wixLinkedToken=null;wixSyncedNoticeShown=false;
+    }else if(oldKey&&newKey&&oldKey!==newKey){
+      // Same token, but Wix has now supplied fuller saved inventory data.
+      wixLinkInFlightToken=null;
     }
     if(joined&&socket&&socket.connected&&wixGameToken){
       if(maybeLinkWixAccount())setCreditPayStatus("Wix account linked. Syncing inventory with the server...","#7be6ff");
@@ -2471,7 +2505,7 @@ socket.on("connect_error",()=>{joinStatusEl.textContent="Cannot reach server. Ch
 socket.on("serverFull",()=>{joinStatusEl.textContent="Server full. Try again later.";joinStatusEl.style.color="#ffcc44";});
 
 socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,activeMercs:serverMercs})=>{
-  player.id=id;player.color=color;if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken)wixLinkedToken=wixGameToken;}if(typeof serverCredits==="number")player.credits=serverCredits;if(Array.isArray(serverInvSlots)){player.invSlots=serverInvSlots;player.maxSlots=serverMaxSlots||serverInvSlots.length||player.maxSlots;ensureClientInventorySlots();clampPanelScrolls();}GALAXY_SEED=seed;serverPrices=prices||{};
+  player.id=id;player.color=color;if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken)wixLinkedToken=wixSnapshotKey();}if(typeof serverCredits==="number")player.credits=serverCredits;if(Array.isArray(serverInvSlots)){player.invSlots=serverInvSlots;player.maxSlots=serverMaxSlots||serverInvSlots.length||player.maxSlots;ensureClientInventorySlots();clampPanelScrolls();}GALAXY_SEED=seed;serverPrices=prices||{};
   if(shipTypes)SHIP_TYPES=shipTypes;
   if(ownedStationTiers)OWNED_STATION_TIERS=ownedStationTiers;
   if(structureTypes)STRUCTURE_TYPES=structureTypes;
@@ -2523,7 +2557,9 @@ socket.on("youDied",({killedBy})=>{gameOver=true;showFT(`Destroyed by ${killedBy
 socket.on("respawn",({x,y})=>{ship.x=x;ship.y=y;ship.hp=ship.maxHp;ship.shield=ship.maxShield;energy.current=energy.max;oxygen.current=oxygen.max;mode=MODE.SPACE;gameOver=false;updateChunks();updateHud();});
 socket.on("creditUpdate",({credits})=>{player.credits=credits;updateHud();renderCreditShop&&renderCreditShop();});
 socket.on("inventorySync",({credits,maxSlots,invSlots,reason})=>{if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();clampPanelScrolls();updateHud();});
-socket.on("accountLinked",({memberId,credits,maxSlots,invSlots,alreadyLinked})=>{if(memberId)wixMemberId=memberId;wixLinkedToken=wixGameToken;wixLinkInFlightToken=null;if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();clampPanelScrolls();updateHud();if(!wixSyncedNoticeShown&&!alreadyLinked){showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);wixSyncedNoticeShown=true;}setCreditPayStatus("Wix account synced with the game server.","#78ff8a");});
+socket.on("accountLinked",({memberId,credits,maxSlots,invSlots,alreadyLinked,persistenceLoaded})=>{if(memberId)wixMemberId=memberId;wixLinkedToken=wixSnapshotKey();wixLinkInFlightToken=null;if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();clampPanelScrolls();updateHud();if(!wixSyncedNoticeShown&&!alreadyLinked){showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);wixSyncedNoticeShown=true;}setCreditPayStatus(persistenceLoaded===false?"Wix account linked. Waiting for saved inventory snapshot before saving.":"Wix account synced with the game server.",persistenceLoaded===false?"#ffcc44":"#78ff8a");});
+socket.on("accountSyncPending",({reason})=>setCreditPayStatus(reason||"Waiting for Wix inventory snapshot before saving.","#ffcc44"));
+socket.on("accountSuperseded",({reason})=>{setCreditPayStatus(reason||"This account is open in another game session.","#ffcc44");});
 socket.on("accountLinkDenied",({reason})=>{wixLinkInFlightToken=null;setCreditPayStatus(reason||"Could not link Wix account.","#ff5544");});
 socket.on("spaceLootPickupConfirm",({claimId,resourceType,quantity,credits,invSlots,maxSlots})=>{
   const rec=pendingSpaceLootClaims.get(claimId);
@@ -2724,7 +2760,7 @@ socket.on("chat",({from,message,color})=>{addChat(from,message,color||"#d6e1ff")
 /* ── Join ── */
 document.getElementById("join-btn").addEventListener("click",doJoin);
 document.getElementById("join-name").addEventListener("keydown",e=>{if(e.key==="Enter")doJoin();});
-function doJoin(){if(!socket.connected){joinStatusEl.textContent="Still connecting…";return;}if(joined)return;const name=document.getElementById("join-name").value.trim()||"Pilot";player.name=name;joinStatusEl.textContent="Launching…";joinStatusEl.style.color="#ffcc44";socket.emit("join",{name,token:wixGameToken});}
+function doJoin(){if(!socket.connected){joinStatusEl.textContent="Still connecting…";return;}if(joined)return;const name=document.getElementById("join-name").value.trim()||"Pilot";player.name=name;joinStatusEl.textContent="Launching…";joinStatusEl.style.color="#ffcc44";socket.emit("join",{name,token:wixGameToken,wixSnapshot:wixAuthSnapshot});}
 
 /* ── Input sender ── */
 let shootCooldownTimer=0;
