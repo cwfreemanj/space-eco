@@ -2147,6 +2147,17 @@ const CREDIT_PACKAGES={
 };
 const WIX_PARENT_ORIGIN="*";
 let wixGameToken=null,wixMemberId=null; // Production: replace with your Wix site origin, e.g. "https://www.getfirstpage.com"
+let wixLinkInFlightToken=null,wixLinkedToken=null,wixSyncedNoticeShown=false;
+function maybeLinkWixAccount(){
+  if(!joined||!socket||!socket.connected||!wixGameToken)return false;
+  // Wix can send the same auth payload repeatedly while the iframe loads.
+  // Only send one link request per token so the server does not receive
+  // duplicate account-link events during startup.
+  if(wixLinkedToken===wixGameToken||wixLinkInFlightToken===wixGameToken)return false;
+  wixLinkInFlightToken=wixGameToken;
+  socket.emit("linkAccount",{token:wixGameToken});
+  return true;
+}
 function toggleCreditShop(){
   const el=document.getElementById("credit-panel");
   el.style.display=el.style.display==="none"?"flex":"none";
@@ -2214,10 +2225,13 @@ window.addEventListener("message",(event)=>{
   const msg=event.data||{};
   if(!msg||typeof msg!=="object")return;
   if(msg.type==="SPACE_ECO_AUTH"){
+    const oldToken=wixGameToken;
     wixGameToken=msg.token||wixGameToken;wixMemberId=msg.memberId||wixMemberId;
+    if(wixGameToken&&oldToken&&oldToken!==wixGameToken){
+      wixLinkInFlightToken=null;wixLinkedToken=null;wixSyncedNoticeShown=false;
+    }
     if(joined&&socket&&socket.connected&&wixGameToken){
-      socket.emit("linkAccount",{token:wixGameToken});
-      setCreditPayStatus("Wix account linked. Syncing inventory with the server...","#7be6ff");
+      if(maybeLinkWixAccount())setCreditPayStatus("Wix account linked. Syncing inventory with the server...","#7be6ff");
       return;
     }
     if(typeof msg.credits==="number")player.credits=msg.credits;
@@ -2457,7 +2471,7 @@ socket.on("connect_error",()=>{joinStatusEl.textContent="Cannot reach server. Ch
 socket.on("serverFull",()=>{joinStatusEl.textContent="Server full. Try again later.";joinStatusEl.style.color="#ffcc44";});
 
 socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,activeMercs:serverMercs})=>{
-  player.id=id;player.color=color;if(serverMemberId)wixMemberId=serverMemberId;if(typeof serverCredits==="number")player.credits=serverCredits;if(Array.isArray(serverInvSlots)){player.invSlots=serverInvSlots;player.maxSlots=serverMaxSlots||serverInvSlots.length||player.maxSlots;ensureClientInventorySlots();clampPanelScrolls();}GALAXY_SEED=seed;serverPrices=prices||{};
+  player.id=id;player.color=color;if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken)wixLinkedToken=wixGameToken;}if(typeof serverCredits==="number")player.credits=serverCredits;if(Array.isArray(serverInvSlots)){player.invSlots=serverInvSlots;player.maxSlots=serverMaxSlots||serverInvSlots.length||player.maxSlots;ensureClientInventorySlots();clampPanelScrolls();}GALAXY_SEED=seed;serverPrices=prices||{};
   if(shipTypes)SHIP_TYPES=shipTypes;
   if(ownedStationTiers)OWNED_STATION_TIERS=ownedStationTiers;
   if(structureTypes)STRUCTURE_TYPES=structureTypes;
@@ -2466,7 +2480,7 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   joinScreen.style.display="none";gameWrap.style.display="flex";
   document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
   pcEl.textContent=`👥 ${playerCount}`;
-  socket.emit("requestCivilizationZones");updateChunks();updateHud();scheduleCreditShopTip();
+  socket.emit("requestCivilizationZones");maybeLinkWixAccount();updateChunks();updateHud();scheduleCreditShopTip();
   // Start ping loop
   setInterval(()=>socket.emit("clientPing"),2000);
   requestAnimationFrame(tick);
@@ -2509,8 +2523,8 @@ socket.on("youDied",({killedBy})=>{gameOver=true;showFT(`Destroyed by ${killedBy
 socket.on("respawn",({x,y})=>{ship.x=x;ship.y=y;ship.hp=ship.maxHp;ship.shield=ship.maxShield;energy.current=energy.max;oxygen.current=oxygen.max;mode=MODE.SPACE;gameOver=false;updateChunks();updateHud();});
 socket.on("creditUpdate",({credits})=>{player.credits=credits;updateHud();renderCreditShop&&renderCreditShop();});
 socket.on("inventorySync",({credits,maxSlots,invSlots,reason})=>{if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();clampPanelScrolls();updateHud();});
-socket.on("accountLinked",({memberId,credits,maxSlots,invSlots})=>{if(memberId)wixMemberId=memberId;if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();clampPanelScrolls();updateHud();showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);setCreditPayStatus("Wix account synced with the game server.","#78ff8a");});
-socket.on("accountLinkDenied",({reason})=>{setCreditPayStatus(reason||"Could not link Wix account.","#ff5544");});
+socket.on("accountLinked",({memberId,credits,maxSlots,invSlots,alreadyLinked})=>{if(memberId)wixMemberId=memberId;wixLinkedToken=wixGameToken;wixLinkInFlightToken=null;if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();clampPanelScrolls();updateHud();if(!wixSyncedNoticeShown&&!alreadyLinked){showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);wixSyncedNoticeShown=true;}setCreditPayStatus("Wix account synced with the game server.","#78ff8a");});
+socket.on("accountLinkDenied",({reason})=>{wixLinkInFlightToken=null;setCreditPayStatus(reason||"Could not link Wix account.","#ff5544");});
 socket.on("spaceLootPickupConfirm",({claimId,resourceType,quantity,credits,invSlots,maxSlots})=>{
   const rec=pendingSpaceLootClaims.get(claimId);
   if(rec){const idx=spaceDrops.indexOf(rec.drop);if(idx>=0)spaceDrops.splice(idx,1);pendingSpaceLootClaims.delete(claimId);}
