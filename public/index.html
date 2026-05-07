@@ -569,7 +569,7 @@ const STATION_TIERS={
   standard:{name:"Standard",color:"#66ccaa",glowColor:"rgba(80,200,160,0.35)",size:18,spawnChance:0.18,shipCount:3,shipConfig:{hp:55,speed:80,damage:12,cargo:14,color:"#66ccaa",size:5},priceMultSell:0.9,priceMultBuy:1.25,factionName:"Trade Guild",factionColor:"#66ccaa",itemPool:["stone","copper","iron","gold","ice_block","lava_rock","toxic_sludge","oxygen_tank"],stockMin:8,stockMax:30,xpReward:30},
   advanced:{name:"Advanced",color:"#cc88ff",glowColor:"rgba(180,100,255,0.35)",size:22,spawnChance:0.09,shipCount:4,shipConfig:{hp:100,speed:95,damage:20,cargo:22,color:"#cc88ff",size:6},priceMultSell:0.95,priceMultBuy:1.2,factionName:"Nova Syndicate",factionColor:"#cc88ff",itemPool:["iron","gold","crystal","magma_core","fuel","oxygen_tank"],stockMin:15,stockMax:40,xpReward:60},
   capital:{name:"Capital",color:"#ffcc44",glowColor:"rgba(255,200,50,0.4)",size:28,spawnChance:0.04,shipCount:6,shipConfig:{hp:200,speed:110,damage:35,cargo:36,color:"#ffcc44",size:8},priceMultSell:1.0,priceMultBuy:1.15,factionName:"Galactic Empire",factionColor:"#ffcc44",itemPool:["gold","crystal","magma_core","fuel","gas_canister","oxygen_tank"],stockMin:20,stockMax:60,xpReward:120},
-  civ_capital:{name:"Mega Capital",color:"#fff0a8",glowColor:"rgba(255,232,128,0.48)",size:48,spawnChance:0,shipCount:10,shipConfig:{hp:260,speed:115,damage:42,cargo:48,color:"#fff0a8",size:10},priceMultSell:1.02,priceMultBuy:1.12,factionName:"Civilization Capital",factionColor:"#fff0a8",itemPool:["gold","crystal","magma_core","fuel","gas_canister","oxygen_tank","hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip"],stockMin:32,stockMax:86,xpReward:220}
+  civ_capital:{name:"Mega Capital",color:"#fff0a8",glowColor:"rgba(255,232,128,0.48)",size:48,spawnChance:0,shipCount:6,shipConfig:{hp:260,speed:115,damage:42,cargo:48,color:"#fff0a8",size:10},priceMultSell:1.02,priceMultBuy:1.12,factionName:"Civilization Capital",factionColor:"#fff0a8",itemPool:["gold","crystal","magma_core","fuel","gas_canister","oxygen_tank","hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip"],stockMin:32,stockMax:86,xpReward:220}
 };
 const TIER_ORDER=["outpost","standard","advanced","capital"];
 
@@ -668,7 +668,13 @@ function drawStationBars(x,y,w,hp,maxHp,shield,maxShield){
 }
 
 /* ── Chunk / procedural world ── */
-const CHUNK_SIZE=900,PLANETS_PER_CHUNK=5,CHUNK_RADIUS=3;
+const CHUNK_SIZE=900,PLANETS_PER_CHUNK=4,CHUNK_RADIUS=2;
+// V7 map safety/performance controls: civilization zones stay special, but no longer flood
+// every visible chunk with hundreds of active trade ships while the map loads.
+const CIV_ZONE_SPAWN_CHANCE=0.075;
+const CIV_ZONE_MIN_START_CHUNK_DISTANCE=2;
+const STATION_ACTIVE_RANGE=2350;
+const TRADE_SHIP_ACTIVE_RANGE=1900;
 const generatedPlanets=new Map(),generatedStations=new Map();
 let visiblePlanets=[],visibleStations=[];
 let GALAXY_SEED="GALAXY-01";
@@ -703,10 +709,10 @@ function civilizationStationBuildCostLocal(tier,zone){
 function civilizationZoneForChunk(cx,cy){
   const key=chunkKey(cx,cy);if(generatedCivZones.has(key))return generatedCivZones.get(key);
   const skip=(cx===0&&cy===0),rng=makeRng(GALAXY_SEED+"|civzone|"+key);
-  if(skip||rng()>0.18){generatedCivZones.set(key,null);return null;}
+  if(skip||Math.max(Math.abs(cx),Math.abs(cy))<CIV_ZONE_MIN_START_CHUNK_DISTANCE||rng()>CIV_ZONE_SPAWN_CHANCE){generatedCivZones.set(key,null);return null;}
   const bx=cx*CHUNK_SIZE,by=cy*CHUNK_SIZE;
   const color=["#7be6ff","#78ff8a","#ffdd44","#cc88ff","#ff8844"][Math.floor(rng()*5)];
-  const zone={id:`civ_${key}`,x:bx+(rng()-.5)*CHUNK_SIZE*.45,y:by+(rng()-.5)*CHUNK_SIZE*.45,radius:360+rng()*190,name:randomFactionName(rng),color,turrets:[],capitalStationId:`civ_${key}|capital`,baseStationCount:4+Math.floor(rng()*3)};
+  const zone={id:`civ_${key}`,x:bx+(rng()-.5)*CHUNK_SIZE*.45,y:by+(rng()-.5)*CHUNK_SIZE*.45,radius:360+rng()*190,name:randomFactionName(rng),color,turrets:[],capitalStationId:`civ_${key}|capital`,baseStationCount:3+Math.floor(rng()*3)};
   const tc=4+Math.floor(rng()*4);
   for(let i=0;i<tc;i++){const a=Math.PI*2*i/tc+rng()*0.4,r=zone.radius*(0.72+rng()*0.22);zone.turrets.push({id:`${zone.id}_tur_${i}`,x:zone.x+Math.cos(a)*r,y:zone.y+Math.sin(a)*r,range:720,damage:16+Math.floor(rng()*9),cooldown:0,color});}
   generatedCivZones.set(key,zone);return zone;
@@ -719,14 +725,14 @@ function applyCivilizationOwnershipToStation(st,zone){
 function makeCivilizationStation(zone,idx,tierKey,rng){
   const tier=STATION_TIERS[tierKey]||STATION_TIERS.standard;
   const a=Math.PI*2*(idx/Math.max(1,4+rng()*2))+rng()*0.7,r=105+rng()*zone.radius*0.52;
-  const st={id:`${zone.id}|civst|${idx}`,x:zone.x+Math.cos(a)*r,y:zone.y+Math.sin(a)*r,tier:tierKey,tierDef:{...tier,shipCount:tier.shipCount+1,spawnChance:1},r:tier.size+8,faction:zone.name,factionColor:zone.color,nearbyPlanets:3,densityMult:1.35,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300,civilizationZoneId:zone.id,civilizationZoneName:zone.name,...createNpcStationState(tierKey)};
+  const st={id:`${zone.id}|civst|${idx}`,x:zone.x+Math.cos(a)*r,y:zone.y+Math.sin(a)*r,tier:tierKey,tierDef:{...tier,shipCount:Math.min(4,tier.shipCount+1),spawnChance:1},r:tier.size+8,faction:zone.name,factionColor:zone.color,nearbyPlanets:3,densityMult:1.35,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300,civilizationZoneId:zone.id,civilizationZoneName:zone.name,...createNpcStationState(tierKey)};
   st.maxHp=Math.floor(st.maxHp*1.18);st.hp=st.maxHp;st.maxShield=Math.floor(st.maxShield*1.22);st.shield=st.maxShield;
   return applyCivilizationOwnershipToStation(st,zone);
 }
 function makeCivilizationCapitalStation(zone,rng){
   const tier=STATION_TIERS.civ_capital;
   const owned=ownedCivZone(zone.id);
-  const st={id:zone.capitalStationId||`${zone.id}|capital`,x:zone.x,y:zone.y,tier:"civ_capital",tierDef:{...tier,shipCount:tier.shipCount+Math.floor((zone.radius-360)/70),spawnChance:1},r:tier.size+14,faction:zone.name,factionColor:owned?.color||zone.color,nearbyPlanets:4,densityMult:1.75,playerRep:owned?.isOwn?"friendly":"neutral",tradeShips:[],buyStock:[],buyStockTimer:240,civilizationZoneId:zone.id,civilizationZoneName:zone.name,isCivilizationCapital:true,...createNpcStationState("civ_capital")};
+  const st={id:zone.capitalStationId||`${zone.id}|capital`,x:zone.x,y:zone.y,tier:"civ_capital",tierDef:{...tier,shipCount:Math.min(8,tier.shipCount+Math.floor((zone.radius-360)/120)),spawnChance:1},r:tier.size+14,faction:zone.name,factionColor:owned?.color||zone.color,nearbyPlanets:4,densityMult:1.75,playerRep:owned?.isOwn?"friendly":"neutral",tradeShips:[],buyStock:[],buyStockTimer:240,civilizationZoneId:zone.id,civilizationZoneName:zone.name,isCivilizationCapital:true,...createNpcStationState("civ_capital")};
   st.maxHp=Math.floor(st.maxHp*(1+zone.radius/900));st.hp=st.maxHp;st.maxShield=Math.floor(st.maxShield*(1+zone.radius/1100));st.shield=st.maxShield;
   return applyCivilizationOwnershipToStation(st,zone);
 }
@@ -736,7 +742,7 @@ function makeCivilizationBuiltStation(zone,rec,idx){
   const tier=STATION_TIERS[tierKey]||STATION_TIERS.outpost;
   const x=Number.isFinite(Number(rec.x))?Number(rec.x):zone.x+(rng()-.5)*zone.radius;
   const y=Number.isFinite(Number(rec.y))?Number(rec.y):zone.y+(rng()-.5)*zone.radius;
-  const st={id:rec.id||`${zone.id}|built|${idx}`,x,y,tier:tierKey,tierDef:{...tier,shipCount:tier.shipCount+1,spawnChance:1},r:tier.size+7,faction:zone.name,factionColor:zone.color,nearbyPlanets:3,densityMult:1.55,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:260,civilizationZoneId:zone.id,civilizationZoneName:zone.name,isCivilizationBuilt:true,...createNpcStationState(tierKey)};
+  const st={id:rec.id||`${zone.id}|built|${idx}`,x,y,tier:tierKey,tierDef:{...tier,shipCount:Math.min(5,tier.shipCount+1),spawnChance:1},r:tier.size+7,faction:zone.name,factionColor:zone.color,nearbyPlanets:3,densityMult:1.55,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:260,civilizationZoneId:zone.id,civilizationZoneName:zone.name,isCivilizationBuilt:true,...createNpcStationState(tierKey)};
   st.maxHp=Math.floor(st.maxHp*1.28);st.hp=st.maxHp;st.maxShield=Math.floor(st.maxShield*1.28);st.shield=st.maxShield;
   return applyCivilizationOwnershipToStation(st,zone);
 }
@@ -2378,12 +2384,12 @@ socket.on("connect_error",()=>{joinStatusEl.textContent="Cannot reach server. Ch
 socket.on("serverFull",()=>{clearJoinTimeout();joinStatusEl.textContent="Server full. Try again later.";joinStatusEl.style.color="#ffcc44";});
 socket.on("joinDenied",({reason}={})=>{clearJoinTimeout();joined=false;joinStatusEl.textContent=reason||"Launch failed. Please refresh and try again.";joinStatusEl.style.color="#ff5544";joinScreen.style.display="flex";gameWrap.style.display="none";});
 
-socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,civilizationZoneBuildTiers,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,activeMercs:serverMercs,civilizationZones:serverCivZones})=>{
+socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,civilizationZoneBuildTiers:serverZoneBuildTiers,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,activeMercs:serverMercs,civilizationZones:serverCivZones})=>{
   player.id=id;player.color=color;if(serverMemberId)wixMemberId=serverMemberId;if(typeof serverCredits==="number")player.credits=serverCredits;if(Array.isArray(serverInvSlots)){player.invSlots=serverInvSlots;player.maxSlots=serverMaxSlots||serverInvSlots.length||player.maxSlots;ensureClientInventorySlots();clampPanelScrolls();}GALAXY_SEED=seed;serverPrices=prices||{};
   if(shipTypes)SHIP_TYPES=shipTypes;
   if(ownedStationTiers)OWNED_STATION_TIERS=ownedStationTiers;
   if(structureTypes)STRUCTURE_TYPES=structureTypes;
-  if(civilizationZoneBuildTiers)civZoneBuildTiers=civilizationZoneBuildTiers;
+  if(serverZoneBuildTiers)civZoneBuildTiers=serverZoneBuildTiers;
   if(Array.isArray(serverMercs))activeMercShips=serverMercs.map(normalizeClientMerc);
   if(Array.isArray(serverCivZones))ownedCivilizationZones=serverCivZones;
   ship.x=x;ship.y=y;joined=true;clearJoinTimeout();
@@ -2809,12 +2815,19 @@ function updateSpace(dt){
     }
   }
 
-  // Trade ship NPC update
+  // Trade ship NPC update. V7: only fully sim stations near the player or in combat.
+  // This prevents the civilization-zone map layer from freezing the game while chunks stream in.
   for(const st of visibleStations){
     updateNpcStationDefense(st,dt);
     if(!st.destroyed){st.buyStockTimer-=dt;if(st.buyStockTimer<=0){refreshBuyStock(st);st.buyStockTimer=300;}}
-    updateNpcTradeShipRespawns(st,dt);
-    for(const ts of st.tradeShips)updateTradeShip(ts,st,visiblePlanets,dt);
+    const stationHot=st.destroyed||(st.underAttackTimer||0)>0||(st.underPirateAttackTimer||0)>0;
+    const nearPlayer=dist(ship.x,ship.y,st.x,st.y)<STATION_ACTIVE_RANGE;
+    if(stationHot||nearPlayer){
+      updateNpcTradeShipRespawns(st,dt);
+      for(const ts of st.tradeShips){
+        if(stationHot||dist(ship.x,ship.y,ts.x,ts.y)<TRADE_SHIP_ACTIVE_RANGE)updateTradeShip(ts,st,visiblePlanets,dt);
+      }
+    }
   }
 
   // Player-owned station trade ship update
