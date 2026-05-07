@@ -148,6 +148,13 @@ const CIV_ZONE_BUILD_BASE_COST = {
   advanced:38000,
   capital:76000
 };
+const CIV_STATION_TIERS = {
+  outpost:{name:"Outpost",defenderDamage:7},
+  standard:{name:"Standard",defenderDamage:12},
+  advanced:{name:"Advanced",defenderDamage:20},
+  capital:{name:"Capital",defenderDamage:32}
+};
+const civilizationDefenderShotCooldowns = new Map();
 const CIV_ZONE_BASE_TAX_PER_STATION = 150;
 const CIV_ZONE_SUPER_STATION_TAX = 420;
 const CIV_ZONE_BUILT_STATION_TAX = {
@@ -202,6 +209,14 @@ function publicCivilizationZone(zone,viewerId){
   };
 }
 function civilizationZonesFor(viewerId){return [...civilizationZones.values()].map(z=>publicCivilizationZone(z,viewerId));}
+function playerOwnsCivilizationZone(p,zone){
+  if(!p||!zone)return false;
+  return zone.ownerId===p.id || (!!p.memberId && zone.ownerMemberId===p.memberId);
+}
+function playerInsideCivilizationZone(p,zone,pad=0){
+  if(!p||!zone)return false;
+  return Math.hypot(p.x-zone.x,p.y-zone.y) <= (zone.radius||420) + pad;
+}
 function emitCivilizationZones(socket){socket.emit("civilizationZonesList",civilizationZonesFor(socket.id));}
 function broadcastCivilizationZonesList(){for(const [,sock] of io.sockets.sockets)emitCivilizationZones(sock);}
 function makeCivilizationZoneRecord(input,p){
@@ -612,7 +627,7 @@ function restorePersistentBuildingsForPlayer(p){
     if(!zone||zone.ownerMemberId===p.memberId||zone.ownerId===p.id){
       const built=[];
       for(const st of Array.isArray(rec.builtStations)?rec.builtStations:[]){
-        const tier=STATION_TIERS[st.tier]?st.tier:"standard";
+        const tier=CIV_STATION_TIERS[st.tier]?st.tier:"standard";
         const x=Math.round(Number(st.x)||input.x),y=Math.round(Number(st.y)||input.y);
         built.push({id:safeZoneId(st.id||`${input.zoneId}|ownedciv|${built.length}`),x,y,tier,ownerName:p.name,createdAt:st.createdAt||Date.now()});
       }
@@ -1536,15 +1551,16 @@ io.on("connection",socket=>{
     persistPlayerSoon(p,"buy_civilization_zone");
   });
 
-  socket.on("buildCivilizationStation",({zoneId,tier})=>{
+  socket.on("buildCivilizationStation",(raw={})=>{
+    let {zoneId,tier}=raw||{};
     const p=players.get(socket.id);if(!p||p.mode!=="space")return;
     zoneId=safeZoneId(zoneId);tier=String(tier||"");
-    const zone=civilizationZones.get(zoneId);if(!zone||zone.ownerId!==p.id){socket.emit("civilizationZoneDenied",{zoneId,reason:"You do not own this civilization zone."});return;}
-    if(!STATION_TIERS[tier]){socket.emit("civilizationZoneDenied",{zoneId,reason:"Unknown station tier."});return;}
+    const zone=civilizationZones.get(zoneId);if(!zone||!playerOwnsCivilizationZone(p,zone)){socket.emit("civilizationZoneDenied",{zoneId,reason:"You do not own this civilization zone."});return;}zone.ownerId=p.id;zone.ownerName=p.name;
+    if(!CIV_STATION_TIERS[tier]){socket.emit("civilizationZoneDenied",{zoneId,reason:"Unknown station tier."});return;}
     if(Math.hypot(p.x-zone.x,p.y-zone.y)>620){socket.emit("civilizationZoneDenied",{zoneId,reason:"Build from the central super station."});return;}
     if((zone.builtStations||[]).length>=30){socket.emit("civilizationZoneDenied",{zoneId,reason:"This civilization zone is fully built out."});return;}
     const cost=civilizationZoneStationBuildCost(zone,tier);
-    if((p.credits||0)<cost){socket.emit("civilizationZoneDenied",{zoneId,reason:`Need ${cost}cr to build a ${STATION_TIERS[tier].name} station.`,cost});return;}
+    if((p.credits||0)<cost){socket.emit("civilizationZoneDenied",{zoneId,reason:`Need ${cost}cr to build a ${CIV_STATION_TIERS[tier].name} station.`,cost});return;}
     p.credits-=cost;
     const pt=randomPointInZone(zone,tier);
     const station={id:`${zone.zoneId}|ownedciv|${zone.builtStations.length}_${Date.now()}`,x:pt.x,y:pt.y,tier,ownerName:p.name,createdAt:Date.now()};
@@ -1553,7 +1569,7 @@ io.on("connection",socket=>{
     socket.emit("civilizationStationBuilt",{zone:publicCivilizationZone(zone,p.id),station,credits:p.credits,cost});
     socket.emit("creditUpdate",{credits:p.credits});
     broadcastCivilizationZonesList();
-    broadcastChat("Server",`${p.name} expanded ${zone.name} with a ${STATION_TIERS[tier].name} station.`,zone.color||"#ffdd44");
+    broadcastChat("Server",`${p.name} expanded ${zone.name} with a ${CIV_STATION_TIERS[tier].name} station.`,zone.color||"#ffdd44");
     persistPlayerSoon(p,"build_civilization_station");
   });
 
@@ -1629,6 +1645,31 @@ io.on("connection",socket=>{
     target.hp=Math.max(0,target.hp-dmg);target.shieldRegenTimer=5;
     io.to(target.id).emit("hit",{damage:Math.round(raw),hp:target.hp,shield:target.shield,by:`${owner.name}'s mercenary`});
     if(target.hp<=0){target.deaths=(target.deaths||0)+1;owner.kills=(owner.kills||0)+1;addScore(owner,220,"Mercenary Kill");io.to(target.id).emit("youDied",{killedBy:`${owner.name}'s mercenary`});io.emit("playerKilled",{victimId:target.id,victimName:target.name,killerId:owner.id,killerName:owner.name});broadcastLeaderboard();}
+  });
+
+  socket.on("civilizationDefenderAttackPlayer",(raw={})=>{
+    let {targetId,zoneId,damage,x,y}=raw||{};
+    const owner=players.get(socket.id),target=players.get(String(targetId||""));
+    if(!owner||!target||owner.mode!=="space"||target.mode!=="space"||target.hp<=0)return;
+    if(owner.id===target.id||areAllied(owner,target))return;
+    zoneId=safeZoneId(zoneId);
+    const zone=civilizationZones.get(zoneId);
+    if(!zone||!playerOwnsCivilizationZone(owner,zone))return;
+    // Civ-zone NPC ships only defend while the owner is physically inside that civilization zone.
+    if(!playerInsideCivilizationZone(owner,zone,60))return;
+    if(!playerInsideCivilizationZone(target,zone,820))return;
+    const declaredX=Number(x),declaredY=Number(y);
+    if(Number.isFinite(declaredX)&&Number.isFinite(declaredY)){
+      if(Math.hypot(declaredX-zone.x,declaredY-zone.y)>(zone.radius||420)+260)return;
+      if(Math.hypot(target.x-declaredX,target.y-declaredY)>620)return;
+    }
+    const now=Date.now(),coolKey=`${owner.id}|${zone.zoneId}|${target.id}`;
+    const last=civilizationDefenderShotCooldowns.get(coolKey)||0;
+    if(now-last<470)return;
+    civilizationDefenderShotCooldowns.set(coolKey,now);
+    const safeDamage=Math.max(1,Math.min(38,Number(damage)||12));
+    const result=applySpaceDamageToPlayer(target,safeDamage,owner,"Civilization Defenders");
+    socket.emit("civilizationDefenderAttackConfirm",{targetId:target.id,zoneId:zone.zoneId,damage:result.damage});
   });
 
   socket.on("turretAttackPlayer",({targetId,structureKey,damage,x,y})=>{
