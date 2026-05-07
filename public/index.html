@@ -837,7 +837,11 @@ function updateTradeShip(ts,station,allPlanets,dt){
       if(ts.shootTimer<=0&&td<320){
         ts.shootTimer=0.6+(1-Math.min(1,ts.speed/130))*0.8;
         if(target.type==="pirate")npcTradeShipFireAtRaider(ts,station,target.obj);
-        else{const ba=ang+(Math.random()-0.5)*0.18;enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(ba)*200,vy:Math.sin(ba)*200,damage:ts.damage,life:2.5,source:"Trade Ship",sourceTarget:{type:"npcTradeShip",stationId:station.id,shipId:ts.id,x:ts.x,y:ts.y}});}
+        else if(target.type==="otherPlayer"){
+          spawnWarProjectile(ts.x,ts.y,target.x,target.y,station?.factionColor||"#ffdd44",360);
+          socket.emit("civilizationDefenderAttackPlayer",{targetId:target.obj.id,zoneId:station.civilizationZoneId,damage:ts.damage,x:ts.x,y:ts.y});
+          showFT("CIV DEF",target.x,target.y-14,"#ffdd44",8);
+        }else{const ba=ang+(Math.random()-0.5)*0.18;enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(ba)*200,vy:Math.sin(ba)*200,damage:ts.damage,life:2.5,source:"Trade Ship",sourceTarget:{type:"npcTradeShip",stationId:station.id,shipId:ts.id,x:ts.x,y:ts.y}});}
       }
       if(ts.hp<ts.maxHp*0.2){ts.state="flee";ts.stateTimer=5;}
       if(target.type==="player"&&td>650&&!station.destroyed){ts.state="return";ts.stateTimer=3;}
@@ -1286,8 +1290,68 @@ function npcTradeShipFireAtRaider(ts,station,ep){
   ep.hp-=ts.damage;ep.target={type:"npcTradeShip",stationId:station.id,shipId:ts.id};ep.retargetTimer=1.4;
   showFT("DEF -"+Math.round(ts.damage),ep.x,ep.y,"#7be6ff",8);
 }
+function currentOwnedCivilizationZone(){
+  if(mode!==MODE.SPACE||gameOver)return null;
+  let best=null,bd=Infinity;
+  for(const z of visibleCivZones){
+    if(!z?.isOwn)continue;
+    const d=dist(ship.x,ship.y,z.x,z.y);
+    if(d<=(z.radius||430)&&d<bd){best=z;bd=d;}
+  }
+  return best;
+}
+function stationInActiveOwnedCivZone(st){
+  if(!st?.civilizationZoneId)return null;
+  const z=currentOwnedCivilizationZone();
+  if(!z||z.id!==st.civilizationZoneId)return null;
+  return z;
+}
+function normalizeCivDefenseTarget(target){
+  if(!target)return null;
+  if(target.type==="pirate")return {type:"pirate",pirateId:target.pirateId,x:target.x,y:target.y};
+  if(target.type==="otherPlayer")return {type:"otherPlayer",playerId:target.playerId||target.obj?.id,x:target.x,y:target.y};
+  return null;
+}
+function alertOwnedCivilizationZoneDefenders(target,label="attacker"){
+  const z=currentOwnedCivilizationZone();
+  const raw=normalizeCivDefenseTarget(target);
+  if(!z||!raw)return 0;
+  const tx=Number(raw.x),ty=Number(raw.y);
+  let called=0;
+  for(const st of visibleStations){
+    if(st.destroyed||st.civilizationZoneId!==z.id)continue;
+    st.underAttackTimer=Math.max(st.underAttackTimer||0,18);
+    for(const ts of st.tradeShips||[]){
+      if(ts.hp<=0)continue;
+      const inZone=dist(ts.x,ts.y,z.x,z.y)<=(z.radius||430)+180;
+      const nearPlayer=dist(ts.x,ts.y,ship.x,ship.y)<1450;
+      const nearTarget=Number.isFinite(tx)&&Number.isFinite(ty)&&dist(ts.x,ts.y,tx,ty)<1500;
+      if(inZone&&(nearPlayer||nearTarget)){
+        ts.state="combat";ts.stateTimer=999;ts.combatTarget={...raw,zoneDefense:true};ts.shootTimer=Math.min(ts.shootTimer||0,0.18+Math.random()*0.16);called++;
+      }
+    }
+  }
+  const now=performance.now();
+  if(called>0&&(!alertOwnedCivilizationZoneDefenders._lastShown||now-alertOwnedCivilizationZoneDefenders._lastShown>1500)){
+    alertOwnedCivilizationZoneDefenders._lastShown=now;
+    showFT(`${called} civilization defender${called>1?"s":""} protecting zone`,ship.x,ship.y-58,"#ffdd44",10);
+    addChat("Civ Defense",`${z.name} ships are defending you from ${label}.`,"#ffdd44");
+  }
+  return called;
+}
 function resolveNpcTradeShipCombatTarget(ts,station){
+  const defendingOwnedCiv=stationInActiveOwnedCivZone(station);
+  if(ts.combatTarget?.type==="otherPlayer"){
+    if(!defendingOwnedCiv){ts.combatTarget=null;return null;}
+    const op=otherPlayers.get(ts.combatTarget.playerId);
+    if(op){
+      const x=op.renderX||op.x,y=op.renderY||op.y;
+      if(dist(x,y,defendingOwnedCiv.x,defendingOwnedCiv.y)<=(defendingOwnedCiv.radius||430)+720)return {type:"otherPlayer",x,y,obj:op};
+    }
+    ts.combatTarget=null;
+  }
   if(ts.combatTarget?.type==="pirate"){
+    if(ts.combatTarget.zoneDefense&&station.civilizationZoneId&&!defendingOwnedCiv){ts.combatTarget=null;return null;}
     const ep=eventPirates.find(p=>p.id===ts.combatTarget.pirateId&&p.hp>0);
     if(ep)return {type:"pirate",x:ep.x,y:ep.y,obj:ep};
     ts.combatTarget=null;
@@ -1796,6 +1860,7 @@ function findAssistTargetForShot(wx,wy){
 }
 function forceAssistOnAttacker(target,label="attacker"){
   if(!target)return;
+  alertOwnedCivilizationZoneDefenders(target,label);
   callOwnedTradeShipsToAssist(target,label);
   callMercsToAssist(target,label);
   callDefenseTurretsToAssist(target,label);
@@ -2546,6 +2611,7 @@ socket.on("civilizationZoneBought",({zone,credits,cost})=>{if(typeof credits==="
 socket.on("civilizationStationBuilt",({zone,station,credits,cost})=>{if(typeof credits==="number")player.credits=credits;syncCivilizationZones([...(civilizationZonesList.filter(z=>z.zoneId!==zone.zoneId)),zone]);showFT(`${STATION_TIERS[station?.tier]?.name||"Station"} built`,station?.x||ship.x,station?.y||ship.y-20,"#78ff8a",12);addChat("Civ Zone",`Built a ${STATION_TIERS[station?.tier]?.name||"station"} in ${zone.name}. New taxes: ${zone.taxPerMinute}cr/min.`,"#78ff8a");updateHud();});
 socket.on("civilizationTaxCollected",({zoneName,amount,credits,offline})=>{if(typeof credits==="number")player.credits=credits;updateHud();showFT(`+${Number(amount||0).toLocaleString()}cr zone tax${offline?" saved":""}`,ship.x,ship.y-34,"#ffdd44",11);if(zoneName)addChat("Taxes",`${zoneName}: +${Number(amount||0).toLocaleString()}cr collected.`,"#ffdd44");});
 socket.on("civilizationZoneDenied",({reason})=>{showFT(reason||"Civilization zone action denied",ship.x,ship.y-24,"#ff5544",9);});
+socket.on("civilizationDefenderAttackConfirm",({targetId,damage})=>{const op=otherPlayers.get(targetId);if(op)showFT(`CIV -${Math.round(damage||0)}`,op.renderX||op.x,op.renderY||op.y,"#ffdd44",9);});
 socket.on("ownedStationUpdate",({stationKey,goodsCount,shipCount})=>{showFT(`Station: ${goodsCount} goods ready`,ship.x,ship.y,"#ffcc44",9);});
 socket.on("ownedStationGoods",({stationKey,goods})=>{let added=0;for(const v of Object.values(goods||{}))added+=Number(v)||0;showFT(`Collected ${added} items from station`,ship.x,ship.y-15,"#78ff8a",11);updateHud();});
 socket.on("ownedStationDamaged",({stationKey,hp,maxHp,shield,maxShield,ownerName,attackerName})=>{const st=ownedStationsList.find(s=>s.key===stationKey);if(st){Object.assign(st,{hp,maxHp,shield,maxShield,underAttackUntil:Date.now()+45000});ensureOwnedTradeShips();}});
