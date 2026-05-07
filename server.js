@@ -392,20 +392,50 @@ function persistPlayerSoon(p,reason="update",delay=1200){
 function syncAndPersist(p,reason="sync"){
   emitInventorySync(p,reason);persistPlayerSoon(p,reason);
 }
+function hasInventoryItems(slots){return Array.isArray(slots)&&slots.some(s=>s?.type&&s.count>0);}
+function mergeInventoryIntoPlayer(p,slotsOrCounts){
+  const incoming=normalizeInventorySlots(slotsOrCounts,p.maxSlots||24);
+  for(const s of incoming){if(s?.type&&s.count>0)addInventory(p,s.type,s.count);}
+}
 function applyAuthAccountToPlayer(p,auth){
   if(!auth)return;
   p.memberId=String(auth.memberId);p.accountLoaded=true;
   p.name=sanitizeName(auth.displayName||p.name||"Pilot");
-  p.credits=Math.max(0,Math.floor(Number(auth.credits)||p.credits||300));
-  p.maxSlots=Math.max(24,Math.min(96,Math.floor(Number(auth.maxSlots)||24)));
-  p.invSlots=normalizeInventorySlots(auth.invSlots||auth.inventory,p.maxSlots);
+  if(auth.credits!==undefined){
+    const credits=Number(auth.credits);
+    if(Number.isFinite(credits))p.credits=Math.max(0,Math.floor(credits));
+  }
+  if(auth.maxSlots!==undefined){
+    const slots=Number(auth.maxSlots);
+    if(Number.isFinite(slots))p.maxSlots=Math.max(24,Math.min(96,Math.floor(slots)));
+  }else p.maxSlots=Math.max(24,Math.min(96,Math.floor(Number(p.maxSlots)||24)));
+  const authInventory=(auth.invSlots!==undefined)?auth.invSlots:((auth.inventory!==undefined)?auth.inventory:auth.items);
+  if(authInventory!==undefined)p.invSlots=normalizeInventorySlots(authInventory,p.maxSlots);
+  else if(!Array.isArray(p.invSlots))p.invSlots=emptySlots(p.maxSlots);
   if(auth.shipType&&SHIP_TYPES[auth.shipType])p.shipType=auth.shipType;
   if(auth.level)p.level=Math.max(1,Math.floor(Number(auth.level)||1));
   if(auth.xp!==undefined)p.xp=Math.max(0,Math.floor(Number(auth.xp)||0));
   if(auth.attrs&&typeof auth.attrs==="object")p.attrs={...p.attrs,...auth.attrs};
   if(auth.badgeRewards&&typeof auth.badgeRewards==="object")p.badgeRewards={...auth.badgeRewards};
-  p.activeMercs=normalizeMercs(auth.activeMercs||[],p);
+  if(Array.isArray(auth.activeMercs))p.activeMercs=normalizeMercs(auth.activeMercs,p);
   if(auth.buildings&&typeof auth.buildings==="object")p.savedBuildings=auth.buildings;
+}
+function linkAuthAccountToPlayer(p,auth){
+  if(!auth)return false;
+  const currentInv=p.invSlots||emptySlots(p.maxSlots||24);
+  const currentCounts=inventoryCounts({invSlots:currentInv});
+  const currentCredits=Math.floor(Number(p.credits)||300);
+  const sessionCreditDelta=currentCredits-300;
+  applyAuthAccountToPlayer(p,auth);
+  // If Wix auth arrives after launch, keep anything earned in that short unauthenticated session.
+  for(const [type,count] of Object.entries(currentCounts)){
+    if(count>0&&!addInventory(p,type,count)){
+      // Last-resort fallback so late auth never deletes freshly collected loot.
+      p.credits=(p.credits||0)+(RES_BASE[type]||1)*count;
+    }
+  }
+  if(sessionCreditDelta!==0)p.credits=Math.max(0,(p.credits||0)+sessionCreditDelta);
+  return true;
 }
 
 
@@ -967,6 +997,20 @@ io.on("connection",socket=>{
     socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
   });
 
+  socket.on("linkAccount",({token})=>{
+    const p=players.get(socket.id);if(!p)return;
+    const auth=verifyGameToken(token);
+    if(!auth){socket.emit("accountLinkDenied",{reason:"Invalid or expired Wix login token."});return;}
+    if(p.accountLoaded&&p.memberId&&p.memberId!==String(auth.memberId)){socket.emit("accountLinkDenied",{reason:"This socket is already linked to another account."});return;}
+    linkAuthAccountToPlayer(p,auth);
+    if(p.memberId)socketsByMemberId.set(p.memberId,socket.id);
+    restorePersistentBuildingsForPlayer(p);
+    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots});
+    emitInventorySync(p,"account_linked");
+    persistPlayerSoon(p,"account_linked");
+    emitPlayerStructures(socket);
+  });
+
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
     const p=players.get(socket.id);if(!p)return;
     p.input.rotLeft=!!rotLeft;p.input.rotRight=!!rotRight;p.input.thrust=!!thrust;p.input.brake=!!brake;
@@ -1224,7 +1268,7 @@ io.on("connection",socket=>{
     if(!removeInventory(p,resourceType,quantity)){socket.emit("sellDenied",{reason:"You do not have that quantity in your server inventory."});return;}
     const earned=pr*quantity;p.credits+=earned;p.tradingVolume=(p.tradingVolume||0)+earned;
     economy.sold(resourceType,quantity);addScore(p,Math.floor(earned*0.1),"Trade");
-    socket.emit("sellConfirm",{resourceType,quantity,earned,credits:p.credits,prices:economy.snapshot()});
+    socket.emit("sellConfirm",{resourceType,quantity,earned,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});
     syncAndPersist(p,"sell_resource");
   });
 
@@ -1248,7 +1292,7 @@ io.on("connection",socket=>{
     const cost=unitPrice*quantity;if(p.credits<cost){socket.emit("buyDenied",{reason:"Insufficient credits."});return;}
     if(!canFitInventory(p,resourceType,quantity)){socket.emit("buyDenied",{reason:"Inventory full."});return;}
     p.credits-=cost;economy.bought(resourceType,quantity);addInventory(p,resourceType,quantity);
-    socket.emit("buyConfirm",{resourceType,quantity,cost,credits:p.credits,prices:economy.snapshot()});
+    socket.emit("buyConfirm",{resourceType,quantity,cost,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});
     syncAndPersist(p,"buy_resource");
   });
 
@@ -1296,6 +1340,23 @@ io.on("connection",socket=>{
     if(!bundle.ok){socket.emit("shipPartRewardDenied",{reason:bundle.reason});return;}
     socket.emit("shipPartRewardConfirm",{credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,reward:bundle,reason:safeText(reason||"Salvage",40)});
     syncAndPersist(p,"ship_part_reward");
+  });
+
+  socket.on("spaceLootPickup",({claimId,resourceType,type,x,y})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="space")return;
+    const kind=String(resourceType||type||"");claimId=String(claimId||"").slice(0,80);
+    if(!RES_KEYS.includes(kind)){socket.emit("spaceLootPickupDenied",{claimId,resourceType:kind,reason:"Unknown loot type."});return;}
+    const now=Date.now();
+    p._spaceLootPickups=(p._spaceLootPickups||[]).filter(t=>now-t<2500);
+    if(p._lastSpaceLootPickupAt&&now-p._lastSpaceLootPickupAt<65){socket.emit("spaceLootPickupDenied",{claimId,resourceType:kind,reason:"Pickup too fast."});return;}
+    if(p._spaceLootPickups.length>28){socket.emit("spaceLootPickupDenied",{claimId,resourceType:kind,reason:"Too many pickups at once."});return;}
+    const lx=Number(x),ly=Number(y);
+    if(Number.isFinite(lx)&&Number.isFinite(ly)&&Math.hypot(p.x-lx,p.y-ly)>420){socket.emit("spaceLootPickupDenied",{claimId,resourceType:kind,reason:"Move closer to the loot."});return;}
+    if(!canFitInventory(p,kind,1)){socket.emit("spaceLootPickupDenied",{claimId,resourceType:kind,reason:"Inventory full."});return;}
+    p._lastSpaceLootPickupAt=now;p._spaceLootPickups.push(now);
+    addInventory(p,kind,1);
+    socket.emit("spaceLootPickupConfirm",{claimId,resourceType:kind,quantity:1,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots});
+    syncAndPersist(p,"space_loot_pickup");
   });
 
 
@@ -1394,6 +1455,22 @@ io.on("connection",socket=>{
     target.hp=Math.max(0,target.hp-dmg);target.shieldRegenTimer=5;
     io.to(target.id).emit("hit",{damage:Math.round(raw),hp:target.hp,shield:target.shield,by:`${owner.name}'s mercenary`});
     if(target.hp<=0){target.deaths=(target.deaths||0)+1;owner.kills=(owner.kills||0)+1;addScore(owner,220,"Mercenary Kill");io.to(target.id).emit("youDied",{killedBy:`${owner.name}'s mercenary`});io.emit("playerKilled",{victimId:target.id,victimName:target.name,killerId:owner.id,killerName:owner.name});broadcastLeaderboard();}
+  });
+
+  socket.on("turretAttackPlayer",({targetId,structureKey,damage,x,y})=>{
+    const owner=players.get(socket.id),target=players.get(String(targetId||""));
+    if(!owner||!target||owner.mode!=="space"||target.mode!=="space"||target.hp<=0)return;
+    if(owner.id===target.id||areAllied(owner,target))return;
+    const st=ownedStructures.get(String(structureKey||""));
+    if(!st||st.ownerId!==owner.id||st.type!=="defense_turret"||st.destroyed)return;
+    const now=Date.now();if(st.lastShotAt&&now-st.lastShotAt<520)return;
+    const declaredX=Number(x),declaredY=Number(y),range=turretRange(st)+260;
+    if(Math.hypot(target.x-st.x,target.y-st.y)>range)return;
+    if(Number.isFinite(declaredX)&&Number.isFinite(declaredY)&&Math.hypot(declaredX-st.x,declaredY-st.y)>range)return;
+    st.lastShotAt=now;
+    const safeDamage=Math.max(1,Math.min(turretDamage(st),Number(damage)||turretDamage(st)));
+    const result=applySpaceDamageToPlayer(target,safeDamage,owner,"Defense Turret");
+    socket.emit("turretAttackConfirm",{targetId:target.id,structureKey:st.key,damage:result.damage});
   });
 
   socket.on("requestPlayerStructures",()=>{emitPlayerStructures(socket);});
