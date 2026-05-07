@@ -2133,7 +2133,7 @@ window.addEventListener("message",(event)=>{
     };
     if(typeof msg.credits==="number")player.credits=msg.credits;
     if(Array.isArray(msg.invSlots)){player.invSlots=msg.invSlots;player.maxSlots=msg.maxSlots||msg.invSlots.length||player.maxSlots;ensureClientInventorySlots();clampPanelScrolls();}
-    if(joined&&wixGameToken)socket.emit("hydrateAccountState",{token:wixGameToken,accountState:pendingWixAccountState});
+    if(joined&&wixGameToken){wixHydratedThisSession=false;hydrateWixAfterJoin("wix_auth_message");}
     updateHud();
     setCreditPayStatus("Wix account linked. Credits and inventory will sync.","#78ff8a");
   }
@@ -2347,13 +2347,36 @@ window.buyStructure=buyStructure;window.openStorageFacility=openStorageFacility;
 /* socket — SERVER_URL declared in loader above */
 const socket = io(SERVER_URL);
 
-let joined=false;
+let joined=false,joinTimeoutId=0,wixHydratedThisSession=false;
 const joinStatusEl=document.getElementById("join-status"),joinScreen=document.getElementById("join-screen"),gameWrap=document.getElementById("wrap");
+function clearJoinTimeout(){if(joinTimeoutId){clearTimeout(joinTimeoutId);joinTimeoutId=0;}}
+function safeWixAccountStateSnapshot(){
+  if(!pendingWixAccountState||typeof pendingWixAccountState!=="object")return null;
+  const s=pendingWixAccountState;
+  return {
+    memberId:s.memberId||wixMemberId||null,displayName:s.displayName||null,credits:typeof s.credits==="number"?s.credits:undefined,
+    maxSlots:typeof s.maxSlots==="number"?Math.max(24,Math.min(100,Math.floor(s.maxSlots))):undefined,
+    invSlots:Array.isArray(s.invSlots)?s.invSlots.slice(0,100):undefined,inventory:s.inventory&&typeof s.inventory==="object"?s.inventory:undefined,
+    level:typeof s.level==="number"?s.level:undefined,xp:typeof s.xp==="number"?s.xp:undefined,shipType:s.shipType||undefined,attrs:s.attrs&&typeof s.attrs==="object"?s.attrs:undefined,
+    badgeRewards:s.badgeRewards&&typeof s.badgeRewards==="object"?s.badgeRewards:undefined,
+    activeMercs:Array.isArray(s.activeMercs)?s.activeMercs.filter(Boolean).slice(0,5):undefined,
+    civilizationZones:Array.isArray(s.civilizationZones)?s.civilizationZones.slice(0,24):undefined,
+    buildings:s.buildings&&typeof s.buildings==="object"?s.buildings:undefined
+  };
+}
+function hydrateWixAfterJoin(reason="post_join"){
+  if(!joined||!socket||!wixGameToken||wixHydratedThisSession)return;
+  const snapshot=safeWixAccountStateSnapshot();
+  if(!snapshot)return;
+  wixHydratedThisSession=true;
+  socket.emit("hydrateAccountState",{token:wixGameToken,accountState:snapshot,reason});
+}
 
 socket.on("connect",()=>{joinStatusEl.textContent="Connected! Enter your name and launch.";joinStatusEl.style.color="#78ff8a";});
-socket.on("disconnect",()=>{joined=false;joinStatusEl.textContent="Disconnected. Reload to reconnect.";joinStatusEl.style.color="#ff4422";joinScreen.style.display="flex";gameWrap.style.display="none";document.getElementById("chat-wrap").style.display="none";pcEl.style.display="none";});
+socket.on("disconnect",()=>{clearJoinTimeout();joined=false;wixHydratedThisSession=false;joinStatusEl.textContent="Disconnected. Reload to reconnect.";joinStatusEl.style.color="#ff4422";joinScreen.style.display="flex";gameWrap.style.display="none";document.getElementById("chat-wrap").style.display="none";pcEl.style.display="none";});
 socket.on("connect_error",()=>{joinStatusEl.textContent="Cannot reach server. Check SERVER_URL.";joinStatusEl.style.color="#ff4422";});
-socket.on("serverFull",()=>{joinStatusEl.textContent="Server full. Try again later.";joinStatusEl.style.color="#ffcc44";});
+socket.on("serverFull",()=>{clearJoinTimeout();joinStatusEl.textContent="Server full. Try again later.";joinStatusEl.style.color="#ffcc44";});
+socket.on("joinDenied",({reason}={})=>{clearJoinTimeout();joined=false;joinStatusEl.textContent=reason||"Launch failed. Please refresh and try again.";joinStatusEl.style.color="#ff5544";joinScreen.style.display="flex";gameWrap.style.display="none";});
 
 socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,civilizationZoneBuildTiers,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,activeMercs:serverMercs,civilizationZones:serverCivZones})=>{
   player.id=id;player.color=color;if(serverMemberId)wixMemberId=serverMemberId;if(typeof serverCredits==="number")player.credits=serverCredits;if(Array.isArray(serverInvSlots)){player.invSlots=serverInvSlots;player.maxSlots=serverMaxSlots||serverInvSlots.length||player.maxSlots;ensureClientInventorySlots();clampPanelScrolls();}GALAXY_SEED=seed;serverPrices=prices||{};
@@ -2363,11 +2386,11 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   if(civilizationZoneBuildTiers)civZoneBuildTiers=civilizationZoneBuildTiers;
   if(Array.isArray(serverMercs))activeMercShips=serverMercs.map(normalizeClientMerc);
   if(Array.isArray(serverCivZones))ownedCivilizationZones=serverCivZones;
-  ship.x=x;ship.y=y;joined=true;
+  ship.x=x;ship.y=y;joined=true;clearJoinTimeout();
   joinScreen.style.display="none";gameWrap.style.display="flex";
   document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
   pcEl.textContent=`👥 ${playerCount}`;
-  updateChunks();updateHud();scheduleCreditShopTip();
+  updateChunks();updateHud();scheduleCreditShopTip();hydrateWixAfterJoin("welcome");
   // Start ping loop
   setInterval(()=>socket.emit("clientPing"),2000);
   requestAnimationFrame(tick);
@@ -2617,7 +2640,20 @@ socket.on("chat",({from,message,color})=>{addChat(from,message,color||"#d6e1ff")
 /* ── Join ── */
 document.getElementById("join-btn").addEventListener("click",doJoin);
 document.getElementById("join-name").addEventListener("keydown",e=>{if(e.key==="Enter")doJoin();});
-function doJoin(){if(!socket.connected){joinStatusEl.textContent="Still connecting…";return;}if(joined)return;const name=document.getElementById("join-name").value.trim()||"Pilot";player.name=name;joinStatusEl.textContent="Launching…";joinStatusEl.style.color="#ffcc44";socket.emit("join",{name,token:wixGameToken,accountState:pendingWixAccountState});}
+function doJoin(){
+  if(!socket.connected){joinStatusEl.textContent="Still connecting…";return;}
+  if(joined)return;
+  clearJoinTimeout();
+  const name=document.getElementById("join-name").value.trim()||"Pilot";
+  player.name=name;joinStatusEl.textContent="Launching…";joinStatusEl.style.color="#ffcc44";
+  // Keep the launch handshake small and safe. Wix inventory/building hydration happens after welcome.
+  socket.emit("join",{name,token:wixGameToken||null});
+  joinTimeoutId=setTimeout(()=>{
+    if(joined)return;
+    joinStatusEl.textContent="Launch timed out. Reconnecting to server…";joinStatusEl.style.color="#ff8844";
+    try{socket.connect&&socket.connect();}catch(_){}
+  },10000);
+}
 
 /* ── Input sender ── */
 let shootCooldownTimer=0;
