@@ -247,7 +247,16 @@ function sanitizeStationTasks(raw={}){
   for(const [stationId,t] of Object.entries(raw||{})){
     const id=safeZoneId(stationId);if(!id)continue;
     const task=t?.task==="attack"?"attack":"mine";
-    out[id]={task,targetZoneId:task==="attack"?safeZoneId(t.targetZoneId):null,targetName:task==="attack"?safeText(t.targetName||"",48):"",updatedAt:Math.floor(Number(t.updatedAt)||Date.now())};
+    out[id]={
+      task,
+      targetZoneId:task==="attack"?safeZoneId(t.targetZoneId):null,
+      targetName:task==="attack"?safeText(t.targetName||"",48):"",
+      targetX:task==="attack"?Math.round(Number(t.targetX)||0):0,
+      targetY:task==="attack"?Math.round(Number(t.targetY)||0):0,
+      targetRadius:task==="attack"?Math.max(0,Math.min(1200,Math.round(Number(t.targetRadius)||0))):0,
+      targetColor:task==="attack"?safeText(t.targetColor||"",16):"",
+      updatedAt:Math.floor(Number(t.updatedAt)||Date.now())
+    };
   }
   return out;
 }
@@ -1499,7 +1508,16 @@ io.on("connection",socket=>{
       const targetDist=Math.hypot((targetInfo.x||0)-zone.x,(targetInfo.y||0)-zone.y);
       if(!Number.isFinite(targetDist)||targetDist>8000){socket.emit("civilizationTaskDenied",{reason:"That civilization zone is too far from this command station."});return;}
     }
-    zone.ownerId=p.id;zone.ownerName=p.name;zone.stationTasks=zone.stationTasks||{};zone.stationTasks[stationId]={task,targetZoneId:task==="attack"?targetZoneId:null,targetName:task==="attack"?(targetInfo?.name||""):"",updatedAt:Date.now()};
+    zone.ownerId=p.id;zone.ownerName=p.name;zone.stationTasks=zone.stationTasks||{};zone.stationTasks[stationId]={
+      task,
+      targetZoneId:task==="attack"?targetZoneId:null,
+      targetName:task==="attack"?(targetInfo?.name||""):"",
+      targetX:task==="attack"?Math.round(Number(targetInfo?.x)||0):0,
+      targetY:task==="attack"?Math.round(Number(targetInfo?.y)||0):0,
+      targetRadius:task==="attack"?Math.round(Number(targetInfo?.radius)||0):0,
+      targetColor:task==="attack"?(targetInfo?.color||""):"",
+      updatedAt:Date.now()
+    };
     socket.emit("civilizationStationTaskSet",{zone:publicCivilizationZone(zone,p.id),stationId,task,targetZoneId});broadcastCivilizationZonesList();persistPlayerSoon(p,"civilization_station_task");
   });
 
