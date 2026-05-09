@@ -1476,6 +1476,11 @@ function npcTradeShipFireAtRaider(ts,station,ep){
 }
 function stationZoneId(st){return st?.civilizationZoneId||null;}
 function visibleCivZoneById(zoneId){return visibleCivZones.find(z=>z.id===zoneId||z.zoneId===zoneId)||null;}
+function pointInsideCivilizationZone(zoneId,x,y,pad=0){
+  const z=visibleCivZoneById(zoneId);
+  if(!z||!Number.isFinite(Number(x))||!Number.isFinite(Number(y)))return false;
+  return dist(Number(x),Number(y),z.x,z.y)<=(z.radius||430)+pad;
+}
 function tradeShipRawTarget(ts,station){return {type:"npcTradeShip",stationId:station?.id,shipId:ts?.id,x:ts?.x,y:ts?.y,sourceZoneId:stationZoneId(station)||null};}
 function npcStationRawTarget(st){return {type:"npcStation",stationId:st?.id,x:st?.x,y:st?.y,sourceZoneId:stationZoneId(st)||null};}
 function sameCivZone(a,b){return !!a&&!!b&&a===b;}
@@ -1483,6 +1488,9 @@ function isTradeShipHostileToZone(ts,station,zoneId){
   if(!ts||!station||!zoneId||ts.hp<=0||station.destroyed)return false;
   const homeZone=stationZoneId(station);
   if(sameCivZone(homeZone,zoneId))return false;
+  // Defending civilizations should not chase raiders across open space.
+  // They only engage enemy civ ships after those ships cross into the defended zone.
+  if(!pointInsideCivilizationZone(zoneId,ts.x,ts.y,80))return false;
   if(station.civTask==="attack"&&station.civAttackTargetZoneId===zoneId)return true;
   if(ts.civRaidTargetZoneId===zoneId)return true;
   const ct=ts.combatTarget||{};
@@ -1508,7 +1516,10 @@ function resolveNpcCombatTargetRaw(raw,homeStation=null){
   }else if(raw.type==="npcTradeShip"){
     const st=visibleStations.find(s=>s.id===raw.stationId&&!s.destroyed);
     const t=st?.tradeShips?.find(q=>q.id===raw.shipId&&q.hp>0);
-    if(st&&t&&(!homeStation||st.id!==homeStation.id))return {type:"npcTradeShip",x:t.x,y:t.y,obj:t,station:st};
+    if(st&&t&&(!homeStation||st.id!==homeStation.id)){
+      if(raw.zoneDefense&&raw.targetZoneId&&!isTradeShipHostileToZone(t,st,raw.targetZoneId))return null;
+      return {type:"npcTradeShip",x:t.x,y:t.y,obj:t,station:st};
+    }
   }else if(raw.type==="npcStation"){
     const st=visibleStations.find(s=>s.id===raw.stationId&&!s.destroyed);
     if(st&&(!homeStation||st.id!==homeStation.id))return {type:"npcStation",x:st.x,y:st.y,obj:st,station:st};
@@ -1542,6 +1553,11 @@ function findCivilizationDefenseTargetForZone(zoneId,x,y,range=1500){
 function alertCivilizationZoneDefendersAgainstTarget(zoneId,target,label="enemy ships"){
   const raw=normalizeCivDefenseTarget(target);
   if(!zoneId||!raw)return 0;
+  if(raw.type==="npcTradeShip"){
+    const attackerStation=visibleStations.find(s=>s.id===raw.stationId&&!s.destroyed);
+    const attackerShip=attackerStation?.tradeShips?.find(q=>q.id===raw.shipId&&q.hp>0);
+    if(!isTradeShipHostileToZone(attackerShip,attackerStation,zoneId))return 0;
+  }
   const z=visibleCivZoneById(zoneId);
   const tx=Number(raw.x),ty=Number(raw.y);
   let called=0;
@@ -2090,7 +2106,10 @@ function resolveOwnedAssistTarget(target){
     for(const st of visibleStations){
       if(target.stationId&&st.id!==target.stationId)continue;
       const ts=(st.tradeShips||[]).find(t=>t.id===target.shipId);
-      if(ts)return {type:"npcTradeShip",station:st,obj:ts,x:ts.x,y:ts.y,valid:true};
+      if(ts){
+        if(target.zoneDefense&&target.targetZoneId&&!isTradeShipHostileToZone(ts,st,target.targetZoneId))return null;
+        return {type:"npcTradeShip",station:st,obj:ts,x:ts.x,y:ts.y,valid:true};
+      }
     }
   }else if(target.type==="npcStation"){
     const st=visibleStations.find(s=>s.id===target.stationId&&!s.destroyed);
@@ -2714,7 +2733,13 @@ function drawMercShips(camX,camY){
     const hpPct=clamp(ms.hp/ms.maxHp,0,1),shPct=ms.maxShield?clamp(ms.shield/ms.maxShield,0,1):0;ctx.fillStyle="#300";ctx.fillRect(x-12,y-13,24,2);ctx.fillStyle=hpPct>.5?"#3f3":"#f80";ctx.fillRect(x-12,y-13,24*hpPct,2);ctx.fillStyle="#005";ctx.fillRect(x-12,y-16,24,2);ctx.fillStyle="#44f";ctx.fillRect(x-12,y-16,24*shPct,2);ctx.fillStyle=ms.color;ctx.font="6px monospace";ctx.textAlign="center";ctx.fillText("MERC",x,y+13);ctx.textAlign="left";
   }
 }
-function turretDamageLocal(t){return Math.floor((t.damage||18) || 18);}
+function turretDamageLocal(t){
+  const base=Math.floor((t.damage||18) || 18);
+  // Player request: civilization-zone turrets were too strong.
+  // Reduce only CIV turret DPS about 3.5x while leaving player-built defense turrets unchanged.
+  if(t?.type==="civ_turret")return Math.max(2,Math.floor(base/3.5));
+  return base;
+}
 function updateDefenseTurrets(dt){
   const turrets=[];
   for(const ps of playerStructuresList)if(ps.type==="defense_turret"&&!ps.destroyed)turrets.push(ps);
