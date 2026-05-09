@@ -247,7 +247,7 @@ function sanitizeStationTasks(raw={}){
   for(const [stationId,t] of Object.entries(raw||{})){
     const id=safeZoneId(stationId);if(!id)continue;
     const task=t?.task==="attack"?"attack":"mine";
-    out[id]={task,targetZoneId:task==="attack"?safeZoneId(t.targetZoneId):null,updatedAt:Math.floor(Number(t.updatedAt)||Date.now())};
+    out[id]={task,targetZoneId:task==="attack"?safeZoneId(t.targetZoneId):null,targetName:task==="attack"?safeText(t.targetName||"",48):"",updatedAt:Math.floor(Number(t.updatedAt)||Date.now())};
   }
   return out;
 }
@@ -1478,17 +1478,28 @@ io.on("connection",socket=>{
     p.credits-=cost;p.weaponLevels[weaponKey]=weaponLevelFor(p,weaponKey)+1;
     socket.emit("weaponUpgraded",{weaponKey,level:p.weaponLevels[weaponKey],credits:p.credits,weaponLevels:p.weaponLevels});syncAndPersist(p,"upgrade_weapon");
   });
-  socket.on("setCivilizationStationTask",({zoneId,stationId,task,targetZoneId})=>{
+  socket.on("setCivilizationStationTask",({zoneId,stationId,task,targetZoneId,targetZone})=>{
     const p=players.get(socket.id);if(!p||p.mode!=="space")return;
     zoneId=safeZoneId(zoneId);stationId=safeZoneId(stationId);task=task==="attack"?"attack":"mine";targetZoneId=safeZoneId(targetZoneId);
     const zone=civilizationZones.get(zoneId);if(!zone||!playerOwnsCivilizationZone(p,zone)){socket.emit("civilizationTaskDenied",{reason:"You do not own that civilization zone."});return;}
     if(Math.hypot(p.x-zone.x,p.y-zone.y)>660){socket.emit("civilizationTaskDenied",{reason:"Command ships from the main super station."});return;}
     const baseStationOk=stationId.startsWith(`${zoneId}|civst|`);const builtOk=(zone.builtStations||[]).some(st=>st.id===stationId);
     if(!stationId||stationId.endsWith("|super")||(!baseStationOk&&!builtOk)){socket.emit("civilizationTaskDenied",{reason:"Select one of your normal zone stations, not the super station."});return;}
+    let targetInfo=null;
     if(task==="attack"){
-      const target=civilizationZones.get(targetZoneId);if(!target||target.zoneId===zoneId){socket.emit("civilizationTaskDenied",{reason:"Choose a different owned civilization zone to attack."});return;}
+      if(!targetZoneId||targetZoneId===zoneId){socket.emit("civilizationTaskDenied",{reason:"Choose a different civilization zone to attack."});return;}
+      const ownedTarget=civilizationZones.get(targetZoneId);
+      if(ownedTarget){
+        targetInfo={zoneId:ownedTarget.zoneId,name:ownedTarget.name,x:ownedTarget.x,y:ownedTarget.y,radius:ownedTarget.radius,baseStationCount:ownedTarget.baseStationCount,color:ownedTarget.color};
+      }else{
+        const generatedTarget=safeCivZoneInput(targetZone||{});
+        if(!generatedTarget||generatedTarget.zoneId!==targetZoneId){socket.emit("civilizationTaskDenied",{reason:"Target zone data was missing. Reopen the super station menu and choose a target zone again."});return;}
+        targetInfo=generatedTarget;
+      }
+      const targetDist=Math.hypot((targetInfo.x||0)-zone.x,(targetInfo.y||0)-zone.y);
+      if(!Number.isFinite(targetDist)||targetDist>8000){socket.emit("civilizationTaskDenied",{reason:"That civilization zone is too far from this command station."});return;}
     }
-    zone.ownerId=p.id;zone.ownerName=p.name;zone.stationTasks=zone.stationTasks||{};zone.stationTasks[stationId]={task,targetZoneId:task==="attack"?targetZoneId:null,updatedAt:Date.now()};
+    zone.ownerId=p.id;zone.ownerName=p.name;zone.stationTasks=zone.stationTasks||{};zone.stationTasks[stationId]={task,targetZoneId:task==="attack"?targetZoneId:null,targetName:task==="attack"?(targetInfo?.name||""):"",updatedAt:Date.now()};
     socket.emit("civilizationStationTaskSet",{zone:publicCivilizationZone(zone,p.id),stationId,task,targetZoneId});broadcastCivilizationZonesList();persistPlayerSoon(p,"civilization_station_task");
   });
 
