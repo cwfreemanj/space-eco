@@ -242,15 +242,25 @@ function dedupeCivilizationBuiltStations(zone){
   zone.builtStations=out;
   return out;
 }
+function sanitizeStationTasks(raw={}){
+  const out={};
+  for(const [stationId,t] of Object.entries(raw||{})){
+    const id=safeZoneId(stationId);if(!id)continue;
+    const task=t?.task==="attack"?"attack":"mine";
+    out[id]={task,targetZoneId:task==="attack"?safeZoneId(t.targetZoneId):null,updatedAt:Math.floor(Number(t.updatedAt)||Date.now())};
+  }
+  return out;
+}
 function publicCivilizationZone(zone,viewerId){
-  dedupeCivilizationBuiltStations(zone);
-  const tax=civilizationZoneTaxPerMinute(zone);
+  dedupeCivilizationBuiltStations(zone);zone.stationTasks=sanitizeStationTasks(zone.stationTasks||{});
+  const tax=civilizationZoneTaxPerMinute(zone),isOwn=zone.ownerId===viewerId;
   return {
     zoneId:zone.zoneId,name:zone.name,color:zone.color,x:zone.x,y:zone.y,radius:zone.radius,
     baseStationCount:zone.baseStationCount,stationCount:zone.baseStationCount+(zone.builtStations?.length||0),
-    ownerName:zone.ownerName||null,owned:!!zone.ownerId||!!zone.ownerMemberId,isOwn:zone.ownerId===viewerId,
-    taxPerMinute:tax,pendingTax:zone.ownerId===viewerId?Math.floor(zone.pendingTax||0):0,
-    builtStations:(zone.builtStations||[]).map(st=>({id:st.id,x:st.x,y:st.y,tier:st.tier,ownerName:zone.ownerName||st.ownerName||"Owner"})),
+    ownerName:zone.ownerName||null,owned:!!zone.ownerId||!!zone.ownerMemberId,isOwn,
+    taxPerMinute:tax,pendingTax:isOwn?Math.floor(zone.pendingTax||0):0,
+    stationTasks:isOwn?zone.stationTasks:{},
+    builtStations:(zone.builtStations||[]).map(st=>({id:st.id,x:st.x,y:st.y,tier:st.tier,ownerName:zone.ownerName||st.ownerName||"Owner",task:isOwn?(zone.stationTasks?.[st.id]||{task:"mine"}):undefined})),
     stationCosts:Object.fromEntries(["outpost","standard","advanced","capital"].map(t=>[t,civilizationZoneStationBuildCost(zone,t)]))
   };
 }
@@ -267,7 +277,7 @@ function emitCivilizationZones(socket){socket.emit("civilizationZonesList",civil
 function broadcastCivilizationZonesList(){for(const [,sock] of io.sockets.sockets)emitCivilizationZones(sock);}
 function makeCivilizationZoneRecord(input,p){
   return {zoneId:input.zoneId,name:input.name,color:input.color,x:input.x,y:input.y,radius:input.radius,baseStationCount:input.baseStationCount,
-    ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,purchasedAt:Date.now(),builtStations:[],pendingTax:0,totalTaxCollected:0};
+    ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,purchasedAt:Date.now(),builtStations:[],stationTasks:{},pendingTax:0,totalTaxCollected:0};
 }
 function randomPointInZone(zone,seedExtra=""){
   const rng=makeRng(`${GALAXY_SEED}|owned-civ-station|${zone.zoneId}|${zone.builtStations?.length||0}|${seedExtra}|${Date.now()}`);
@@ -369,6 +379,7 @@ function defaultPlayer(id, name, x, y) {
     planetX:0, planetY:0, planetVx:0, planetVy:0, planetTool:"mining",
     cosmeticColor:"#ffd27a", suitColor:"#ffffff", weaponLevel:1, miningLevel:1, oxygenLevel:1,
     badgeRewards:{},
+    equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
   };
 }
 
@@ -435,9 +446,18 @@ function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=
 function sfc32(a,b,c,d){return()=>{a|=0;b|=0;c|=0;d|=0;let t=(a+b|0)+d|0;d=d+1|0;a=b^b>>>9;b=c+(c<<3)|0;c=(c<<21|c>>>11);c=c+t|0;return(t>>>0)/4294967296;};}
 function makeRng(s){const seed=xmur3(s);return sfc32(seed(),seed(),seed(),seed());}
 
-const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft","hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip","obelisk_core"];
-const RES_BASE={dirt:1,stone:3,copper:9,iron:10,gold:40,crystal:60,fuel:25,gas_canister:30,oxygen_tank:35,ice_block:4,lava_rock:12,magma_core:22,toxic_sludge:8,sand:2,grass_tuft:1,hull_plate:85,engine_core:140,shield_matrix:170,weapon_array:190,cargo_pod:95,nav_chip:155,obelisk_core:800};
-const RES_RARITY={dirt:1,stone:2,copper:3,iron:3,gold:5,crystal:6,fuel:4,gas_canister:2,oxygen_tank:2,ice_block:2,lava_rock:3,magma_core:4,toxic_sludge:3,sand:1,grass_tuft:1,hull_plate:5,engine_core:6,shield_matrix:6,weapon_array:6,cargo_pod:5,nav_chip:6,obelisk_core:8};
+const WEAPON_DEFS={
+  weapon_laser_mk1:{key:"weapon_laser_mk1",name:"Pulse Laser",class:"Laser",rarity:3,color:"#ffff66",damage:18,cooldown:0.20,speed:320,life:2.1,shots:1,spread:0,size:2.7,mode:"single",upgradeMult:1.16},
+  weapon_scatter_blaster:{key:"weapon_scatter_blaster",name:"Scatter Blaster",class:"Blaster",rarity:4,color:"#ff8844",damage:11,cooldown:0.34,speed:270,life:1.45,shots:5,spread:0.36,size:2.4,mode:"spread",upgradeMult:1.14},
+  weapon_ion_lance:{key:"weapon_ion_lance",name:"Ion Lance",class:"Lance",rarity:5,color:"#7be6ff",damage:31,cooldown:0.42,speed:430,life:1.9,shots:1,spread:0,size:3.2,mode:"pierce",upgradeMult:1.18},
+  weapon_plasma_orb:{key:"weapon_plasma_orb",name:"Plasma Orb",class:"Plasma",rarity:6,color:"#cc88ff",damage:44,cooldown:0.62,speed:220,life:2.6,shots:1,spread:0,size:5.5,mode:"orb",upgradeMult:1.20},
+  weapon_rail_cannon:{key:"weapon_rail_cannon",name:"Rail Cannon",class:"Rail",rarity:7,color:"#d6e1ff",damage:68,cooldown:0.92,speed:620,life:1.25,shots:1,spread:0,size:2.2,mode:"rail",upgradeMult:1.22},
+  weapon_meteor_swarm:{key:"weapon_meteor_swarm",name:"Meteor Swarm",class:"Swarm",rarity:8,color:"#ff5c7a",damage:16,cooldown:0.74,speed:285,life:2.25,shots:8,spread:0.75,size:3.1,mode:"swarm",upgradeMult:1.17}
+};
+const WEAPON_KEYS=Object.keys(WEAPON_DEFS);
+const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft","hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip","obelisk_core",...WEAPON_KEYS];
+const RES_BASE={dirt:1,stone:3,copper:9,iron:10,gold:40,crystal:60,fuel:25,gas_canister:30,oxygen_tank:35,ice_block:4,lava_rock:12,magma_core:22,toxic_sludge:8,sand:2,grass_tuft:1,hull_plate:85,engine_core:140,shield_matrix:170,weapon_array:190,cargo_pod:95,nav_chip:155,obelisk_core:800,weapon_laser_mk1:260,weapon_scatter_blaster:520,weapon_ion_lance:900,weapon_plasma_orb:1450,weapon_rail_cannon:2400,weapon_meteor_swarm:4200};
+const RES_RARITY={dirt:1,stone:2,copper:3,iron:3,gold:5,crystal:6,fuel:4,gas_canister:2,oxygen_tank:2,ice_block:2,lava_rock:3,magma_core:4,toxic_sludge:3,sand:1,grass_tuft:1,hull_plate:5,engine_core:6,shield_matrix:6,weapon_array:6,cargo_pod:5,nav_chip:6,obelisk_core:8,weapon_laser_mk1:3,weapon_scatter_blaster:4,weapon_ion_lance:5,weapon_plasma_orb:6,weapon_rail_cannon:7,weapon_meteor_swarm:8};
 const econRng=makeRng(GALAXY_SEED+"|economy");
 const economy={
   drift:Object.fromEntries(RES_KEYS.map(k=>[k,1])),
@@ -448,6 +468,21 @@ const economy={
   bought(k,q){this.scarcity[k]=Math.max(0.5,Math.min(1.5,this.scarcity[k]+q*0.02));},
   snapshot(){const o={};for(const k of RES_KEYS)o[k]=this.price(k);return o;}
 };
+function isWeaponKey(k){return !!WEAPON_DEFS[k];}
+function weaponLevelFor(p,k){return Math.max(1,Math.floor(p?.weaponLevels?.[k]||1));}
+function weaponUpgradeCost(p,k){const d=WEAPON_DEFS[k];if(!d)return Infinity;const lvl=weaponLevelFor(p,k);return Math.ceil((economy.price(k)||d.damage*20)*(0.65+lvl*0.85)*Math.pow(1.42,lvl-1));}
+function equippedWeaponKeyFor(p){return (p?.equippedWeapon&&isWeaponKey(p.equippedWeapon)&&inventoryCount(p,p.equippedWeapon)>0)?p.equippedWeapon:"weapon_laser_mk1";}
+function spawnWeaponProjectiles(p,ang,dmgStat){
+  const key=equippedWeaponKeyFor(p),d=WEAPON_DEFS[key]||WEAPON_DEFS.weapon_laser_mk1,lvl=weaponLevelFor(p,key),shots=d.shots||1,spread=d.spread||0;
+  const totalDamage=d.damage*Math.pow(d.upgradeMult||1.15,lvl-1)*dmgStat;
+  for(let i=0;i<shots;i++){
+    const offset=shots===1?0:(i-(shots-1)/2)*(spread/Math.max(1,shots-1));
+    const jitter=d.mode==="swarm"?(Math.random()-.5)*spread*.35:0;
+    const a=ang+offset+jitter,speed=(d.speed||PROJ_SPEED)*(d.mode==="swarm"?(0.84+Math.random()*0.35):1);
+    pvpProjectiles.push({id:`${p.id}_${Date.now()}_${Math.random()}`,ownerId:p.id,ownerName:p.name,x:p.x+Math.cos(a)*12,y:p.y+Math.sin(a)*12,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,damage:totalDamage/shots,life:d.life||PROJ_LIFE,weaponKey:key,color:d.color,size:d.size||2.5,mode:d.mode});
+  }
+  return d.cooldown||SHOOT_CD;
+}
 
 /* ── Account token + server-authoritative inventory ── */
 function base64urlToJson(input){
@@ -525,7 +560,7 @@ function isTrustedAccountSnapshot(auth){
 }
 function trustedSnapshotForPlayer(p,reason="cache"){
   if(!p?.memberId)return null;
-  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
+  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
 }
 function rememberTrustedSnapshot(p,reason="update"){
   if(!p?.memberId||!p.persistenceLoaded)return;
@@ -575,6 +610,8 @@ function cleanClientWixSnapshot(snapshot,memberId){
   if(typeof snapshot.xp==="number")out.xp=Math.max(0,Math.floor(snapshot.xp));
   if(snapshot.attrs&&typeof snapshot.attrs==="object")out.attrs=snapshot.attrs;
   if(snapshot.badgeRewards&&typeof snapshot.badgeRewards==="object")out.badgeRewards=snapshot.badgeRewards;
+  if(typeof snapshot.equippedWeapon==="string"&&isWeaponKey(snapshot.equippedWeapon))out.equippedWeapon=snapshot.equippedWeapon;
+  if(snapshot.weaponLevels&&typeof snapshot.weaponLevels==="object")out.weaponLevels=snapshot.weaponLevels;
   if(Array.isArray(snapshot.activeMercs))out.activeMercs=snapshot.activeMercs;
   if(snapshot.buildings&&typeof snapshot.buildings==="object")out.buildings=snapshot.buildings;
   for(const flag of ["persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
@@ -658,14 +695,14 @@ function validateTradeItems(p,items){
 }
 function emitInventorySync(p,reason="sync"){
   if(!p?.id)return;
-  io.to(p.id).emit("inventorySync",{credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),reason,persistenceLoaded:!!p.persistenceLoaded,accountLoaded:!!p.accountLoaded,memberId:p.memberId||null});
+  io.to(p.id).emit("inventorySync",{credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},reason,persistenceLoaded:!!p.persistenceLoaded,accountLoaded:!!p.accountLoaded,memberId:p.memberId||null});
 }
 async function persistPlayerNow(p,reason="update"){
   if(!p?.memberId){console.warn("Wix persistence skipped: player has no memberId", p?.id, reason);return;}
   if(p.suppressPersist||!isCurrentAccountSocket(p)){console.warn("Wix persistence skipped: superseded account socket", p?.id, p?.memberId, reason);return;}
   if(!p.persistenceLoaded){console.warn("Wix persistence skipped: account inventory snapshot not loaded yet", p?.id, p?.memberId, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
-  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),reason,updatedAt:Date.now()};
+  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),reason,updatedAt:Date.now()};
   try{
     const res = await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
     if(!res.ok){
@@ -736,6 +773,8 @@ function applyAuthAccountToPlayer(p,auth){
   if(auth.xp!==undefined)p.xp=Math.max(0,Math.floor(Number(auth.xp)||0));
   if(auth.attrs&&typeof auth.attrs==="object")p.attrs={...p.attrs,...auth.attrs};
   if(auth.badgeRewards&&typeof auth.badgeRewards==="object")p.badgeRewards={...auth.badgeRewards};
+  if(auth.weaponLevels&&typeof auth.weaponLevels==="object"){p.weaponLevels={...(p.weaponLevels||{})};for(const [k,v] of Object.entries(auth.weaponLevels)){if(isWeaponKey(k)){const lvl=Math.max(1,Math.min(20,Math.floor(Number(v)||1)));p.weaponLevels[k]=lvl;}}}
+  if(typeof auth.equippedWeapon==="string"&&isWeaponKey(auth.equippedWeapon))p.equippedWeapon=auth.equippedWeapon;
   if(Array.isArray(auth.activeMercs))p.activeMercs=normalizeMercs(auth.activeMercs,p);
   if(auth.buildings&&typeof auth.buildings==="object")p.savedBuildings=auth.buildings;
 }
@@ -931,13 +970,19 @@ const BUILD_RESOURCE_TO_TILE={dirt:1,stone:2,ice_block:6,lava_rock:8,toxic_sludg
 const planetMaps=new Map();
 function safePlanetInfo(raw){
   raw=raw||{};
-  const type=["lush","desert","ice","toxic","volcanic"].includes(raw.type)?raw.type:"lush";
-  const id=String(raw.id||`${type}_${Math.round(raw.x||0)}_${Math.round(raw.y||0)}`).slice(0,120);
-  const seed=String(raw.seed||`${GALAXY_SEED}|planet|${id}`).slice(0,180);
-  const resList=Array.isArray(raw.resList)?raw.resList.filter(k=>RES_KEYS.includes(k)).slice(0,10):["dirt","stone","copper","iron"];
-  return {id,seed,type,resList,x:Number(raw.x)||0,y:Number(raw.y)||0,radius:Number(raw.radius)||40};
+  const type=(raw.type==="asteroid")?"asteroid":(["lush","desert","ice","toxic","volcanic"].includes(raw.type)?raw.type:"lush");
+  const resList=Array.isArray(raw.resList)?raw.resList.filter(k=>RES_KEYS.includes(k)).slice(0,8):["dirt","stone","copper","iron"];
+  return {id:safeText(raw.id,80)||"planet",seed:safeText(raw.seed,100)||GALAXY_SEED,type,isAsteroid:!!raw.isAsteroid||type==="asteroid",resList,x:Math.round(Number(raw.x)||0),y:Math.round(Number(raw.y)||0),radius:Math.max(25,Math.min(220,Math.round(Number(raw.radius)||60)))};
 }
 function genPlanetMapServer(planet){
+  if(planet?.isAsteroid||planet?.type==="asteroid"){
+    const rngA=makeRng((planet.seed||planet.id)+"|asteroid-map"),randA=(a,b)=>Math.floor(rngA()*(b-a+1))+a,W=150,H=82,tiles=new Uint8Array(W*H),hp=new Uint8Array(W*H),heights=new Array(W).fill(H-6),idx=(x,y)=>y*W+x;
+    const cx=W/2,cy=H/2,rx=W*.43,ry=H*.36;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){const nx=(x-cx)/rx,ny=(y-cy)/ry,edge=nx*nx+ny*ny+(rngA()-.5)*.10;if(edge<1){let t=2,th=58;if(edge>.78){t=12;th=42;}if(rngA()<.24){t=4;th=78;}if(rngA()<.14||edge<.32){t=5;th=100;}tiles[idx(x,y)]=t;hp[idx(x,y)]=th;}}
+    for(let i=0;i<9;i++){let px=randA(18,W-18),py=randA(15,H-15);for(let s=0;s<46;s++){const rr=randA(2,4);for(let yy=-rr;yy<=rr;yy++)for(let xx=-rr;xx<=rr;xx++){const x=px+xx,y=py+yy;if(x>1&&y>1&&x<W-2&&y<H-3&&xx*xx+yy*yy<=rr*rr){tiles[idx(x,y)]=0;hp[idx(x,y)]=0;}}px=Math.max(4,Math.min(W-5,px+randA(-1,1)));py=Math.max(5,Math.min(H-5,py+randA(-1,1)));}}
+    for(let y=H-3;y<H;y++)for(let x=0;x<W;x++){tiles[idx(x,y)]=PLANET_TILE.BEDROCK;hp[idx(x,y)]=255;}
+    return {planet,W,H,tiles,hp,heights};
+  }
   const rng=makeRng(planet.seed+"|map"),W=320,H=140,sy2=45+Math.floor(rng()*13)-6;
   const heights=new Array(W).fill(0).map((_,x)=>Math.floor(sy2+Math.sin((x/28)+rng()*10)*6+Math.sin((x/9)+rng()*10)*2+(rng()-0.5)*2));
   const tiles=new Uint8Array(W*H),hp=new Uint8Array(W*H),idx=(x,y)=>y*W+x;
@@ -959,6 +1004,7 @@ function getPlanetMap(info){
 }
 function planetResForTile(planet,t,y,H){
   const d=y/H,l=planet.resList&&planet.resList.length?planet.resList:["dirt","stone","copper","iron"];
+  if(planet?.isAsteroid||planet?.type==="asteroid"){if(t===5)return Math.random()<0.85?"crystal":"gold";if(t===4)return Math.random()<0.62?"crystal":"gold";if(t===3)return Math.random()<0.5?"iron":"copper";return Math.random()<0.18?"crystal":"stone";}
   if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>["copper","iron"].includes(k));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){if(l.includes("gold")&&Math.random()<0.55)return"gold";if(l.includes("crystal")&&Math.random()<0.65)return"crystal";return l[Math.floor(Math.random()*l.length)];}if(t===5){if(l.includes("crystal")&&Math.random()<0.6+d*0.3)return"crystal";if(l.includes("gold")&&Math.random()<0.4+d*0.3)return"gold";return l[l.length-1];}return"stone";
 }
 function hpForPlacedTile(tile){return ({1:22,2:55,6:30,8:45,10:28,11:18,13:20})[tile]||25;}
@@ -1007,7 +1053,7 @@ function tickProjectiles(dt){
         if(target.shield>0){const abs=Math.min(target.shield,dmg);target.shield-=abs;dmg-=abs;}
         target.hp=Math.max(0,target.hp-dmg);target.shieldRegenTimer=4;
         io.to(sid).emit("hit",{damage:Math.round(dmg),hp:target.hp,shield:target.shield,by:p.ownerId});
-        io.to(p.ownerId).emit("hitConfirm",{targetId:sid,damage:Math.round(dmg)});
+        io.to(p.ownerId).emit("hitConfirm",{targetId:sid,damage:Math.round(dmg),weaponKey:p.weaponKey,color:p.color});
         pvpProjectiles.splice(i,1);
         if(target.hp<=0)handlePlayerKill(sid,p.ownerId);
         break;
@@ -1112,8 +1158,7 @@ function tickPlayers(dt){
     if(inp.shootX!==null&&p.shootCooldown<=0&&p.hp>0){
       const ang=Math.atan2(inp.shootY-p.y,inp.shootX-p.x);
       const dmgStat=(1+((p.attrs.damage-1)*0.4))*ship.damageMult;
-      pvpProjectiles.push({id:`${p.id}_${Date.now()}_${Math.random()}`,ownerId:p.id,ownerName:p.name,x:p.x,y:p.y,vx:Math.cos(ang)*PROJ_SPEED,vy:Math.sin(ang)*PROJ_SPEED,damage:BASE_DAMAGE*dmgStat,life:PROJ_LIFE});
-      p.shootCooldown=SHOOT_CD;inp.shootX=null;inp.shootY=null;
+      p.shootCooldown=spawnWeaponProjectiles(p,ang,dmgStat);inp.shootX=null;inp.shootY=null;
     }
     if(p.shootCooldown>0)p.shootCooldown=Math.max(0,p.shootCooldown-dt);
     p.lastSeen=Date.now();
@@ -1126,7 +1171,7 @@ function serverListSnap(p){return{id:p.id,name:p.name,x:Math.round(p.x),y:Math.r
 
 function broadcastWorldState(){
   const all=[ ...players.values()].map(snap);
-  const projs=pvpProjectiles.map(p=>({id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,ownerId:p.ownerId}));
+  const projs=pvpProjectiles.map(p=>({id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,ownerId:p.ownerId,weaponKey:p.weaponKey,color:p.color,size:p.size}));
   for(const[sid,p]of players){
     const nearby=all.filter(s=>s.id!==sid&&Math.hypot(s.x-p.x,s.y-p.y)<BROADCAST_RANGE);
     const nearProj=projs.filter(pr=>Math.hypot(pr.x-p.x,pr.y-p.y)<BROADCAST_RANGE);
@@ -1357,7 +1402,7 @@ io.on("connection",socket=>{
       if(cached&&inventoryPayloadHasItems(cached.invSlots)&&!inventoryPayloadHasItems(p.invSlots))applyPersistedSnapshotPreservingSession(p,cached);
     }
     restorePersistentBuildingsForPlayer(p);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc),persistenceLoaded:!!p.persistenceLoaded});
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},weaponDefs:WEAPON_DEFS,persistenceLoaded:!!p.persistenceLoaded});
     emitInventorySync(p,"login");
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
@@ -1382,7 +1427,7 @@ io.on("connection",socket=>{
       if(cached&&inventoryPayloadHasItems(cached.invSlots)&&!inventoryPayloadHasItems(p.invSlots))applyPersistedSnapshotPreservingSession(p,cached);
     }
     if(!linkResult.alreadyLinked)restorePersistentBuildingsForPlayer(p);
-    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,alreadyLinked:!!linkResult.alreadyLinked,persistenceLoaded:!!p.persistenceLoaded});
+    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},alreadyLinked:!!linkResult.alreadyLinked,persistenceLoaded:!!p.persistenceLoaded});
     emitInventorySync(p,linkResult.alreadyLinked?"account_link_confirmed":"account_linked");
     if(!p.persistenceLoaded)socket.emit("accountSyncPending",{reason:"Waiting for Wix inventory snapshot before saving."});
     if(!linkResult.alreadyLinked&&p.persistenceLoaded)persistPlayerSoon(p,"account_linked");
@@ -1415,6 +1460,36 @@ io.on("connection",socket=>{
     sh.lastAssistShotAt=now;
     const result=applySpaceDamageToPlayer(target,safeDamage,owner,"Ally Trade Ship");
     socket.emit("ownedTradeShipAttackConfirm",{targetId:target.id,stationKey:st.key,shipId:sh.id,damage:result.damage});
+  });
+
+  socket.on("equipWeapon",({weaponKey})=>{
+    const p=players.get(socket.id);weaponKey=String(weaponKey||"");
+    if(!p||!isWeaponKey(weaponKey)){socket.emit("weaponDenied",{reason:"Unknown weapon."});return;}
+    if(inventoryCount(p,weaponKey)<=0){socket.emit("weaponDenied",{reason:"You do not own that weapon."});return;}
+    p.equippedWeapon=weaponKey;p.weaponLevels=p.weaponLevels||{};p.weaponLevels[weaponKey]=weaponLevelFor(p,weaponKey);
+    socket.emit("weaponEquipped",{weaponKey,weaponLevels:p.weaponLevels});emitInventorySync(p,"equip_weapon");persistPlayerSoon(p,"equip_weapon");
+  });
+  socket.on("upgradeWeapon",({weaponKey})=>{
+    const p=players.get(socket.id);weaponKey=String(weaponKey||"");
+    if(!p||!isWeaponKey(weaponKey)){socket.emit("weaponDenied",{reason:"Unknown weapon."});return;}
+    if(inventoryCount(p,weaponKey)<=0){socket.emit("weaponDenied",{reason:"You do not own that weapon."});return;}
+    p.weaponLevels=p.weaponLevels||{};const cost=weaponUpgradeCost(p,weaponKey);
+    if((p.credits||0)<cost){socket.emit("weaponDenied",{reason:`Need ${cost}cr to upgrade this weapon.`});return;}
+    p.credits-=cost;p.weaponLevels[weaponKey]=weaponLevelFor(p,weaponKey)+1;
+    socket.emit("weaponUpgraded",{weaponKey,level:p.weaponLevels[weaponKey],credits:p.credits,weaponLevels:p.weaponLevels});syncAndPersist(p,"upgrade_weapon");
+  });
+  socket.on("setCivilizationStationTask",({zoneId,stationId,task,targetZoneId})=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="space")return;
+    zoneId=safeZoneId(zoneId);stationId=safeZoneId(stationId);task=task==="attack"?"attack":"mine";targetZoneId=safeZoneId(targetZoneId);
+    const zone=civilizationZones.get(zoneId);if(!zone||!playerOwnsCivilizationZone(p,zone)){socket.emit("civilizationTaskDenied",{reason:"You do not own that civilization zone."});return;}
+    if(Math.hypot(p.x-zone.x,p.y-zone.y)>660){socket.emit("civilizationTaskDenied",{reason:"Command ships from the main super station."});return;}
+    const baseStationOk=stationId.startsWith(`${zoneId}|civst|`);const builtOk=(zone.builtStations||[]).some(st=>st.id===stationId);
+    if(!stationId||stationId.endsWith("|super")||(!baseStationOk&&!builtOk)){socket.emit("civilizationTaskDenied",{reason:"Select one of your normal zone stations, not the super station."});return;}
+    if(task==="attack"){
+      const target=civilizationZones.get(targetZoneId);if(!target||target.zoneId===zoneId){socket.emit("civilizationTaskDenied",{reason:"Choose a different owned civilization zone to attack."});return;}
+    }
+    zone.ownerId=p.id;zone.ownerName=p.name;zone.stationTasks=zone.stationTasks||{};zone.stationTasks[stationId]={task,targetZoneId:task==="attack"?targetZoneId:null,updatedAt:Date.now()};
+    socket.emit("civilizationStationTaskSet",{zone:publicCivilizationZone(zone,p.id),stationId,task,targetZoneId});broadcastCivilizationZonesList();persistPlayerSoon(p,"civilization_station_task");
   });
 
   socket.on("modeChange",({mode,planetId,x,y})=>{
@@ -1801,6 +1876,7 @@ io.on("connection",socket=>{
     const pt=randomPointInZone(zone,tier);
     const station={id:`${zone.zoneId}|ownedciv|${zone.builtStations.length}_${Date.now()}`,x:pt.x,y:pt.y,tier,ownerName:p.name,createdAt:Date.now()};
     zone.builtStations.push(station);
+    zone.stationTasks=zone.stationTasks||{};zone.stationTasks[station.id]={task:"mine",targetZoneId:null,updatedAt:Date.now()};
     addScore(p,800,"Civilization Station Built");
     socket.emit("civilizationStationBuilt",{zone:publicCivilizationZone(zone,p.id),station,credits:p.credits,cost});
     socket.emit("creditUpdate",{credits:p.credits});
