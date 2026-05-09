@@ -419,6 +419,9 @@ canvas.addEventListener("wheel",e=>{
   }else if(inventoryOpen){
     inventoryScrollRows=clamp(inventoryScrollRows+(e.deltaY>0?1:-1),0,maxInventoryScrollRows());
     e.preventDefault();
+  }else if(shopOpen&&nearStation?.isCivSuperStation){
+    civCommandStationScroll=clamp(civCommandStationScroll+(e.deltaY>0?1:-1),0,maxCivCommandStationScroll());
+    e.preventDefault();
   }else if(shopOpen&&shopTab==="sell"){
     shopInventoryScrollRows=clamp(shopInventoryScrollRows+(e.deltaY>0?1:-1),0,maxShopInventoryScrollRows());
     e.preventDefault();
@@ -426,9 +429,15 @@ canvas.addEventListener("wheel",e=>{
 },{passive:false});
 function maxInventoryScrollRows(){return Math.max(0,Math.ceil(player.maxSlots/INV_COLS)-INV_VISIBLE_ROWS);}
 function maxShopInventoryScrollRows(){return Math.max(0,Math.ceil(player.maxSlots/INV_COLS)-SHOP_SELL_VISIBLE_ROWS);}
+function maxCivCommandStationScroll(){
+  const st=nearStation;
+  if(!st?.isCivSuperStation)return 0;
+  const zone=visibleCivZones.find(z=>z.id===st.civilizationZoneId)||{id:st.civilizationZoneId};
+  return Math.max(0,civCommandStationsForZone(zone).length-4);
+}
 function maxQuestLogScroll(){return Math.max(0,questLog.length-QUEST_LOG_VISIBLE_ROWS);}
 function maxBadgeLogScroll(){return Math.max(0,Object.keys(badgeState?.badges||{}).length-BADGE_LOG_VISIBLE_ROWS);}
-function clampPanelScrolls(){inventoryScrollRows=clamp(inventoryScrollRows,0,maxInventoryScrollRows());shopInventoryScrollRows=clamp(shopInventoryScrollRows,0,maxShopInventoryScrollRows());questLogScroll=clamp(questLogScroll,0,maxQuestLogScroll());badgeLogScroll=clamp(badgeLogScroll,0,maxBadgeLogScroll());}
+function clampPanelScrolls(){inventoryScrollRows=clamp(inventoryScrollRows,0,maxInventoryScrollRows());shopInventoryScrollRows=clamp(shopInventoryScrollRows,0,maxShopInventoryScrollRows());civCommandStationScroll=clamp(civCommandStationScroll,0,maxCivCommandStationScroll());questLogScroll=clamp(questLogScroll,0,maxQuestLogScroll());badgeLogScroll=clamp(badgeLogScroll,0,maxBadgeLogScroll());}
 
 /* ── Resources ── */
 const RES={
@@ -591,6 +600,7 @@ let civilizationZonesById=new Map();
 let civilizationBuildMenuTier="outpost";
 let civCommandSelectedStationId=null;
 let civCommandTargetZoneId=null;
+let civCommandStationScroll=0;
 
 /* ── Game state ── */
 let gameOver=false,inventoryOpen=false,shopOpen=false,attrOpen=false,questLogOpen=false,badgeLogOpen=false;
@@ -850,7 +860,7 @@ function civilizationZoneForChunk(cx,cy){
   const color=["#7be6ff","#78ff8a","#ffdd44","#cc88ff","#ff8844"][Math.floor(rng()*5)];
   const zone=decorateCivilizationZone({id:`civ_${key}`,x:bx+(rng()-.5)*CHUNK_SIZE*.45,y:by+(rng()-.5)*CHUNK_SIZE*.45,radius:360+rng()*190,name:randomFactionName(rng),color,turrets:[]});
   const tc=4+Math.floor(rng()*4);
-  for(let i=0;i<tc;i++){const a=Math.PI*2*i/tc+rng()*0.4,r=zone.radius*(0.72+rng()*0.22);zone.turrets.push({id:`${zone.id}_tur_${i}`,x:zone.x+Math.cos(a)*r,y:zone.y+Math.sin(a)*r,range:720,damage:16+Math.floor(rng()*9),cooldown:0,color});}
+  for(let i=0;i<tc;i++){const a=Math.PI*2*i/tc+rng()*0.4,r=zone.radius*(0.72+rng()*0.22);zone.turrets.push({id:`${zone.id}_tur_${i}`,x:zone.x+Math.cos(a)*r,y:zone.y+Math.sin(a)*r,range:360,damage:16+Math.floor(rng()*9),cooldown:0,color});}
   generatedCivZones.set(key,zone);return zone;
 }
 function makeCivilizationStation(zone,idx,tierKey,rng){
@@ -2735,9 +2745,9 @@ function drawMercShips(camX,camY){
 }
 function turretDamageLocal(t){
   const base=Math.floor((t.damage||18) || 18);
-  // Player request: civilization-zone turrets were too strong.
-  // Reduce only CIV turret DPS about 3.5x while leaving player-built defense turrets unchanged.
-  if(t?.type==="civ_turret")return Math.max(2,Math.floor(base/3.5));
+  // Player request v5: reduce civilization-zone turret DPS to half of v4.
+  // v4 was base / 3.5, so v5 is base / 7. Player-built turrets are unchanged.
+  if(t?.type==="civ_turret")return Math.max(1,Math.floor(base/7));
   return base;
 }
 function updateDefenseTurrets(dt){
@@ -3663,7 +3673,26 @@ function drawMinimap(){
 
 /* ── Shop (same structure as before, wired to server) ── */
 function civCommandStationsForZone(zone){
-  return visibleStations.filter(s=>s.civilizationZoneId===zone.id&&!s.isCivSuperStation).sort((a,b)=>a.id.localeCompare(b.id));
+  const zoneId=zone?.id||zone?.zoneId;
+  const rec=civZoneRecord(zoneId)||{};
+  const byId=new Map();
+  for(const s of visibleStations){
+    if(s?.civilizationZoneId===zoneId&&!s.isCivSuperStation)byId.set(s.id,s);
+  }
+  // Include server-recorded built stations even when the visual station object has
+  // not been drawn into the current visibleStations array yet. This lets the super
+  // station command menu target outpost, standard, advanced, and capital stations.
+  for(const bs of rec.builtStations||[]){
+    if(!bs?.id||byId.has(bs.id))continue;
+    const tierDef=STATION_TIERS[bs.tier]||STATION_TIERS.standard;
+    byId.set(bs.id,{id:bs.id,x:bs.x,y:bs.y,tier:bs.tier,tierDef,isOwnedCivStation:true,civilizationZoneId:zoneId});
+  }
+  const order={outpost:0,standard:1,advanced:2,capital:3};
+  return [...byId.values()].sort((a,b)=>{
+    const ao=order[a.tier]??9,bo=order[b.tier]??9;
+    if(ao!==bo)return ao-bo;
+    return String(a.id).localeCompare(String(b.id));
+  });
 }
 function civTargetZonesFor(zone){
   return visibleCivZones.filter(z=>z.id!==zone.id).sort((a,b)=>dist(zone.x,zone.y,a.x,a.y)-dist(zone.x,zone.y,b.x,b.y)).slice(0,8);
@@ -3695,8 +3724,11 @@ function drawCivilizationSuperStationMenu(st){
   ctx.fillStyle="#ffdd44";ctx.font="bold 9px monospace";ctx.fillText("BUILD",px+18,py+106);const tiers=["outpost","standard","advanced","capital"],startY=py+114;
   tiers.forEach((tier,i)=>{const def=STATION_TIERS[tier],cost=(rec.stationCosts&&rec.stationCosts[tier])||estimateCivStationCost(zone,tier),can=player.credits>=cost,bx=px+18+i*122,by=startY,bw=116,bh=28;ctx.fillStyle=can?"#102416":"#241014";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=def.color;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=def.color;ctx.font="bold 8px monospace";ctx.fillText(def.name,bx+5,by+11);ctx.fillStyle=can?"#78ff8a":"#ff7777";ctx.font="7px monospace";ctx.fillText(`${cost.toLocaleString()}cr`,bx+5,by+22);});
   ctx.fillStyle="#7be6ff";ctx.font="bold 9px monospace";ctx.fillText("STATION SHIP TASKS",px+18,py+156);
-  const listX=px+18,listY=py+164,listW=236,rowH=22;ctx.fillStyle="#0b1020";ctx.fillRect(listX,listY,listW,92);ctx.strokeStyle="#213654";ctx.strokeRect(listX,listY,listW,92);
-  stations.slice(0,4).forEach((s,i)=>{const task=civStationTask(zone.id,s.id),sel=s.id===civCommandSelectedStationId,by=listY+i*rowH;ctx.fillStyle=sel?"#1b3550":"#0f1419";ctx.fillRect(listX+2,by+2,listW-4,rowH-3);ctx.strokeStyle=sel?"#7be6ff":"#203044";ctx.strokeRect(listX+2,by+2,listW-4,rowH-3);ctx.fillStyle=s.tierDef?.color||"#ffdd44";ctx.font="bold 8px monospace";ctx.fillText(`${s.tierDef?.name||s.tier} ${i+1}`,listX+7,by+14);ctx.fillStyle=task.task==="attack"?"#ff7777":"#78ff8a";ctx.textAlign="right";ctx.fillText(task.task==="attack"?"ATTACK":"MINE",listX+listW-8,by+14);ctx.textAlign="left";});
+  civCommandStationScroll=clamp(civCommandStationScroll,0,Math.max(0,stations.length-4));
+  const listX=px+18,listY=py+164,listW=236,rowH=22,visibleRows=4;ctx.fillStyle="#0b1020";ctx.fillRect(listX,listY,listW,92);ctx.strokeStyle="#213654";ctx.strokeRect(listX,listY,listW,92);
+  const visibleStationRows=stations.slice(civCommandStationScroll,civCommandStationScroll+visibleRows);
+  visibleStationRows.forEach((s,i)=>{const task=civStationTask(zone.id,s.id),sel=s.id===civCommandSelectedStationId,by=listY+i*rowH,stationIndex=civCommandStationScroll+i+1;ctx.fillStyle=sel?"#1b3550":"#0f1419";ctx.fillRect(listX+2,by+2,listW-4,rowH-3);ctx.strokeStyle=sel?"#7be6ff":"#203044";ctx.strokeRect(listX+2,by+2,listW-4,rowH-3);ctx.fillStyle=s.tierDef?.color||"#ffdd44";ctx.font="bold 8px monospace";ctx.fillText(`${s.tierDef?.name||s.tier} ${stationIndex}`,listX+7,by+14);ctx.fillStyle=task.task==="attack"?"#ff7777":"#78ff8a";ctx.textAlign="right";ctx.fillText(task.task==="attack"?"ATTACK":"MINE",listX+listW-8,by+14);ctx.textAlign="left";});
+  if(stations.length>visibleRows){ctx.fillStyle="#8fa3cc";ctx.font="6px monospace";ctx.fillText(`Scroll wheel: ${civCommandStationScroll+1}-${Math.min(stations.length,civCommandStationScroll+visibleRows)} / ${stations.length}`,listX+5,listY+90);ctx.fillStyle=civCommandStationScroll>0?"#7be6ff":"#304050";ctx.fillText("▲",listX+listW-14,listY+10);ctx.fillStyle=civCommandStationScroll<stations.length-visibleRows?"#7be6ff":"#304050";ctx.fillText("▼",listX+listW-14,listY+88);}
   const selStation=stations.find(s=>s.id===civCommandSelectedStationId),selTask=selStation?civStationTask(zone.id,selStation.id):null;
   const cmdX=px+270,cmdY=py+150;drawMiniCivMap(zone,targets,civCommandTargetZoneId,cmdX,cmdY,228,72);
   targets.slice(0,4).forEach((z,i)=>{const bx=cmdX+(i%2)*114,by=cmdY+80+Math.floor(i/2)*20,bw=108,bh=17;ctx.fillStyle=z.id===civCommandTargetZoneId?"#2a2410":"#101820";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=z.id===civCommandTargetZoneId?"#ffdd44":"#28466a";ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=z.color||"#b9f3ff";ctx.font="7px monospace";ctx.fillText((z.name||"Zone").slice(0,17),bx+4,by+12);});
@@ -3712,7 +3744,7 @@ function handleCivilizationSuperStationClick(st,mx,my){
   if(!owned){const bx=px+140,by=py+110,bw=240,bh=30;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){socket.emit("buyCivilizationZone",civZonePayloadFromStation(st));showFT("Buying civilization zone...",ship.x,ship.y-20,"#ffdd44",10);}return;}
   if(!isOwn)return;
   const tiers=["outpost","standard","advanced","capital"],startY=py+114;for(let i=0;i<tiers.length;i++){const bx=px+18+i*122,by=startY,bw=116,bh=28;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){socket.emit("buildCivilizationStation",{zoneId:zone.id,tier:tiers[i]});showFT(`Building ${STATION_TIERS[tiers[i]].name}...`,ship.x,ship.y-20,"#78ff8a",10);return;}}
-  const stations=civCommandStationsForZone(zone),listX=px+18,listY=py+164,listW=236,rowH=22;for(let i=0;i<Math.min(4,stations.length);i++){const by=listY+i*rowH;if(mx>=listX&&mx<=listX+listW&&my>=by&&my<=by+rowH){civCommandSelectedStationId=stations[i].id;return;}}
+  const stations=civCommandStationsForZone(zone),listX=px+18,listY=py+164,listW=236,rowH=22;const visibleStationRows=stations.slice(civCommandStationScroll,civCommandStationScroll+4);for(let i=0;i<visibleStationRows.length;i++){const by=listY+i*rowH;if(mx>=listX&&mx<=listX+listW&&my>=by&&my<=by+rowH){civCommandSelectedStationId=visibleStationRows[i].id;return;}}
   const targets=civTargetZonesFor(zone),cmdX=px+270,cmdY=py+150;for(let i=0;i<Math.min(4,targets.length);i++){const bx=cmdX+(i%2)*114,by=cmdY+80+Math.floor(i/2)*20,bw=108,bh=17;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){civCommandTargetZoneId=targets[i].id;return;}}
   const b1={x:listX,y:py+263,w:108,h:20},b2={x:listX+122,y:py+263,w:132,h:20};
   if(civCommandSelectedStationId&&mx>=b1.x&&mx<=b1.x+b1.w&&my>=b1.y&&my<=b1.y+b1.h){socket.emit("setCivilizationStationTask",{zoneId:zone.id,stationId:civCommandSelectedStationId,task:"mine"});showFT("Station ships set to mine",ship.x,ship.y-22,"#78ff8a",10);return;}
