@@ -860,7 +860,7 @@ function civilizationZoneForChunk(cx,cy){
   const color=["#7be6ff","#78ff8a","#ffdd44","#cc88ff","#ff8844"][Math.floor(rng()*5)];
   const zone=decorateCivilizationZone({id:`civ_${key}`,x:bx+(rng()-.5)*CHUNK_SIZE*.45,y:by+(rng()-.5)*CHUNK_SIZE*.45,radius:360+rng()*190,name:randomFactionName(rng),color,turrets:[]});
   const tc=4+Math.floor(rng()*4);
-  for(let i=0;i<tc;i++){const a=Math.PI*2*i/tc+rng()*0.4,r=zone.radius*(0.72+rng()*0.22);zone.turrets.push({id:`${zone.id}_tur_${i}`,x:zone.x+Math.cos(a)*r,y:zone.y+Math.sin(a)*r,range:360,damage:16+Math.floor(rng()*9),cooldown:0,color});}
+  for(let i=0;i<tc;i++){const a=Math.PI*2*i/tc+rng()*0.4,r=zone.radius*(0.72+rng()*0.22);zone.turrets.push({id:`${zone.id}_tur_${i}`,x:zone.x+Math.cos(a)*r,y:zone.y+Math.sin(a)*r,range:360,damage:16+Math.floor(rng()*9),cooldown:0,color,maxHp:260,hp:260,destroyed:false});}
   generatedCivZones.set(key,zone);return zone;
 }
 function makeCivilizationStation(zone,idx,tierKey,rng){
@@ -973,6 +973,73 @@ function updateNpcTradeShipRespawns(st,dt){
   }
 }
 
+function civRaidTargetRaw(target){
+  if(!target)return null;
+  if(target.type==="npcTradeShip")return {type:"npcTradeShip",stationId:target.station?.id,shipId:target.obj?.id,x:target.x,y:target.y,sourceZoneId:target.station?.civilizationZoneId||null};
+  if(target.type==="npcStation")return {type:"npcStation",stationId:target.station?.id||target.obj?.id,x:target.x,y:target.y,sourceZoneId:target.station?.civilizationZoneId||null};
+  if(target.type==="civTurret")return {type:"civTurret",zoneId:target.zone?.id||target.zone?.zoneId,turretId:target.obj?.id,x:target.x,y:target.y,sourceZoneId:target.zone?.id||target.zone?.zoneId};
+  return null;
+}
+function civRaidRemainingTargets(targetZoneId){
+  const out=[];
+  for(const est of visibleStations){
+    if(est.destroyed||est.civilizationZoneId!==targetZoneId)continue;
+    out.push({type:"npcStation",station:est,obj:est,x:est.x,y:est.y,weight:1.08});
+    for(const ets of est.tradeShips||[])if(ets.hp>0)out.push({type:"npcTradeShip",station:est,obj:ets,x:ets.x,y:ets.y,weight:0.82});
+  }
+  const z=visibleCivZoneById(targetZoneId);
+  if(z){
+    for(const t of z.turrets||[]){
+      ensureCivilizationTurretState(t,z);
+      if(!t.destroyed&&t.hp>0)out.push({type:"civTurret",zone:z,obj:t,x:t.x,y:t.y,weight:0.95});
+    }
+  }
+  return out;
+}
+function findCivilizationRaidTargetForShip(ts,station,targetZoneId,targetZone){
+  const targets=civRaidRemainingTargets(targetZoneId);
+  if(!targets.length)return null;
+  let best=null,bs=Infinity;
+  for(const t of targets){
+    let score=dist(ts.x,ts.y,t.x,t.y)*(t.weight||1);
+    // Ships that cross the raid path become the highest-priority smart retarget.
+    if(t.type==="npcTradeShip"){
+      const routeEndX=Number.isFinite(Number(targetZone?.x))?Number(targetZone.x):t.x;
+      const routeEndY=Number.isFinite(Number(targetZone?.y))?Number(targetZone.y):t.y;
+      const pathD=pointSegmentDistance(t.x,t.y,station.x,station.y,routeEndX,routeEndY);
+      if(pathD<520)score*=0.55;
+    }
+    if(score<bs){bs=score;best=t;}
+  }
+  return best;
+}
+function applyCivilizationRaidDamage(ts,station,target){
+  if(!target)return;
+  const attackerRaw=tradeShipRawTarget(ts,station);
+  attackerRaw.targetZoneId=station.civAttackTargetZoneId;
+  ts.civRaidTargetZoneId=station.civAttackTargetZoneId;
+  if(target.type==="npcTradeShip"){
+    const dmg=ts.damage*1.15;
+    target.obj.hp-=dmg;
+    target.obj.state="combat";target.obj.stateTimer=999;target.obj.combatTarget=attackerRaw;target.obj.shootTimer=Math.min(target.obj.shootTimer||0,0.16);
+    if(target.station?.civilizationZoneId)alertCivilizationZoneDefendersAgainstTarget(target.station.civilizationZoneId,attackerRaw,"enemy civilization ships");
+    showFT(`RAID -${Math.round(dmg)}`,target.obj.x,target.obj.y,"#ff5544",8);
+    if(target.obj.hp<=0)killTradeShip(target.obj,target.station);
+  }else if(target.type==="npcStation"){
+    const r=applyDamageToStation(target.station,ts.damage*1.35,{markPlayerHostile:false});
+    if(target.station?.civilizationZoneId)alertCivilizationZoneDefendersAgainstTarget(target.station.civilizationZoneId,attackerRaw,"enemy civilization ships");
+    showFT(`CIV RAID -${Math.round(r.damage)}`,target.station.x,target.station.y-18,"#ff5544",8);
+    if(r.destroyed)destroyNpcStation(target.station);
+  }else if(target.type==="civTurret"){
+    ensureCivilizationTurretState(target.obj,target.zone);
+    const dmg=ts.damage*1.12;
+    target.obj.hp=Math.max(0,(target.obj.hp||target.obj.maxHp||260)-dmg);
+    target.obj.assistTarget=attackerRaw;target.obj.cooldown=Math.min(target.obj.cooldown||0,0.12);
+    if(target.zone?.id||target.zone?.zoneId)alertCivilizationZoneDefendersAgainstTarget(target.zone.id||target.zone.zoneId,attackerRaw,"enemy civilization ships");
+    showFT(`TURRET -${Math.round(dmg)}`,target.obj.x,target.obj.y,"#ff5544",8);
+    if(target.obj.hp<=0)destroyCivilizationTurret(target.obj,target.zone,"attacking ships");
+  }
+}
 function updateTradeShip(ts,station,allPlanets,dt){
   ts.stateTimer=Math.max(0,ts.stateTimer-dt);ts.shootTimer=Math.max(0,ts.shootTimer-dt);ts.playerPursuitCooldown=Math.max(0,(ts.playerPursuitCooldown||0)-dt);
   if((station.destroyed||station.underAttackTimer>0||station.underPirateAttackTimer>0||station.underCivAttackTimer>0)&&ts.state!=="combat"&&ts.state!=="flee"){ts.state="combat";ts.stateTimer=999;}
@@ -1011,31 +1078,22 @@ function updateTradeShip(ts,station,allPlanets,dt){
   }
   if(ts.state==="flee"){const ang=angleToward(ts.x,ts.y,ship.x,ship.y)+Math.PI;ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed*1.3,0.08);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed*1.3,0.08);if(ts.stateTimer<=0)ts.state="return";ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;}
   if(station.civTask==="attack"&&station.civAttackTargetZoneId){
-    const targetZone=visibleCivZones.find(z=>z.id===station.civAttackTargetZoneId)||((station.civAttackTargetX||station.civAttackTargetY)?{id:station.civAttackTargetZoneId,x:station.civAttackTargetX,y:station.civAttackTargetY,radius:station.civAttackTargetRadius||430,name:station.civAttackTargetName||"Target Zone",color:station.civAttackTargetColor||"#ffdd44"}:null);
-    const enemyStations=visibleStations.filter(s=>s.civilizationZoneId===station.civAttackTargetZoneId&&!s.destroyed);
-    const enemyShips=[];for(const est of enemyStations)for(const ets of est.tradeShips||[])if(ets.hp>0)enemyShips.push({ship:ets,station:est});
-    let target=null;
-    if(enemyShips.length)target=enemyShips.sort((a,b)=>dist(ts.x,ts.y,a.ship.x,a.ship.y)-dist(ts.x,ts.y,b.ship.x,b.ship.y))[0];
-    const targetStation=enemyStations.sort((a,b)=>dist(ts.x,ts.y,a.x,a.y)-dist(ts.x,ts.y,b.x,b.y))[0];
-    const tx=target?.ship?.x ?? targetStation?.x ?? targetZone?.x;
-    const ty=target?.ship?.y ?? targetStation?.y ?? targetZone?.y;
+    const targetZone=visibleCivZoneById(station.civAttackTargetZoneId)||((station.civAttackTargetX||station.civAttackTargetY)?{id:station.civAttackTargetZoneId,x:station.civAttackTargetX,y:station.civAttackTargetY,radius:station.civAttackTargetRadius||430,name:station.civAttackTargetName||"Target Zone",color:station.civAttackTargetColor||"#ffdd44"}:null);
+    const target=findCivilizationRaidTargetForShip(ts,station,station.civAttackTargetZoneId,targetZone);
+    const tx=target?.x ?? targetZone?.x;
+    const ty=target?.y ?? targetZone?.y;
     if(Number.isFinite(tx)&&Number.isFinite(ty)){
       const d=dist(ts.x,ts.y,tx,ty),ang=angleToward(ts.x,ts.y,tx,ty);
-      ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed*1.08,0.06);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed*1.08,0.06);ts.angle=ang;
-      if(ts.shootTimer<=0&&d<340){
-        ts.shootTimer=0.45+Math.random()*0.25;
-        spawnWarProjectile(ts.x,ts.y,tx,ty,station.factionColor||"#ffdd44",360);
-        const attackerRaw=tradeShipRawTarget(ts,station);ts.civRaidTargetZoneId=station.civAttackTargetZoneId;
-        if(target?.ship){
-          target.ship.hp-=ts.damage*1.15;target.ship.state="combat";target.ship.stateTimer=999;target.ship.combatTarget=attackerRaw;target.ship.shootTimer=Math.min(target.ship.shootTimer||0,0.16);
-          if(target.station?.civilizationZoneId)alertCivilizationZoneDefendersAgainstTarget(target.station.civilizationZoneId,attackerRaw,"enemy civilization ships");
-          showFT(`RAID -${Math.round(ts.damage*1.15)}`,target.ship.x,target.ship.y,"#ff5544",8);if(target.ship.hp<=0)killTradeShip(target.ship,target.station);
-        }
-        else if(targetStation){
-          const r=applyDamageToStation(targetStation,ts.damage*1.35,{markPlayerHostile:false});
-          if(targetStation?.civilizationZoneId)alertCivilizationZoneDefendersAgainstTarget(targetStation.civilizationZoneId,attackerRaw,"enemy civilization ships");
-          showFT(`CIV RAID -${Math.round(r.damage)}`,targetStation.x,targetStation.y-18,"#ff5544",8);if(r.destroyed)destroyNpcStation(targetStation);
-        }
+      ts.vx=lerp(ts.vx,Math.cos(ang)*ts.speed*1.10,0.065);ts.vy=lerp(ts.vy,Math.sin(ang)*ts.speed*1.10,0.065);ts.angle=ang;
+      if(target){ts.civRaidTarget=civRaidTargetRaw(target);}
+      if(target&&ts.shootTimer<=0&&d<360){
+        ts.shootTimer=0.42+Math.random()*0.24;
+        spawnWarProjectile(ts.x,ts.y,target.x,target.y,station.factionColor||"#ffdd44",380);
+        applyCivilizationRaidDamage(ts,station,target);
+      }
+      if(!target&&targetZone&&d<(targetZone.radius||430)*0.25){
+        ts.vx=lerp(ts.vx,Math.cos((ts.angle||0)+Math.PI/2)*ts.speed*0.35,0.03);
+        ts.vy=lerp(ts.vy,Math.sin((ts.angle||0)+Math.PI/2)*ts.speed*0.35,0.03);
       }
     }else{ts.state="return";}
     ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;
@@ -1486,6 +1544,32 @@ function npcTradeShipFireAtRaider(ts,station,ep){
 }
 function stationZoneId(st){return st?.civilizationZoneId||null;}
 function visibleCivZoneById(zoneId){return visibleCivZones.find(z=>z.id===zoneId||z.zoneId===zoneId)||null;}
+function ensureCivilizationTurretState(t,zone=null){
+  if(!t)return null;
+  if(!t.id)t.id=`${zone?.id||zone?.zoneId||t.zoneId||"civ"}_tur_${Math.round(t.x||0)}_${Math.round(t.y||0)}`;
+  if(!t.zoneId)t.zoneId=zone?.id||zone?.zoneId||null;
+  t.type="civ_turret";
+  if(!Number.isFinite(Number(t.maxHp)))t.maxHp=260;
+  if(!Number.isFinite(Number(t.hp)))t.hp=t.maxHp;
+  if(t.hp<=0)t.destroyed=true;
+  return t;
+}
+function resolveCivilizationTurret(zoneId,turretId){
+  const z=visibleCivZoneById(zoneId);
+  if(!z)return null;
+  for(const t of z.turrets||[]){
+    ensureCivilizationTurretState(t,z);
+    if(t.id===turretId&&!t.destroyed&&t.hp>0)return {zone:z,turret:t};
+  }
+  return null;
+}
+function destroyCivilizationTurret(t,zone,attackerLabel="raid") {
+  if(!t||t.destroyed)return;
+  t.destroyed=true;t.hp=0;t.cooldown=999;t.assistTarget=null;
+  const label=zone?.name||"civilization zone";
+  showFT("TURRET DESTROYED",t.x,t.y-16,"#ff5544",10);
+  if(dist(ship.x,ship.y,t.x,t.y)<1800)addChat("Civ Raid",`${label} turret destroyed by ${attackerLabel}.`,"#ff7777");
+}
 function pointInsideCivilizationZone(zoneId,x,y,pad=0){
   const z=visibleCivZoneById(zoneId);
   if(!z||!Number.isFinite(Number(x))||!Number.isFinite(Number(y)))return false;
@@ -1533,6 +1617,9 @@ function resolveNpcCombatTargetRaw(raw,homeStation=null){
   }else if(raw.type==="npcStation"){
     const st=visibleStations.find(s=>s.id===raw.stationId&&!s.destroyed);
     if(st&&(!homeStation||st.id!==homeStation.id))return {type:"npcStation",x:st.x,y:st.y,obj:st,station:st};
+  }else if(raw.type==="civTurret"){
+    const found=resolveCivilizationTurret(raw.zoneId||raw.targetZoneId,raw.turretId);
+    if(found)return {type:"civTurret",x:found.turret.x,y:found.turret.y,obj:found.turret,zone:found.zone};
   }else if(raw.type==="ownedTradeShip"){
     const st=ownedStationsList.find(s=>s.key===raw.stationKey&&!s.destroyed);
     const os=ownedTradeShips.get(raw.shipId);
@@ -1621,6 +1708,7 @@ function normalizeCivDefenseTarget(target){
   if(target.type==="otherPlayer")return {type:"otherPlayer",playerId:target.playerId||target.obj?.id,x:target.x,y:target.y};
   if(target.type==="npcTradeShip")return {type:"npcTradeShip",stationId:target.stationId||target.station?.id,shipId:target.shipId||target.obj?.id,x:target.x,y:target.y,sourceZoneId:target.sourceZoneId||target.station?.civilizationZoneId||null};
   if(target.type==="npcStation")return {type:"npcStation",stationId:target.stationId||target.station?.id||target.obj?.id,x:target.x,y:target.y,sourceZoneId:target.sourceZoneId||target.station?.civilizationZoneId||null};
+  if(target.type==="civTurret")return {type:"civTurret",zoneId:target.zoneId||target.zone?.id||target.zone?.zoneId,turretId:target.turretId||target.obj?.id,x:target.x,y:target.y,sourceZoneId:target.zoneId||target.zone?.id||target.zone?.zoneId};
   if(target.type==="ownedTradeShip")return {type:"ownedTradeShip",stationKey:target.stationKey||target.station?.key,shipId:target.shipId||target.obj?.id,x:target.x,y:target.y};
   if(target.type==="ownedStation")return {type:"ownedStation",stationKey:target.stationKey||target.station?.key||target.obj?.key,x:target.x,y:target.y};
   if(target.type==="player")return {type:"player",x:target.x||ship.x,y:target.y||ship.y};
@@ -2127,6 +2215,9 @@ function resolveOwnedAssistTarget(target){
   }else if(target.type==="ownedStation"){
     const st=ownedStationsList.find(s=>s.key===target.stationKey&&!s.destroyed);
     if(st)return {type:"ownedStation",station:st,obj:st,x:st.x,y:st.y,valid:true};
+  }else if(target.type==="civTurret"){
+    const found=resolveCivilizationTurret(target.zoneId||target.targetZoneId,target.turretId);
+    if(found)return {type:"civTurret",zone:found.zone,obj:found.turret,x:found.turret.x,y:found.turret.y,valid:true};
   }else if(target.type==="ownedTradeShip"){
     const os=ownedTradeShips.get(target.shipId);
     const st=ownedStationsList.find(s=>s.key===target.stationKey&&!s.destroyed);
@@ -2263,6 +2354,8 @@ function updateOwnedTradeShipAssist(os,st,dt){
       socket.emit("damageOwnedStation",{stationKey:target.station.key,damage:os.damage});showFT("ALLY station hit",target.x,target.y-18,"#ffee88",8);
     }else if(target.type==="ownedTradeShip"){
       target.obj.hp-=os.damage;target.obj.state="combat";target.obj.aggro=true;target.obj.stateTimer=999;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);if(target.obj.hp<=0)dropOwnedTradeShipLoot(target.obj,target.station);
+    }else if(target.type==="civTurret"){
+      ensureCivilizationTurretState(target.obj,target.zone);target.obj.hp=Math.max(0,target.obj.hp-os.damage);showFT("ALLY TURRET -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);if(target.obj.hp<=0)destroyCivilizationTurret(target.obj,target.zone,"ally ships");
     }else if(target.type==="otherPlayer"){
       socket.emit("ownedTradeShipAttackPlayer",{targetId:target.obj.id,stationKey:st.key,shipId:os.id,damage:os.damage,x:os.x,y:os.y});showFT("ALLY FIRE",target.x,target.y-15,"#ffee88",8);
     }else if(target.type==="pirate"){
@@ -2753,7 +2846,7 @@ function turretDamageLocal(t){
 function updateDefenseTurrets(dt){
   const turrets=[];
   for(const ps of playerStructuresList)if(ps.type==="defense_turret"&&!ps.destroyed)turrets.push(ps);
-  for(const z of visibleCivZones)for(const t of z.turrets||[]){t.type="civ_turret";t.ownerName=z.name;t.zoneId=z.id||z.zoneId;turrets.push(t);}
+  for(const z of visibleCivZones)for(const t of z.turrets||[]){ensureCivilizationTurretState(t,z);if(!t.destroyed){t.ownerName=z.name;t.zoneId=z.id||z.zoneId;turrets.push(t);}}
   for(const t of turrets){
     t.cooldown=Math.max(0,(t.cooldown||0)-dt);
     const range=t.range||850,damage=turretDamageLocal(t);
@@ -2774,7 +2867,7 @@ function updateDefenseTurrets(dt){
 }
 function drawCivilizationZones(camX,camY){
   for(const z of visibleCivZones){const x=z.x-camX,y=z.y-camY;if(x<-z.radius||y<-z.radius||x>canvas.width+z.radius||y>canvas.height+z.radius)continue;ctx.save();ctx.globalAlpha=.09;ctx.fillStyle=z.color;ctx.beginPath();ctx.arc(x,y,z.radius,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.38;ctx.strokeStyle=z.color;ctx.setLineDash([10,8]);ctx.beginPath();ctx.arc(x,y,z.radius,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=z.color;ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(`CIV ZONE: ${z.name}`,x,y-z.radius-8);if(z.ownerName){ctx.fillStyle="#78ff8a";ctx.font="7px monospace";ctx.fillText(`Owner: ${z.ownerName} · ${Math.floor(z.taxPerMinute||0)}cr/min`,x,y-z.radius+4);}ctx.restore();ctx.textAlign="left";
-    for(const t of z.turrets||[]){const tx=t.x-camX,ty=t.y-camY;if(tx<-40||ty<-40||tx>canvas.width+40||ty>canvas.height+40)continue;ctx.fillStyle=t.color;ctx.beginPath();ctx.moveTo(tx,ty-8);ctx.lineTo(tx+8,ty+8);ctx.lineTo(tx-8,ty+8);ctx.closePath();ctx.fill();ctx.strokeStyle="#fff8";ctx.stroke();}
+    for(const t of z.turrets||[]){ensureCivilizationTurretState(t,z);if(t.destroyed)continue;const tx=t.x-camX,ty=t.y-camY;if(tx<-40||ty<-40||tx>canvas.width+40||ty>canvas.height+40)continue;ctx.fillStyle=t.color;ctx.beginPath();ctx.moveTo(tx,ty-8);ctx.lineTo(tx+8,ty+8);ctx.lineTo(tx-8,ty+8);ctx.closePath();ctx.fill();ctx.strokeStyle="#fff8";ctx.stroke();const hpPct=clamp((t.hp||0)/(t.maxHp||260),0,1);ctx.fillStyle="#300";ctx.fillRect(tx-9,ty+10,18,2);ctx.fillStyle=hpPct>.45?"#78ff8a":"#ff8844";ctx.fillRect(tx-9,ty+10,18*hpPct,2);}
   }
 }
 function drawPlayerStructures(camX,camY){
@@ -3728,7 +3821,7 @@ function drawCivilizationSuperStationMenu(st){
   const listX=px+18,listY=py+164,listW=236,rowH=22,visibleRows=4;ctx.fillStyle="#0b1020";ctx.fillRect(listX,listY,listW,92);ctx.strokeStyle="#213654";ctx.strokeRect(listX,listY,listW,92);
   const visibleStationRows=stations.slice(civCommandStationScroll,civCommandStationScroll+visibleRows);
   visibleStationRows.forEach((s,i)=>{const task=civStationTask(zone.id,s.id),sel=s.id===civCommandSelectedStationId,by=listY+i*rowH,stationIndex=civCommandStationScroll+i+1;ctx.fillStyle=sel?"#1b3550":"#0f1419";ctx.fillRect(listX+2,by+2,listW-4,rowH-3);ctx.strokeStyle=sel?"#7be6ff":"#203044";ctx.strokeRect(listX+2,by+2,listW-4,rowH-3);ctx.fillStyle=s.tierDef?.color||"#ffdd44";ctx.font="bold 8px monospace";ctx.fillText(`${s.tierDef?.name||s.tier} ${stationIndex}`,listX+7,by+14);ctx.fillStyle=task.task==="attack"?"#ff7777":"#78ff8a";ctx.textAlign="right";ctx.fillText(task.task==="attack"?"ATTACK":"MINE",listX+listW-8,by+14);ctx.textAlign="left";});
-  if(stations.length>visibleRows){ctx.fillStyle="#8fa3cc";ctx.font="6px monospace";ctx.fillText(`Scroll wheel: ${civCommandStationScroll+1}-${Math.min(stations.length,civCommandStationScroll+visibleRows)} / ${stations.length}`,listX+5,listY+90);ctx.fillStyle=civCommandStationScroll>0?"#7be6ff":"#304050";ctx.fillText("▲",listX+listW-14,listY+10);ctx.fillStyle=civCommandStationScroll<stations.length-visibleRows?"#7be6ff":"#304050";ctx.fillText("▼",listX+listW-14,listY+88);}
+  if(stations.length>visibleRows){ctx.fillStyle="#8fa3cc";ctx.font="6px monospace";ctx.fillText(`Scroll: ${civCommandStationScroll+1}-${Math.min(stations.length,civCommandStationScroll+visibleRows)} / ${stations.length}`,listX+5,listY+100);ctx.fillStyle=civCommandStationScroll>0?"#7be6ff":"#304050";ctx.fillText("▲",listX+listW-14,listY+10);ctx.fillStyle=civCommandStationScroll<stations.length-visibleRows?"#7be6ff":"#304050";ctx.fillText("▼",listX+listW-14,listY+88);}
   const selStation=stations.find(s=>s.id===civCommandSelectedStationId),selTask=selStation?civStationTask(zone.id,selStation.id):null;
   const cmdX=px+270,cmdY=py+150;drawMiniCivMap(zone,targets,civCommandTargetZoneId,cmdX,cmdY,228,72);
   targets.slice(0,4).forEach((z,i)=>{const bx=cmdX+(i%2)*114,by=cmdY+80+Math.floor(i/2)*20,bw=108,bh=17;ctx.fillStyle=z.id===civCommandTargetZoneId?"#2a2410":"#101820";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=z.id===civCommandTargetZoneId?"#ffdd44":"#28466a";ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=z.color||"#b9f3ff";ctx.font="7px monospace";ctx.fillText((z.name||"Zone").slice(0,17),bx+4,by+12);});
