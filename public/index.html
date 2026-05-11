@@ -1281,6 +1281,20 @@ let questLogScroll=0,badgeLogScroll=0;
 const QUEST_LOG_VISIBLE_ROWS=6,BADGE_LOG_VISIBLE_ROWS=7;
 let shopTab="sell",shopSelectedSlot=null,shopSellQty=1,shopBuyItem=null,shopBuyQty=1,pendingShopBuy=null;
 let selectedSlot=null,nearStation=null,buildSlotIndex=null,planetLoading=false,oxygenDamageTimer=0;
+let oxygenAutoUsePending=false,oxygenAutoUseCooldown=0,oxygenNoTankFlashTimer=0,oxygenNoTankWarnCooldown=0;
+function localOxygenTankCount(){
+  ensureClientInventorySlots();
+  let n=0;
+  for(const s of player.invSlots||[])if(s?.type==="oxygen_tank"&&Number(s.count)>0)n+=Math.floor(Number(s.count)||0);
+  return n;
+}
+function triggerOxygenNoTankWarning(){
+  oxygenNoTankFlashTimer=Math.max(oxygenNoTankFlashTimer,0.65);
+  if(oxygenNoTankWarnCooldown<=0){
+    oxygenNoTankWarnCooldown=1.8;
+    showFT("LOW OXYGEN! No tanks — leave quick!",astronaut.x,astronaut.y-34,"#ff5544",12);
+  }
+}
 let inventoryScrollRows=0,shopInventoryScrollRows=0;
 const INV_COLS=6,INV_VISIBLE_ROWS=4,SHOP_SELL_VISIBLE_ROWS=5;
 const MAX_STACK=24,SLOT_COST=1000,MAX_TOTAL_SLOTS=96;
@@ -3945,7 +3959,14 @@ socket.on("spaceLootPickupDenied",({claimId,reason})=>{
 });
 socket.on("inventorySlotDenied",({reason})=>showFT(reason||"Slot purchase denied",canvas.width/2,canvas.height/2,"#ff5544",10));
 socket.on("inventorySlotConfirm",({credits,maxSlots})=>{player.credits=credits;player.maxSlots=maxSlots;ensureClientInventorySlots();clampPanelScrolls();updateHud();showFT("Inventory slot unlocked",canvas.width/2,canvas.height/2,"#78ff8a",10);});
-socket.on("useItemDenied",({reason})=>showFT(reason||"Item use denied",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-25:ship.y-15,"#ff5544",9));
+socket.on("useItemDenied",({type,reason})=>{
+  if(type==="oxygen_tank"){
+    oxygenAutoUsePending=false;
+    oxygenAutoUseCooldown=0.9;
+    if(mode===MODE.PLANET)triggerOxygenNoTankWarning();
+  }
+  showFT(reason||"Item use denied",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-25:ship.y-15,"#ff5544",9);
+});
 socket.on("creditPurchaseConfirm",({packageId,creditsAdded,credits,paymentId})=>{
   player.credits=credits;
   updateHud();
@@ -3976,7 +3997,18 @@ socket.on("sellDenied",({reason})=>{showFT(reason||"Sale denied",ship.x,ship.y-1
 socket.on("attrConfirm",({attr,val,attrPoints,credits,xp,level})=>{player.attrs[attr]=val;if(typeof attrPoints==="number")player.attrPoints=attrPoints;if(typeof credits==="number")player.credits=credits;if(typeof xp==="number")player.xp=xp;if(typeof level==="number")player.level=level;player.xpToNext=xpForLevel(player.level);updateHud();showFT(`${attr} → Lv${val}`,canvas.width/2,canvas.height/2-20,"#cc88ff",10);});
 socket.on("upgradeDenied",({reason})=>{showFT(reason,canvas.width/2,canvas.height/2,"#ff5544",10);});
 socket.on("energyUpdate",({energy:e})=>{energy.current=e;});
-socket.on("oxygenTankUsed",()=>{oxygen.current=clamp(oxygen.current+65,0,oxygen.max);showFT("+65% O2",astronaut.x,astronaut.y-25,"#7be6ff",10);updateHud();});
+socket.on("oxygenTankUsed",({credits,maxSlots,invSlots}={})=>{
+  oxygenAutoUsePending=false;
+  oxygenAutoUseCooldown=0.6;
+  oxygenNoTankFlashTimer=0;
+  oxygen.current=clamp(oxygen.current+65,0,oxygen.max);
+  if(typeof credits==="number")player.credits=credits;
+  if(typeof maxSlots==="number")player.maxSlots=maxSlots;
+  if(Array.isArray(invSlots))player.invSlots=invSlots;
+  ensureClientInventorySlots();
+  showFT("+65% O2",astronaut.x,astronaut.y-25,"#7be6ff",10);
+  updateHud();
+});
 socket.on("serverPong",()=>{}); // ping handled server-side
 
 socket.on("planetMapState",({planetId,W,H,tiles,hp,heights})=>{
@@ -4473,7 +4505,7 @@ function placeLandedShipNear(col){
 }
 function enterPlanetWithLoadedMap(){
   if(!activePlanet||!planetMap)return;
-  mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;planetPlayers.clear();
+  mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;oxygenAutoUsePending=false;oxygenAutoUseCooldown=0;oxygenNoTankFlashTimer=0;oxygenNoTankWarnCooldown=0;planetPlayers.clear();
   const col=findLandingColumn(), surfaceY=surfaceYAtColumn(col);
   astronaut.x=col*16+8;astronaut.y=surfaceY*16-10;astronaut.vx=0;astronaut.vy=0;astronaut.onGround=false;
   placeLandedShipNear(col);
@@ -4498,7 +4530,7 @@ function genRuinMap(ruin){
 }
 function enterShipRuin(ruin){
   activeRuin=ruin;activePlanet={id:ruin.id,seed:ruin.seed,type:"ship_ruin",special:true,x:ruin.x,y:ruin.y,radius:42,pal:{sky:"#05060a",a:"#7be6ff",b:"#2f3744"},resList:["iron","copper","hull_plate","engine_core"]};
-  planetMap=genRuinMap(ruin);mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;planetPlayers.clear();
+  planetMap=genRuinMap(ruin);mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;oxygenAutoUsePending=false;oxygenAutoUseCooldown=0;oxygenNoTankFlashTimer=0;oxygenNoTankWarnCooldown=0;planetPlayers.clear();
   astronaut.x=14*16;astronaut.y=(planetMap.H-5)*16-8;astronaut.vx=0;astronaut.vy=0;landedShip.x=8*16;landedShip.y=(planetMap.H-4)*16-4;drops.length=0;planetTool="weapon";
   socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});showFT("Boarded derelict",astronaut.x,astronaut.y-25,"#78ff8a",12);
   awardBadge("first_boarding","Boarding Party","Board your first derelict ship ruin.");
@@ -4536,7 +4568,7 @@ function landOnNearestPlanet(){
   if(nearestRuin&&nearestRuin.d<85){enterShipRuin(nearestRuin.r);return;}
   const nearestAst=eventAsteroidFields.filter(f=>!f.expireAt||Date.now()<f.expireAt).map(f=>({f,d:dist(ship.x,ship.y,f.x,f.y)})).sort((a,b)=>a.d-b.d)[0];
   if(nearestAst&&nearestAst.d<(nearestAst.f.landRadius||92)+70){
-    activePlanet=makeAsteroidPlanetLike(nearestAst.f);planetMap=genAsteroidMap(nearestAst.f);mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;planetPlayers.clear();
+    activePlanet=makeAsteroidPlanetLike(nearestAst.f);planetMap=genAsteroidMap(nearestAst.f);mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;oxygenAutoUsePending=false;oxygenAutoUseCooldown=0;oxygenNoTankFlashTimer=0;oxygenNoTankWarnCooldown=0;planetPlayers.clear();
     const col=findLandingColumn();astronaut.x=col*16+8;astronaut.y=surfaceYAtColumn(col)*16-8;astronaut.vx=0;astronaut.vy=0;placeLandedShipNear(col);drops.length=0;planetTool="mining";activeRuin=null;initPlanetNPCs(activePlanet);
     socket.emit("requestPlanetMap",{planet:{id:activePlanet.id,seed:activePlanet.seed,type:"asteroid",isAsteroid:true,resList:activePlanet.resList,x:activePlanet.x,y:activePlanet.y,radius:activePlanet.radius}});
     addChat("Landing",`🪨 Entered crystal asteroid ${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)}.`,"#b9f3ff");showFT("Crystal asteroid landing",astronaut.x,astronaut.y-25,"#7be6ff",10);return;
@@ -4556,9 +4588,12 @@ function leavePlanet(){
 }
 function useOxygenTank(){
   if(oxygen.current>=oxygen.max)return false;
-  const idx=player.invSlots.findIndex(s=>s.type==="oxygen_tank"&&s.count>0);
-  if(idx===-1){showFT("No oxygen tanks",astronaut.x,astronaut.y-25,"#ff5544",9);return false;}
-  socket.emit("useOxygenTank");return true;
+  if(oxygenAutoUsePending)return false;
+  if(localOxygenTankCount()<=0){showFT("No oxygen tanks",astronaut.x,astronaut.y-25,"#ff5544",9);return false;}
+  oxygenAutoUsePending=true;
+  oxygenAutoUseCooldown=0.75;
+  socket.emit("useOxygenTank",{manual:true});
+  return true;
 }
 function buildableSlot(){
   if(buildSlotIndex!==null){const s=player.invSlots[buildSlotIndex];if(s&&s.type&&s.count>0&&BUILDABLE_RES_TO_TILE[s.type])return {index:buildSlotIndex,slot:s};}
@@ -5350,8 +5385,25 @@ function updatePlanet(dt){
   planetAttackCooldown=Math.max(0,planetAttackCooldown-dt);
   planetStateTimer-=dt;
   if(planetStateTimer<=0&&activePlanet){planetStateTimer=0.08;socket.emit("planetState",{planetId:activePlanet.id,x:astronaut.x,y:astronaut.y,vx:astronaut.vx,vy:astronaut.vy,onGround:astronaut.onGround,tool:planetTool,cosmeticColor:character.cosmeticColor,suitColor:character.suitColor});}
+  oxygenAutoUseCooldown=Math.max(0,oxygenAutoUseCooldown-dt);
+  oxygenNoTankFlashTimer=Math.max(0,oxygenNoTankFlashTimer-dt);
+  oxygenNoTankWarnCooldown=Math.max(0,oxygenNoTankWarnCooldown-dt);
   oxygen.current=clamp(oxygen.current-oxygen.drainRate*dt,0,oxygen.max);
-  if(oxygen.current<=0){oxygenDamageTimer-=dt;if(oxygenDamageTimer<=0){oxygenDamageTimer=1;socket.emit("oxygenDamage",{damage:7});}}
+  if(oxygen.current<=0){
+    if(!oxygenAutoUsePending&&oxygenAutoUseCooldown<=0&&localOxygenTankCount()>0){
+      oxygenAutoUsePending=true;
+      oxygenAutoUseCooldown=1.2;
+      oxygenDamageTimer=1.2;
+      socket.emit("useOxygenTank",{auto:true});
+      showFT("Auto-using oxygen tank...",astronaut.x,astronaut.y-30,"#7be6ff",9);
+    }else if(localOxygenTankCount()<=0){
+      triggerOxygenNoTankWarning();
+      oxygenDamageTimer-=dt;
+      if(oxygenDamageTimer<=0){oxygenDamageTimer=1;socket.emit("oxygenDamage",{damage:7});}
+    }else{
+      oxygenDamageTimer=Math.max(oxygenDamageTimer,0.25);
+    }
+  }
   else oxygenDamageTimer=0;
   const domLocked=domInputLocked();
   const controlsLocked=domLocked||canvasPanelOpen();
@@ -5447,6 +5499,14 @@ function drawPlanet(){
   // Show planet coordinates
   ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(`${activeRuin?"Ruin":"Planet"}: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})`,canvas.width/2,16);ctx.textAlign="left";
   ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(activeRuin?`Derelict: E:interact  Q:tool  I:inv  L:exit  W/Shift:jetpack  Click:shoot`:`Tool:${planetTool.toUpperCase()} | W/Shift:jetpack  Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"shoot":"mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
+  if(oxygenNoTankFlashTimer>0||(oxygen.current<=oxygen.max*0.12&&localOxygenTankCount()<=0)){
+    const pulse=0.18+0.10*Math.abs(Math.sin(Date.now()/95));
+    ctx.save();
+    ctx.globalAlpha=pulse;ctx.fillStyle="#ff2233";ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.globalAlpha=0.96;ctx.textAlign="center";ctx.font="bold 18px monospace";ctx.fillStyle="#fff2f2";ctx.fillText("LOW OXYGEN — NO TANKS",canvas.width/2,Math.max(72,canvas.height*0.18));
+    ctx.font="bold 11px monospace";ctx.fillStyle="#ffd1d1";ctx.fillText("Return to your ship or take off quick!",canvas.width/2,Math.max(92,canvas.height*0.18+20));
+    ctx.textAlign="left";ctx.restore();
+  }
   if(inventoryOpen)drawInventory();
   if(shipStatusOpen)drawShipStatusPanel();
   if(characterOpen)drawCharacterPanel();
