@@ -1414,6 +1414,36 @@ function sanitizeTradeOffer(offer,player){
   out.items=[...seen.entries()].map(([type,quantity])=>({type,quantity})).slice(0,12);
   return out;
 }
+function tradeOfferKey(offer){
+  const credits=Math.max(0,Math.floor(Number(offer?.credits)||0));
+  const items=(offer?.items||[])
+    .map(it=>({type:String(it.type||""),quantity:Math.max(0,Math.floor(Number(it.quantity)||0))}))
+    .filter(it=>RES_KEYS.includes(it.type)&&it.quantity>0)
+    .sort((a,b)=>a.type.localeCompare(b.type));
+  return `${credits}|${items.map(it=>`${it.type}:${it.quantity}`).join(",")}`;
+}
+function tradeOffersEqual(a,b){return tradeOfferKey(a)===tradeOfferKey(b);}
+function cloneTradeInventory(p){
+  const maxSlots=Math.max(24,Math.min(96,Math.floor(Number(p?.maxSlots)||24)));
+  const src=Array.isArray(p?.invSlots)?p.invSlots:emptySlots(maxSlots);
+  const invSlots=emptySlots(maxSlots);
+  for(let i=0;i<Math.min(src.length,maxSlots);i++){
+    const type=String(src[i]?.type||"");
+    const count=Math.max(0,Math.floor(Number(src[i]?.count)||0));
+    invSlots[i]=(type&&RES_KEYS.includes(type)&&count>0)?{type,count}:{type:null,count:0};
+  }
+  return {maxSlots,invSlots};
+}
+function simulateTradeInventory(player,giveOffer,receiveOffer){
+  const sim=cloneTradeInventory(player);
+  for(const it of giveOffer.items||[]){
+    if(!removeInventory(sim,it.type,it.quantity))return {ok:false,reason:"offered items are no longer available"};
+  }
+  for(const it of receiveOffer.items||[]){
+    if(!addInventory(sim,it.type,it.quantity))return {ok:false,reason:"not enough inventory space to receive the trade"};
+  }
+  return {ok:true,invSlots:sim.invSlots,maxSlots:sim.maxSlots};
+}
 function sideOfTrade(s,id){return s?.a===id?"a":s?.b===id?"b":null;}
 function emitTradeState(s){
   if(!s)return;
@@ -1439,20 +1469,22 @@ function cancelTrade(s,reason="Trade cancelled."){
 }
 function completeTrade(s){
   const pa=players.get(s.a),pb=players.get(s.b);if(!pa||!pb){cancelTrade(s,"Trade cancelled: player disconnected.");return;}
-  const oa=s.offers.a,ob=s.offers.b;
+  const oa=sanitizeTradeOffer(s.offers.a,pa),ob=sanitizeTradeOffer(s.offers.b,pb);
+  s.offers.a=oa;s.offers.b=ob;
   if((pa.credits||0)<(oa.credits||0)||(pb.credits||0)<(ob.credits||0)){cancelTrade(s,"Trade cancelled: insufficient credits.");return;}
   if(!validateTradeItems(pa,oa.items)||!validateTradeItems(pb,ob.items)){cancelTrade(s,"Trade cancelled: one player no longer has the offered inventory.");return;}
-  // Remove both offers first, then add received items. This prevents duplication exploits.
-  for(const it of oa.items||[])removeInventory(pa,it.type,it.quantity);
-  for(const it of ob.items||[])removeInventory(pb,it.type,it.quantity);
-  for(const it of ob.items||[])addInventory(pa,it.type,it.quantity);
-  for(const it of oa.items||[])addInventory(pb,it.type,it.quantity);
-  pa.credits=pa.credits-(oa.credits||0)+(ob.credits||0);
-  pb.credits=pb.credits-(ob.credits||0)+(oa.credits||0);
+  const simA=simulateTradeInventory(pa,oa,ob),simB=simulateTradeInventory(pb,ob,oa);
+  if(!simA.ok){cancelTrade(s,`Trade cancelled: ${pa.name} has ${simA.reason}.`);return;}
+  if(!simB.ok){cancelTrade(s,`Trade cancelled: ${pb.name} has ${simB.reason}.`);return;}
+  // Commit the simulated inventories atomically so no partial add/remove can occur.
+  pa.invSlots=normalizeInventorySlots(simA.invSlots,pa.maxSlots||24);
+  pb.invSlots=normalizeInventorySlots(simB.invSlots,pb.maxSlots||24);
+  pa.credits=(pa.credits||0)-(oa.credits||0)+(ob.credits||0);
+  pb.credits=(pb.credits||0)-(ob.credits||0)+(oa.credits||0);
   tradeSessions.delete(s.id);
   syncAndPersist(pa,"trade_complete");syncAndPersist(pb,"trade_complete");
-  io.to(pa.id).emit("tradeComplete",{tradeId:s.id,credits:pa.credits,gaveOffer:oa,receivedOffer:ob,otherName:pb.name,serverAuthoritative:true});
-  io.to(pb.id).emit("tradeComplete",{tradeId:s.id,credits:pb.credits,gaveOffer:ob,receivedOffer:oa,otherName:pa.name,serverAuthoritative:true});
+  io.to(pa.id).emit("tradeComplete",{tradeId:s.id,credits:pa.credits,invSlots:pa.invSlots,maxSlots:pa.maxSlots,gaveOffer:oa,receivedOffer:ob,otherName:pb.name,serverAuthoritative:true});
+  io.to(pb.id).emit("tradeComplete",{tradeId:s.id,credits:pb.credits,invSlots:pb.invSlots,maxSlots:pb.maxSlots,gaveOffer:ob,receivedOffer:oa,otherName:pa.name,serverAuthoritative:true});
 }
 
 
@@ -1830,15 +1862,21 @@ io.on("connection",socket=>{
     const side=sideOfTrade(s,p.id);if(!side)return;
     const clean=sanitizeTradeOffer(offer,p);
     if(!validateTradeItems(p,clean.items)){socket.emit("tradeDenied",{reason:"You do not have those items in your server inventory."});return;}
+    const changed=!tradeOffersEqual(s.offers[side],clean);
     s.offers[side]=clean;
-    s.ready.a=false;s.ready.b=false;
+    if(changed){s.ready.a=false;s.ready.b=false;}
     emitTradeState(s);
   });
 
-  socket.on("tradeReady",({tradeId,ready})=>{
+  socket.on("tradeReady",({tradeId,ready,offer})=>{
     const p=players.get(socket.id),s=tradeSessions.get(tradeId);if(!p||!s)return;
     const side=sideOfTrade(s,p.id);if(!side)return;
-    s.offers[side]=sanitizeTradeOffer(s.offers[side],p);
+    const other=side==="a"?"b":"a";
+    const clean=sanitizeTradeOffer(offer||s.offers[side],p);
+    if(!validateTradeItems(p,clean.items)){socket.emit("tradeDenied",{reason:"You do not have those items in your server inventory."});return;}
+    const changed=!tradeOffersEqual(s.offers[side],clean);
+    s.offers[side]=clean;
+    if(changed)s.ready[other]=false;
     s.ready[side]=!!ready;
     if(s.ready.a&&s.ready.b)completeTrade(s);else emitTradeState(s);
   });
