@@ -1744,21 +1744,40 @@ io.on("connection",socket=>{
     const id=ty*map.W+tx,t=map.tiles[id];
     if(!t||t===PLANET_TILE.BEDROCK)return;
     const dmg=Math.max(1,Math.min(40,Number(power)||18));
-    map.hp[id]=Math.max(0,map.hp[id]-dmg);
-    if(map.hp[id]<=0){
+    const oldHp=Math.max(1,Math.floor(Number(map.hp[id])||1));
+    const nextHp=Math.max(0,oldHp-dmg);
+
+    if(nextHp<=0){
       const kind=planetResForTile(map.planet,t,ty,map.H),rar=RES_RARITY[kind]||1;
+      const qty=(t===3||t===4)?(Math.random()<0.35?2:1):(t===5?(Math.random()<0.55?2:1):1);
+      const dropX=tx*16+8,dropY=ty*16+8;
+
+      // Do not destroy the tile or show a collectible if the player cannot carry it.
+      // This prevents mined resources from visually dropping but never entering inventory.
+      if(!canFitInventory(p,kind,qty)){
+        map.hp[id]=oldHp;
+        socket.emit("planetMineDenied",{planetId,reason:"Inventory full — empty a slot before mining more.",x:dropX,y:dropY});
+        socket.emit("planetTileUpdate",{planetId,tx,ty,tile:t,hp:map.hp[id]});
+        return;
+      }
+
       map.tiles[id]=0;map.hp[id]=0;
       io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile:0,hp:0});
-      const qty=(t===3||t===4)?(Math.random()<0.35?2:1):(t===5?(Math.random()<0.55?2:1):1);
-      addInventory(p,kind,qty);
-      const dropX=tx*16+8,dropY=ty*16+8;
+      if(!addInventory(p,kind,qty)){
+        // Failsafe: if inventory changed between canFitInventory and addInventory,
+        // give a clear denial instead of silently losing the mined resource.
+        socket.emit("planetMineDenied",{planetId,reason:"Inventory full — resource was not collected.",x:dropX,y:dropY});
+        syncAndPersist(p,"planet_mine_denied");
+        return;
+      }
       // Broadcast a visible, shared loot pop to everyone on this planet.
-      // Inventory remains server-authoritative and is granted immediately below.
+      // Inventory remains server-authoritative and is granted immediately.
       io.to(`planet:${planetId}`).emit("planetMineDrop",{planetId,kind,x:dropX,y:dropY,qty,ownerId:p.id});
-      socket.emit("planetMineReward",{planetId,kind,x:dropX,y:dropY,qty});
+      socket.emit("planetMineReward",{planetId,kind,x:dropX,y:dropY,qty,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24)});
       syncAndPersist(p,"planet_mine");
       grantXp(p,rar*2,"Mining");
     }else{
+      map.hp[id]=nextHp;
       io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile:t,hp:map.hp[id]});
     }
   });
