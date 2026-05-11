@@ -131,222 +131,287 @@ tr:hover td{background:#1a2a3a}
 
 
 
+
 /* ═══════════════════════════════════════════════════════════════
-   HUD CLEANUP PATCH — larger cockpit status + bottom hotkey dock
-   Added after the original CSS so it safely overrides older sizing.
+   HUD REBALANCE PATCH — cleaner spacing, less obstruction, no overlap
 ═══════════════════════════════════════════════════════════════ */
 #wrap{position:relative;height:100%}
 #hud{
   position:fixed;
-  top:14px;
-  left:14px;
+  top:12px;
+  left:12px;
   right:auto;
-  width:min(760px,calc(100vw - 330px));
-  min-width:560px;
-  padding:14px 14px 12px;
+  width:min(640px,calc(100vw - 280px));
+  min-width:520px;
+  padding:12px 12px 10px;
   display:grid;
-  grid-template-columns:repeat(4,minmax(118px,1fr));
+  grid-template-columns:repeat(4,minmax(96px,1fr));
   align-items:stretch;
-  gap:9px;
-  background:linear-gradient(145deg,rgba(9,17,36,.96),rgba(5,9,22,.92) 58%,rgba(18,30,58,.92));
-  border:2px solid rgba(123,230,255,.55);
-  border-radius:18px;
-  box-shadow:0 0 30px rgba(123,230,255,.18),inset 0 0 22px rgba(255,221,68,.035);
-  backdrop-filter:blur(6px);
+  gap:8px;
+  background:linear-gradient(145deg,rgba(8,15,31,.90),rgba(4,8,20,.86) 62%,rgba(14,23,46,.88));
+  border:1px solid rgba(123,230,255,.45);
+  border-radius:16px;
+  box-shadow:0 0 18px rgba(123,230,255,.12), inset 0 0 14px rgba(255,221,68,.025);
+  backdrop-filter:blur(4px);
   z-index:35;
-  font-size:13px;
+  font-size:12px;
   pointer-events:none;
 }
 #hud:before{
   content:"PILOT STATUS";
   position:absolute;
-  top:-11px;
-  left:18px;
+  top:-10px;
+  left:16px;
   padding:2px 9px;
-  border:1px solid rgba(123,230,255,.62);
+  border:1px solid rgba(123,230,255,.52);
   border-radius:999px;
-  background:#071225;
+  background:#081225;
   color:#7be6ff;
   font-size:10px;
-  font-weight:900;
-  letter-spacing:.13em;
-  text-shadow:0 0 9px rgba(123,230,255,.5);
+  font-weight:850;
+  letter-spacing:.12em;
 }
 #hud b{
   color:#9fe8ff;
   font-size:10px;
-  letter-spacing:.07em;
+  letter-spacing:.05em;
   text-transform:uppercase;
 }
 .pill{
-  min-height:30px;
+  min-height:28px;
   padding:7px 10px;
   display:inline-flex;
   align-items:center;
-  justify-content:flex-start;
   gap:5px;
-  border:1px solid rgba(123,230,255,.30);
-  border-radius:12px;
-  background:linear-gradient(180deg,rgba(14,27,52,.95),rgba(6,12,26,.95));
-  box-shadow:inset 0 0 12px rgba(123,230,255,.045),0 0 10px rgba(0,0,0,.22);
+  border:1px solid rgba(123,230,255,.24);
+  border-radius:11px;
+  background:linear-gradient(180deg,rgba(13,24,45,.90),rgba(7,12,25,.88));
+  box-shadow:inset 0 0 8px rgba(123,230,255,.035);
   color:#eef5ff;
   white-space:nowrap;
 }
 #credits,#score,#lvl,#mode,#coords,#shipname{
-  color:#fff6c4;
+  color:#fff2b8;
   font-weight:800;
-  text-shadow:0 0 9px rgba(255,221,68,.25);
 }
 #inv{
   color:#dce7ff;
   overflow:hidden;
   text-overflow:ellipsis;
-  max-width:220px;
+  max-width:190px;
 }
 #bar-wrap{
   grid-column:1 / -1;
-  min-height:52px;
-  padding:12px 12px;
+  min-height:42px;
+  padding:10px 12px;
   display:grid;
-  grid-template-columns:auto minmax(155px,1fr) auto minmax(145px,1fr) auto minmax(155px,1fr) minmax(42px,max-content) auto minmax(145px,1fr) minmax(42px,max-content);
+  grid-template-columns:auto minmax(120px,1fr) auto minmax(120px,1fr) auto minmax(120px,1fr) minmax(34px,max-content) auto minmax(120px,1fr) minmax(34px,max-content);
   align-items:center;
-  gap:8px;
-  border-color:rgba(255,221,68,.55);
-  border-radius:16px;
-  background:linear-gradient(180deg,rgba(23,28,42,.96),rgba(8,15,30,.96));
-  box-shadow:0 0 18px rgba(255,221,68,.10),inset 0 0 18px rgba(255,221,68,.035);
+  gap:7px;
+  border-color:rgba(255,221,68,.42);
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(18,23,36,.92),rgba(8,14,28,.90));
+  box-shadow:0 0 12px rgba(255,221,68,.06), inset 0 0 10px rgba(255,221,68,.025);
 }
 #bar-wrap b{
-  min-width:28px;
+  min-width:24px;
   text-align:right;
   color:#ffdd44;
   font-size:11px;
-  text-shadow:0 0 8px rgba(255,221,68,.35);
 }
 .bar-outer{
-  height:15px;
+  height:13px;
   border-radius:999px;
   background:#050914;
   overflow:hidden;
-  box-shadow:inset 0 1px 4px rgba(0,0,0,.55),0 0 7px rgba(123,230,255,.06);
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.5);
 }
-#hp-bar-outer{width:100%;border:1px solid rgba(255,85,85,.72)}
-#shield-bar-outer{width:100%;border:1px solid rgba(85,170,255,.72)}
-#energy-bar-outer{width:100%;border:1px solid rgba(120,255,138,.72)}
-#oxygen-bar-outer{width:100%;border:1px solid rgba(185,243,255,.72)}
+#hp-bar-outer{width:100%;border:1px solid rgba(255,85,85,.66)}
+#shield-bar-outer{width:100%;border:1px solid rgba(85,170,255,.66)}
+#energy-bar-outer{width:100%;border:1px solid rgba(120,255,138,.66)}
+#oxygen-bar-outer{width:100%;border:1px solid rgba(185,243,255,.66)}
 #xp-bar-outer{
-  width:100px;
-  height:12px;
-  border:1px solid rgba(204,136,255,.72);
+  width:92px;
+  height:11px;
+  border:1px solid rgba(204,136,255,.68);
   margin-left:5px!important;
 }
-#hp-bar-inner,#shield-bar-inner,#energy-bar-inner,#oxygen-bar-inner,#xp-bar-inner{
-  box-shadow:0 0 12px rgba(255,255,255,.18);
-}
+#hp-bar-inner,#shield-bar-inner,#energy-bar-inner,#oxygen-bar-inner,#xp-bar-inner{box-shadow:0 0 8px rgba(255,255,255,.14)}
 #energy-text,#oxygen-text{
-  font-size:12px!important;
-  font-weight:900;
+  font-size:11px!important;
+  font-weight:800;
   color:#dff9ff;
   text-align:left;
 }
 #hud .hint{
-  position:fixed;
-  left:50%;
-  bottom:14px;
+  position:fixed !important;
+  left:60% !important;
+  right:auto !important;
+  top:16px !important;
+  bottom:auto !important;
   transform:translateX(-50%);
-  width:min(1120px,calc(100vw - 34px));
+  width:min(520px,calc(100vw - 860px));
+  min-width:420px;
   min-height:unset;
-  padding:13px 18px 12px;
+  padding:9px 12px 8px;
   display:block;
-  border:2px solid rgba(255,221,68,.58);
-  border-radius:18px;
-  background:linear-gradient(180deg,rgba(14,23,44,.96),rgba(5,9,22,.94));
-  box-shadow:0 0 30px rgba(255,221,68,.18),0 0 22px rgba(123,230,255,.12),inset 0 0 16px rgba(255,221,68,.04);
+  border:1px solid rgba(255,221,68,.44);
+  border-radius:15px;
+  background:linear-gradient(180deg,rgba(12,20,38,.86),rgba(6,10,21,.84));
+  box-shadow:0 0 14px rgba(255,221,68,.08),0 0 8px rgba(123,230,255,.06);
   color:#dce7ff;
-  opacity:.98;
-  font-size:12px;
-  line-height:2.15;
+  opacity:.95;
+  font-size:10px;
+  line-height:1.75;
   text-align:center;
   white-space:normal;
   pointer-events:none;
+  z-index:34;
 }
 #hud .hint:before{
   content:"CONTROL KEYS";
   position:absolute;
-  top:-12px;
-  left:18px;
-  padding:2px 9px;
-  border:1px solid rgba(255,221,68,.68);
+  top:-11px;
+  left:16px;
+  padding:2px 8px;
+  border:1px solid rgba(255,221,68,.62);
   border-radius:999px;
   background:#100d04;
   color:#ffdd44;
   font-size:10px;
-  font-weight:900;
-  letter-spacing:.13em;
+  font-weight:850;
+  letter-spacing:.12em;
 }
 #hud .hint b{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  min-width:18px;
-  padding:1px 7px 2px;
-  margin:0 3px 0 8px;
-  border:1px solid rgba(255,240,168,.75);
+  min-width:16px;
+  padding:1px 5px 2px;
+  margin:0 2px 0 5px;
+  border:1px solid rgba(255,240,168,.72);
   border-radius:7px;
   background:linear-gradient(180deg,#fff0a8,#ffdd44);
   color:#130e00;
   font-size:11px;
-  font-weight:950;
-  letter-spacing:.03em;
+  font-weight:900;
+  letter-spacing:.02em;
   text-transform:none;
-  box-shadow:0 0 9px rgba(255,221,68,.24);
+  box-shadow:0 0 6px rgba(255,221,68,.18);
 }
 #player-count{
   top:14px;
   right:16px;
-  padding:8px 12px;
-  font-size:13px;
-  font-weight:850;
-  border:1px solid rgba(123,230,255,.55);
-  border-radius:14px;
-  background:linear-gradient(180deg,rgba(10,20,40,.94),rgba(5,9,22,.94));
-  box-shadow:0 0 18px rgba(123,230,255,.16);
+  padding:7px 11px;
+  font-size:12px;
+  font-weight:800;
+  border:1px solid rgba(123,230,255,.42);
+  border-radius:12px;
+  background:linear-gradient(180deg,rgba(10,20,40,.88),rgba(5,9,22,.86));
+  box-shadow:0 0 12px rgba(123,230,255,.10);
   color:#7be6ff;
   z-index:36;
 }
 #kill-feed{
-  top:62px;
+  top:56px;
   right:16px;
-  width:280px;
+  width:240px;
   z-index:36;
 }
 .kill-entry{
-  font-size:12px;
-  padding:6px 9px;
-  border-radius:10px;
-  background:rgba(12,18,34,.92);
-  box-shadow:0 0 12px rgba(255,85,85,.10);
+  font-size:11px;
+  padding:5px 8px;
+  border-radius:9px;
+  background:rgba(12,18,34,.88);
+  box-shadow:0 0 8px rgba(255,85,85,.08);
 }
 #score-popup{
-  top:118px;
-  font-size:15px;
-  text-shadow:0 0 12px rgba(255,209,92,.65);
+  top:98px;
+  font-size:14px;
+  text-shadow:0 0 10px rgba(255,209,92,.55);
   z-index:37;
 }
 #chat-wrap{
-  bottom:92px;
+  bottom:76px;
   left:14px;
-  width:310px;
+  width:290px;
   z-index:34;
 }
-#chat-input{
-  font-size:12px;
-  padding:6px 8px;
+#chat-input{font-size:12px;padding:6px 8px}
+.chat-msg{font-size:11px;padding:4px 8px}
+
+#party-panel{
+  left:auto;
+  right:16px;
+  top:158px;
+  width:240px;
+  background:rgba(5,10,24,.82);
+  border-color:rgba(123,230,255,.35);
+  box-shadow:0 0 12px rgba(123,230,255,.08);
 }
-.chat-msg{
-  font-size:12px;
-  padding:5px 8px;
+
+#event-radar-panel{
+  position:fixed;
+  left:16px;
+  top:150px;
+  width:300px;
+  background:linear-gradient(180deg,rgba(8,15,30,.90),rgba(4,8,18,.88));
+  border:1px solid rgba(123,190,255,.35);
+  border-radius:12px;
+  box-shadow:0 0 14px rgba(80,125,190,.12);
+  color:#d6e1ff;
+  z-index:33;
+  display:none;
+  overflow:hidden;
 }
+#event-radar-panel.minimized{width:228px}
+.event-radar-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:8px 10px;
+  border-bottom:1px solid rgba(123,190,255,.18);
+  background:rgba(16,29,56,.55);
+}
+.event-radar-title{
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.08em;
+  color:#bcd9ff;
+}
+.event-radar-actions{display:flex;gap:6px}
+.event-radar-btn{
+  min-width:24px;
+  height:22px;
+  border:1px solid rgba(123,190,255,.35);
+  border-radius:6px;
+  background:linear-gradient(180deg,rgba(20,33,58,.95),rgba(8,14,28,.95));
+  color:#d6e1ff;
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+}
+.event-radar-btn:hover{border-color:rgba(255,221,68,.55);color:#ffdd44}
+#event-radar-body{
+  padding:8px 10px 10px;
+  max-height:140px;
+  overflow:auto;
+}
+.event-radar-empty{font-size:11px;color:#8fa3cc}
+.event-radar-row{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:8px;
+  align-items:start;
+  padding:6px 0;
+  border-top:1px solid rgba(255,255,255,.05);
+}
+.event-radar-row:first-child{border-top:0;padding-top:0}
+.event-radar-main{min-width:0}
+.event-radar-label{font-size:11px;font-weight:800;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.event-radar-meta{font-size:10px;color:#9ec3e8;line-height:1.35}
+.event-radar-hint{font-size:10px;color:#78ff8a;white-space:nowrap}
 @media (max-width:980px){
   #hud{
     width:calc(100vw - 28px);
@@ -359,8 +424,14 @@ tr:hover td{background:#1a2a3a}
     gap:8px;
   }
   #bar-wrap #energy-text,#bar-wrap #oxygen-text{display:none}
-  #player-count{top:auto;right:14px;bottom:92px}
-  #kill-feed{display:none}
+  #player-count{top:14px;right:14px;bottom:auto}
+  #kill-feed{width:210px}
+  #event-radar-panel{width:280px}
+  #hud .hint{left:50% !important;top:auto !important;bottom:12px !important;transform:translateX(-50%);width:min(860px,calc(100vw - 28px));min-width:0;font-size:11px;line-height:1.95;}
+}
+@media (max-width:760px){
+  #event-radar-panel{left:10px;right:10px;width:auto}
+  #party-panel{right:10px;left:10px;top:auto;bottom:92px;width:auto}
 }
 @media (max-width:620px){
   #hud{
@@ -368,21 +439,24 @@ tr:hover td{background:#1a2a3a}
     left:8px;
     right:8px;
     width:auto;
-    padding:12px 10px 10px;
+    padding:11px 10px 10px;
     grid-template-columns:1fr 1fr;
     font-size:12px;
   }
   .pill{padding:6px 8px;min-height:28px}
   #bar-wrap{grid-template-columns:auto 1fr;line-height:1.2}
   #hud .hint{
-    bottom:8px;
-    width:calc(100vw - 22px);
+    bottom:8px !important;
+    width:calc(100vw - 20px);
     padding:10px 12px;
-    font-size:11px;
-    line-height:2.1;
+    font-size:10px;
+    line-height:1.9;
   }
-  #chat-wrap{bottom:110px;width:280px}
+  #chat-wrap{bottom:98px;width:250px;left:8px}
+  #player-count,#kill-feed{display:none!important}
+  #event-radar-panel{left:8px;right:8px;top:auto;bottom:128px;width:auto}
 }
+
 
 </style>
 </head>
@@ -441,6 +515,16 @@ tr:hover td{background:#1a2a3a}
 
 <div id="player-count" style="display:none">👥 1</div>
 <div id="kill-feed"></div>
+<div id="event-radar-panel">
+  <div class="event-radar-header">
+    <span class="event-radar-title">EVENT RADAR</span>
+    <div class="event-radar-actions">
+      <button id="event-radar-min-btn" class="event-radar-btn" title="Minimize">−</button>
+      <button id="event-radar-max-btn" class="event-radar-btn" title="Maximize" style="display:none">+</button>
+    </div>
+  </div>
+  <div id="event-radar-body"></div>
+</div>
 <div id="score-popup"></div>
 <div id="credit-shop-tip">
   <button class="tip-x" id="credit-tip-close" title="Dismiss">×</button>
@@ -946,6 +1030,14 @@ function updateNpcStationDefense(st,dt){
   if(st.underAttackTimer>0)st.underAttackTimer=Math.max(0,st.underAttackTimer-dt);
   if(st.underCivAttackTimer>0)st.underCivAttackTimer=Math.max(0,st.underCivAttackTimer-dt);
   if(st.underPirateAttackTimer>0)st.underPirateAttackTimer=Math.max(0,st.underPirateAttackTimer-dt);
+  if(!st.destroyed&&st.underAttackTimer<=0&&st.underCivAttackTimer<=0&&st.underPirateAttackTimer<=0&&dist(ship.x,ship.y,st.x,st.y)>PURSUIT_REENGAGE_DISTANCE){
+    if(st.playerRep!=="neutral")st.playerRep="neutral";
+    for(const ts of st.tradeShips||[]){
+      if(ts.hp<=0)continue;
+      if(ts.state==="combat"||ts.state==="flee"){ts.state="return";ts.stateTimer=Math.max(ts.stateTimer||0,2);}
+      if(ts.combatTarget?.type==="player")ts.combatTarget=null;
+    }
+  }
   if(st.destroyed)return;
   const stats=npcStationDefenseStats(st.tier);
   st.shieldRegenTimer=Math.max(0,(st.shieldRegenTimer||0)-dt);
@@ -1860,6 +1952,16 @@ function pointInsideCivilizationZone(zoneId,x,y,pad=0){
   if(!z||!Number.isFinite(Number(x))||!Number.isFinite(Number(y)))return false;
   return dist(Number(x),Number(y),z.x,z.y)<=(z.radius||430)+pad;
 }
+function civilizationZoneAtPoint(x,y,pad=0){
+  for(const z of visibleCivZones){
+    if(dist(Number(x),Number(y),z.x,z.y)<=(z.radius||430)+pad)return z;
+  }
+  return null;
+}
+function triggerNpcCivilizationZoneAggro(zoneId,label="intruder"){
+  if(!zoneId)return 0;
+  return alertCivilizationZoneDefendersAgainstTarget(zoneId,{type:"player",x:ship.x,y:ship.y},label);
+}
 function tradeShipRawTarget(ts,station){return {type:"npcTradeShip",stationId:station?.id,shipId:ts?.id,x:ts?.x,y:ts?.y,sourceZoneId:stationZoneId(station)||null};}
 function npcStationRawTarget(st){return {type:"npcStation",stationId:st?.id,x:st?.x,y:st?.y,sourceZoneId:stationZoneId(st)||null};}
 function sameCivZone(a,b){return !!a&&!!b&&a===b;}
@@ -2156,27 +2258,65 @@ function getEventBeacons(){
   if(activeSpaceEffects.bountyHunt>0){for(const[,op]of otherPlayers)if(op.mode==="space")beacons.push({x:op.x,y:op.y,label:`BOUNTY ${op.name||"PILOT"}`,hint:"pilot",color:"#ff8844",kind:"bounty"});}
   return beacons.sort((a,b)=>dist(ship.x,ship.y,a.x,a.y)-dist(ship.x,ship.y,b.x,b.y));
 }
+let eventRadarMinimized=false;
 function drawEventRadarOverlay(){
+  renderEventRadarPanel();
   const beacons=getEventBeacons();
   if(!beacons.length)return;
-  const x=8,y=92,w=230,h=14+Math.min(4,beacons.length)*14;
-  ctx.save();
-  ctx.fillStyle="rgba(4,7,18,.78)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#31506f";ctx.strokeRect(x,y,w,h);
-  ctx.fillStyle="#9fc8ff";ctx.font="bold 7px monospace";ctx.fillText("EVENT RADAR",x+6,y+9);
-  for(let i=0;i<Math.min(4,beacons.length);i++){const b=beacons[i],d=Math.round(dist(ship.x,ship.y,b.x,b.y));ctx.fillStyle=b.color;ctx.font="8px monospace";ctx.fillText(`${b.label} ${d}m @ ${Math.round(b.x)},${Math.round(b.y)} · ${b.hint}`,x+8,y+22+i*14);}
-  // Draw strong edge arrows for off-screen discoveries.
+  // Keep only the off-screen guidance arrows in-canvas so the list itself can live in a cleaner DOM panel.
   const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
+  ctx.save();
   for(const b of beacons.slice(0,4)){
     const sx=b.x-camX,sy=b.y-camY;
     if(sx>=18&&sy>=18&&sx<=canvas.width-18&&sy<=canvas.height-18)continue;
     const ang=angleToward(canvas.width/2,canvas.height/2,sx,sy);
-    const ex=clamp(canvas.width/2+Math.cos(ang)*(canvas.width/2-24),24,canvas.width-24);
-    const ey=clamp(canvas.height/2+Math.sin(ang)*(canvas.height/2-24),24,canvas.height-24);
-    ctx.save();ctx.translate(ex,ey);ctx.rotate(ang);ctx.fillStyle=b.color;ctx.globalAlpha=.95;ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-8,-6);ctx.lineTo(-5,0);ctx.lineTo(-8,6);ctx.closePath();ctx.fill();ctx.restore();
-    ctx.fillStyle=b.color;ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(`${b.label} (${Math.round(b.x)},${Math.round(b.y)})`,ex,ey-10);ctx.textAlign="left";
+    const ex=clamp(canvas.width/2+Math.cos(ang)*(canvas.width/2-26),24,canvas.width-24);
+    const ey=clamp(canvas.height/2+Math.sin(ang)*(canvas.height/2-26),24,canvas.height-24);
+    ctx.save();ctx.translate(ex,ey);ctx.rotate(ang);ctx.fillStyle=b.color;ctx.globalAlpha=.82;ctx.beginPath();ctx.moveTo(11,0);ctx.lineTo(-7,-5);ctx.lineTo(-4,0);ctx.lineTo(-7,5);ctx.closePath();ctx.fill();ctx.restore();
   }
   ctx.restore();ctx.globalAlpha=1;
 }
+function renderEventRadarPanel(){
+  const panel=document.getElementById("event-radar-panel"),body=document.getElementById("event-radar-body"),minBtn=document.getElementById("event-radar-min-btn"),maxBtn=document.getElementById("event-radar-max-btn");
+  if(!panel||!body)return;
+  const beacons=getEventBeacons().slice(0,4);
+  if(!beacons.length){panel.style.display="none";return;}
+  panel.style.display="block";
+  panel.classList.toggle("minimized",!!eventRadarMinimized);
+  if(minBtn)minBtn.style.display=eventRadarMinimized?"none":"inline-flex";
+  if(maxBtn)maxBtn.style.display=eventRadarMinimized?"inline-flex":"none";
+  if(eventRadarMinimized){body.style.display="none";return;}
+  body.style.display="block";
+  body.innerHTML = beacons.map(b=>{
+    const d=Math.round(dist(ship.x,ship.y,b.x,b.y));
+    return `<div class="event-radar-row"><div class="event-radar-main"><span class="event-radar-label" style="color:${b.color}">${b.label}</span><div class="event-radar-meta">${d}m · ${Math.round(b.x)}, ${Math.round(b.y)}</div></div><div class="event-radar-hint">${b.hint}</div></div>`;
+  }).join("") || '<div class="event-radar-empty">No active events nearby.</div>';
+}
+function layoutFloatingHud(){
+  const hud=document.getElementById("hud"),eventPanel=document.getElementById("event-radar-panel"),playerCount=document.getElementById("player-count"),killFeed=document.getElementById("kill-feed"),chat=document.getElementById("chat-wrap"),hint=document.querySelector("#hud .hint"),party=document.getElementById("party-panel");
+  if(hud&&eventPanel&&window.innerWidth>620){
+    const hr=hud.getBoundingClientRect();
+    eventPanel.style.top = `${Math.round(hr.bottom + 16)}px`;
+  }
+  if(playerCount&&killFeed&&window.innerWidth>620){
+    const pr=playerCount.getBoundingClientRect();
+    killFeed.style.top = `${Math.round(pr.bottom + 8)}px`;
+  }
+  if(chat){
+    chat.style.bottom = window.innerWidth>620 ? `18px` : `98px`;
+  }
+  if(party&&window.innerWidth>760){
+    const kfVisible = getComputedStyle(killFeed).display !== "none" && killFeed.childElementCount>0;
+    if(kfVisible){
+      const kr=killFeed.getBoundingClientRect();
+      party.style.top = `${Math.round(kr.bottom + 10)}px`;
+    }else if(playerCount){
+      const pr=playerCount.getBoundingClientRect();
+      party.style.top = `${Math.round(pr.bottom + 10)}px`;
+    }
+  }
+}
+window.addEventListener("resize",layoutFloatingHud);
 
 /* ── Chunks ── */
 let chunkTimer=0;
@@ -2361,6 +2501,8 @@ function updateHud(){
   shipnameEl.textContent=(SHIP_TYPES[player.shipType]?.name||"Scout")+" / "+weaponLine();
   const entries=[];for(const s of player.invSlots)if(s.type&&s.count>0)entries.push(`${RES[s.type].name}:${s.count}`);
   invEl.textContent=entries.length?entries.slice(0,3).join(" • "):"(empty)";
+  renderEventRadarPanel();
+  layoutFloatingHud();
 }
 
 /* ── Stars ── */
@@ -2513,6 +2655,8 @@ function resolveOwnedAssistTarget(target){
   }else if(target.type==="pirate"){
     const ep=eventPirates.find(p=>p.id===target.pirateId);
     if(ep)return {type:"pirate",station:null,obj:ep,x:ep.x,y:ep.y,valid:true};
+  }else if(target.type==="player"){
+    if(mode===MODE.SPACE&&!gameOver)return {type:"player",station:null,obj:ship,x:ship.x,y:ship.y,valid:true};
   }
   return null;
 }
@@ -3167,6 +3311,7 @@ function updateDefenseTurrets(dt){
       else if(target.type==="npcStation"){const r=applyDamageToStation(target.station,damage,{markPlayerHostile:t.type!=="civ_turret"});if(t.type!=="civ_turret")aggroNpcStation(target.station);showFT("TURRET -"+Math.round(r.damage),target.station.x,target.station.y-18,"#ff8844",8);if(r.destroyed)destroyNpcStation(target.station);}
       else if(target.type==="ownedTradeShip"){target.obj.hp-=damage;target.obj.state="combat";target.obj.aggro=true;target.obj.stateTimer=999;showFT("TURRET -"+damage,target.obj.x,target.obj.y,"#ff8844",8);if(target.obj.hp<=0)dropOwnedTradeShipLoot(target.obj,target.station);}
       else if(target.type==="ownedStation"){socket.emit("damageOwnedStation",{stationKey:target.station.key,damage});showFT("TURRET station hit",target.x,target.y-18,"#ff8844",8);}
+      else if(target.type==="player"){socket.emit("npcHitPlayer",{damage,source:t.type==="civ_turret"?"Civilization Turret":"Defense Turret"});showFT("TURRET FIRE",target.x,target.y-15,"#ff8844",8);}
       else if(target.type==="otherPlayer"&&t.key){socket.emit("turretAttackPlayer",{targetId:target.obj.id,structureKey:t.key,damage,x:t.x,y:t.y});showFT("TURRET FIRE",target.x,target.y-15,"#ff8844",8);}
     }
   }
@@ -3642,15 +3787,12 @@ function updateSpace(dt){
         const ts=st.tradeShips[j];
         if(dist(p.x,p.y,ts.x,ts.y)<ts.size+4){
           callOwnedTradeShipsToAssist({type:"npcTradeShip",stationId:st.id,shipId:ts.id,x:ts.x,y:ts.y},"enemy ship");
-          if(st.playerRep==="neutral"){
-            st.playerRep="warned";
-            showFT("WARNING: Attack again and we retaliate!",ship.x,ship.y-20,"#ffcc44",9);
-          } else {
-            ts.hp-=p.damage;
-            showFT("-"+Math.round(p.damage),ts.x,ts.y,"#ff4422",9);
-            if(ts.hp<=0){killTradeShip(ts,st);}
-            else{ts.state="combat";ts.stateTimer=999;for(const ots of st.tradeShips)if(ots!==ts&&dist(ots.x,ots.y,ts.x,ts.y)<TRADE_SHIP_ALERT_RANGE){ots.state="combat";ots.stateTimer=999;}}
-          }
+          ts.hp-=p.damage;
+          aggroNpcStation(st);
+          ts.combatTarget={type:"player",x:ship.x,y:ship.y};
+          showFT("-"+Math.round(p.damage),ts.x,ts.y,"#ff4422",9);
+          if(st.civilizationZoneId)triggerNpcCivilizationZoneAggro(st.civilizationZoneId,"hostile pilot");
+          if(ts.hp<=0){killTradeShip(ts,st);}
           localPlayerProjectiles.splice(i,1);hit=true;break;
         }
       }
@@ -3669,6 +3811,37 @@ function updateSpace(dt){
         }
       }
     }
+    if(!hit){
+      for(const z of visibleCivZones){
+        for(const t of z.turrets||[]){
+          ensureCivilizationTurretState(t,z);
+          if(t.destroyed)continue;
+          if(dist(p.x,p.y,t.x,t.y)<15){
+            t.hp=Math.max(0,(t.hp||t.maxHp||260)-p.damage);
+            t.cooldown=Math.min(t.cooldown||0,0.2);
+            t.assistTarget={type:"player",x:ship.x,y:ship.y,targetZoneId:z.id||z.zoneId};
+            triggerNpcCivilizationZoneAggro(z.id||z.zoneId,"turret attack");
+            showFT("TURRET -"+Math.round(p.damage),t.x,t.y-12,"#ff5544",8);
+            if(t.hp<=0)destroyCivilizationTurret(t,z,"a hostile pilot");
+            localPlayerProjectiles.splice(i,1);hit=true;break;
+          }
+        }
+        if(hit)break;
+      }
+    }
+    if(!hit){
+      for(const ps of playerStructuresList){
+        if(ps.destroyed||ps.isOwn)continue;
+        const hitRadius=ps.type==="defense_turret"?15:17;
+        if(dist(p.x,p.y,ps.x,ps.y)<hitRadius){
+          socket.emit("environmentalDamagePlayerStructure",{structureKey:ps.key,damage:p.damage,source:"Pilot Fire",x:p.x,y:p.y});
+          const zoneHit=civilizationZoneAtPoint(ps.x,ps.y,120);
+          if(zoneHit&&!zoneHit.isOwn)triggerNpcCivilizationZoneAggro(zoneHit.id||zoneHit.zoneId,ps.type==="defense_turret"?"turret attack":"structure attack");
+          showFT(ps.type==="defense_turret"?"Turret hit":"Structure hit",ps.x,ps.y-18,"#ff5544",8);
+          localPlayerProjectiles.splice(i,1);hit=true;break;
+        }
+      }
+    }
     if(!hit&&tryHitEventPirates(p)){localPlayerProjectiles.splice(i,1);hit=true;}
     if(!hit){
       for(const st of visibleStations){
@@ -3678,6 +3851,7 @@ function updateSpace(dt){
           callOwnedTradeShipsToAssist({type:"npcStation",stationId:st.id,x:st.x,y:st.y},"enemy station");
           const result=applyDamageToStation(st,p.damage);
           aggroNpcStation(st);
+          if(st.civilizationZoneId)triggerNpcCivilizationZoneAggro(st.civilizationZoneId,"station attack");
           showFT(`-${Math.round(result.damage)} STATION`,st.x,st.y-18,"#ff5544",9);
           if(result.destroyed)destroyNpcStation(st);
           localPlayerProjectiles.splice(i,1);hit=true;break;
@@ -3691,6 +3865,8 @@ function updateSpace(dt){
         if(dist(p.x,p.y,st.x,st.y)<hitRadius){
           callOwnedTradeShipsToAssist({type:"ownedStation",stationKey:st.key,x:st.x,y:st.y},"enemy player station");
           socket.emit("damageOwnedStation",{stationKey:st.key,damage:p.damage});
+          const zoneHit=civilizationZoneAtPoint(st.x,st.y,120);
+          if(zoneHit&&!zoneHit.isOwn)triggerNpcCivilizationZoneAggro(zoneHit.id||zoneHit.zoneId,"civilization-zone attack");
           showFT("Station hit",st.x,st.y-18,"#ff5544",9);
           for(const os of ownedTradeShips.values())if(os.stationKey===st.key&&!os.disabled){os.state="combat";os.aggro=true;os.stateTimer=999;}
           localPlayerProjectiles.splice(i,1);hit=true;break;
@@ -4574,6 +4750,12 @@ function hideSocialInviteBanner(){const b=document.getElementById("social-invite
 function respondSocialInvite(accepted){if(!pendingSocialInvite||Date.now()>pendingSocialInvite.expires){pendingSocialInvite=null;hideSocialInviteBanner();return;}if(pendingSocialInvite.type==="party")socket.emit("partyInviteResponse",{partyId:pendingSocialInvite.partyId,accepted:!!accepted});else socket.emit("factionInviteResponse",{factionId:pendingSocialInvite.factionId,accepted:!!accepted});pendingSocialInvite=null;hideSocialInviteBanner();}
 function renderPartyPanel(){const panel=document.getElementById("party-panel"),list=document.getElementById("party-member-list");if(!panel||!list)return;if(!partyState||!(partyState.members||[]).length){panel.style.display="none";return;}panel.style.display="block";let html="";for(const m of partyState.members){const loc=m.mode==="planet"?`Planet ${Math.round(m.planetX)},${Math.round(m.planetY)}`:`Space ${m.x},${m.y}`;html+=`<div class="party-member"><span>${m.leader?"👑":"•"} <b>${m.name}</b><br><span class="social-small">${loc}</span></span><span>${m.hp}/${m.maxHp}</span></div>`;}list.innerHTML=html;}
 function renderSocialPanel(){if(!socialOpen)return;renderPartySocial();renderFactionSocial();}
+(function initEventRadarControls(){
+  const minBtn=document.getElementById("event-radar-min-btn"),maxBtn=document.getElementById("event-radar-max-btn");
+  if(minBtn)minBtn.onclick=()=>{eventRadarMinimized=true;renderEventRadarPanel();layoutFloatingHud();};
+  if(maxBtn)maxBtn.onclick=()=>{eventRadarMinimized=false;renderEventRadarPanel();layoutFloatingHud();};
+  setTimeout(layoutFloatingHud,0);
+})();
 function renderPartySocial(){const el=document.getElementById("social-party-content");if(!el)return;if(!partyState){el.innerHTML=`<div class="social-small">Create a party or invite a nearby pilot. Max 8 members. Party members cannot damage each other.</div><div class="social-row"><button id="party-create-btn" class="social-btn">Create Party</button><button id="party-invite-btn" class="social-btn gold">Invite Nearby</button></div>`;document.getElementById("party-create-btn").onclick=()=>socket.emit("partyCreate");document.getElementById("party-invite-btn").onclick=inviteNearestToParty;return;}const leader=partyState.leaderId===player.id;let html=`<div class="social-small">Members ${partyState.members.length}/${partyState.maxMembers}</div><div class="social-row"><button id="party-invite-btn" class="social-btn gold">Invite Nearby</button><button id="party-leave-btn" class="social-btn warn">${leader?"Disband Party":"Leave Party"}</button></div>`;for(const m of partyState.members){html+=`<div class="social-member"><b>${m.leader?"👑 ":""}${m.name}</b><br><span class="social-small">${m.mode} · ${m.mode==="planet"?`${m.planetX},${m.planetY}`:`${m.x},${m.y}`}</span>${leader&&!m.leader?`<div><button class="social-btn warn party-kick" data-id="${m.id}">Kick</button></div>`:""}</div>`;}el.innerHTML=html;document.getElementById("party-invite-btn").onclick=inviteNearestToParty;document.getElementById("party-leave-btn").onclick=()=>socket.emit(leader?"partyDisband":"partyLeave");for(const b of el.querySelectorAll(".party-kick"))b.onclick=()=>socket.emit("partyKick",{targetId:b.dataset.id});}
 function renderFactionSocial(){const el=document.getElementById("social-faction-content");if(!el)return;if(!factionState){el.innerHTML=`<div class="social-small">Create a faction for 5000 credits. Factions have tags, colors, ranks, quests, leveling, and friendly-fire protection.</div><div class="social-row"><input id="fac-name" placeholder="Faction name" style="flex:1"><input id="fac-tag" placeholder="TAG" style="width:54px"><input id="fac-icon" placeholder="⭐" style="width:42px"><input id="fac-color" type="color" value="#7be6ff"></div><div class="social-row"><textarea id="fac-desc" placeholder="Faction description"></textarea></div><button id="fac-create-btn" class="social-btn gold">Create Faction — 5000cr</button>`;document.getElementById("fac-create-btn").onclick=()=>socket.emit("factionCreate",{name:document.getElementById("fac-name").value,tag:document.getElementById("fac-tag").value,icon:document.getElementById("fac-icon").value,color:document.getElementById("fac-color").value,description:document.getElementById("fac-desc").value});return;}const fs=factionState,can=fs.yourRole==="leader"||fs.yourRole==="admin";let html=`<div><span class="social-tag" style="border-color:${fs.color};color:${fs.color}">${fs.icon} [${fs.tag}]</span> <b>${fs.name}</b></div><div class="social-small">Lv ${fs.level} · XP ${fs.xp}/${fs.xpNeeded} · Members ${fs.members.length}/${fs.capacity}<br>${fs.description||""}</div><div class="social-row"><button id="fac-invite-btn" class="social-btn gold">Invite Nearby</button><button id="fac-leave-btn" class="social-btn warn">${fs.yourRole==="leader"?"Disband Faction":"Leave Faction"}</button></div>`;if(can)html+=`<div class="social-row"><input id="fac-edit-name" value="${fs.name}" style="flex:1"><input id="fac-edit-tag" value="${fs.tag}" style="width:54px"><input id="fac-edit-icon" value="${fs.icon}" style="width:42px"><input id="fac-edit-color" type="color" value="${fs.color||"#7be6ff"}"><button id="fac-save-btn" class="social-btn">Save</button></div><textarea id="fac-edit-desc">${fs.description||""}</textarea>`;html+=`<h3>Members</h3>`;for(const m of fs.members){html+=`<div class="social-member"><b>${m.role==="leader"?"👑":m.role==="admin"?"⭐":"•"} ${m.name}</b> <span class="social-small">${m.rank} · contrib ${m.contribution}</span>${can&&m.id!==player.id&&m.role!=="leader"?`<div class="social-row"><input class="fac-rank" data-id="${m.id}" value="${m.rank}" style="width:90px"><select class="fac-role" data-id="${m.id}"><option value="member" ${m.role!=="admin"?"selected":""}>Member</option><option value="admin" ${m.role==="admin"?"selected":""}>Admin</option></select><button class="social-btn fac-rank-btn" data-id="${m.id}">Set</button><button class="social-btn warn fac-kick" data-id="${m.id}">Kick</button></div>`:""}</div>`;}html+=`<h3>Faction Quests</h3>`;for(const q of fs.quests||[]){const pct=Math.floor(((q.progress||0)/(q.target||1))*100);html+=`<div class="social-quest"><b>${q.completed?"✅ ":q.acceptedBy?"🟡 ":"⬜ "}${q.title}</b><br><span class="social-small">${q.description}<br>Progress ${q.progress||0}/${q.target} (${pct}%) ${q.acceptedByName?`· Accepted by ${q.acceptedByName}`:""}</span>${!q.completed&&!q.acceptedBy?`<div><button class="social-btn fac-quest" data-id="${q.id}">Accept Quest</button></div>`:""}</div>`;}el.innerHTML=html;document.getElementById("fac-invite-btn").onclick=inviteNearestToFaction;document.getElementById("fac-leave-btn").onclick=()=>socket.emit(fs.yourRole==="leader"?"factionDisband":"factionLeave");const save=document.getElementById("fac-save-btn");if(save)save.onclick=()=>socket.emit("factionUpdate",{name:document.getElementById("fac-edit-name").value,tag:document.getElementById("fac-edit-tag").value,icon:document.getElementById("fac-edit-icon").value,color:document.getElementById("fac-edit-color").value,description:document.getElementById("fac-edit-desc").value});for(const b of el.querySelectorAll(".fac-kick"))b.onclick=()=>socket.emit("factionKick",{targetId:b.dataset.id});for(const b of el.querySelectorAll(".fac-rank-btn"))b.onclick=()=>{const id=b.dataset.id;socket.emit("factionSetRank",{targetId:id,role:el.querySelector(`.fac-role[data-id='${id}']`).value,rank:el.querySelector(`.fac-rank[data-id='${id}']`).value});};for(const b of el.querySelectorAll(".fac-quest"))b.onclick=()=>socket.emit("factionAcceptQuest",{questId:b.dataset.id});}
 function initSocialDom(){const c=document.getElementById("social-close"),a=document.getElementById("social-invite-accept"),d=document.getElementById("social-invite-decline");if(c)c.onclick=()=>toggleSocialPanel();if(a)a.onclick=()=>respondSocialInvite(true);if(d)d.onclick=()=>respondSocialInvite(false);}
