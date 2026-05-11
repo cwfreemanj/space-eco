@@ -77,6 +77,10 @@ function cleanEnvUrl(value){
 }
 const WIX_GAME_AUTH_SECRET = process.env.WIX_GAME_AUTH_SECRET || process.env.SPACE_ECO_GAME_AUTH_SECRET || "";
 const WIX_PERSIST_URL = cleanEnvUrl(process.env.WIX_PERSIST_URL || process.env.PERSIST || process.env.SPACE_ECO_PERSIST_URL || "");
+// Optional read endpoint. Keep this separate from WIX_PERSIST_URL so a load request
+// can never accidentally hit the save endpoint and overwrite a good account.
+// Example: https://www.yoursite.com/_functions/spaceEcoLoadPlayer
+const WIX_LOAD_URL = cleanEnvUrl(process.env.WIX_LOAD_URL || process.env.SPACE_ECO_LOAD_URL || "");
 const WIX_PERSIST_SECRET = process.env.WIX_PERSIST_SECRET || process.env.SPACE_ECO_PERSIST_SECRET || PURCHASE_WEBHOOK_SECRET || "";
 const socketsByMemberId = new Map();
 const persistTimers = new Map();
@@ -115,6 +119,7 @@ function claimMemberSocket(memberId, socketId){
 console.log("Space Eco persistence config", {
   hasGameAuthSecret: !!WIX_GAME_AUTH_SECRET,
   hasPersistUrl: !!WIX_PERSIST_URL,
+  hasLoadUrl: !!WIX_LOAD_URL,
   hasPersistSecret: !!WIX_PERSIST_SECRET
 });
 
@@ -618,17 +623,46 @@ function authHasNonDefaultProgress(auth){
   if(Array.isArray(auth.activeMercs)&&auth.activeMercs.length>0)return true;
   if(objectHasAnyValue(auth.buildings)||objectHasAnyValue(auth.badgeRewards))return true;
   if(auth.attrs&&typeof auth.attrs==="object"&&Object.entries(auth.attrs).some(([_,v])=>Number(v)>1))return true;
+  if(auth.weaponLevels&&typeof auth.weaponLevels==="object"&&Object.entries(auth.weaponLevels).some(([k,v])=>isWeaponKey(k)&&Number(v)>1))return true;
+  if(auth.equippedWeapon&&auth.equippedWeapon!=="weapon_laser_mk1")return true;
   return false;
 }
 function authSnapshotExplicitlyReady(auth){
   return !!(auth&&(auth.persistenceLoaded===true||auth.savedGameReady===true||auth.snapshotReady===true||auth.inventoryReady===true||auth.allowEmptyInventory===true));
+}
+function authClaimsFreshEmptyAccount(auth){
+  return !!(auth&&(auth.signupCreditBonusEligible===true||auth.isNewMember===true||auth.newMember===true||auth.noSavedGame===true||auth.savedGameMissing===true||auth.freshAccount===true));
+}
+function isDefaultEmptyAccountSnapshot(auth){
+  if(!auth||typeof auth!=="object")return true;
+  const inv=getAuthInventoryPayload(auth);
+  return !inventoryPayloadHasItems(inv)&&!authHasNonDefaultProgress(auth);
 }
 function isTrustedAccountSnapshot(auth){
   if(!auth||typeof auth!=="object")return false;
   const inv=getAuthInventoryPayload(auth);
   if(inv!==undefined&&inventoryPayloadHasItems(inv))return true;
   if(authHasNonDefaultProgress(auth))return true;
-  return authSnapshotExplicitlyReady(auth);
+  // A default/empty snapshot is only safe when Wix explicitly says the account is
+  // new or has no saved game. A generic persistenceLoaded:true empty payload is
+  // not trusted anymore because it can erase an existing account if Wix posts a
+  // startup/default fallback before the real save is available.
+  if(authSnapshotExplicitlyReady(auth)&&authClaimsFreshEmptyAccount(auth))return true;
+  return false;
+}
+function playerHasSaveWorthyProgress(p){
+  if(!p)return false;
+  if((p.credits||0)>300)return true;
+  if((p.maxSlots||24)>24)return true;
+  if(inventoryPayloadHasItems(p.invSlots))return true;
+  if((p.level||1)>1||(p.xp||0)>0)return true;
+  if(p.shipType&&p.shipType!=="scout")return true;
+  if(Array.isArray(p.activeMercs)&&p.activeMercs.length>0)return true;
+  if(objectHasAnyValue(p.savedBuildings)||objectHasAnyValue(p.badgeRewards))return true;
+  if(p.attrs&&Object.entries(p.attrs).some(([_,v])=>Number(v)>1))return true;
+  if(p.weaponLevels&&Object.entries(p.weaponLevels).some(([k,v])=>isWeaponKey(k)&&Number(v)>1))return true;
+  if(p.equippedWeapon&&p.equippedWeapon!=="weapon_laser_mk1")return true;
+  return false;
 }
 function trustedSnapshotForPlayer(p,reason="cache"){
   if(!p?.memberId)return null;
@@ -689,6 +723,13 @@ function cleanClientWixSnapshot(snapshot,memberId){
   if(snapshot.buildings&&typeof snapshot.buildings==="object")out.buildings=snapshot.buildings;
   if(snapshot.signupCreditBonusGranted===true||snapshot.accountCreationBonusGranted===true)out.signupCreditBonusGranted=true;
   if(snapshot.signupCreditBonusEligible===true||snapshot.isNewMember===true||snapshot.newMember===true)out.signupCreditBonusEligible=true;
+  if(snapshot.isNewMember===true)out.isNewMember=true;
+  if(snapshot.newMember===true)out.newMember=true;
+  if(snapshot.noSavedGame===true||snapshot.savedGameMissing===true||snapshot.freshAccount===true){
+    if(snapshot.noSavedGame===true)out.noSavedGame=true;
+    if(snapshot.savedGameMissing===true)out.savedGameMissing=true;
+    if(snapshot.freshAccount===true)out.freshAccount=true;
+  }
   if(typeof snapshot.accountCreatedAt==="string"||typeof snapshot.accountCreatedAt==="number")out.accountCreatedAt=snapshot.accountCreatedAt;
   for(const flag of ["persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
     if(snapshot[flag]===true)out[flag]=true;
@@ -702,7 +743,7 @@ function combineAuthWithClientSnapshot(auth,snapshot){
   const out={...auth};
   // Signed token data wins when it contains a value. The snapshot fills gaps when
   // Wix sends member auth separately from the persisted inventory payload.
-  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","equippedAttachments","activeMercs","buildings","signupCreditBonusGranted","signupCreditBonusEligible","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
+  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","equippedAttachments","activeMercs","buildings","signupCreditBonusGranted","signupCreditBonusEligible","isNewMember","newMember","noSavedGame","savedGameMissing","freshAccount","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
     if(out[k]===undefined&&snap[k]!==undefined)out[k]=snap[k];
   }
   if(!authHasInventoryPayload(out)&&authHasInventoryPayload(snap)){
@@ -711,6 +752,34 @@ function combineAuthWithClientSnapshot(auth,snapshot){
     else if(snap.items!==undefined)out.items=snap.items;
   }
   return out;
+}
+function extractPersistedSnapshotFromWixResponse(data,memberId){
+  if(!data||typeof data!=="object")return null;
+  const raw=data.player||data.snapshot||data.save||data.record||data.data||data;
+  return cleanClientWixSnapshot(raw,memberId);
+}
+async function loadPersistedAccountSnapshot(memberId){
+  memberId=String(memberId||"");
+  if(!memberId||!WIX_LOAD_URL||!WIX_PERSIST_SECRET)return null;
+  try{
+    const url=new URL(WIX_LOAD_URL);
+    url.searchParams.set("memberId",memberId);
+    url.searchParams.set("t",String(Date.now()));
+    const res=await fetch(url.toString(),{method:"GET",headers:{"Authorization":`Bearer ${WIX_PERSIST_SECRET}`}});
+    if(!res.ok){console.warn("Wix load failed response:",res.status);return null;}
+    const data=await res.json().catch(()=>null);
+    if(!data||data.ok===false)return null;
+    const snap=extractPersistedSnapshotFromWixResponse(data,memberId);
+    return snap&&isTrustedAccountSnapshot(snap)?snap:null;
+  }catch(err){console.warn("Wix load failed:",err?.message||err);return null;}
+}
+async function enrichAuthWithPersistedSnapshot(auth,context="auth"){
+  if(!auth?.memberId)return auth;
+  auth=patchAuthWithCachedSnapshotIfSafer(auth);
+  if(isTrustedAccountSnapshot(auth))return auth;
+  const loaded=await loadPersistedAccountSnapshot(auth.memberId);
+  if(!loaded)return auth;
+  return patchAuthWithCachedSnapshotIfSafer({...auth,...loaded,memberId:String(auth.memberId),displayName:auth.displayName||loaded.displayName});
 }
 function inventoryFingerprint(slots,maxSlots=24,credits=0){
   const norm=normalizeInventorySlots(slots,maxSlots);
@@ -783,6 +852,7 @@ async function persistPlayerNow(p,reason="update"){
   if(!p?.memberId){console.warn("Wix persistence skipped: player has no memberId", p?.id, reason);return;}
   if(p.suppressPersist||!isCurrentAccountSocket(p)){console.warn("Wix persistence skipped: superseded account socket", p?.id, p?.memberId, reason);return;}
   if(!p.persistenceLoaded){console.warn("Wix persistence skipped: account inventory snapshot not loaded yet", p?.id, p?.memberId, reason);return;}
+  if(!playerHasSaveWorthyProgress(p)&&!p.signupCreditBonusGranted){console.warn("Wix persistence skipped: refusing to save empty/default account snapshot", p?.id, p?.memberId, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
   const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),signupCreditBonusGranted:!!p.signupCreditBonusGranted,reason,updatedAt:Date.now()};
   try{
@@ -846,6 +916,9 @@ function applyAuthAccountToPlayer(p,auth){
     p.loadedInventoryFingerprint=inventoryFingerprint(p.invSlots,p.maxSlots,p.credits||0);
     rememberTrustedSnapshot(p,"account_snapshot_loaded");
   }else{
+    if(authInventory!==undefined&&!trustedSnapshot){
+      console.warn("Ignored untrusted/default Wix inventory payload so it cannot reset account progress", p.id, memberId);
+    }
     // Never replace an existing/default inventory with an empty array just because
     // the auth token did not contain inventory. That was one source of lost saves.
     if(!Array.isArray(p.invSlots))p.invSlots=emptySlots(p.maxSlots);
@@ -909,12 +982,9 @@ function authEligibleForAccountCreationBonus(auth){
   if(!auth||typeof auth!=="object")return false;
   if(auth.signupCreditBonusGranted===true)return false;
   if(auth.signupCreditBonusEligible===true||auth.isNewMember===true||auth.newMember===true)return true;
-  const inv=getAuthInventoryPayload(auth);
-  const hasItems=inventoryPayloadHasItems(inv);
-  const hasProgress=authHasNonDefaultProgress(auth);
-  // A trusted-but-empty Wix snapshot is the normal shape of a fresh account.
-  // Existing accounts with real progress are not treated as fresh.
-  if(authSnapshotExplicitlyReady(auth)&&!hasItems&&!hasProgress)return true;
+  // Do not treat a generic empty/ready save as a new account. Wix must explicitly
+  // tell the server this is a fresh member or a missing saved-game record.
+  if(authClaimsFreshEmptyAccount(auth))return true;
   return false;
 }
 function maybeGrantAccountCreationBonus(p,auth,context="account_link"){
@@ -925,7 +995,7 @@ function maybeGrantAccountCreationBonus(p,auth,context="account_link"){
     if(p.id)io.to(p.id).emit("accountCreationBonusPending",{reason:"Account linked. Waiting for Wix to confirm this is a new saved account before granting the 100,000 credit welcome bonus."});
     return {granted:false,pending:true};
   }
-  if(!p.persistenceLoaded&&(authSnapshotExplicitlyReady(auth)||auth.signupCreditBonusEligible===true||auth.isNewMember===true||auth.newMember===true)){
+  if(!p.persistenceLoaded&&isTrustedAccountSnapshot(auth)){
     p.persistenceLoaded=true;
   }
   p.credits=(p.credits||0)+ACCOUNT_CREATION_BONUS_CREDITS;
@@ -1573,9 +1643,11 @@ function contributeFactionXp(p,amount,reason="XP"){
 io.on("connection",socket=>{
   if(players.size>=MAX_PLAYERS){socket.emit("serverFull");socket.disconnect(true);return;}
 
-  socket.on("join",({name,token,wixSnapshot})=>{
+  socket.on("join",async ({name,token,wixSnapshot})=>{
     if(players.has(socket.id))return;
-    const auth=combineAuthWithClientSnapshot(verifyGameToken(token),wixSnapshot);
+    let auth=combineAuthWithClientSnapshot(verifyGameToken(token),wixSnapshot);
+    auth=await enrichAuthWithPersistedSnapshot(auth,"join");
+    if(players.has(socket.id)||!socket.connected)return;
     const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
     applyAuthAccountToPlayer(p,auth);
     players.set(socket.id,p);
@@ -1599,9 +1671,10 @@ io.on("connection",socket=>{
     socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
   });
 
-  socket.on("linkAccount",({token,wixSnapshot})=>{
+  socket.on("linkAccount",async ({token,wixSnapshot})=>{
     const p=players.get(socket.id);if(!p)return;
-    const auth=combineAuthWithClientSnapshot(verifyGameToken(token),wixSnapshot);
+    let auth=combineAuthWithClientSnapshot(verifyGameToken(token),wixSnapshot);
+    auth=await enrichAuthWithPersistedSnapshot(auth,"linkAccount");
     if(!auth){socket.emit("accountLinkDenied",{reason:"Invalid or expired Wix login token."});return;}
     if(p.accountLoaded&&p.memberId&&p.memberId!==String(auth.memberId)){socket.emit("accountLinkDenied",{reason:"This socket is already linked to another account."});return;}
     const linkResult=linkAuthAccountToPlayer(p,auth);
@@ -2405,7 +2478,7 @@ io.on("connection",socket=>{
   socket.on("useOxygenTank",()=>{
     const p=players.get(socket.id);if(!p)return;
     if(!removeInventory(p,"oxygen_tank",1)){socket.emit("useItemDenied",{type:"oxygen_tank",reason:"No oxygen tank in server inventory."});return;}
-    socket.emit("oxygenTankUsed",{});syncAndPersist(p,"use_oxygen_tank");
+    socket.emit("oxygenTankUsed",{credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots});syncAndPersist(p,"use_oxygen_tank");
   });
 
   socket.on("useGas",()=>{
