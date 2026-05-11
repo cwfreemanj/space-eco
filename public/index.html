@@ -696,6 +696,25 @@ tr:hover td{background:#1a2a3a}
 }
 
 
+/* ═══════════════════════════════════════════════════════════════
+   Z SHIP MENU SAFE MODAL PATCH
+   - Canvas modal cannot stack above fixed DOM HUD overlays, so hide the HUD
+     lane while the Z menu is open. This prevents Pilot Status, Event Radar,
+     player count, chat, and control keys from covering the loadout panel.
+═══════════════════════════════════════════════════════════════ */
+body.ship-status-open #hud,
+body.ship-status-open #event-radar-panel,
+body.ship-status-open #party-panel,
+body.ship-status-open #player-count,
+body.ship-status-open #kill-feed,
+body.ship-status-open #chat-wrap,
+body.ship-status-open #control-keys-panel,
+body.ship-status-open #score-popup,
+body.ship-status-open #credit-shop-tip{
+  display:none!important;
+  pointer-events:none!important;
+}
+
 </style>
 </head>
 <body>
@@ -3955,10 +3974,12 @@ socket.on("tradeDenied",({reason})=>{tradeStatus=reason||"Trade request failed."
 socket.on("tradeStarted",(state)=>{applyTradeState(state);showTradePanel();addChat("Trade",`Trade started with ${state.otherName}.`,"#78ff8a");});
 socket.on("tradeSessionState",(state)=>{applyTradeState(state);renderTradePanel();});
 socket.on("tradeCancelled",({reason})=>{addChat("Trade",reason||"Trade cancelled.","#ff8844");closeTradePanel(false);});
-socket.on("tradeComplete",({credits,gaveOffer,receivedOffer,otherName})=>{
+socket.on("tradeComplete",({credits,invSlots,maxSlots,gaveOffer,receivedOffer,otherName})=>{
   if(typeof credits==="number")player.credits=credits;
+  if(typeof maxSlots==="number")player.maxSlots=maxSlots;
+  if(Array.isArray(invSlots)){player.invSlots=invSlots;ensureClientInventorySlots();}
   updateHud();
-  addChat("Trade",`Trade completed with ${otherName||"player"}.`,"#78ff8a");
+  addChat("Trade",`Trade completed with ${otherName||"player"}. Inventory updated.`,"#78ff8a");
   showFT("Trade complete",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-35:ship.y-22,"#78ff8a",11);
   closeTradePanel(false);
 });
@@ -4455,6 +4476,7 @@ function requestRespawn(){socket.emit("respawn");}
    DRAW SPACE
 ══════════════════════════════════════ */
 function drawSpace(){
+  syncShipStatusOverlayState();
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#05060a";ctx.fillRect(0,0,canvas.width,canvas.height);
   const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
 
@@ -4992,70 +5014,154 @@ function handleInventoryClick(mx,my){
 
 /* ── Final Ship Status / Loadout Menu ── */
 let shipStatusButtons=[];
-function toggleShipStatusPanel(){shipStatusOpen=!shipStatusOpen;if(shipStatusOpen){inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;selectedSlot=null;}}
-function shipStatusButton(label,x,y,w,h,action,enabled=true){shipStatusButtons.push({label,x,y,w,h,action,enabled});ctx.fillStyle=enabled?"#173a2a":"#2a2420";ctx.fillRect(x,y,w,h);ctx.strokeStyle=enabled?"#4a8a6a":"#5a4a34";ctx.lineWidth=1;ctx.strokeRect(x,y,w,h);ctx.fillStyle=enabled?"#78ff8a":"#9f8f68";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(label,x+w/2,y+14);ctx.textAlign="left";}
-function drawShipStatLine(label,value,x,y,color="#d6e1ff"){ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(label,x,y);ctx.fillStyle=color;ctx.font="bold 8px monospace";ctx.fillText(String(value),x+104,y);}
+let shipStatusPanelRect={x:0,y:0,w:0,h:0};
+let lastShipStatusDomState=null;
+function syncShipStatusOverlayState(){
+  const open=!!shipStatusOpen;
+  if(lastShipStatusDomState===open)return;
+  document.body.classList.toggle("ship-status-open",open);
+  lastShipStatusDomState=open;
+}
+function setShipStatusOpen(open){
+  shipStatusOpen=!!open;
+  syncShipStatusOverlayState();
+  if(shipStatusOpen){
+    inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;selectedSlot=null;
+  }
+}
+function toggleShipStatusPanel(){setShipStatusOpen(!shipStatusOpen);}
+function shipStatusUiScale(){
+  const r=canvas.getBoundingClientRect?.()||{width:canvas.width,height:canvas.height};
+  const sx=canvas.width/Math.max(1,r.width||canvas.width),sy=canvas.height/Math.max(1,r.height||canvas.height);
+  return {sx,sy,s:Math.max(0.45,Math.min(1.6,Math.min(sx,sy))),cssW:r.width||canvas.width,cssH:r.height||canvas.height};
+}
+function shipStatusLayout(){
+  const u=shipStatusUiScale();
+  const targetCssW=Math.min(1100,Math.max(540,u.cssW-96));
+  const targetCssH=Math.min(700,Math.max(430,u.cssH-96));
+  const pw=Math.min(canvas.width-24*u.sx, targetCssW*u.sx);
+  const ph=Math.min(canvas.height-24*u.sy, targetCssH*u.sy);
+  const px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  shipStatusPanelRect={x:px,y:py,w:pw,h:ph};
+  return {px,py,pw,ph,...u};
+}
+function shipStatusFont(size,bold=false){
+  const s=shipStatusUiScale().s;
+  return `${bold?"bold ":""}${Math.max(5,size*s)}px monospace`;
+}
+function shipStatusFillRect(x,y,w,h,fill,stroke){
+  ctx.fillStyle=fill;ctx.fillRect(x,y,w,h);
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=Math.max(1,shipStatusUiScale().s);ctx.strokeRect(x,y,w,h);}
+}
+function drawShipText(text,x,y,maxW,color="#d6e1ff",font=null){
+  text=String(text??"");
+  ctx.fillStyle=color;
+  if(font)ctx.font=font;
+  if(!maxW||ctx.measureText(text).width<=maxW){ctx.fillText(text,x,y);return;}
+  let out=text,ell="…";
+  while(out.length>0&&ctx.measureText(out+ell).width>maxW)out=out.slice(0,-1);
+  ctx.fillText(out+ell,x,y);
+}
+function shipStatusButton(label,x,y,w,h,action,enabled=true){
+  shipStatusButtons.push({label,x,y,w,h,action,enabled});
+  const s=shipStatusUiScale().s;
+  shipStatusFillRect(x,y,w,h,enabled?"#173a2a":"#2a2420",enabled?"#4a8a6a":"#5a4a34");
+  ctx.fillStyle=enabled?"#78ff8a":"#9f8f68";
+  ctx.font=shipStatusFont(11,true);ctx.textAlign="center";ctx.textBaseline="middle";
+  drawShipText(label,x+w/2-ctx.measureText(label).width/2,y+h/2+0.5*s,w-8*s,ctx.fillStyle,ctx.font);
+  ctx.textAlign="left";ctx.textBaseline="alphabetic";
+}
+function drawShipStatLine(label,value,x,y,maxW,color="#d6e1ff"){
+  const s=shipStatusUiScale().s,labelW=Math.min(92*s,maxW*.43),gap=8*s;
+  ctx.font=shipStatusFont(11,true);drawShipText(label,x,y,labelW,"#8fa3cc");
+  ctx.font=shipStatusFont(12,true);drawShipText(value,x+labelW+gap,y,Math.max(20,maxW-labelW-gap),color);
+}
+function drawShipSection(title,x,y,w,h){
+  shipStatusFillRect(x,y,w,h,"#10192b","#21365a");
+  ctx.font=shipStatusFont(13,true);drawShipText(title,x+10*shipStatusUiScale().s,y+19*shipStatusUiScale().s,w-20*shipStatusUiScale().s,"#ffdd44");
+}
+function drawShipLoadoutCard(slot,key,x,y,w,h){
+  const s=shipStatusUiScale().s,d=ATTACHMENT_DEFS[key];
+  shipStatusFillRect(x,y,w,h,key?"#111d2e":"#0f1727",key?"#2d4b72":"#20334f");
+  ctx.font=shipStatusFont(10,true);drawShipText(slot.toUpperCase(),x+10*s,y+16*s,72*s,"#8fa3cc");
+  ctx.font=shipStatusFont(12,true);drawShipText(key?(d?.name||RES[key]?.name||key):"Empty",x+92*s,y+16*s,w-(key?178*s:104*s),key?"#d6e1ff":"#5f7086");
+  ctx.font=shipStatusFont(10,false);drawShipText(key?attachmentBonusLine(key):"Equip compatible item from inventory",x+10*s,y+38*s,w-20*s,"#9fb0d0");
+  if(key)shipStatusButton("UNEQ",x+w-70*s,y+10*s,56*s,25*s,()=>socket.emit("unequipAttachment",{slot}),true);
+}
 function drawShipStatusPanel(){
+  syncShipStatusOverlayState();
   if(!shipStatusOpen)return;
   shipStatusButtons=[];
-  ctx.fillStyle="rgba(0,0,0,0.72)";ctx.fillRect(0,0,canvas.width,canvas.height);
-  const pw=Math.min(600,canvas.width-24),ph=Math.min(348,canvas.height-24),px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
-  ctx.fillStyle="#0c1322";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#7be6ff";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
-  ctx.fillStyle="#7be6ff";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText("SHIP STATUS & LOADOUT",px+pw/2,py+16);ctx.textAlign="left";
-  ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText("Z closes · inventory equips modules · starter weapon is fallback",px+12,py+30);
+  const L=shipStatusLayout(),{px,py,pw,ph,s}=L;
+  ctx.save();
+  ctx.textBaseline="alphabetic";ctx.textAlign="left";
+  ctx.fillStyle="rgba(0,0,0,0.84)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  shipStatusFillRect(px,py,pw,ph,"#0c1322","#7be6ff");
+  ctx.fillStyle="rgba(123,230,255,0.06)";ctx.fillRect(px+2*s,py+2*s,pw-4*s,42*s);
+  ctx.font=shipStatusFont(23,true);ctx.textAlign="center";drawShipText("SHIP STATUS & LOADOUT",px+pw/2-ctx.measureText("SHIP STATUS & LOADOUT").width/2,py+29*s,pw-160*s,"#7be6ff",ctx.font);ctx.textAlign="left";
+  ctx.font=shipStatusFont(10,false);drawShipText("Z closes · inventory equips modules · starter laser stays as fallback",px+20*s,py+49*s,pw-150*s,"#8fa3cc");
+  shipStatusButton("CLOSE",px+pw-112*s,py+12*s,88*s,29*s,()=>setShipStatusOpen(false),true);
 
-  const def=ship.def,fx=attachmentEffects(),wep=equippedWeaponDef(),wepKey=equippedWeaponKey();
-  const left=px+14,mid=px+206,right=px+398,start=py+52,line=13;
-  ctx.fillStyle="#ffdd44";ctx.font="bold 9px monospace";ctx.fillText("SHIP",left,start-13);ctx.fillText("PILOT",mid,start-13);ctx.fillText("WEAPON",right,start-13);
-  drawShipStatLine("Frame",def.name||player.shipType,left,start,"#fff2b8");
-  drawShipStatLine("Hull",`${Math.ceil(ship.hp)}/${ship.maxHp}`,left,start+line,ship.hp<ship.maxHp*.35?"#ff7777":"#d6e1ff");
-  drawShipStatLine("Shield",`${Math.ceil(ship.shield)}/${ship.maxShield}`,left,start+line*2,"#7be6ff");
-  drawShipStatLine("Energy",`${Math.ceil(energy.current)}/${energy.max}`,left,start+line*3,"#78ff8a");
-  drawShipStatLine("Speed",ship.speedStat.toFixed(2),left,start+line*4);
-  drawShipStatLine("Damage",ship.damageStat.toFixed(2),left,start+line*5,"#ffdd44");
-  drawShipStatLine("Shield/s",ship.shieldRegenRate.toFixed(1),left,start+line*6,"#7be6ff");
-  drawShipStatLine("Module HP/SH",`+${Math.round(fx.maxHpBonus)} / +${Math.round(fx.maxShieldBonus)}`,left,start+line*7);
+  const def=ship.def||SHIP_TYPES[player.shipType]||{},fx=attachmentEffects(),wep=equippedWeaponDef(),wepKey=equippedWeaponKey();
+  const pad=24*s,gap=18*s,contentX=px+pad,contentW=pw-pad*2;
+  const top=py+72*s,sectionH=194*s,colW=(contentW-gap*2)/3;
+  const colTitles=["SHIP","PILOT","WEAPON"];
+  for(let i=0;i<3;i++)drawShipSection(colTitles[i],contentX+i*(colW+gap),top,colW,sectionH);
+  let x=contentX,y=top+44*s,line=20*s;
+  drawShipStatLine("Frame",def.name||player.shipType,x+10*s,y,colW-20*s,"#fff2b8");
+  drawShipStatLine("Hull",`${Math.ceil(ship.hp)}/${ship.maxHp}`,x+10*s,y+line,colW-20*s,ship.hp<ship.maxHp*.35?"#ff7777":"#d6e1ff");
+  drawShipStatLine("Shield",`${Math.ceil(ship.shield)}/${ship.maxShield}`,x+10*s,y+line*2,colW-20*s,"#7be6ff");
+  drawShipStatLine("Energy",`${Math.ceil(energy.current)}/${energy.max}`,x+10*s,y+line*3,colW-20*s,"#78ff8a");
+  drawShipStatLine("Speed",ship.speedStat.toFixed(2),x+10*s,y+line*4,colW-20*s);
+  drawShipStatLine("Damage",ship.damageStat.toFixed(2),x+10*s,y+line*5,colW-20*s,"#ffdd44");
+  drawShipStatLine("Shield/s",ship.shieldRegenRate.toFixed(1),x+10*s,y+line*6,colW-20*s,"#7be6ff");
 
-  drawShipStatLine("Pilot",player.name||"Pilot",mid,start,"#fff2b8");
-  drawShipStatLine("Level",player.level,mid,start+line);
-  drawShipStatLine("XP",`${player.xp}/${player.xpToNext}`,mid,start+line*2,"#cc88ff");
-  drawShipStatLine("Points",player.attrPoints||0,mid,start+line*3,"#cc88ff");
-  drawShipStatLine("Credits",`${Math.floor(player.credits)}cr`,mid,start+line*4,"#ffdd44");
-  drawShipStatLine("Score",player.score||0,mid,start+line*5);
-  drawShipStatLine("K/D",`${player.kills||0}/${player.deaths||0}`,mid,start+line*6);
-  drawShipStatLine("Cargo",`${filledSlotCount()}/${player.maxSlots}`,mid,start+line*7);
+  x=contentX+colW+gap;
+  drawShipStatLine("Pilot",player.name||"Pilot",x+10*s,y,colW-20*s,"#fff2b8");
+  drawShipStatLine("Level",player.level,x+10*s,y+line,colW-20*s);
+  drawShipStatLine("XP",`${player.xp}/${player.xpToNext}`,x+10*s,y+line*2,colW-20*s,"#cc88ff");
+  drawShipStatLine("Points",player.attrPoints||0,x+10*s,y+line*3,colW-20*s,"#cc88ff");
+  drawShipStatLine("Credits",`${Math.floor(player.credits)}cr`,x+10*s,y+line*4,colW-20*s,"#ffdd44");
+  drawShipStatLine("Score",player.score||0,x+10*s,y+line*5,colW-20*s);
+  drawShipStatLine("Cargo",`${filledSlotCount()}/${player.maxSlots}`,x+10*s,y+line*6,colW-20*s);
 
-  drawShipStatLine("Equipped",`${wep.name} Lv${weaponLevel(wepKey)}`,right,start,"#fff2b8");
-  drawShipStatLine("Class",`${wep.class} · ${wep.mode}`,right,start+line);
-  drawShipStatLine("Damage",Math.round(weaponDamage(wepKey)),right,start+line*2,"#ffdd44");
-  drawShipStatLine("Cooldown",`${(wep.cooldown||0).toFixed(2)}s`,right,start+line*3);
-  drawShipStatLine("Shots",wep.shots||1,right,start+line*4);
-  drawShipStatLine("Life",`${(wep.life||0).toFixed(1)}s`,right,start+line*5);
-  shipStatusButton("UNEQUIP",right,start+line*6+1,74,18,()=>{socket.emit("unequipWeapon");},wepKey!=="weapon_laser_mk1");
+  x=contentX+(colW+gap)*2;
+  drawShipStatLine("Equipped",`${wep.name} Lv${weaponLevel(wepKey)}`,x+10*s,y,colW-20*s,"#fff2b8");
+  drawShipStatLine("Class",`${wep.class} · ${wep.mode}`,x+10*s,y+line,colW-20*s);
+  drawShipStatLine("Damage",Math.round(weaponDamage(wepKey)),x+10*s,y+line*2,colW-20*s,"#ffdd44");
+  drawShipStatLine("Cooldown",`${(wep.cooldown||0).toFixed(2)}s`,x+10*s,y+line*3,colW-20*s);
+  drawShipStatLine("Shots",wep.shots||1,x+10*s,y+line*4,colW-20*s);
+  drawShipStatLine("Life",`${(wep.life||0).toFixed(1)}s`,x+10*s,y+line*5,colW-20*s);
+  shipStatusButton("UNEQUIP",x+10*s,y+line*6-13*s,104*s,28*s,()=>{socket.emit("unequipWeapon");},wepKey!=="weapon_laser_mk1");
 
-  const loadout=normalizeAttachments(player.equippedAttachments),slotY=py+162;
-  ctx.fillStyle="#ffdd44";ctx.font="bold 9px monospace";ctx.fillText("ATTACHMENTS",left,slotY-8);
+  const loadout=normalizeAttachments(player.equippedAttachments),slotTitleY=top+sectionH+30*s;
+  ctx.font=shipStatusFont(14,true);drawShipText("ATTACHMENTS",contentX,slotTitleY,contentW,"#ffdd44");
+  ctx.font=shipStatusFont(10,false);drawShipText(`Module bonuses: +${Math.round(fx.maxHpBonus)} HP / +${Math.round(fx.maxShieldBonus)} Shield · Damage x${fx.damageMult.toFixed(2)} · Efficiency x${fx.gasEfficiencyMult.toFixed(2)}`,contentX+130*s,slotTitleY,contentW-130*s,"#9fb0d0");
+
+  const cardGap=14*s,cardW=(contentW-cardGap)/2,cardH=52*s,slotY=slotTitleY+14*s;
   ATTACHMENT_SLOTS.forEach((slot,i)=>{
-    const x=left+(i%2)*286,y=slotY+Math.floor(i/2)*39,key=loadout[slot],d=ATTACHMENT_DEFS[key];
-    ctx.fillStyle=i%2===0?"#10192b":"#111d2e";ctx.fillRect(x,y,270,32);ctx.strokeStyle="#21365a";ctx.strokeRect(x,y,270,32);
-    ctx.fillStyle="#8fa3cc";ctx.font="bold 7px monospace";ctx.fillText(slot.toUpperCase(),x+7,y+11);
-    ctx.fillStyle=key?"#d6e1ff":"#5a6a7a";ctx.font="7px monospace";ctx.fillText(key?(d?.name||RES[key]?.name||key):"Empty",x+68,y+11);
-    ctx.fillStyle="#9fb0d0";ctx.font="6.5px monospace";ctx.fillText(key?attachmentBonusLine(key).slice(0,36):"Equip compatible item from inventory",x+7,y+24);
-    if(key)shipStatusButton("UNEQ",x+222,y+7,40,17,()=>socket.emit("unequipAttachment",{slot}),true);
+    const row=Math.floor(i/2),col=i%2;
+    drawShipLoadoutCard(slot,loadout[slot],contentX+col*(cardW+cardGap),slotY+row*(cardH+10*s),cardW,cardH);
   });
 
   const avail=Object.keys(ATTACHMENT_DEFS).filter(k=>inventoryTotal(k)>0);
-  const ay=py+ph-44;ctx.fillStyle="#ffdd44";ctx.font="bold 8px monospace";ctx.fillText("AVAILABLE",left,ay-6);
-  if(!avail.length){ctx.fillStyle="#6f809d";ctx.font="7px monospace";ctx.fillText("No modules in inventory.",left,ay+12);}
-  avail.slice(0,5).forEach((key,i)=>{const d=ATTACHMENT_DEFS[key],x=left+68+i*82,y=ay-16;shipStatusButton(`${(d.name||key).replace(/\s+/g," ").slice(0,9)}`,x,y,76,19,()=>socket.emit("equipAttachment",{attachmentKey:key}),loadout[d.slot]!==key);});
-  shipStatusButton("CLOSE",px+pw-68,py+9,52,18,()=>{shipStatusOpen=false;},true);
+  const availY=py+ph-92*s;
+  shipStatusFillRect(contentX,availY,contentW,68*s,"#0e1728","#20365a");
+  ctx.font=shipStatusFont(13,true);drawShipText("AVAILABLE MODULES",contentX+10*s,availY+19*s,170*s,"#ffdd44");
+  if(!avail.length){ctx.font=shipStatusFont(10,false);drawShipText("No compatible ship modules in inventory.",contentX+10*s,availY+43*s,contentW-20*s,"#6f809d");}
+  const startX=contentX+174*s,btnGap=8*s,perRow=Math.max(1,Math.floor((contentW-184*s)/(128*s))),btnW=Math.max(96*s,Math.min(128*s,(contentW-184*s-btnGap*(perRow-1))/perRow)),btnH=24*s;
+  avail.slice(0,Math.max(0,perRow*2)).forEach((key,i)=>{
+    const d=ATTACHMENT_DEFS[key],row=Math.floor(i/perRow),col=i%perRow;
+    const bx=startX+col*(btnW+btnGap),by=availY+11*s+row*(btnH+6*s);
+    shipStatusButton((d.name||key).replace(/\s+/g," "),bx,by,btnW,btnH,()=>socket.emit("equipAttachment",{attachmentKey:key}),loadout[d.slot]!==key);
+  });
+  ctx.restore();
 }
 function handleShipStatusClick(mx,my){
   for(const b of shipStatusButtons){if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){if(b.enabled&&typeof b.action==="function")b.action();return;}}
-  const pw=Math.min(600,canvas.width-24),ph=Math.min(348,canvas.height-24),px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
-  if(mx<px||mx>px+pw||my<py||my>py+ph)shipStatusOpen=false;
+  const r=shipStatusPanelRect.w?shipStatusPanelRect:shipStatusLayout();
+  if(mx<r.x||mx>r.x+r.w||my<r.y||my>r.y+r.h)setShipStatusOpen(false);
 }
-
 
 function drawInventory(){
   if(!inventoryOpen)return;
@@ -5128,6 +5234,7 @@ function updatePlanet(dt){
   updateHud();
 }
 function drawPlanet(){
+  syncShipStatusOverlayState();
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle=(activePlanet?.pal?.sky)||"#05060a";ctx.fillRect(0,0,canvas.width,canvas.height);
   const cam=planetCamera(),TP=16,x0=Math.floor(cam.x/TP),y0=Math.floor(cam.y/TP),x1=Math.ceil((cam.x+canvas.width)/TP),y1=Math.ceil((cam.y+canvas.height)/TP);
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=tileAt(x,y);if(!t)continue;const px2=x*TP-cam.x,py2=y*TP-cam.y;ctx.fillStyle=TILECOLORS[t]||"#6b7075";ctx.fillRect(px2,py2,TP,TP);ctx.globalAlpha=0.3;ctx.fillStyle="#fff";ctx.fillRect(px2+3,py2+3,1,1);ctx.globalAlpha=1;}
@@ -5219,12 +5326,13 @@ function showTradePanel(){const el=document.getElementById("trade-panel-dom");if
 function closeTradePanel(sendCancel=true){if(sendCancel&&activeTrade?.tradeId)socket.emit("tradeCancel",{tradeId:activeTrade.tradeId});activeTrade=null;const el=document.getElementById("trade-panel-dom");if(el)el.style.display="none";}
 function myTradeOffer(){if(!activeTrade)return {credits:0,items:[]};return activeTrade.offers?.[activeTrade.yourSide]||{credits:0,items:[]};}
 function theirTradeOffer(){if(!activeTrade)return {credits:0,items:[]};const other=activeTrade.yourSide==="a"?"b":"a";return activeTrade.offers?.[other]||{credits:0,items:[]};}
-function sendTradeOffer(){if(!activeTrade)return;const inp=document.getElementById("trade-credit-input");let credits=clamp(Math.floor(Number(inp?.value)||0),0,Math.max(0,player.credits));const offer=myTradeOffer();offer.credits=credits;offer.items=normalizeTradeItems(offer.items);socket.emit("tradeUpdate",{tradeId:activeTrade.tradeId,offer});}
-function addTradeItem(){if(!activeTrade)return;const sel=document.getElementById("trade-item-select"),qtyEl=document.getElementById("trade-item-qty");const type=sel?.value;if(!type)return;const q=Math.max(1,Math.floor(Number(qtyEl?.value)||1));const offer=myTradeOffer();const existing=offer.items.find(i=>i.type===type);if(existing)existing.quantity+=q;else offer.items.push({type,quantity:q});offer.items=normalizeTradeItems(offer.items);socket.emit("tradeUpdate",{tradeId:activeTrade.tradeId,offer});}
-function removeTradeItem(idx){if(!activeTrade)return;const offer=myTradeOffer();offer.items.splice(idx,1);socket.emit("tradeUpdate",{tradeId:activeTrade.tradeId,offer});}
-function setTradeReady(){if(!activeTrade)return;sendTradeOffer();socket.emit("tradeReady",{tradeId:activeTrade.tradeId,ready:true});}
+function currentTradeOfferPayload(){if(!activeTrade)return {credits:0,items:[]};const inp=document.getElementById("trade-credit-input");const current=myTradeOffer();const credits=clamp(Math.floor(Number(inp?.value)||0),0,Math.max(0,player.credits));const items=normalizeTradeItems((current.items||[]).map(it=>({type:it.type,quantity:it.quantity})));return {credits,items};}
+function sendTradeOffer(){if(!activeTrade)return;const offer=currentTradeOfferPayload();socket.emit("tradeUpdate",{tradeId:activeTrade.tradeId,offer});}
+function addTradeItem(){if(!activeTrade)return;const sel=document.getElementById("trade-item-select"),qtyEl=document.getElementById("trade-item-qty");const type=sel?.value;if(!type)return;const q=Math.max(1,Math.floor(Number(qtyEl?.value)||1));const offer=currentTradeOfferPayload();const existing=offer.items.find(i=>i.type===type);if(existing)existing.quantity+=q;else offer.items.push({type,quantity:q});offer.items=normalizeTradeItems(offer.items);socket.emit("tradeUpdate",{tradeId:activeTrade.tradeId,offer});}
+function removeTradeItem(idx){if(!activeTrade)return;const offer=currentTradeOfferPayload();offer.items.splice(idx,1);offer.items=normalizeTradeItems(offer.items);socket.emit("tradeUpdate",{tradeId:activeTrade.tradeId,offer});}
+function setTradeReady(){if(!activeTrade)return;const offer=currentTradeOfferPayload();tradeStatus="Ready locked. Waiting for the other pilot...";socket.emit("tradeReady",{tradeId:activeTrade.tradeId,ready:true,offer});renderTradePanel();}
 function formatOfferHTML(offer,editable=false){let html=`<div class="trade-offer-item"><span>Credits</span><b>${offer.credits||0} cr</b></div>`;if(!(offer.items||[]).length)html+=`<div class="trade-small">No resources/items offered.</div>`;for(let i=0;i<(offer.items||[]).length;i++){const it=offer.items[i];html+=`<div class="trade-offer-item"><span>${RES[it.type]?.name||it.type} × ${it.quantity}</span>${editable?`<button class="trade-btn warn trade-remove" data-idx="${i}" style="padding:2px 6px">Remove</button>`:""}</div>`;}return html;}
-function renderTradePanel(){if(!activeTrade)return;const other=activeTrade.yourSide==="a"?"b":"a";document.getElementById("trade-other-name").textContent=activeTrade.otherName||"Pilot";document.getElementById("trade-session-status").textContent=tradeStatus||"Choose credits/resources, then press Ready. Changing your offer resets readiness.";const offer=myTradeOffer(),their=theirTradeOffer();const creditInput=document.getElementById("trade-credit-input");if(creditInput&&document.activeElement!==creditInput)creditInput.value=offer.credits||0;const sel=document.getElementById("trade-item-select");if(sel){const old=sel.value;sel.innerHTML="";const counts=inventoryTypeCounts();for(const [type,count] of Object.entries(counts)){const opt=document.createElement("option");opt.value=type;opt.textContent=`${RES[type]?.name||type} (${count})`;sel.appendChild(opt);}if(old)sel.value=old;}document.getElementById("trade-your-offer").innerHTML=formatOfferHTML(offer,true);document.getElementById("trade-their-offer").innerHTML=formatOfferHTML(their,false);document.getElementById("trade-your-ready").textContent=activeTrade.ready?.[activeTrade.yourSide]?"✓ READY":"";document.getElementById("trade-their-ready").textContent=activeTrade.ready?.[other]?"✓ READY":"";for(const btn of document.querySelectorAll(".trade-remove"))btn.onclick=()=>removeTradeItem(Number(btn.dataset.idx));}
+function renderTradePanel(){if(!activeTrade)return;const other=activeTrade.yourSide==="a"?"b":"a";const youReady=!!activeTrade.ready?.[activeTrade.yourSide],themReady=!!activeTrade.ready?.[other];document.getElementById("trade-other-name").textContent=activeTrade.otherName||"Pilot";document.getElementById("trade-session-status").textContent=youReady&&themReady?"Both pilots are ready. Completing trade...":youReady?"You are ready. Waiting for the other pilot.":themReady?"Other pilot is ready. Review the offer, then press Ready Trade.":(tradeStatus||"Choose credits/resources, then press Ready. Changing your offer resets readiness.");const offer=myTradeOffer(),their=theirTradeOffer();const creditInput=document.getElementById("trade-credit-input");if(creditInput&&document.activeElement!==creditInput)creditInput.value=offer.credits||0;const sel=document.getElementById("trade-item-select");if(sel){const old=sel.value;sel.innerHTML="";const counts=inventoryTypeCounts();for(const [type,count] of Object.entries(counts)){const opt=document.createElement("option");opt.value=type;opt.textContent=`${RES[type]?.name||type} (${count})`;sel.appendChild(opt);}if(old)sel.value=old;}document.getElementById("trade-your-offer").innerHTML=formatOfferHTML(offer,true);document.getElementById("trade-their-offer").innerHTML=formatOfferHTML(their,false);document.getElementById("trade-your-ready").textContent=youReady?"✓ READY":"";document.getElementById("trade-their-ready").textContent=themReady?"✓ READY":"";const readyBtn=document.getElementById("trade-ready-btn");if(readyBtn)readyBtn.textContent=youReady?"Ready ✓":"Ready Trade";for(const btn of document.querySelectorAll(".trade-remove"))btn.onclick=()=>removeTradeItem(Number(btn.dataset.idx));}
 function initTradeDom(){const a=document.getElementById("trade-accept-btn"),d=document.getElementById("trade-decline-btn"),cl=document.getElementById("trade-close-btn"),add=document.getElementById("trade-add-item-btn"),upd=document.getElementById("trade-credit-update-btn"),ready=document.getElementById("trade-ready-btn");if(a)a.onclick=()=>respondToTradeRequest(true);if(d)d.onclick=()=>respondToTradeRequest(false);if(cl)cl.onclick=()=>closeTradePanel(true);if(add)add.onclick=addTradeItem;if(upd)upd.onclick=sendTradeOffer;if(ready)ready.onclick=setTradeReady;}
 
 function nearestAnyPlayerId(rangePlanet=160,rangeSpace=320){const t=mode===MODE.PLANET?nearestPlanetPlayer(rangePlanet):nearestSpacePlayer(rangeSpace);return t?.id||null;}
