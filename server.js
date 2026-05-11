@@ -507,6 +507,10 @@ function attachmentEffectsFor(p){
   }
   return fx;
 }
+function finiteOrFallback(value,fallback){
+  const n=Number(value);
+  return Number.isFinite(n)?n:fallback;
+}
 function applyShipStats(p,refill=false){
   if(!p)return attachmentEffectsFor(p);
   p.equippedAttachments=normalizeAttachments(p.equippedAttachments||{});
@@ -514,7 +518,12 @@ function applyShipStats(p,refill=false){
   p.maxHp=Math.max(1,Math.floor((def.maxHp||100)+fx.maxHpBonus));
   p.maxShield=Math.max(0,Math.floor((def.maxShield||60)+fx.maxShieldBonus));
   if(refill){p.hp=p.maxHp;p.shield=p.maxShield;}
-  else{p.hp=Math.max(0,Math.min(Number(p.hp)||p.maxHp,p.maxHp));p.shield=Math.max(0,Math.min(Number(p.shield)||p.maxShield,p.maxShield));}
+  else{
+    // Preserve valid 0 values. The old `Number(value) || max` pattern treated a depleted
+    // shield as missing data and could snap it back to full during sustained attacks.
+    p.hp=Math.max(0,Math.min(finiteOrFallback(p.hp,p.maxHp),p.maxHp));
+    p.shield=Math.max(0,Math.min(finiteOrFallback(p.shield,p.maxShield),p.maxShield));
+  }
   return fx;
 }
 const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft","hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip","obelisk_core",...WEAPON_KEYS];
@@ -762,7 +771,13 @@ function validateTradeItems(p,items){
 }
 function emitInventorySync(p,reason="sync"){
   if(!p?.id)return;
-  io.to(p.id).emit("inventorySync",{credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),attachmentDefs:ATTACHMENT_DEFS,reason,persistenceLoaded:!!p.persistenceLoaded,accountLoaded:!!p.accountLoaded,memberId:p.memberId||null});
+  io.to(p.id).emit("inventorySync",{
+    credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),
+    level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},
+    equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},
+    equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),attachmentDefs:ATTACHMENT_DEFS,reason,
+    persistenceLoaded:!!p.persistenceLoaded,accountLoaded:!!p.accountLoaded,memberId:p.memberId||null
+  });
 }
 async function persistPlayerNow(p,reason="update"){
   if(!p?.memberId){console.warn("Wix persistence skipped: player has no memberId", p?.id, reason);return;}
@@ -1150,6 +1165,38 @@ const planetProjectiles=[];
 const SHOOT_CD=0.22, PROJ_SPEED=280, PROJ_LIFE=2.2, BASE_DAMAGE=18;
 const PLANET_PROJ_SPEED=310, PLANET_PROJ_LIFE=1.55, PLANET_PROJ_HIT_RADIUS=12;
 
+// Player shields may only recharge after the pilot has been out of combat for this long.
+// This also prevents a depleted shield value of 0 from being mistaken for missing data.
+const PLAYER_SHIELD_REGEN_DELAY = 3;
+function markPlayerShieldCombat(p){
+  if(!p)return;
+  p.lastShieldHitAt = Date.now();
+  const cur = Number.isFinite(Number(p.shieldRegenTimer)) ? Number(p.shieldRegenTimer) : 0;
+  p.shieldRegenTimer = Math.max(cur, PLAYER_SHIELD_REGEN_DELAY);
+}
+function applyShieldHullDamageToPlayer(target, rawDamage, useArmor=true){
+  if(!target||target.mode!=="space"||target.hp<=0)return {damage:0,hpDamage:0,shieldDamage:0,killed:false};
+  const raw=Math.max(0,Math.min(220,Number(rawDamage)||0));
+  if(raw<=0)return {damage:0,hpDamage:0,shieldDamage:0,killed:false};
+  const armor=useArmor ? Math.max(0.2,1+((((target.attrs||{}).armor)||1)-1)*0.2) : 1;
+  let dmg=raw/armor,shieldDamage=0,hpDamage=0;
+  // Keep an actual 0 shield as 0. Never use `shield || maxShield` here.
+  target.maxShield=Math.max(0,Number.isFinite(Number(target.maxShield))?Number(target.maxShield):0);
+  target.shield=Math.max(0,Math.min(Number.isFinite(Number(target.shield))?Number(target.shield):0,target.maxShield));
+  if(target.shield>0){
+    shieldDamage=Math.min(target.shield,dmg);
+    target.shield=Math.max(0,target.shield-shieldDamage);
+    dmg-=shieldDamage;
+  }
+  if(dmg>0){
+    target.hp=Math.max(0,Math.min(Number.isFinite(Number(target.hp))?Number(target.hp):0,Number.isFinite(Number(target.maxHp))?Number(target.maxHp):999999));
+    hpDamage=Math.min(target.hp,dmg);
+    target.hp=Math.max(0,target.hp-hpDamage);
+  }
+  markPlayerShieldCombat(target);
+  return {damage:Math.round(raw/armor),hpDamage,shieldDamage,killed:target.hp<=0};
+}
+
 function tickProjectiles(dt){
   for(let i=pvpProjectiles.length-1;i>=0;i--){
     const p=pvpProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
@@ -1158,13 +1205,11 @@ function tickProjectiles(dt){
       if(sid===p.ownerId||target.mode!=="space")continue;
       if(areAllied(players.get(p.ownerId),target))continue;
       if(Math.hypot(p.x-target.x,p.y-target.y)<12){
-        const armor=1+((target.attrs.armor-1)*0.2);let dmg=p.damage/armor;
-        if(target.shield>0){const abs=Math.min(target.shield,dmg);target.shield-=abs;dmg-=abs;}
-        target.hp=Math.max(0,target.hp-dmg);target.shieldRegenTimer=4;
-        io.to(sid).emit("hit",{damage:Math.round(dmg),hp:target.hp,shield:target.shield,by:p.ownerId});
-        io.to(p.ownerId).emit("hitConfirm",{targetId:sid,damage:Math.round(dmg),weaponKey:p.weaponKey,color:p.color});
+        const result=applyShieldHullDamageToPlayer(target,p.damage,true);
+        io.to(sid).emit("hit",{damage:result.damage,hp:target.hp,shield:target.shield,by:p.ownerId});
+        io.to(p.ownerId).emit("hitConfirm",{targetId:sid,damage:result.damage,weaponKey:p.weaponKey,color:p.color});
         pvpProjectiles.splice(i,1);
-        if(target.hp<=0)handlePlayerKill(sid,p.ownerId);
+        if(result.killed)handlePlayerKill(sid,p.ownerId);
         break;
       }
     }
@@ -1231,18 +1276,12 @@ function handlePlayerKill(victimId, killerId){
 }
 
 function applySpaceDamageToPlayer(target, rawDamage, attacker, sourceName="Ally Trade Ship"){
-  if(!target||target.mode!=="space"||target.hp<=0)return {damage:0,killed:false};
-  const amount=Math.max(0,Math.min(220,Number(rawDamage)||0));
-  if(amount<=0)return {damage:0,killed:false};
-  const armor=1+(((target.attrs||{}).armor-1)*0.2);
-  let dmg=amount/Math.max(0.2,armor);
-  if(target.shield>0){const abs=Math.min(target.shield,dmg);target.shield-=abs;dmg-=abs;}
-  target.hp=Math.max(0,target.hp-dmg);target.shieldRegenTimer=4;
-  io.to(target.id).emit("hit",{damage:Math.round(dmg),hp:target.hp,shield:target.shield,by:attacker?.id||sourceName,source:sourceName});
-  if(attacker?.id)io.to(attacker.id).emit("hitConfirm",{targetId:target.id,damage:Math.round(dmg),source:sourceName});
-  const killed=target.hp<=0;
-  if(killed)handlePlayerKill(target.id,attacker?.id||null);
-  return {damage:Math.round(dmg),killed};
+  const result=applyShieldHullDamageToPlayer(target,rawDamage,true);
+  if(result.damage<=0)return {damage:0,killed:false};
+  io.to(target.id).emit("hit",{damage:result.damage,hp:target.hp,shield:target.shield,by:attacker?.id||sourceName,source:sourceName});
+  if(attacker?.id)io.to(attacker.id).emit("hitConfirm",{targetId:target.id,damage:result.damage,source:sourceName});
+  if(result.killed)handlePlayerKill(target.id,attacker?.id||null);
+  return {damage:result.damage,killed:result.killed};
 }
 
 /* ── Physics tick ── */
@@ -1263,7 +1302,9 @@ function tickPlayers(dt){
     else if(Math.hypot(p.vx,p.vy)>5)p.energy=Math.max(0,p.energy-ENERGY_IDLE*gasEff*dt);
     if(inp.brake){p.vx*=0.92;p.vy*=0.92;}
     const drag=Math.pow(0.995,dt*60);p.vx*=drag;p.vy*=drag;p.x+=p.vx*dt;p.y+=p.vy*dt;
-    p.shieldRegenTimer=Math.max(0,p.shieldRegenTimer-dt);
+    // Shield recharge is strictly delayed until the player has been out of combat.
+    p.shieldRegenTimer=Math.max(0,(Number(p.shieldRegenTimer)||0)-dt);
+    p.shield=Math.max(0,Math.min(Number.isFinite(Number(p.shield))?Number(p.shield):0,p.maxShield));
     if(p.shieldRegenTimer<=0&&p.shield<p.maxShield)p.shield=Math.min(p.maxShield,p.shield+shRegen*dt);
     if(inp.shootX!==null&&p.shootCooldown<=0&&p.hp>0){
       const ang=Math.atan2(inp.shootY-p.y,inp.shootX-p.x);
@@ -1514,7 +1555,7 @@ io.on("connection",socket=>{
     restorePersistentBuildingsForPlayer(p);
     if(auth)maybeGrantAccountCreationBonus(p,auth,"join");
     applyShipStats(p,false);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
     emitInventorySync(p,"login");
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
@@ -2106,11 +2147,9 @@ io.on("connection",socket=>{
     if(Number.isFinite(declaredX)&&Number.isFinite(declaredY)&&Math.hypot(target.x-declaredX,target.y-declaredY)>560)return;
     merc.lastShotAt=now;
     const raw=Math.max(1,Math.min(70,Number(damage)||merc.damage||10));
-    let dmg=raw/(1+((target.attrs.armor-1)*0.2));
-    if(target.shield>0){const abs=Math.min(target.shield,dmg);target.shield-=abs;dmg-=abs;}
-    target.hp=Math.max(0,target.hp-dmg);target.shieldRegenTimer=5;
-    io.to(target.id).emit("hit",{damage:Math.round(raw),hp:target.hp,shield:target.shield,by:`${owner.name}'s mercenary`});
-    if(target.hp<=0){target.deaths=(target.deaths||0)+1;owner.kills=(owner.kills||0)+1;addScore(owner,220,"Mercenary Kill");io.to(target.id).emit("youDied",{killedBy:`${owner.name}'s mercenary`});io.emit("playerKilled",{victimId:target.id,victimName:target.name,killerId:owner.id,killerName:owner.name});broadcastLeaderboard();}
+    const result=applyShieldHullDamageToPlayer(target,raw,true);
+    io.to(target.id).emit("hit",{damage:result.damage,hp:target.hp,shield:target.shield,by:`${owner.name}'s mercenary`});
+    if(result.killed){target.deaths=(target.deaths||0)+1;owner.kills=(owner.kills||0)+1;addScore(owner,220,"Mercenary Kill");io.to(target.id).emit("youDied",{killedBy:`${owner.name}'s mercenary`});io.emit("playerKilled",{victimId:target.id,victimName:target.name,killerId:owner.id,killerName:owner.name});broadcastLeaderboard();}
   });
 
   socket.on("civilizationDefenderAttackPlayer",(raw={})=>{
@@ -2228,15 +2267,11 @@ io.on("connection",socket=>{
   });
 
   socket.on("npcHitPlayer",({damage,source})=>{
-    const p=players.get(socket.id);if(!p||p.mode!=="space")return;
+    const p=players.get(socket.id);if(!p||p.mode!=="space"||p.hp<=0)return;
     const raw=Math.max(0,Math.min(90,Number(damage)||0));if(raw<=0)return;
-    const armor=1+((p.attrs.armor-1)*0.2);let dmg=raw/armor;
-    if(p.shield>0){const abs=Math.min(p.shield,dmg);p.shield-=abs;dmg-=abs;}
-    p.hp=Math.max(0,p.hp-dmg);
-    // NPC/trade-ship hits should pause regen long enough to let sustained fire matter.
-    p.shieldRegenTimer=5;
-    socket.emit("hit",{damage:Math.round(raw/armor),hp:p.hp,shield:p.shield,by:source||"Trade Ship"});
-    if(p.hp<=0){
+    const result=applyShieldHullDamageToPlayer(p,raw,true);
+    socket.emit("hit",{damage:result.damage,hp:p.hp,shield:p.shield,by:source||"Trade Ship"});
+    if(result.killed){
       p.deaths=(p.deaths||0)+1;
       socket.emit("youDied",{killedBy:source||"Trade Ship"});
       io.emit("playerKilled",{victimId:p.id,victimName:p.name,killerId:null,killerName:source||"Trade Ship"});
