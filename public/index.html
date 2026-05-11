@@ -1316,7 +1316,12 @@ function applyDamageToStation(st,rawDamage,opts={}){
   if(st.shield>0){shieldDamage=Math.min(st.shield,dmg);st.shield-=shieldDamage;dmg-=shieldDamage;}
   if(dmg>0){hpDamage=Math.min(st.hp,dmg);st.hp=Math.max(0,st.hp-hpDamage);}
   st.shieldRegenTimer=8;
-  if(opts?.markPlayerHostile===false){
+  if(opts?.suppressAggro){
+    // Used for the player's own civilization zone: damage can register,
+    // but the whole civilization should not become hostile to its owner.
+    st.underAttackTimer=0;
+    st.playerRep="neutral";
+  }else if(opts?.markPlayerHostile===false){
     st.underCivAttackTimer=Math.max(st.underCivAttackTimer||0,45);
   }else{
     st.underAttackTimer=45;st.playerRep="hostile";
@@ -1325,6 +1330,13 @@ function applyDamageToStation(st,rawDamage,opts={}){
 }
 function aggroNpcStation(st){
   if(!st||st.destroyed)return;
+  // Player-owned civilization zones should not mass-aggro against their owner.
+  // Individual ships can still self-defend when directly hit.
+  if(stationBelongsToPlayerOwnedCivilization(st)){
+    st.underAttackTimer=0;
+    st.playerRep="neutral";
+    return;
+  }
   st.playerRep="hostile";st.underAttackTimer=Math.max(st.underAttackTimer||0,45);
   for(const ts of st.tradeShips){ts.playerPursuitCooldown=0;ts.state="combat";ts.stateTimer=999;ts.shootTimer=Math.min(ts.shootTimer||0,0.3);}
   if(st.tradeRespawns){for(const r of st.tradeRespawns)r.timer=Math.min(r.timer,5+Math.random()*3);}
@@ -1335,10 +1347,12 @@ function updateNpcStationDefense(st,dt){
   if(st.underCivAttackTimer>0)st.underCivAttackTimer=Math.max(0,st.underCivAttackTimer-dt);
   if(st.underPirateAttackTimer>0)st.underPirateAttackTimer=Math.max(0,st.underPirateAttackTimer-dt);
   const playerLeftThisCiv=st.civilizationZoneId&&!pointInsideCivilizationZone(st.civilizationZoneId,ship.x,ship.y,120);
-  if(playerLeftThisCiv&&st.underAttackTimer>0){
+  const ownCivilizationStation=stationBelongsToPlayerOwnedCivilization(st);
+  if((playerLeftThisCiv||ownCivilizationStation)&&st.underAttackTimer>0){
     st.underAttackTimer=0;
     if(st.playerRep!=="neutral")st.playerRep="neutral";
   }
+  if(ownCivilizationStation&&st.playerRep!=="neutral")st.playerRep="neutral";
   if(!st.destroyed&&st.underAttackTimer<=0&&st.underCivAttackTimer<=0&&st.underPirateAttackTimer<=0&&(dist(ship.x,ship.y,st.x,st.y)>PURSUIT_REENGAGE_DISTANCE||playerLeftThisCiv||gameOver)){
     if(st.playerRep!=="neutral")st.playerRep="neutral";
     for(const ts of st.tradeShips||[]){
@@ -2309,6 +2323,32 @@ function pointInsideCivilizationZone(zoneId,x,y,pad=0){
   if(!z||!Number.isFinite(Number(x))||!Number.isFinite(Number(y)))return false;
   return dist(Number(x),Number(y),z.x,z.y)<=(z.radius||430)+pad;
 }
+function isPlayerOwnedCivilizationZone(zoneId){
+  const z=visibleCivZoneById(zoneId);
+  return !!(z&&z.isOwn);
+}
+function stationBelongsToPlayerOwnedCivilization(st){
+  return !!(st?.civilizationZoneId&&isPlayerOwnedCivilizationZone(st.civilizationZoneId));
+}
+function targetBelongsToPlayerOwnedCivilization(target){
+  if(!target)return false;
+  if(target.type==="npcTradeShip"||target.type==="npcStation"){
+    const st=target.station||visibleStations.find(s=>s.id===target.stationId);
+    return stationBelongsToPlayerOwnedCivilization(st);
+  }
+  if(target.type==="civTurret"){
+    return isPlayerOwnedCivilizationZone(target.zoneId||target.targetZoneId||target.zone?.id||target.zone?.zoneId);
+  }
+  return false;
+}
+function startNpcShipSelfDefenseAgainstPlayer(ts,station){
+  if(!ts||ts.hp<=0||!station)return;
+  ts.state="combat";
+  ts.stateTimer=999;
+  ts.playerPursuitCooldown=0;
+  ts.combatTarget={type:"player",x:ship.x,y:ship.y,selfDefense:true,zoneId:station.civilizationZoneId||null};
+  ts.shootTimer=Math.min(ts.shootTimer||0,0.12+Math.random()*0.12);
+}
 function civilizationZoneAtPoint(x,y,pad=0){
   for(const z of visibleCivZones){
     if(dist(Number(x),Number(y),z.x,z.y)<=(z.radius||430)+pad)return z;
@@ -2317,6 +2357,9 @@ function civilizationZoneAtPoint(x,y,pad=0){
 }
 function triggerNpcCivilizationZoneAggro(zoneId,label="intruder"){
   if(!zoneId)return 0;
+  // Never call the whole player-owned civilization against its own owner.
+  // Directly-hit ships handle their own self-defense separately.
+  if(isPlayerOwnedCivilizationZone(zoneId))return 0;
   return alertCivilizationZoneDefendersAgainstTarget(zoneId,{type:"player",x:ship.x,y:ship.y},label);
 }
 function tradeShipRawTarget(ts,station){return {type:"npcTradeShip",stationId:station?.id,shipId:ts?.id,x:ts?.x,y:ts?.y,sourceZoneId:stationZoneId(station)||null};}
@@ -2397,6 +2440,7 @@ function findCivilizationDefenseTargetForZone(zoneId,x,y,range=1500){
 function alertCivilizationZoneDefendersAgainstTarget(zoneId,target,label="enemy ships"){
   const raw=normalizeCivDefenseTarget(target);
   if(!zoneId||!raw)return 0;
+  if(raw.type==="player"&&isPlayerOwnedCivilizationZone(zoneId))return 0;
   if(raw.type==="npcTradeShip"){
     const attackerStation=visibleStations.find(s=>s.id===raw.stationId&&!s.destroyed);
     const attackerShip=attackerStation?.tradeShips?.find(q=>q.id===raw.shipId&&q.hp>0);
@@ -2491,6 +2535,7 @@ function alertOwnedCivilizationZoneDefenders(target,label="attacker"){
 }
 function resolveNpcTradeShipCombatTarget(ts,station){
   const defendingOwnedCiv=stationInActiveOwnedCivZone(station);
+  const ownCivilizationStation=stationBelongsToPlayerOwnedCivilization(station);
   if(ts.combatTarget?.type==="otherPlayer"){
     if(!defendingOwnedCiv){ts.combatTarget=null;return null;}
     const op=otherPlayers.get(ts.combatTarget.playerId);
@@ -2518,7 +2563,7 @@ function resolveNpcTradeShipCombatTarget(ts,station){
     const t=findCivilizationDefenseTargetForZone(station.civilizationZoneId,ts.x,ts.y,1700);
     if(t){ts.combatTarget=t.type==="npcTradeShip"?{type:"npcTradeShip",stationId:t.station.id,shipId:t.obj.id,targetZoneId:station.civilizationZoneId}:t.type==="npcStation"?{type:"npcStation",stationId:t.station.id,targetZoneId:station.civilizationZoneId}:t.type==="pirate"?{type:"pirate",pirateId:t.obj.id,targetZoneId:station.civilizationZoneId}:null;return t;}
   }
-  if(station.destroyed||station.underAttackTimer>0||station.playerRep==="hostile"){
+  if(!ownCivilizationStation&&(station.destroyed||station.underAttackTimer>0||station.playerRep==="hostile")){
     if(gameOver||ship.hp<=0){ts.playerPursuitCooldown=PURSUIT_BREAK_COOLDOWN;return null;}
     if(station.civilizationZoneId&&!pointInsideCivilizationZone(station.civilizationZoneId,ship.x,ship.y,120)){
       station.underAttackTimer=0;
@@ -3020,6 +3065,9 @@ function dropOwnedTradeShipLoot(os,st){
 }
 function resolveOwnedAssistTarget(target){
   if(!target)return null;
+  // Do not let the player's own mercs/turrets/trade ships dogpile a
+  // player-owned civilization NPC that is only self-defending after being hit.
+  if(targetBelongsToPlayerOwnedCivilization(target))return null;
   if(target.type==="npcTradeShip"){
     for(const st of visibleStations){
       if(target.stationId&&st.id!==target.stationId)continue;
@@ -3088,7 +3136,7 @@ function findAssistTargetForShot(wx,wy){
     consider({type:"otherPlayer",playerId:op.id},op.renderX||op.x,op.renderY||op.y,radius,"enemy player");
   }
   for(const st of visibleStations){
-    if(st.destroyed)continue;
+    if(st.destroyed||stationBelongsToPlayerOwnedCivilization(st))continue;
     for(const ts of st.tradeShips||[])consider({type:"npcTradeShip",stationId:st.id,shipId:ts.id},ts.x,ts.y,(ts.size||5)+12,"enemy trade ship");
     consider({type:"npcStation",stationId:st.id},st.x,st.y,(st.tierDef?.size||18)+18,"enemy station");
   }
@@ -3107,13 +3155,14 @@ function findAssistTargetForShot(wx,wy){
 }
 function forceAssistOnAttacker(target,label="attacker"){
   if(!target)return;
+  if(targetBelongsToPlayerOwnedCivilization(target))return;
   alertOwnedCivilizationZoneDefenders(target,label);
   callOwnedTradeShipsToAssist(target,label);
   callMercsToAssist(target,label);
   callDefenseTurretsToAssist(target,label);
 }
 function callDefenseTurretsToAssist(target,label="attacker"){
-  if(!target)return 0;let called=0;const tx=Number(target.x),ty=Number(target.y);
+  if(!target)return 0;if(targetBelongsToPlayerOwnedCivilization(target))return 0;let called=0;const tx=Number(target.x),ty=Number(target.y);
   for(const ps of playerStructuresList){
     if(!ps.isOwn||ps.type!=="defense_turret"||ps.destroyed)continue;
     const range=(ps.range||850)+380;
@@ -3127,6 +3176,7 @@ function callDefenseTurretsToAssist(target,label="attacker"){
 }
 function callOwnedTradeShipsToAssist(target,label="target"){
   if(!target)return 0;
+  if(targetBelongsToPlayerOwnedCivilization(target))return 0;
   const ASSIST_RANGE=1800;
   const SHIP_NEAR_RANGE=1250;
   let called=0;
@@ -3169,9 +3219,9 @@ function updateOwnedTradeShipAssist(os,st,dt){
     os.shootTimer=0.50+Math.random()*0.16;
     spawnAllyProjectileVisual(os,target);
     if(target.type==="npcTradeShip"){
-      aggroNpcStation(target.station);target.obj.hp-=os.damage;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);if(target.obj.hp<=0)killTradeShip(target.obj,target.station);
+      if(!stationBelongsToPlayerOwnedCivilization(target.station))aggroNpcStation(target.station);target.obj.hp-=os.damage;showFT("ALLY -"+Math.round(os.damage),target.obj.x,target.obj.y,"#ffee88",8);if(target.obj.hp<=0)killTradeShip(target.obj,target.station);
     }else if(target.type==="npcStation"){
-      const r=applyDamageToStation(target.station,os.damage);aggroNpcStation(target.station);showFT("ALLY -"+Math.round(r.damage),target.station.x,target.station.y-18,"#ffee88",8);if(r.destroyed)destroyNpcStation(target.station);
+      const ownCivTarget=stationBelongsToPlayerOwnedCivilization(target.station);const r=applyDamageToStation(target.station,os.damage,ownCivTarget?{suppressAggro:true}:{});if(!ownCivTarget)aggroNpcStation(target.station);showFT("ALLY -"+Math.round(r.damage),target.station.x,target.station.y-18,"#ffee88",8);if(r.destroyed)destroyNpcStation(target.station);
     }else if(target.type==="ownedStation"){
       socket.emit("damageOwnedStation",{stationKey:target.station.key,damage:os.damage});showFT("ALLY station hit",target.x,target.y-18,"#ffee88",8);
     }else if(target.type==="ownedTradeShip"){
@@ -3637,7 +3687,7 @@ function normalizeClientMerc(m){
   return {...m,x:Number(m.x)||ship.x,y:Number(m.y)||ship.y,vx:0,vy:0,angle:0,hp,maxHp:Number(m.maxHp)||70,shield:sh,maxShield:Number(m.maxShield)||35,damage:Number(m.damage)||10,speed:Number(m.speed)||100,color:m.color||mercColor(m.rarity),state:"follow",shootTimer:0,regenTimer:0,assistTarget:null};
 }
 function callMercsToAssist(target,label="target"){
-  if(!target)return 0;let called=0;const tx=Number(target.x),ty=Number(target.y);
+  if(!target)return 0;if(targetBelongsToPlayerOwnedCivilization(target))return 0;let called=0;const tx=Number(target.x),ty=Number(target.y);
   for(const ms of activeMercShips){
     if(ms.hp<=0)continue;
     const nearPlayer=dist(ms.x,ms.y,ship.x,ship.y)<1900;
@@ -3668,8 +3718,8 @@ function updateMercShips(dt){
       const desired=d>165?ms.speed:(d<85?-ms.speed*.35:0);if(desired){ms.vx=lerp(ms.vx,Math.cos(ang)*desired,0.09);ms.vy=lerp(ms.vy,Math.sin(ang)*desired,0.09);}else{ms.vx*=0.94;ms.vy*=0.94;}
       if(ms.shootTimer<=0&&d<500){ms.shootTimer=0.42+Math.random()*0.15;spawnAllyProjectileVisual(ms,target);
         if(target.type==="pirate"){target.obj.hp-=ms.damage;target.obj.target={type:"mercShip",mercId:ms.id};target.obj.retargetTimer=0.1;showFT("MERC -"+Math.round(ms.damage),target.obj.x,target.obj.y,"#ffdd44",8);}
-        else if(target.type==="npcTradeShip"){aggroNpcStation(target.station);target.obj.hp-=ms.damage;if(target.obj.hp<=0)killTradeShip(target.obj,target.station);}
-        else if(target.type==="npcStation"){const r=applyDamageToStation(target.station,ms.damage);aggroNpcStation(target.station);if(r.destroyed)destroyNpcStation(target.station);}
+        else if(target.type==="npcTradeShip"){if(!stationBelongsToPlayerOwnedCivilization(target.station))aggroNpcStation(target.station);target.obj.hp-=ms.damage;if(target.obj.hp<=0)killTradeShip(target.obj,target.station);}
+        else if(target.type==="npcStation"){const ownCivTarget=stationBelongsToPlayerOwnedCivilization(target.station);const r=applyDamageToStation(target.station,ms.damage,ownCivTarget?{suppressAggro:true}:{});if(!ownCivTarget)aggroNpcStation(target.station);if(r.destroyed)destroyNpcStation(target.station);}
         else if(target.type==="ownedTradeShip"){target.obj.hp-=ms.damage;if(target.obj.hp<=0)dropOwnedTradeShipLoot(target.obj,target.station);}
         else if(target.type==="ownedStation"){socket.emit("damageOwnedStation",{stationKey:target.station.key,damage:ms.damage});}
         else if(target.type==="otherPlayer"){socket.emit("mercAttackPlayer",{targetId:target.obj.id,mercId:ms.id,damage:ms.damage,x:ms.x,y:ms.y});}
@@ -3712,14 +3762,17 @@ function updateDefenseTurrets(dt){
     }
     if(!target&&t.type==="civ_turret"&&t.zoneId){target=findCivilizationDefenseTargetForZone(t.zoneId,t.x,t.y,range+260);}
     if(!target){let best=null,bd=Infinity;for(const ep of eventPirates){const d=dist(t.x,t.y,ep.x,ep.y);if(d<bd&&d<range){bd=d;best=ep;}}if(best)target={type:"pirate",obj:best,x:best.x,y:best.y,valid:true};}
+    if(target&&target.type==="player"&&t.type==="civ_turret"&&isPlayerOwnedCivilizationZone(t.zoneId)){t.assistTarget=null;target=null;}
     if(target&&t.cooldown<=0){
       t.cooldown=0.55;spawnWarProjectile(t.x,t.y,target.x,target.y,t.color||"#ff8844",420);
       if(target.type==="pirate"){target.obj.hp-=damage;target.obj.target=t.key?{type:"playerStructure",structureKey:t.key}:{type:"npcStation",stationId:(visibleStations.find(s=>s.civilizationZoneId&&dist(s.x,s.y,t.x,t.y)<900)||{}).id};target.obj.retargetTimer=0.1;showFT("TURRET -"+damage,target.obj.x,target.obj.y,"#ff8844",8);}
-      else if(target.type==="npcTradeShip"){target.obj.hp-=damage;if(t.type!=="civ_turret")aggroNpcStation(target.station);else target.obj.combatTarget={type:"npcStation",stationId:(visibleStations.find(s=>s.civilizationZoneId===t.zoneId)||{}).id,targetZoneId:target.station?.civilizationZoneId};showFT("TURRET -"+damage,target.obj.x,target.obj.y,"#ff8844",8);if(target.obj.hp<=0)killTradeShip(target.obj,target.station);}
-      else if(target.type==="npcStation"){const r=applyDamageToStation(target.station,damage,{markPlayerHostile:t.type!=="civ_turret"});if(t.type!=="civ_turret")aggroNpcStation(target.station);showFT("TURRET -"+Math.round(r.damage),target.station.x,target.station.y-18,"#ff8844",8);if(r.destroyed)destroyNpcStation(target.station);}
+      else if(target.type==="npcTradeShip"){target.obj.hp-=damage;if(t.type!=="civ_turret"&&!stationBelongsToPlayerOwnedCivilization(target.station))aggroNpcStation(target.station);else if(t.type==="civ_turret")target.obj.combatTarget={type:"npcStation",stationId:(visibleStations.find(s=>s.civilizationZoneId===t.zoneId)||{}).id,targetZoneId:target.station?.civilizationZoneId};showFT("TURRET -"+damage,target.obj.x,target.obj.y,"#ff8844",8);if(target.obj.hp<=0)killTradeShip(target.obj,target.station);}
+      else if(target.type==="npcStation"){const ownCivTarget=stationBelongsToPlayerOwnedCivilization(target.station);const r=applyDamageToStation(target.station,damage,ownCivTarget?{suppressAggro:true}:{markPlayerHostile:t.type!=="civ_turret"});if(t.type!=="civ_turret"&&!ownCivTarget)aggroNpcStation(target.station);showFT("TURRET -"+Math.round(r.damage),target.station.x,target.station.y-18,"#ff8844",8);if(r.destroyed)destroyNpcStation(target.station);}
       else if(target.type==="ownedTradeShip"){target.obj.hp-=damage;target.obj.state="combat";target.obj.aggro=true;target.obj.stateTimer=999;showFT("TURRET -"+damage,target.obj.x,target.obj.y,"#ff8844",8);if(target.obj.hp<=0)dropOwnedTradeShipLoot(target.obj,target.station);}
       else if(target.type==="ownedStation"){socket.emit("damageOwnedStation",{stationKey:target.station.key,damage});showFT("TURRET station hit",target.x,target.y-18,"#ff8844",8);}
-      else if(target.type==="player"){socket.emit("npcHitPlayer",{damage,source:t.type==="civ_turret"?"Civilization Turret":"Defense Turret"});showFT("TURRET FIRE",target.x,target.y-15,"#ff8844",8);}
+      else if(target.type==="player"){
+        socket.emit("npcHitPlayer",{damage,source:t.type==="civ_turret"?"Civilization Turret":"Defense Turret"});showFT("TURRET FIRE",target.x,target.y-15,"#ff8844",8);
+      }
       else if(target.type==="otherPlayer"&&t.key){socket.emit("turretAttackPlayer",{targetId:target.obj.id,structureKey:t.key,damage,x:t.x,y:t.y});showFT("TURRET FIRE",target.x,target.y-15,"#ff8844",8);}
     }
   }
@@ -4206,12 +4259,18 @@ function updateSpace(dt){
       for(let j=st.tradeShips.length-1;j>=0;j--){
         const ts=st.tradeShips[j];
         if(dist(p.x,p.y,ts.x,ts.y)<ts.size+4){
-          callOwnedTradeShipsToAssist({type:"npcTradeShip",stationId:st.id,shipId:ts.id,x:ts.x,y:ts.y},"enemy ship");
+          const ownCivTarget=stationBelongsToPlayerOwnedCivilization(st);
+          if(!ownCivTarget)callOwnedTradeShipsToAssist({type:"npcTradeShip",stationId:st.id,shipId:ts.id,x:ts.x,y:ts.y},"enemy ship");
           ts.hp-=p.damage;
-          aggroNpcStation(st);
-          ts.combatTarget={type:"player",x:ship.x,y:ship.y};
-          showFT("-"+Math.round(p.damage),ts.x,ts.y,"#ff4422",9);
-          if(st.civilizationZoneId)triggerNpcCivilizationZoneAggro(st.civilizationZoneId,"hostile pilot");
+          if(ownCivTarget){
+            startNpcShipSelfDefenseAgainstPlayer(ts,st);
+            showFT("SELF DEF -"+Math.round(p.damage),ts.x,ts.y,"#ffcc44",9);
+          }else{
+            aggroNpcStation(st);
+            ts.combatTarget={type:"player",x:ship.x,y:ship.y,targetZoneId:st.civilizationZoneId||null};
+            showFT("-"+Math.round(p.damage),ts.x,ts.y,"#ff4422",9);
+            if(st.civilizationZoneId)triggerNpcCivilizationZoneAggro(st.civilizationZoneId,"hostile pilot");
+          }
           if(ts.hp<=0){killTradeShip(ts,st);}
           localPlayerProjectiles.splice(i,1);hit=true;break;
         }
@@ -4238,11 +4297,16 @@ function updateSpace(dt){
           if(t.destroyed)continue;
           if(dist(p.x,p.y,t.x,t.y)<15){
             t.hp=Math.max(0,(t.hp||t.maxHp||260)-p.damage);
-            t.cooldown=Math.min(t.cooldown||0,0.2);
-            t.assistTarget={type:"player",x:ship.x,y:ship.y,targetZoneId:z.id||z.zoneId};
-            triggerNpcCivilizationZoneAggro(z.id||z.zoneId,"turret attack");
-            showFT("TURRET -"+Math.round(p.damage),t.x,t.y-12,"#ff5544",8);
-            if(t.hp<=0)destroyCivilizationTurret(t,z,"a hostile pilot");
+            if(z.isOwn){
+              t.assistTarget=null;
+              showFT("OWN TURRET -"+Math.round(p.damage),t.x,t.y-12,"#ffcc44",8);
+            }else{
+              t.cooldown=Math.min(t.cooldown||0,0.2);
+              t.assistTarget={type:"player",x:ship.x,y:ship.y,targetZoneId:z.id||z.zoneId};
+              triggerNpcCivilizationZoneAggro(z.id||z.zoneId,"turret attack");
+              showFT("TURRET -"+Math.round(p.damage),t.x,t.y-12,"#ff5544",8);
+            }
+            if(t.hp<=0)destroyCivilizationTurret(t,z,z.isOwn?"its owner":"a hostile pilot");
             localPlayerProjectiles.splice(i,1);hit=true;break;
           }
         }
@@ -4268,11 +4332,16 @@ function updateSpace(dt){
         if(st.destroyed)continue;
         const hitRadius=(st.tierDef?.size||18)+12;
         if(dist(p.x,p.y,st.x,st.y)<hitRadius){
-          callOwnedTradeShipsToAssist({type:"npcStation",stationId:st.id,x:st.x,y:st.y},"enemy station");
-          const result=applyDamageToStation(st,p.damage);
-          aggroNpcStation(st);
-          if(st.civilizationZoneId)triggerNpcCivilizationZoneAggro(st.civilizationZoneId,"station attack");
-          showFT(`-${Math.round(result.damage)} STATION`,st.x,st.y-18,"#ff5544",9);
+          const ownCivTarget=stationBelongsToPlayerOwnedCivilization(st);
+          if(!ownCivTarget)callOwnedTradeShipsToAssist({type:"npcStation",stationId:st.id,x:st.x,y:st.y},"enemy station");
+          const result=applyDamageToStation(st,p.damage,ownCivTarget?{suppressAggro:true}:{});
+          if(!ownCivTarget){
+            aggroNpcStation(st);
+            if(st.civilizationZoneId)triggerNpcCivilizationZoneAggro(st.civilizationZoneId,"station attack");
+            showFT(`-${Math.round(result.damage)} STATION`,st.x,st.y-18,"#ff5544",9);
+          }else{
+            showFT(`OWN STATION -${Math.round(result.damage)}`,st.x,st.y-18,"#ffcc44",9);
+          }
           if(result.destroyed)destroyNpcStation(st);
           localPlayerProjectiles.splice(i,1);hit=true;break;
         }
