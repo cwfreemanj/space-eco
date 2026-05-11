@@ -458,6 +458,244 @@ tr:hover td{background:#1a2a3a}
 }
 
 
+/* ═══════════════════════════════════════════════════════════════
+   K-STAR HUD SAFE-ZONE PATCH — pilot overflow + controls panel
+   - Keeps the pilot status values inside their card.
+   - Moves Control Keys out of #hud and into the open top-center lane.
+   - Adds a minimize/maximize toggle.
+═══════════════════════════════════════════════════════════════ */
+#hud{
+  box-sizing:border-box;
+  max-width:640px;
+  min-width:0;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  overflow:visible;
+}
+#hud .pill,.pill{
+  box-sizing:border-box;
+  min-width:0;
+}
+#hud > .pill:not(#bar-wrap){
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#hud > .pill:not(#bar-wrap) span:last-child{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#bar-wrap{
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  overflow:hidden;
+  grid-template-columns:auto minmax(56px,1fr) auto minmax(56px,1fr) auto minmax(56px,1fr) minmax(28px,max-content) auto minmax(56px,1fr) minmax(28px,max-content);
+  gap:5px;
+  padding:8px 10px;
+}
+#bar-wrap b{
+  min-width:17px;
+  font-size:10px;
+}
+#energy-text,#oxygen-text{
+  min-width:26px;
+  max-width:32px;
+  overflow:hidden;
+  font-size:10px!important;
+}
+#xp-bar-outer{
+  flex:0 0 76px;
+  width:76px!important;
+  max-width:76px;
+}
+#shipname,#inv,#coords{
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.control-keys-panel{
+  position:fixed;
+  top:20px;
+  left:690px;
+  width:430px;
+  max-width:calc(100vw - 980px);
+  min-width:300px;
+  box-sizing:border-box;
+  border:1px solid rgba(255,221,68,.58);
+  border-radius:16px;
+  background:linear-gradient(180deg,rgba(12,20,38,.93),rgba(6,10,21,.91));
+  box-shadow:0 0 18px rgba(255,221,68,.14),0 0 12px rgba(123,230,255,.08),inset 0 0 18px rgba(255,221,68,.025);
+  color:#dce7ff;
+  z-index:38;
+  pointer-events:auto;
+  overflow:hidden;
+  backdrop-filter:blur(4px);
+}
+.control-keys-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  min-height:25px;
+  padding:7px 9px 6px 12px;
+  border-bottom:1px solid rgba(255,221,68,.18);
+  background:linear-gradient(90deg,rgba(255,221,68,.045),rgba(123,230,255,.025));
+}
+.control-keys-title{
+  display:inline-flex;
+  align-items:center;
+  padding:2px 9px 3px;
+  border:1px solid rgba(255,221,68,.70);
+  border-radius:999px;
+  background:#100d04;
+  color:#ffdd44;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.12em;
+  white-space:nowrap;
+  text-shadow:0 0 8px rgba(255,221,68,.22);
+}
+.control-keys-toggle{
+  min-width:24px;
+  height:22px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(255,240,168,.62);
+  border-radius:7px;
+  background:linear-gradient(180deg,rgba(33,28,11,.98),rgba(16,13,4,.98));
+  color:#ffdd44;
+  font-size:13px;
+  font-weight:900;
+  line-height:1;
+  cursor:pointer;
+}
+.control-keys-toggle:hover{border-color:#fff0a8;color:#fff0a8}
+.control-keys-content{
+  padding:9px 10px 10px;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(116px,1fr));
+  gap:6px;
+  align-items:stretch;
+  color:#dce7ff;
+  font-size:10px;
+  line-height:1.2;
+}
+.control-key-item{
+  min-width:0;
+  display:grid;
+  grid-template-columns:minmax(38px,max-content) minmax(0,1fr);
+  align-items:center;
+  column-gap:7px;
+  padding:5px 7px;
+  border:1px solid rgba(123,230,255,.16);
+  border-radius:10px;
+  background:linear-gradient(180deg,rgba(14,24,44,.70),rgba(7,12,25,.62));
+  box-shadow:inset 0 0 7px rgba(123,230,255,.025);
+}
+.control-key-item:hover{
+  border-color:rgba(255,221,68,.38);
+  background:linear-gradient(180deg,rgba(26,31,38,.84),rgba(9,15,27,.72));
+}
+.control-key-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:22px;
+  height:18px;
+  box-sizing:border-box;
+  padding:1px 7px 2px;
+  border:1px solid rgba(255,240,168,.82);
+  border-radius:7px;
+  background:linear-gradient(180deg,#fff3bd,#ffdd44 72%,#e7bb22);
+  color:#130e00;
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:.015em;
+  text-transform:none;
+  box-shadow:0 0 6px rgba(255,221,68,.20),inset 0 1px 0 rgba(255,255,255,.35);
+  white-space:nowrap;
+}
+.control-key-label{
+  min-width:0;
+  color:#e8f1ff;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.01em;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.control-keys-panel.ultra-compact{
+  min-width:260px;
+}
+.control-keys-panel.ultra-compact .control-keys-content{
+  grid-template-columns:repeat(2,minmax(108px,1fr));
+  gap:5px;
+  padding:8px;
+}
+.control-keys-panel.ultra-compact .control-key-item{
+  column-gap:5px;
+  padding:4px 6px;
+}
+.control-keys-panel.ultra-compact .control-key-label{font-size:9px}
+.control-keys-panel.minimized{
+  width:auto!important;
+  min-width:174px;
+  max-width:220px;
+}
+.control-keys-panel.minimized .control-keys-head{
+  border-bottom:0;
+  padding:6px 8px;
+}
+.control-keys-panel.minimized .control-keys-content{display:none}
+@media (max-width:980px){
+  #bar-wrap{
+    grid-template-columns:auto minmax(60px,1fr) auto minmax(60px,1fr);
+    overflow:hidden;
+  }
+  .control-keys-panel{
+    left:50%!important;
+    right:auto!important;
+    top:auto!important;
+    bottom:12px!important;
+    transform:translateX(-50%);
+    width:min(860px,calc(100vw - 28px))!important;
+    max-width:calc(100vw - 28px);
+    min-width:0;
+  }
+  .control-keys-content{
+    grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
+  }
+}
+@media (max-width:620px){
+  #hud{overflow:visible;}
+  #bar-wrap{
+    grid-template-columns:auto minmax(0,1fr);
+    gap:7px;
+  }
+  #bar-wrap #energy-text,#bar-wrap #oxygen-text{display:none!important}
+  .control-keys-panel{
+    bottom:8px!important;
+    width:calc(100vw - 20px)!important;
+    max-width:calc(100vw - 20px);
+  }
+  .control-keys-content{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:5px;
+    padding:8px;
+  }
+  .control-key-item{
+    grid-template-columns:minmax(34px,max-content) minmax(0,1fr);
+    column-gap:5px;
+    padding:4px 5px;
+  }
+  .control-key-pill{font-size:9px;min-width:20px;height:17px;padding:1px 6px 2px}
+  .control-key-label{font-size:9px}
+}
+
+
 </style>
 </head>
 <body>
@@ -508,7 +746,35 @@ tr:hover td{background:#1a2a3a}
     <span class="pill"><b>📍</b> <span id="coords">0, 0</span></span>
     <span class="pill"><b>Ship:</b> <span id="shipname">Scout</span></span>
     <span class="pill"><b>Inv:</b> <span id="inv">(empty)</span></span>
-    <span class="pill hint"><b>WASD</b>move/fly <b>L</b>land/takeoff <b>Q</b>tool <b>R</b>trade <b>C</b>character <b>F</b>social <b>J</b>party <b>U</b>faction <b>O</b>shop <b>V</b>quests <b>Y</b>badges <b>G</b>gas <b>I</b>inv <b>P</b>attrs <b>H</b>ships <b>B</b>build <b>M</b>credits <b>K</b>board <b>N</b>players <b>T</b>chat <b>Click</b>fire/mine</span>
+  </div>
+  <div id="control-keys-panel" class="control-keys-panel">
+    <div class="control-keys-head">
+      <span class="control-keys-title">CONTROL KEYS</span>
+      <button id="control-keys-toggle" class="control-keys-toggle" type="button" title="Minimize control keys" aria-label="Minimize control keys">−</button>
+    </div>
+    <div class="control-keys-content">
+      <div class="control-key-item"><span class="control-key-pill">WASD</span><span class="control-key-label">Move / Fly</span></div>
+      <div class="control-key-item"><span class="control-key-pill">L</span><span class="control-key-label">Land / Takeoff</span></div>
+      <div class="control-key-item"><span class="control-key-pill">Q</span><span class="control-key-label">Tool</span></div>
+      <div class="control-key-item"><span class="control-key-pill">R</span><span class="control-key-label">Trade</span></div>
+      <div class="control-key-item"><span class="control-key-pill">C</span><span class="control-key-label">Character</span></div>
+      <div class="control-key-item"><span class="control-key-pill">F</span><span class="control-key-label">Social</span></div>
+      <div class="control-key-item"><span class="control-key-pill">J</span><span class="control-key-label">Party</span></div>
+      <div class="control-key-item"><span class="control-key-pill">U</span><span class="control-key-label">Faction</span></div>
+      <div class="control-key-item"><span class="control-key-pill">O</span><span class="control-key-label">Shop</span></div>
+      <div class="control-key-item"><span class="control-key-pill">V</span><span class="control-key-label">Quests</span></div>
+      <div class="control-key-item"><span class="control-key-pill">Y</span><span class="control-key-label">Badges</span></div>
+      <div class="control-key-item"><span class="control-key-pill">G</span><span class="control-key-label">Gas</span></div>
+      <div class="control-key-item"><span class="control-key-pill">I</span><span class="control-key-label">Inventory</span></div>
+      <div class="control-key-item"><span class="control-key-pill">P</span><span class="control-key-label">Attributes</span></div>
+      <div class="control-key-item"><span class="control-key-pill">H</span><span class="control-key-label">Ships</span></div>
+      <div class="control-key-item"><span class="control-key-pill">B</span><span class="control-key-label">Build</span></div>
+      <div class="control-key-item"><span class="control-key-pill">M</span><span class="control-key-label">Credits</span></div>
+      <div class="control-key-item"><span class="control-key-pill">K</span><span class="control-key-label">Board</span></div>
+      <div class="control-key-item"><span class="control-key-pill">N</span><span class="control-key-label">Players</span></div>
+      <div class="control-key-item"><span class="control-key-pill">T</span><span class="control-key-label">Chat</span></div>
+      <div class="control-key-item"><span class="control-key-pill">Click</span><span class="control-key-label">Fire / Mine</span></div>
+    </div>
   </div>
   <canvas id="c" width="560" height="310"></canvas>
 </div>
@@ -2293,10 +2559,34 @@ function renderEventRadarPanel(){
   }).join("") || '<div class="event-radar-empty">No active events nearby.</div>';
 }
 function layoutFloatingHud(){
-  const hud=document.getElementById("hud"),eventPanel=document.getElementById("event-radar-panel"),playerCount=document.getElementById("player-count"),killFeed=document.getElementById("kill-feed"),chat=document.getElementById("chat-wrap"),hint=document.querySelector("#hud .hint"),party=document.getElementById("party-panel");
+  const hud=document.getElementById("hud"),eventPanel=document.getElementById("event-radar-panel"),playerCount=document.getElementById("player-count"),killFeed=document.getElementById("kill-feed"),chat=document.getElementById("chat-wrap"),controlPanel=document.getElementById("control-keys-panel"),party=document.getElementById("party-panel");
   if(hud&&eventPanel&&window.innerWidth>620){
     const hr=hud.getBoundingClientRect();
     eventPanel.style.top = `${Math.round(hr.bottom + 16)}px`;
+  }
+  if(controlPanel&&hud){
+    if(window.innerWidth>980){
+      const hr=hud.getBoundingClientRect();
+      // Reserve the right side for the canvas minimap/player counter, then fit the controls in the safe lane between them.
+      const reservedRight=Math.max(280,Math.round(window.innerWidth*0.22));
+      const left=Math.round(hr.right+18);
+      const available=Math.max(210,window.innerWidth-left-reservedRight-12);
+      controlPanel.style.transform="none";
+      controlPanel.style.top="20px";
+      controlPanel.style.bottom="auto";
+      controlPanel.style.left=`${left}px`;
+      controlPanel.style.right="auto";
+      controlPanel.style.width=`${Math.min(450,available)}px`;
+      controlPanel.classList.toggle("ultra-compact",available<360);
+    }else{
+      controlPanel.style.left="";
+      controlPanel.style.right="";
+      controlPanel.style.top="";
+      controlPanel.style.bottom="";
+      controlPanel.style.width="";
+      controlPanel.style.transform="";
+      controlPanel.classList.remove("ultra-compact");
+    }
   }
   if(playerCount&&killFeed&&window.innerWidth>620){
     const pr=playerCount.getBoundingClientRect();
@@ -2306,7 +2596,7 @@ function layoutFloatingHud(){
     chat.style.bottom = window.innerWidth>620 ? `18px` : `98px`;
   }
   if(party&&window.innerWidth>760){
-    const kfVisible = getComputedStyle(killFeed).display !== "none" && killFeed.childElementCount>0;
+    const kfVisible = killFeed && getComputedStyle(killFeed).display !== "none" && killFeed.childElementCount>0;
     if(kfVisible){
       const kr=killFeed.getBoundingClientRect();
       party.style.top = `${Math.round(kr.bottom + 10)}px`;
@@ -4750,10 +5040,21 @@ function hideSocialInviteBanner(){const b=document.getElementById("social-invite
 function respondSocialInvite(accepted){if(!pendingSocialInvite||Date.now()>pendingSocialInvite.expires){pendingSocialInvite=null;hideSocialInviteBanner();return;}if(pendingSocialInvite.type==="party")socket.emit("partyInviteResponse",{partyId:pendingSocialInvite.partyId,accepted:!!accepted});else socket.emit("factionInviteResponse",{factionId:pendingSocialInvite.factionId,accepted:!!accepted});pendingSocialInvite=null;hideSocialInviteBanner();}
 function renderPartyPanel(){const panel=document.getElementById("party-panel"),list=document.getElementById("party-member-list");if(!panel||!list)return;if(!partyState||!(partyState.members||[]).length){panel.style.display="none";return;}panel.style.display="block";let html="";for(const m of partyState.members){const loc=m.mode==="planet"?`Planet ${Math.round(m.planetX)},${Math.round(m.planetY)}`:`Space ${m.x},${m.y}`;html+=`<div class="party-member"><span>${m.leader?"👑":"•"} <b>${m.name}</b><br><span class="social-small">${loc}</span></span><span>${m.hp}/${m.maxHp}</span></div>`;}list.innerHTML=html;}
 function renderSocialPanel(){if(!socialOpen)return;renderPartySocial();renderFactionSocial();}
-(function initEventRadarControls(){
+(function initFloatingHudControls(){
   const minBtn=document.getElementById("event-radar-min-btn"),maxBtn=document.getElementById("event-radar-max-btn");
   if(minBtn)minBtn.onclick=()=>{eventRadarMinimized=true;renderEventRadarPanel();layoutFloatingHud();};
   if(maxBtn)maxBtn.onclick=()=>{eventRadarMinimized=false;renderEventRadarPanel();layoutFloatingHud();};
+  const controlPanel=document.getElementById("control-keys-panel"),toggle=document.getElementById("control-keys-toggle");
+  if(controlPanel&&toggle){
+    toggle.onclick=()=>{
+      const minimized=!controlPanel.classList.contains("minimized");
+      controlPanel.classList.toggle("minimized",minimized);
+      toggle.textContent=minimized?"+":"−";
+      toggle.title=minimized?"Maximize control keys":"Minimize control keys";
+      toggle.setAttribute("aria-label",toggle.title);
+      layoutFloatingHud();
+    };
+  }
   setTimeout(layoutFloatingHud,0);
 })();
 function renderPartySocial(){const el=document.getElementById("social-party-content");if(!el)return;if(!partyState){el.innerHTML=`<div class="social-small">Create a party or invite a nearby pilot. Max 8 members. Party members cannot damage each other.</div><div class="social-row"><button id="party-create-btn" class="social-btn">Create Party</button><button id="party-invite-btn" class="social-btn gold">Invite Nearby</button></div>`;document.getElementById("party-create-btn").onclick=()=>socket.emit("partyCreate");document.getElementById("party-invite-btn").onclick=inviteNearestToParty;return;}const leader=partyState.leaderId===player.id;let html=`<div class="social-small">Members ${partyState.members.length}/${partyState.maxMembers}</div><div class="social-row"><button id="party-invite-btn" class="social-btn gold">Invite Nearby</button><button id="party-leave-btn" class="social-btn warn">${leader?"Disband Party":"Leave Party"}</button></div>`;for(const m of partyState.members){html+=`<div class="social-member"><b>${m.leader?"👑 ":""}${m.name}</b><br><span class="social-small">${m.mode} · ${m.mode==="planet"?`${m.planetX},${m.planetY}`:`${m.x},${m.y}`}</span>${leader&&!m.leader?`<div><button class="social-btn warn party-kick" data-id="${m.id}">Kick</button></div>`:""}</div>`;}el.innerHTML=html;document.getElementById("party-invite-btn").onclick=inviteNearestToParty;document.getElementById("party-leave-btn").onclick=()=>socket.emit(leader?"partyDisband":"partyLeave");for(const b of el.querySelectorAll(".party-kick"))b.onclick=()=>socket.emit("partyKick",{targetId:b.dataset.id});}
