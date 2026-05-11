@@ -2198,9 +2198,10 @@ io.on("connection",socket=>{
     zoneId=safeZoneId(zoneId);
     const zone=civilizationZones.get(zoneId);
     if(!zone||!playerOwnsCivilizationZone(owner,zone))return;
-    // Civ-zone NPC ships only defend while the owner is physically inside that civilization zone.
+    // Civ-zone NPC ships only defend while the owner is physically inside that civilization zone,
+    // and only while the hostile target is still inside / very near the defended zone.
     if(!playerInsideCivilizationZone(owner,zone,60))return;
-    if(!playerInsideCivilizationZone(target,zone,820))return;
+    if(!playerInsideCivilizationZone(target,zone,180))return;
     const declaredX=Number(x),declaredY=Number(y);
     if(Number.isFinite(declaredX)&&Number.isFinite(declaredY)){
       if(Math.hypot(declaredX-zone.x,declaredY-zone.y)>(zone.radius||420)+260)return;
