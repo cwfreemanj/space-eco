@@ -985,7 +985,7 @@ const canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
 /* ── Input ── */
 const keys=new Set();
 let chatFocused=false;
-let mouse={x:0,y:0,down:false,clicked:false};
+let mouse={x:canvas.width/2,y:canvas.height/2,down:false,clicked:false};
 
 const BLOCKING_DOM_PANEL_IDS=["lb-panel","sl-panel","ship-panel","build-panel","credit-panel","trade-panel-dom","social-panel"];
 function isShown(el){return !!el&&getComputedStyle(el).display!=="none"&&getComputedStyle(el).visibility!=="hidden";}
@@ -4544,6 +4544,33 @@ function requestRespawn(){socket.emit("respawn");}
 /* ══════════════════════════════════════
    DRAW SPACE
 ══════════════════════════════════════ */
+
+function drawAimCrosshair(){
+  if(mode!==MODE.SPACE||gameOver||canvasPanelOpen()||domInputLocked())return;
+  const sx=canvas.width/2,sy=canvas.height/2;
+  const mx=clamp(mouse.x,8,canvas.width-8),my=clamp(mouse.y,8,canvas.height-8);
+  if(!Number.isFinite(mx)||!Number.isFinite(my))return;
+  const a=angleToward(sx,sy,mx,my);
+  const pull=12;
+  ctx.save();
+  ctx.globalAlpha=0.82;
+  ctx.strokeStyle=mouse.down?"#ffdd44":"#7be6ff";
+  ctx.lineWidth=1;
+  ctx.setLineDash([4,6]);
+  ctx.beginPath();
+  ctx.moveTo(sx+Math.cos(a)*18,sy+Math.sin(a)*18);
+  ctx.lineTo(mx-Math.cos(a)*pull,my-Math.sin(a)*pull);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha=0.95;
+  ctx.beginPath();ctx.arc(mx,my,8,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(mx-14,my);ctx.lineTo(mx-5,my);ctx.moveTo(mx+5,my);ctx.lineTo(mx+14,my);ctx.moveTo(mx,my-14);ctx.lineTo(mx,my-5);ctx.moveTo(mx,my+5);ctx.lineTo(mx,my+14);ctx.stroke();
+  ctx.globalAlpha=0.32;ctx.beginPath();ctx.arc(mx,my,3,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=0.9;ctx.fillStyle=mouse.down?"#ffdd44":"#7be6ff";ctx.font="bold 7px monospace";ctx.textAlign="left";ctx.fillText("AIM",mx+10,my-9);
+  ctx.restore();
+  ctx.textAlign="left";ctx.globalAlpha=1;
+}
+
 function drawSpace(){
   syncShipStatusOverlayState();
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#05060a";ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -4696,6 +4723,8 @@ function drawSpace(){
     ctx.beginPath();ctx.moveTo(0,sy);ctx.lineTo(canvas.width,sy);ctx.stroke();
     ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;
   }
+
+  drawAimCrosshair();
 
   // Low energy warning
   if(energy.current/energy.max<0.2&&Math.floor(Date.now()/400)%2===0){ctx.fillStyle="rgba(255,40,20,0.1)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#ff4422";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText("⚠ LOW FUEL — G: use canister  O: buy at station",canvas.width/2,18);ctx.textAlign="left";}
@@ -5102,60 +5131,82 @@ function toggleShipStatusPanel(){setShipStatusOpen(!shipStatusOpen);}
 function shipStatusUiScale(){
   const r=canvas.getBoundingClientRect?.()||{width:canvas.width,height:canvas.height};
   const sx=canvas.width/Math.max(1,r.width||canvas.width),sy=canvas.height/Math.max(1,r.height||canvas.height);
-  return {sx,sy,s:Math.max(0.45,Math.min(1.6,Math.min(sx,sy))),cssW:r.width||canvas.width,cssH:r.height||canvas.height};
+  // The game canvas is intentionally low-res/pixelated, so DOM/CSS scaling should not shrink the menu text.
+  // Keep a readable internal pixel scale and let the browser upscale the canvas cleanly.
+  const base=Math.min(canvas.width/560,canvas.height/310);
+  const s=Math.max(0.54,Math.min(0.86,base||0.54));
+  return {sx,sy,s,cssW:r.width||canvas.width,cssH:r.height||canvas.height};
 }
 function shipStatusLayout(){
   const u=shipStatusUiScale();
-  const targetCssW=Math.min(1100,Math.max(540,u.cssW-96));
-  const targetCssH=Math.min(700,Math.max(430,u.cssH-96));
-  const pw=Math.min(canvas.width-24*u.sx, targetCssW*u.sx);
-  const ph=Math.min(canvas.height-24*u.sy, targetCssH*u.sy);
+  // Use most of the safe viewport. The previous patch capped the modal too small on wide screens.
+  const targetCssW=Math.min(1540,Math.max(900,u.cssW-72));
+  const targetCssH=Math.min(830,Math.max(560,u.cssH-72));
+  const pw=Math.min(canvas.width-12*u.sx, targetCssW*u.sx);
+  const ph=Math.min(canvas.height-12*u.sy, targetCssH*u.sy);
   const px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
   shipStatusPanelRect={x:px,y:py,w:pw,h:ph};
   return {px,py,pw,ph,...u};
 }
 function shipStatusFont(size,bold=false){
   const s=shipStatusUiScale().s;
-  return `${bold?"bold ":""}${Math.max(5,size*s)}px monospace`;
+  return `${bold?"bold ":""}${Math.max(6,Math.round(size*s))}px monospace`;
 }
 function shipStatusFillRect(x,y,w,h,fill,stroke){
   ctx.fillStyle=fill;ctx.fillRect(x,y,w,h);
   if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=Math.max(1,shipStatusUiScale().s);ctx.strokeRect(x,y,w,h);}
 }
-function drawShipText(text,x,y,maxW,color="#d6e1ff",font=null){
+function shipStatusFitText(text,maxW,font=null){
   text=String(text??"");
-  ctx.fillStyle=color;
   if(font)ctx.font=font;
-  if(!maxW||ctx.measureText(text).width<=maxW){ctx.fillText(text,x,y);return;}
+  if(!maxW||ctx.measureText(text).width<=maxW)return text;
   let out=text,ell="…";
   while(out.length>0&&ctx.measureText(out+ell).width>maxW)out=out.slice(0,-1);
-  ctx.fillText(out+ell,x,y);
+  return out+ell;
+}
+function drawShipText(text,x,y,maxW,color="#d6e1ff",font=null){
+  ctx.save();
+  ctx.textAlign="left";ctx.textBaseline="alphabetic";ctx.fillStyle=color;
+  if(font)ctx.font=font;
+  ctx.fillText(shipStatusFitText(text,maxW,font),x,y);
+  ctx.restore();
+}
+function drawShipCenteredText(text,cx,y,maxW,color="#d6e1ff",font=null){
+  ctx.save();
+  ctx.textAlign="center";ctx.textBaseline="alphabetic";ctx.fillStyle=color;
+  if(font)ctx.font=font;
+  ctx.fillText(shipStatusFitText(text,maxW,font),cx,y);
+  ctx.restore();
 }
 function shipStatusButton(label,x,y,w,h,action,enabled=true){
   shipStatusButtons.push({label,x,y,w,h,action,enabled});
   const s=shipStatusUiScale().s;
   shipStatusFillRect(x,y,w,h,enabled?"#173a2a":"#2a2420",enabled?"#4a8a6a":"#5a4a34");
+  ctx.save();
   ctx.fillStyle=enabled?"#78ff8a":"#9f8f68";
   ctx.font=shipStatusFont(11,true);ctx.textAlign="center";ctx.textBaseline="middle";
-  drawShipText(label,x+w/2-ctx.measureText(label).width/2,y+h/2+0.5*s,w-8*s,ctx.fillStyle,ctx.font);
-  ctx.textAlign="left";ctx.textBaseline="alphabetic";
+  ctx.fillText(shipStatusFitText(label,w-8*s),x+w/2,y+h/2+0.5*s);
+  ctx.restore();
 }
 function drawShipStatLine(label,value,x,y,maxW,color="#d6e1ff"){
-  const s=shipStatusUiScale().s,labelW=Math.min(92*s,maxW*.43),gap=8*s;
-  ctx.font=shipStatusFont(11,true);drawShipText(label,x,y,labelW,"#8fa3cc");
+  const s=shipStatusUiScale().s,labelW=Math.min(72*s,maxW*.38),gap=7*s;
+  ctx.font=shipStatusFont(10,true);drawShipText(label,x,y,labelW,"#8fa3cc");
   ctx.font=shipStatusFont(12,true);drawShipText(value,x+labelW+gap,y,Math.max(20,maxW-labelW-gap),color);
 }
 function drawShipSection(title,x,y,w,h){
-  shipStatusFillRect(x,y,w,h,"#10192b","#21365a");
-  ctx.font=shipStatusFont(13,true);drawShipText(title,x+10*shipStatusUiScale().s,y+19*shipStatusUiScale().s,w-20*shipStatusUiScale().s,"#ffdd44");
+  shipStatusFillRect(x,y,w,h,"#10192b","#263e66");
+  const s=shipStatusUiScale().s;
+  ctx.fillStyle="rgba(123,230,255,0.035)";ctx.fillRect(x+1*s,y+1*s,w-2*s,22*s);
+  ctx.font=shipStatusFont(13,true);drawShipText(title,x+9*s,y+17*s,w-18*s,"#ffdd44");
 }
 function drawShipLoadoutCard(slot,key,x,y,w,h){
   const s=shipStatusUiScale().s,d=ATTACHMENT_DEFS[key];
   shipStatusFillRect(x,y,w,h,key?"#111d2e":"#0f1727",key?"#2d4b72":"#20334f");
-  ctx.font=shipStatusFont(10,true);drawShipText(slot.toUpperCase(),x+10*s,y+16*s,72*s,"#8fa3cc");
-  ctx.font=shipStatusFont(12,true);drawShipText(key?(d?.name||RES[key]?.name||key):"Empty",x+92*s,y+16*s,w-(key?178*s:104*s),key?"#d6e1ff":"#5f7086");
-  ctx.font=shipStatusFont(10,false);drawShipText(key?attachmentBonusLine(key):"Equip compatible item from inventory",x+10*s,y+38*s,w-20*s,"#9fb0d0");
-  if(key)shipStatusButton("UNEQ",x+w-70*s,y+10*s,56*s,25*s,()=>socket.emit("unequipAttachment",{slot}),true);
+  const rightPad=key?58*s:8*s;
+  ctx.font=shipStatusFont(9,true);drawShipText(slot.toUpperCase(),x+8*s,y+14*s,48*s,"#8fa3cc");
+  ctx.font=shipStatusFont(11,true);drawShipText(key?(d?.name||RES[key]?.name||key):"Empty",x+58*s,y+14*s,w-66*s-rightPad,key?"#d6e1ff":"#5f7086");
+  ctx.font=shipStatusFont(9,false);drawShipText(key?attachmentBonusLine(key):"Equip compatible item from inventory",x+8*s,y+30*s,w-16*s-rightPad,"#9fb0d0");
+  if(key)shipStatusButton("UNEQ",x+w-52*s,y+8*s,44*s,22*s,()=>socket.emit("unequipAttachment",{slot}),true);
 }
 function drawShipStatusPanel(){
   syncShipStatusOverlayState();
@@ -5166,62 +5217,61 @@ function drawShipStatusPanel(){
   ctx.textBaseline="alphabetic";ctx.textAlign="left";
   ctx.fillStyle="rgba(0,0,0,0.84)";ctx.fillRect(0,0,canvas.width,canvas.height);
   shipStatusFillRect(px,py,pw,ph,"#0c1322","#7be6ff");
-  ctx.fillStyle="rgba(123,230,255,0.06)";ctx.fillRect(px+2*s,py+2*s,pw-4*s,42*s);
-  ctx.font=shipStatusFont(23,true);ctx.textAlign="center";drawShipText("SHIP STATUS & LOADOUT",px+pw/2-ctx.measureText("SHIP STATUS & LOADOUT").width/2,py+29*s,pw-160*s,"#7be6ff",ctx.font);ctx.textAlign="left";
-  ctx.font=shipStatusFont(10,false);drawShipText("Z closes · inventory equips modules · starter laser stays as fallback",px+20*s,py+49*s,pw-150*s,"#8fa3cc");
-  shipStatusButton("CLOSE",px+pw-112*s,py+12*s,88*s,29*s,()=>setShipStatusOpen(false),true);
+  ctx.fillStyle="rgba(123,230,255,0.07)";ctx.fillRect(px+2*s,py+2*s,pw-4*s,42*s);
+  drawShipCenteredText("SHIP STATUS & LOADOUT",px+pw/2,py+28*s,pw-150*s,"#7be6ff",shipStatusFont(24,true));
+  ctx.font=shipStatusFont(10,false);drawShipText("Z closes · inventory equips modules · starter laser stays as fallback",px+18*s,py+46*s,pw-145*s,"#8fa3cc");
+  shipStatusButton("CLOSE",px+pw-104*s,py+12*s,84*s,28*s,()=>setShipStatusOpen(false),true);
 
   const def=ship.def||SHIP_TYPES[player.shipType]||{},fx=attachmentEffects(),wep=equippedWeaponDef(),wepKey=equippedWeaponKey();
-  const pad=24*s,gap=18*s,contentX=px+pad,contentW=pw-pad*2;
-  const top=py+72*s,sectionH=194*s,colW=(contentW-gap*2)/3;
+  const pad=20*s,gap=12*s,contentX=px+pad,contentW=pw-pad*2;
+  const top=py+58*s,sectionH=112*s,colW=(contentW-gap*2)/3;
   const colTitles=["SHIP","PILOT","WEAPON"];
   for(let i=0;i<3;i++)drawShipSection(colTitles[i],contentX+i*(colW+gap),top,colW,sectionH);
-  let x=contentX,y=top+44*s,line=20*s;
-  drawShipStatLine("Frame",def.name||player.shipType,x+10*s,y,colW-20*s,"#fff2b8");
-  drawShipStatLine("Hull",`${Math.ceil(ship.hp)}/${ship.maxHp}`,x+10*s,y+line,colW-20*s,ship.hp<ship.maxHp*.35?"#ff7777":"#d6e1ff");
-  drawShipStatLine("Shield",`${Math.ceil(ship.shield)}/${ship.maxShield}`,x+10*s,y+line*2,colW-20*s,"#7be6ff");
-  drawShipStatLine("Energy",`${Math.ceil(energy.current)}/${energy.max}`,x+10*s,y+line*3,colW-20*s,"#78ff8a");
-  drawShipStatLine("Speed",ship.speedStat.toFixed(2),x+10*s,y+line*4,colW-20*s);
-  drawShipStatLine("Damage",ship.damageStat.toFixed(2),x+10*s,y+line*5,colW-20*s,"#ffdd44");
-  drawShipStatLine("Shield/s",ship.shieldRegenRate.toFixed(1),x+10*s,y+line*6,colW-20*s,"#7be6ff");
+  let x=contentX,y=top+34*s,line=13.8*s;
+  drawShipStatLine("Frame",def.name||player.shipType,x+9*s,y,colW-18*s,"#fff2b8");
+  drawShipStatLine("Hull",`${Math.ceil(ship.hp)}/${ship.maxHp}`,x+9*s,y+line,colW-18*s,ship.hp<ship.maxHp*.35?"#ff7777":"#d6e1ff");
+  drawShipStatLine("Shield",`${Math.ceil(ship.shield)}/${ship.maxShield}`,x+9*s,y+line*2,colW-18*s,"#7be6ff");
+  drawShipStatLine("Energy",`${Math.ceil(energy.current)}/${energy.max}`,x+9*s,y+line*3,colW-18*s,"#78ff8a");
+  drawShipStatLine("Speed",ship.speedStat.toFixed(2),x+9*s,y+line*4,colW-18*s);
+  drawShipStatLine("Damage",ship.damageStat.toFixed(2),x+9*s,y+line*5,colW-18*s,"#ffdd44");
 
   x=contentX+colW+gap;
-  drawShipStatLine("Pilot",player.name||"Pilot",x+10*s,y,colW-20*s,"#fff2b8");
-  drawShipStatLine("Level",player.level,x+10*s,y+line,colW-20*s);
-  drawShipStatLine("XP",`${player.xp}/${player.xpToNext}`,x+10*s,y+line*2,colW-20*s,"#cc88ff");
-  drawShipStatLine("Points",player.attrPoints||0,x+10*s,y+line*3,colW-20*s,"#cc88ff");
-  drawShipStatLine("Credits",`${Math.floor(player.credits)}cr`,x+10*s,y+line*4,colW-20*s,"#ffdd44");
-  drawShipStatLine("Score",player.score||0,x+10*s,y+line*5,colW-20*s);
-  drawShipStatLine("Cargo",`${filledSlotCount()}/${player.maxSlots}`,x+10*s,y+line*6,colW-20*s);
+  drawShipStatLine("Pilot",player.name||"Pilot",x+9*s,y,colW-18*s,"#fff2b8");
+  drawShipStatLine("Level",player.level,x+9*s,y+line,colW-18*s);
+  drawShipStatLine("XP",`${player.xp}/${player.xpToNext}`,x+9*s,y+line*2,colW-18*s,"#cc88ff");
+  drawShipStatLine("Points",player.attrPoints||0,x+9*s,y+line*3,colW-18*s,"#cc88ff");
+  drawShipStatLine("Credits",`${Math.floor(player.credits)}cr`,x+9*s,y+line*4,colW-18*s,"#ffdd44");
+  drawShipStatLine("Cargo",`${filledSlotCount()}/${player.maxSlots}`,x+9*s,y+line*5,colW-18*s);
 
   x=contentX+(colW+gap)*2;
-  drawShipStatLine("Equipped",`${wep.name} Lv${weaponLevel(wepKey)}`,x+10*s,y,colW-20*s,"#fff2b8");
-  drawShipStatLine("Class",`${wep.class} · ${wep.mode}`,x+10*s,y+line,colW-20*s);
-  drawShipStatLine("Damage",Math.round(weaponDamage(wepKey)),x+10*s,y+line*2,colW-20*s,"#ffdd44");
-  drawShipStatLine("Cooldown",`${(wep.cooldown||0).toFixed(2)}s`,x+10*s,y+line*3,colW-20*s);
-  drawShipStatLine("Shots",wep.shots||1,x+10*s,y+line*4,colW-20*s);
-  drawShipStatLine("Life",`${(wep.life||0).toFixed(1)}s`,x+10*s,y+line*5,colW-20*s);
-  shipStatusButton("UNEQUIP",x+10*s,y+line*6-13*s,104*s,28*s,()=>{socket.emit("unequipWeapon");},wepKey!=="weapon_laser_mk1");
+  drawShipStatLine("Equipped",`${wep.name} Lv${weaponLevel(wepKey)}`,x+9*s,y,colW-18*s,"#fff2b8");
+  drawShipStatLine("Class",`${wep.class} · ${wep.mode}`,x+9*s,y+line,colW-18*s);
+  drawShipStatLine("Damage",Math.round(weaponDamage(wepKey)),x+9*s,y+line*2,colW-18*s,"#ffdd44");
+  drawShipStatLine("Cooldown",`${(wep.cooldown||0).toFixed(2)}s`,x+9*s,y+line*3,colW-18*s);
+  drawShipStatLine("Shots",wep.shots||1,x+9*s,y+line*4,colW-18*s);
+  drawShipStatLine("Life",`${(wep.life||0).toFixed(1)}s`,x+9*s,y+line*5,colW-18*s);
+  shipStatusButton("UNEQUIP",x+9*s,y+line*6-7*s,92*s,24*s,()=>{socket.emit("unequipWeapon");},wepKey!=="weapon_laser_mk1");
 
-  const loadout=normalizeAttachments(player.equippedAttachments),slotTitleY=top+sectionH+30*s;
-  ctx.font=shipStatusFont(14,true);drawShipText("ATTACHMENTS",contentX,slotTitleY,contentW,"#ffdd44");
-  ctx.font=shipStatusFont(10,false);drawShipText(`Module bonuses: +${Math.round(fx.maxHpBonus)} HP / +${Math.round(fx.maxShieldBonus)} Shield · Damage x${fx.damageMult.toFixed(2)} · Efficiency x${fx.gasEfficiencyMult.toFixed(2)}`,contentX+130*s,slotTitleY,contentW-130*s,"#9fb0d0");
+  const loadout=normalizeAttachments(player.equippedAttachments),slotTitleY=top+sectionH+21*s;
+  ctx.font=shipStatusFont(14,true);drawShipText("ATTACHMENTS",contentX,slotTitleY,116*s,"#ffdd44");
+  ctx.font=shipStatusFont(10,false);drawShipText(`Module bonuses: +${Math.round(fx.maxHpBonus)} HP / +${Math.round(fx.maxShieldBonus)} Shield · Damage x${fx.damageMult.toFixed(2)} · Efficiency x${fx.gasEfficiencyMult.toFixed(2)}`,contentX+124*s,slotTitleY,contentW-124*s,"#9fb0d0");
 
-  const cardGap=14*s,cardW=(contentW-cardGap)/2,cardH=52*s,slotY=slotTitleY+14*s;
+  const cardGap=8*s,cardCols=3,cardW=(contentW-cardGap*(cardCols-1))/cardCols,cardH=38*s,slotY=slotTitleY+11*s;
   ATTACHMENT_SLOTS.forEach((slot,i)=>{
-    const row=Math.floor(i/2),col=i%2;
-    drawShipLoadoutCard(slot,loadout[slot],contentX+col*(cardW+cardGap),slotY+row*(cardH+10*s),cardW,cardH);
+    const row=Math.floor(i/cardCols),col=i%cardCols;
+    drawShipLoadoutCard(slot,loadout[slot],contentX+col*(cardW+cardGap),slotY+row*(cardH+7*s),cardW,cardH);
   });
 
   const avail=Object.keys(ATTACHMENT_DEFS).filter(k=>inventoryTotal(k)>0);
-  const availY=py+ph-92*s;
-  shipStatusFillRect(contentX,availY,contentW,68*s,"#0e1728","#20365a");
-  ctx.font=shipStatusFont(13,true);drawShipText("AVAILABLE MODULES",contentX+10*s,availY+19*s,170*s,"#ffdd44");
-  if(!avail.length){ctx.font=shipStatusFont(10,false);drawShipText("No compatible ship modules in inventory.",contentX+10*s,availY+43*s,contentW-20*s,"#6f809d");}
-  const startX=contentX+174*s,btnGap=8*s,perRow=Math.max(1,Math.floor((contentW-184*s)/(128*s))),btnW=Math.max(96*s,Math.min(128*s,(contentW-184*s-btnGap*(perRow-1))/perRow)),btnH=24*s;
+  const availY=Math.min(py+ph-58*s, slotY+2*(cardH+7*s)+8*s);
+  const availH=Math.max(42*s,py+ph-availY-18*s);
+  shipStatusFillRect(contentX,availY,contentW,availH,"#0e1728","#20365a");
+  ctx.font=shipStatusFont(13,true);drawShipText("AVAILABLE MODULES",contentX+10*s,availY+18*s,156*s,"#ffdd44");
+  if(!avail.length){ctx.font=shipStatusFont(10,false);drawShipText("No compatible ship modules in inventory.",contentX+10*s,availY+39*s,contentW-20*s,"#6f809d");}
+  const startX=contentX+162*s,btnGap=7*s,btnAreaW=Math.max(40*s,contentW-172*s),perRow=Math.max(1,Math.floor(btnAreaW/(118*s))),btnW=Math.max(82*s,Math.min(118*s,(btnAreaW-btnGap*(perRow-1))/perRow)),btnH=22*s;
   avail.slice(0,Math.max(0,perRow*2)).forEach((key,i)=>{
     const d=ATTACHMENT_DEFS[key],row=Math.floor(i/perRow),col=i%perRow;
-    const bx=startX+col*(btnW+btnGap),by=availY+11*s+row*(btnH+6*s);
+    const bx=startX+col*(btnW+btnGap),by=availY+9*s+row*(btnH+5*s);
     shipStatusButton((d.name||key).replace(/\s+/g," "),bx,by,btnW,btnH,()=>socket.emit("equipAttachment",{attachmentKey:key}),loadout[d.slot]!==key);
   });
   ctx.restore();
