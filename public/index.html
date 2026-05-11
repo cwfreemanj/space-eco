@@ -3457,11 +3457,25 @@ function snapshotLooksTrusted(snap){
   if(snapshotHasNonDefaultProgress(snap))return true;
   return !!(snap.persistenceLoaded===true||snap.savedGameReady===true||snap.snapshotReady===true||snap.inventoryReady===true||snap.allowEmptyInventory===true);
 }
+const SAFE_GAMEPLAY_INVENTORY_SYNC_REASONS=new Set([
+  "planet_mine","planet_build","space_loot_pickup","sell_resource","buy_resource",
+  "buy_inventory_slot","buy_ship","craft_ship","station_quest_reward","ship_part_reward",
+  "badge_reward","credit_purchase","account_creation_bonus","upgrade_weapon",
+  "equip_weapon","unequip_weapon","equip_attachment","unequip_attachment",
+  "buy_station","hire_station_ship","hire_merc","buy_structure",
+  "storage_deposit","storage_withdraw","storage_upgrade","turret_upgrade",
+  "collect_station_goods","use_oxygen_tank","use_gas","upgrade_attr","upgrade_attr_paid",
+  "trade_complete","requested"
+]);
 function shouldIgnoreDestructiveInventorySync(payload){
   const linked=!!(wixGameToken||wixMemberId||payload?.memberId);
   if(!linked)return false;
-  if(payload?.persistenceLoaded===false)return true;
-  if(accountInventoryPendingLoad&&payload?.reason==="login"&&!clientInventoryPayloadHasItems(payload?.invSlots)&&Number(payload?.credits||300)<=300)return true;
+  const reason=String(payload?.reason||"");
+  // While a Wix snapshot is still loading, ignore only initial/account-sync payloads
+  // that could wipe a saved inventory. Gameplay transaction syncs are safe because
+  // they are produced after the server has already committed the item/credit change.
+  if(payload?.persistenceLoaded===false&&!SAFE_GAMEPLAY_INVENTORY_SYNC_REASONS.has(reason))return true;
+  if(accountInventoryPendingLoad&&reason==="login"&&!clientInventoryPayloadHasItems(payload?.invSlots)&&Number(payload?.credits||300)<=300)return true;
   return false;
 }
 function applyAuthoritativeInventory(payload){
@@ -3974,17 +3988,42 @@ socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
   if(!activePlanet||activePlanet.id!==planetId||!planetMap)return;
   setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
 });
-socket.on("planetMineReward",({planetId,kind,x,y,qty})=>{
+socket.on("planetMineReward",({planetId,kind,x,y,qty,invSlots,maxSlots,credits})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
-  showFT(`+${qty||1} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
-  recordQuestProgress("mine",qty||1,{resource:kind});
+  const amount=Math.max(1,Math.floor(Number(qty)||1));
+
+  // The server is authoritative, but we also apply the confirmed reward locally
+  // right away. This keeps planet-side mining responsive even if the follow-up
+  // inventorySync is delayed by Wix/account snapshot protection. The next
+  // inventorySync will replace this temporary local view with the server copy.
+  if(kind&&RES[kind]){
+    const addedLocal=addToInventory(kind,amount);
+    if(addedLocal){
+      clampPanelScrolls();
+      updateHud();
+      showFT(`+${amount} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
+    }else{
+      showFT("Inventory full — unable to carry resource",x,y-10,"#ffcc44",9);
+      socket.emit("requestInventorySync");
+    }
+  }else{
+    showFT(`+${amount} ${kind||"resource"}`,x,y-10,"#78ff8a",9);
+  }
+
+  // Some patched servers include the updated inventory directly on the mining
+  // confirmation. Apply it after the optimistic add to prevent duplicates.
+  if(Array.isArray(invSlots)){
+    applyAuthoritativeInventory({credits,maxSlots,invSlots,reason:"planet_mine"});
+  }
+
+  recordQuestProgress("mine",amount,{resource:kind});
   // Fallback for older servers that grant inventory but do not broadcast a
   // visible planetMineDrop event. Newer servers send planetMineDrop to everyone.
   const key=makeMineDropKey(planetId,kind,x,y);
   setTimeout(()=>{
     if(!activePlanet||activePlanet.id!==planetId)return;
     const seen=recentMineDropVisuals.get(key)||0;
-    if(performance.now()-seen>220)spawnPlanetLootVisual({planetId,kind,x,y,qty,ownerId:player.id,serverGranted:true});
+    if(performance.now()-seen>220)spawnPlanetLootVisual({planetId,kind,x,y,qty:amount,ownerId:player.id,serverGranted:true});
   },90);
 });
 // Visible mining loot. These drops are visual pickup feedback only because the
@@ -3992,6 +4031,11 @@ socket.on("planetMineReward",({planetId,kind,x,y,qty})=>{
 socket.on("planetMineDrop",({planetId,kind,x,y,qty,ownerId})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
   spawnPlanetLootVisual({planetId,kind,x,y,qty,ownerId,serverGranted:true});
+});
+socket.on("planetMineDenied",({planetId,reason,x,y})=>{
+  if(planetId&&activePlanet&&activePlanet.id!==planetId)return;
+  showFT(reason||"Unable to mine resource",Number(x)||astronaut.x,(Number(y)||astronaut.y)-12,"#ffcc44",9);
+  socket.emit("requestInventorySync");
 });
 socket.on("planetBuildDenied",({reason,resourceType})=>{
   showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
