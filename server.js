@@ -32,7 +32,7 @@ app.get("/api/serverinfo", (_req, res) => {
   res.json({ name:SERVER_NAME, playerCount:players.size, maxPlayers:MAX_PLAYERS, uptime:Math.floor((Date.now()-SERVER_START)/1000), leaderboard:buildLeaderboard(10) });
 });
 /**
- * Space Eco — mobile controls patch for server.js
+ * Space Eco — mobile landscape controls patch for server.js
  *
  * Install in the GitHub original server.js:
  * 1) Keep the original server.js intact.
@@ -41,10 +41,18 @@ app.get("/api/serverinfo", (_req, res) => {
  *
  * This endpoint does not change gameplay, persistence, payments, NPCs, combat, quests,
  * or any existing socket events. It only gives the mobile HTML overlay a server-side
- * control map that mirrors the existing desktop hotkeys.
+ * control map and orientation hints that mirror the existing desktop hotkeys.
  */
 
 const MOBILE_CONTROL_MAP = {
+  orientation: {
+    preferred:"landscape",
+    requireLandscapeOnPhones:true,
+    allowPortraitOverride:true,
+    fullscreenButton:true,
+    safeArea:true,
+    canvasMode:"fit-landscape-viewport"
+  },
   movement: [
     { id:"thrust", label:"▲", key:"w", code:"KeyW", hold:true, title:"Thrust / move up / W" },
     { id:"left", label:"◀", key:"a", code:"KeyA", hold:true, title:"Turn or move left / A" },
@@ -82,7 +90,7 @@ function installSpaceEcoMobileControls(appRef){
   if(global.__SPACE_ECO_MOBILE_CONTROLS_ENDPOINT__) return true;
   global.__SPACE_ECO_MOBILE_CONTROLS_ENDPOINT__ = true;
   appRef.get("/api/mobile-controls", (_req, res) => {
-    res.json({ ok:true, mobile:true, controls:MOBILE_CONTROL_MAP });
+    res.json({ ok:true, mobile:true, landscape:true, controls:MOBILE_CONTROL_MAP });
   });
   return true;
 }
@@ -98,6 +106,7 @@ try {
 if(typeof module !== "undefined") {
   module.exports = { MOBILE_CONTROL_MAP, installSpaceEcoMobileControls };
 }
+
 
 /* ── Constants ── */
 const SERVER_NAME  = process.env.SERVER_NAME || "Space Eco Galaxy #1";
