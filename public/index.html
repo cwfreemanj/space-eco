@@ -950,17 +950,48 @@ body.ship-status-open #credit-shop-tip{
 </div>
 
 <script>
-/* ── Socket.io dynamic loader ──
-   Loads socket.io FROM the server so this page works from any domain
-   (Railway direct, Wix embed, anywhere). Then starts the game.        */
-const SERVER_URL = "https://space-eco-production.up.railway.app"; // ← Your Railway URL
+/* ── Global Socket.IO server resolver ──
+   Goal: every browser copy of this HTML joins the SAME public Railway galaxy.
+   - Normal players use the Railway/public URL below.
+   - Localhost/file/Wix embeds also use the public URL by default.
+   - Developers can test locally with ?local=1 or override with ?server=https://your-domain.
+*/
+const SPACE_ECO_PUBLIC_SERVER_URL = "https://space-eco-production.up.railway.app"; // ← keep this as your one true global Railway URL
+const SPACE_ECO_LOCAL_SERVER_URL  = "http://localhost:3000";
+
+function normalizeSpaceEcoServerUrl(value){
+  value = String(value || "").trim();
+  if(!value) return "";
+  value = value.replace(/\/+$/, "");
+  if(/^localhost(?::\d+)?$/i.test(value) || /^127\.0\.0\.1(?::\d+)?$/i.test(value)){
+    value = "http://" + value;
+  }
+  if(!/^https?:\/\//i.test(value)) value = "https://" + value;
+  return value.replace(/\/+$/, "");
+}
+function getSpaceEcoStoredServerUrl(){
+  try{return localStorage.getItem("spaceEcoServerUrl") || "";}catch(_){return "";}
+}
+const _spaceEcoParams = new URLSearchParams(window.location.search || "");
+const _spaceEcoParamServer = normalizeSpaceEcoServerUrl(_spaceEcoParams.get("server"));
+const _spaceEcoStoredServer = normalizeSpaceEcoServerUrl(getSpaceEcoStoredServerUrl());
+const _spaceEcoIsRailwayPage = /(^|\.)up\.railway\.app$/i.test(location.hostname) || location.hostname === new URL(SPACE_ECO_PUBLIC_SERVER_URL).hostname;
+const _spaceEcoUseLocal = _spaceEcoParams.get("local") === "1";
+const SERVER_URL = normalizeSpaceEcoServerUrl(
+  _spaceEcoParamServer ||
+  _spaceEcoStoredServer ||
+  (_spaceEcoUseLocal ? SPACE_ECO_LOCAL_SERVER_URL : "") ||
+  (_spaceEcoIsRailwayPage ? location.origin : SPACE_ECO_PUBLIC_SERVER_URL)
+);
+try{ localStorage.setItem("spaceEcoLastServerUrl", SERVER_URL); }catch(_){/* storage may be blocked */}
 
 var _socketScript = document.createElement("script");
 _socketScript.src = SERVER_URL + "/socket.io/socket.io.js";
+_socketScript.crossOrigin = "anonymous";
 _socketScript.onerror = function(){
-  document.getElementById("join-status").textContent =
-    "Cannot reach server. Is it running? Check SERVER_URL in index.html.";
-  document.getElementById("join-status").style.color = "#ff4422";
+  const status = document.getElementById("join-status");
+  status.textContent = "Cannot reach the global Space Eco server at " + SERVER_URL + ". Check Railway deployment/domain.";
+  status.style.color = "#ff4422";
 };
 _socketScript.onload = function(){
   /* ═══════════════════════════════════════════
@@ -3856,16 +3887,62 @@ window.buyStructure=buyStructure;window.openStorageFacility=openStorageFacility;
 /* ══════════════════════════════════════
    SOCKET.IO
 ══════════════════════════════════════ */
-/* socket — SERVER_URL declared in loader above */
-const socket = io(SERVER_URL);
+/* socket — SERVER_URL resolved in loader above.
+   All players share the same lobby when every deployed copy points at the same SERVER_URL. */
+const socket = io(SERVER_URL, {
+  path: "/socket.io",
+  transports: ["polling", "websocket"],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 600,
+  reconnectionDelayMax: 5000,
+  timeout: 15000,
+  forceNew: true
+});
 
 let joined=false;
+let launchedOnce=false;
+let lastJoinPayload=null;
+let gameLoopStarted=false;
+let pingTimer=null;
 const joinStatusEl=document.getElementById("join-status"),joinScreen=document.getElementById("join-screen"),gameWrap=document.getElementById("wrap");
 
-socket.on("connect",()=>{joinStatusEl.textContent="Connected! Enter your name and launch.";joinStatusEl.style.color="#78ff8a";});
-socket.on("disconnect",()=>{joined=false;joinStatusEl.textContent="Disconnected. Reload to reconnect.";joinStatusEl.style.color="#ff4422";joinScreen.style.display="flex";gameWrap.style.display="none";document.getElementById("chat-wrap").style.display="none";pcEl.style.display="none";});
-socket.on("connect_error",()=>{joinStatusEl.textContent="Cannot reach server. Check SERVER_URL.";joinStatusEl.style.color="#ff4422";});
-socket.on("serverFull",()=>{joinStatusEl.textContent="Server full. Try again later.";joinStatusEl.style.color="#ffcc44";});
+function setJoinStatus(text,color="#8fa3cc"){
+  if(joinStatusEl){joinStatusEl.textContent=text;joinStatusEl.style.color=color;}
+}
+function buildJoinPayload(){
+  const name=document.getElementById("join-name").value.trim()||"Pilot";
+  player.name=name;
+  return {name,token:wixGameToken,wixSnapshot:wixAuthSnapshot};
+}
+function emitJoinPayload(reason="launch"){
+  if(!socket.connected){setJoinStatus("Connecting to global Space Eco server at " + SERVER_URL + "…","#ffcc44");return false;}
+  if(joined)return true;
+  if(!lastJoinPayload)lastJoinPayload=buildJoinPayload();
+  setJoinStatus(reason==="reconnect"?"Reconnected — rejoining the global galaxy…":(wixGameToken?"Launching with Get First Page account…":"Launching as guest…"), reason==="reconnect"?"#7be6ff":(wixGameToken?"#78ff8a":"#ffcc44"));
+  socket.emit("join",lastJoinPayload);
+  return true;
+}
+
+socket.on("connect",()=>{
+  if(launchedOnce && lastJoinPayload && !joined){emitJoinPayload("reconnect");}
+  else setJoinStatus("Connected to global Space Eco server. Enter your name and launch.","#78ff8a");
+});
+socket.on("disconnect",(reason)=>{
+  joined=false;
+  if(launchedOnce){
+    setJoinStatus("Connection lost ("+reason+"). Reconnecting to the global galaxy…","#ffcc44");
+  }else{
+    setJoinStatus("Disconnected. Reconnecting to the global Space Eco server…","#ffcc44");
+  }
+  joinScreen.style.display="flex";
+  gameWrap.style.display="none";
+  document.getElementById("chat-wrap").style.display="none";
+  pcEl.style.display="none";
+});
+socket.on("connect_error",(err)=>{setJoinStatus("Cannot reach global server: " + SERVER_URL + (err?.message?(" — "+err.message):""),"#ff4422");});
+socket.on("reconnect_attempt",()=>{setJoinStatus("Reconnecting to global Space Eco server…","#ffcc44");});
+socket.on("serverFull",()=>{setJoinStatus("Server full. Try again later.","#ffcc44");});
 
 socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs})=>{
   player.id=id;player.color=color;serverAccountPersistenceLoaded=!!persistenceLoaded;accountInventoryPendingLoad=!!(serverMemberId&&!serverAccountPersistenceLoaded);if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken&&serverAccountPersistenceLoaded)wixLinkedToken=wixSnapshotKey();}
@@ -3883,9 +3960,9 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
   pcEl.textContent=`👥 ${playerCount}`;
   socket.emit("requestCivilizationZones");maybeLinkWixAccount();updateChunks();updateHud();scheduleCreditShopTip();
-  // Start ping loop
-  setInterval(()=>socket.emit("clientPing"),2000);
-  requestAnimationFrame(tick);
+  // Start one ping loop and one animation loop only, even after reconnect/rejoin.
+  if(!pingTimer)pingTimer=setInterval(()=>{if(socket.connected)socket.emit("clientPing");},2000);
+  if(!gameLoopStarted){gameLoopStarted=true;requestAnimationFrame(tick);}
 });
 
 socket.on("worldState",({self,others,pvpProjectiles:sp})=>{
@@ -4196,7 +4273,12 @@ socket.on("chat",({from,message,color})=>{addChat(from,message,color||"#d6e1ff")
 /* ── Join ── */
 document.getElementById("join-btn").addEventListener("click",doJoin);
 document.getElementById("join-name").addEventListener("keydown",e=>{if(e.key==="Enter")doJoin();});
-function doJoin(){if(!socket.connected){joinStatusEl.textContent="Still connecting…";return;}if(joined)return;const name=document.getElementById("join-name").value.trim()||"Pilot";player.name=name;joinStatusEl.textContent=wixGameToken?"Launching with Get First Page account…":"Launching as guest…";joinStatusEl.style.color=wixGameToken?"#78ff8a":"#ffcc44";socket.emit("join",{name,token:wixGameToken,wixSnapshot:wixAuthSnapshot});}
+function doJoin(){
+  if(joined)return;
+  lastJoinPayload=buildJoinPayload();
+  launchedOnce=true;
+  emitJoinPayload("launch");
+}
 
 /* ── Input sender ── */
 let shootCooldownTimer=0;
