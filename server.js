@@ -31,6 +31,73 @@ app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.h
 app.get("/api/serverinfo", (_req, res) => {
   res.json({ name:SERVER_NAME, playerCount:players.size, maxPlayers:MAX_PLAYERS, uptime:Math.floor((Date.now()-SERVER_START)/1000), leaderboard:buildLeaderboard(10) });
 });
+/**
+ * Space Eco — mobile controls patch for server.js
+ *
+ * Install in the GitHub original server.js:
+ * 1) Keep the original server.js intact.
+ * 2) Paste this block after the existing /api/serverinfo route and before the constants section.
+ * 3) Restart the Node server.
+ *
+ * This endpoint does not change gameplay, persistence, payments, NPCs, combat, quests,
+ * or any existing socket events. It only gives the mobile HTML overlay a server-side
+ * control map that mirrors the existing desktop hotkeys.
+ */
+
+const MOBILE_CONTROL_MAP = {
+  movement: [
+    { id:"thrust", label:"▲", key:"w", code:"KeyW", hold:true, title:"Thrust / move up / W" },
+    { id:"left", label:"◀", key:"a", code:"KeyA", hold:true, title:"Turn or move left / A" },
+    { id:"brake", label:"▼", key:"s", code:"KeyS", hold:true, title:"Brake or move down / S" },
+    { id:"right", label:"▶", key:"d", code:"KeyD", hold:true, title:"Turn or move right / D" }
+  ],
+  actions: [
+    { id:"fire", label:"FIRE", key:" ", code:"Space", hold:true, mouse:true, title:"Fire / mine / click / Space" },
+    { id:"land", label:"L", key:"l", code:"KeyL", hold:false, title:"Land / takeoff / L" },
+    { id:"chat", label:"T", key:"t", code:"KeyT", hold:false, title:"Chat / T" },
+    { id:"tool", label:"Q", key:"q", code:"KeyQ", hold:false, title:"Change tool / Q" },
+    { id:"trade", label:"R", key:"r", code:"KeyR", hold:false, title:"Trade / R" },
+    { id:"character", label:"C", key:"c", code:"KeyC", hold:false, title:"Character / C" },
+    { id:"social", label:"F", key:"f", code:"KeyF", hold:false, title:"Social / F" },
+    { id:"party", label:"J", key:"j", code:"KeyJ", hold:false, title:"Party / J" },
+    { id:"faction", label:"U", key:"u", code:"KeyU", hold:false, title:"Faction / U" },
+    { id:"shop", label:"O", key:"o", code:"KeyO", hold:false, title:"Shop / O" },
+    { id:"quests", label:"V", key:"v", code:"KeyV", hold:false, title:"Quests / V" },
+    { id:"badges", label:"Y", key:"y", code:"KeyY", hold:false, title:"Badges / Y" },
+    { id:"gas", label:"G", key:"g", code:"KeyG", hold:false, title:"Gas / G" },
+    { id:"inventory", label:"I", key:"i", code:"KeyI", hold:false, title:"Inventory / I" },
+    { id:"attributes", label:"P", key:"p", code:"KeyP", hold:false, title:"Attributes / P" },
+    { id:"ships", label:"H", key:"h", code:"KeyH", hold:false, title:"Ships / H" },
+    { id:"ship-status", label:"Z", key:"z", code:"KeyZ", hold:false, title:"Ship status / Z" },
+    { id:"build", label:"B", key:"b", code:"KeyB", hold:false, title:"Build / B" },
+    { id:"credits", label:"M", key:"m", code:"KeyM", hold:false, title:"Credits / M" },
+    { id:"leaderboard", label:"K", key:"k", code:"KeyK", hold:false, title:"Leaderboard / K" },
+    { id:"players", label:"N", key:"n", code:"KeyN", hold:false, title:"Players / N" },
+    { id:"escape", label:"ESC", key:"Escape", code:"Escape", hold:false, title:"Close menu / Escape" }
+  ]
+};
+
+function installSpaceEcoMobileControls(appRef){
+  if(!appRef || typeof appRef.get !== "function") return false;
+  if(global.__SPACE_ECO_MOBILE_CONTROLS_ENDPOINT__) return true;
+  global.__SPACE_ECO_MOBILE_CONTROLS_ENDPOINT__ = true;
+  appRef.get("/api/mobile-controls", (_req, res) => {
+    res.json({ ok:true, mobile:true, controls:MOBILE_CONTROL_MAP });
+  });
+  return true;
+}
+
+// When pasted directly inside the original server.js, this auto-installs because
+// that file already defines `const app = express();` above the /api/serverinfo route.
+try {
+  if(typeof app !== "undefined") installSpaceEcoMobileControls(app);
+} catch(_err) {
+  // If this file is required as a module instead, call installSpaceEcoMobileControls(app).
+}
+
+if(typeof module !== "undefined") {
+  module.exports = { MOBILE_CONTROL_MAP, installSpaceEcoMobileControls };
+}
 
 /* ── Constants ── */
 const SERVER_NAME  = process.env.SERVER_NAME || "Space Eco Galaxy #1";
