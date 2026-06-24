@@ -32,6 +32,23 @@ app.get("/api/serverinfo", (_req, res) => {
   res.json({ name:SERVER_NAME, playerCount:players.size, maxPlayers:MAX_PLAYERS, uptime:Math.floor((Date.now()-SERVER_START)/1000), leaderboard:buildLeaderboard(10) });
 });
 
+// Railway health check + quick public diagnostics.
+app.get("/health", (_req, res) => {
+  res.json({ ok:true, name:SERVER_NAME, playerCount:players.size, uptime:Math.floor((Date.now()-SERVER_START)/1000) });
+});
+app.get("/api/connection-info", (req, res) => {
+  const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "https").split(",")[0].trim();
+  const host = req.get("host");
+  res.json({
+    ok:true,
+    serverUrl: host ? `${proto}://${host}` : null,
+    socketPath:"/socket.io",
+    playerCount:players.size,
+    maxPlayers:MAX_PLAYERS,
+    serverName:SERVER_NAME
+  });
+});
+
 /* ── Constants ── */
 const SERVER_NAME  = process.env.SERVER_NAME || "Space Eco Galaxy #1";
 const SERVER_START = Date.now();
@@ -2543,5 +2560,9 @@ io.on("connection",socket=>{
   });
 });
 
-const PORT=process.env.PORT||3000;
-server.listen(PORT,()=>{console.log(`🚀 ${SERVER_NAME} on port ${PORT} | ${TICK_RATE}Hz | Max:${MAX_PLAYERS}`);});
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || "0.0.0.0";
+server.listen(PORT, HOST, () => {
+  console.log(`🚀 ${SERVER_NAME} listening on ${HOST}:${PORT} | ${TICK_RATE}Hz | Max:${MAX_PLAYERS}`);
+  console.log("🌍 Global lobby ready. Point every client at your Railway public URL, not localhost.");
+});
