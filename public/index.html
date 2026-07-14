@@ -857,7 +857,7 @@ body.mobile-device.mobile-panel-open #mobile-panel-tools{z-index:235!important;p
 
 
 /* ═══════════════════════════════════════════════════════════════
-   DESKTOP BROWSER BUILD PATCH v4.0.2
+   DESKTOP BROWSER BUILD PATCH v4.0.3
    - Keeps the complete mobile feature set while adding mouse/keyboard-friendly
      desktop controls and safer panel layering.
 ═══════════════════════════════════════════════════════════════ */
@@ -1974,7 +1974,6 @@ function bootLocalGameState(){
   const snap=readLocalGameState();
   if(localSnapshotHasProgress(snap))applyLocalGameSnapshot(snap,"boot_local_first");
 }
-bootLocalGameState();
 function safeHtml(v){return String(v??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));}
 function safeColor(v,fb="#7be6ff"){v=String(v||"").trim();return /^#[0-9a-f]{3,8}$/i.test(v)?v:fb;}
 function localCreditBonusForCoupons(){let total=0;for(const code of Object.keys(redeemedCoupons||{})){const d=CLIENT_COUPON_DEFS[code];if(d&&!d.reusable)total+=Math.max(0,Math.floor(Number(d.credits)||0));}return total;}
@@ -4751,6 +4750,15 @@ function withdrawStorage(type,qty){if(selectedStorageKey)socket.emit("withdrawSt
 function upgradeStorage(key){socket.emit("upgradeStorageSlots",{structureKey:key});}
 function upgradeTurret(key,kind){socket.emit("upgradeTurret",{structureKey:key,kind});}
 window.buyStructure=buyStructure;window.openStorageFacility=openStorageFacility;window.depositStorage=depositStorage;window.withdrawStorage=withdrawStorage;window.upgradeStorage=upgradeStorage;window.upgradeTurret=upgradeTurret;
+
+// Veyra v4.0.3 hotfix: load the local save only after all gameplay constants,
+// HUD handles, ship state, mode state, and inventory limits exist. The previous
+// early boot could crash on saved games before the Socket.IO client was created.
+try{bootLocalGameState();}
+catch(e){
+  console.warn("Space Eco local save boot was skipped after a recoverable error:", e);
+  try{localStorage.removeItem(LOCAL_GAME_SAVE_KEY+"_corrupt_boot"); localStorage.setItem(LOCAL_GAME_SAVE_KEY+"_corrupt_boot", String(Date.now()));}catch(_){}
+}
 
 /* ══════════════════════════════════════
    SOCKET.IO
