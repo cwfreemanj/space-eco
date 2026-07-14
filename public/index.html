@@ -2,8 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Space Eco — Desktop Browser</title>
+<title>Space Eco — Multiplayer</title>
 <style>
 html,body{margin:0;height:100%;background:#05060a;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial;overflow:hidden}
 #wrap{display:flex;flex-direction:column;height:100%}
@@ -716,228 +715,6 @@ body.ship-status-open #credit-shop-tip{
   pointer-events:none!important;
 }
 
-
-/* ═══════════════════════════════════════════════════════════════
-   SPACE ECO MOBILE APK TOUCH PATCH
-   - Desktop hotkeys stay intact.
-   - Mobile hides the hotkey panel and uses a unified menu hub.
-   - Touch controls avoid the center canvas/menu lane.
-═══════════════════════════════════════════════════════════════ */
-html,body{touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
-button,input,select,textarea{font-family:inherit}
-.mobile-touch-layer,.mobile-menu-hub{display:none}
-body.mobile-device #control-keys-panel{display:none!important}
-body.mobile-device #wrap{height:100dvh}
-body.mobile-device canvas{touch-action:none;width:100%;height:100%;}
-body.mobile-device #hud{
-  top:calc(env(safe-area-inset-top,0px) + 8px)!important;
-  left:8px!important;right:8px!important;width:auto!important;max-width:none!important;min-width:0!important;
-  grid-template-columns:repeat(4,minmax(0,1fr))!important;padding:8px!important;gap:6px!important;
-  border-radius:13px!important;font-size:10px!important;z-index:44!important;pointer-events:none!important;
-}
-body.mobile-device #hud:before{display:none!important}
-body.mobile-device #hud .pill{min-height:22px!important;padding:5px 7px!important;font-size:10px!important;border-radius:9px!important}
-body.mobile-device #bar-wrap{grid-column:1/-1!important;min-height:32px!important;grid-template-columns:auto 1fr auto 1fr auto 1fr auto 1fr!important;padding:7px 8px!important;gap:5px!important}
-body.mobile-device #energy-text,body.mobile-device #oxygen-text{display:none!important}
-body.mobile-device #xp-bar-outer{width:58px!important;max-width:58px!important}
-body.mobile-device #player-count{top:calc(env(safe-area-inset-top,0px) + 8px)!important;right:10px!important;font-size:10px!important;padding:4px 7px!important}
-body.mobile-device #kill-feed{display:none!important}
-body.mobile-device #event-radar-panel{top:calc(env(safe-area-inset-top,0px) + 84px)!important;left:8px!important;width:250px!important;max-width:42vw!important;z-index:39!important;opacity:.88}
-body.mobile-device #party-panel{right:8px!important;top:calc(env(safe-area-inset-top,0px) + 84px)!important;width:220px!important;max-width:38vw!important;z-index:39!important}
-body.mobile-device #chat-wrap{left:8px!important;bottom:calc(env(safe-area-inset-bottom,0px) + 92px)!important;width:min(310px,44vw)!important;z-index:86!important}
-body.mobile-device #chat-input{font-size:16px!important;padding:9px 10px!important}
-body.mobile-device .overlay-panel,body.mobile-device .trade-dom-panel,body.mobile-device #social-panel{z-index:118!important;align-items:center!important;justify-content:center!important;padding:calc(env(safe-area-inset-top,0px) + 8px) 8px calc(env(safe-area-inset-bottom,0px) + 8px)!important;box-sizing:border-box!important}
-body.mobile-device .panel-box,body.mobile-device .trade-box,body.mobile-device .social-box{width:min(94vw,860px)!important;min-width:0!important;max-width:94vw!important;max-height:86dvh!important;overflow:auto!important;-webkit-overflow-scrolling:touch!important;padding:12px!important;border-radius:14px!important}
-body.mobile-device .credit-pack-grid,body.mobile-device .trade-grid,body.mobile-device .social-grid{grid-template-columns:1fr!important}
-body.mobile-device table{font-size:10px!important}
-body.mobile-device th,body.mobile-device td{padding:4px!important}
-body.mobile-device input,body.mobile-device select,body.mobile-device textarea{font-size:16px!important;min-height:32px!important}
-body.mobile-device button{min-height:34px;touch-action:manipulation}
-body.mobile-device #credit-shop-tip{display:none!important}
-
-body.mobile-device .mobile-touch-layer{display:block;position:fixed;inset:0;z-index:82;pointer-events:none;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial}
-.mobile-menu-fab{position:fixed;top:calc(env(safe-area-inset-top,0px) + 90px);right:12px;min-width:92px;height:42px;border-radius:999px;border:1px solid rgba(255,221,68,.86);background:linear-gradient(180deg,rgba(47,38,10,.96),rgba(12,17,30,.96));box-shadow:0 0 18px rgba(255,221,68,.22);color:#ffdd44;font-weight:950;letter-spacing:.04em;z-index:88;pointer-events:auto}
-.mobile-joystick{position:fixed;left:calc(env(safe-area-inset-left,0px) + 18px);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);width:128px;height:128px;border-radius:50%;border:2px solid rgba(123,230,255,.42);background:radial-gradient(circle,rgba(123,230,255,.12),rgba(8,13,26,.72));box-shadow:0 0 24px rgba(123,230,255,.12),inset 0 0 18px rgba(0,0,0,.35);pointer-events:auto;touch-action:none}
-.mobile-joystick:before{content:"MOVE";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:10px;font-weight:900;color:rgba(214,225,255,.42);letter-spacing:.18em;pointer-events:none}
-.mobile-joystick-knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;border:1px solid rgba(255,240,168,.65);background:linear-gradient(180deg,rgba(255,221,68,.74),rgba(123,230,255,.20));box-shadow:0 0 18px rgba(255,221,68,.18);pointer-events:none;transition:transform .04s linear}
-.mobile-fire-btn{position:fixed;right:calc(env(safe-area-inset-right,0px) + 18px);bottom:calc(env(safe-area-inset-bottom,0px) + 20px);width:122px;height:122px;border-radius:50%;border:2px solid rgba(255,120,80,.72);background:radial-gradient(circle at 50% 35%,rgba(255,180,80,.35),rgba(56,18,14,.78));box-shadow:0 0 26px rgba(255,90,55,.26),inset 0 0 18px rgba(255,255,255,.04);color:#fff0d8;font-size:15px;font-weight:950;line-height:1.1;letter-spacing:.05em;pointer-events:auto;touch-action:none}
-.mobile-fire-btn small{display:block;font-size:9px;color:#ffccaa;margin-top:2px}
-.mobile-quick-actions{position:fixed;right:calc(env(safe-area-inset-right,0px) + 152px);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);display:grid;grid-template-columns:repeat(2,74px);gap:8px;pointer-events:auto;touch-action:none}
-.mobile-btn{border:1px solid rgba(123,230,255,.45);border-radius:13px;background:linear-gradient(180deg,rgba(16,31,54,.95),rgba(7,12,25,.95));color:#dff8ff;font-weight:900;font-size:11px;box-shadow:0 0 12px rgba(123,230,255,.08);padding:7px 6px;min-height:42px;touch-action:none}
-.mobile-btn.gold{border-color:rgba(255,221,68,.72);color:#ffdd44;background:linear-gradient(180deg,rgba(49,39,10,.96),rgba(11,14,24,.96))}
-.mobile-btn.red{border-color:rgba(255,100,80,.7);color:#ffb29f;background:linear-gradient(180deg,rgba(52,19,17,.96),rgba(11,13,22,.96))}
-.mobile-panel-tools{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);transform:translateX(-50%);display:none;gap:8px;z-index:90;pointer-events:auto}
-.mobile-panel-tools .mobile-btn{min-width:74px;min-height:40px}
-body.mobile-device.mobile-panel-open .mobile-panel-tools{display:flex}
-body.mobile-device.mobile-panel-open .mobile-joystick,body.mobile-device.mobile-panel-open .mobile-fire-btn,body.mobile-device.mobile-panel-open .mobile-quick-actions{opacity:.16;pointer-events:none!important}
-body.mobile-device.mobile-menu-open .mobile-joystick,body.mobile-device.mobile-menu-open .mobile-fire-btn,body.mobile-device.mobile-menu-open .mobile-quick-actions,body.mobile-device.mobile-menu-open .mobile-menu-fab{display:none!important}
-
-body.mobile-device .mobile-menu-hub{position:fixed;inset:0;z-index:130;display:none;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px calc(env(safe-area-inset-bottom,0px) + 10px);box-sizing:border-box;background:radial-gradient(circle at 50% 10%,rgba(123,230,255,.18),transparent 34%),rgba(0,0,0,.74);backdrop-filter:blur(5px);color:#d6e1ff;font-family:system-ui,Segoe UI,Arial;pointer-events:auto}
-body.mobile-device.mobile-menu-open .mobile-menu-hub{display:flex}
-.mobile-menu-card{width:min(940px,96vw);max-height:92dvh;overflow:auto;-webkit-overflow-scrolling:touch;border:2px solid rgba(123,230,255,.52);border-radius:20px;background:linear-gradient(180deg,rgba(13,24,48,.97),rgba(4,8,20,.97));box-shadow:0 0 44px rgba(123,230,255,.22),inset 0 0 24px rgba(255,221,68,.04);padding:14px;box-sizing:border-box}
-.mobile-menu-head{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(123,230,255,.18);padding:0 0 10px;margin-bottom:10px}
-.mobile-menu-title{font-size:18px;font-weight:950;color:#7be6ff;letter-spacing:.06em;text-shadow:0 0 12px rgba(123,230,255,.35)}
-.mobile-menu-sub{font-size:11px;color:#9fb0d0;margin-top:2px;line-height:1.35}
-.mobile-menu-close{min-width:44px;border:1px solid rgba(255,120,120,.65);border-radius:12px;background:#301416;color:#ffaaaa;font-size:18px;font-weight:950}
-.mobile-menu-section{margin:10px 0 6px;color:#ffdd44;font-size:11px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}
-.mobile-menu-grid{display:grid;grid-template-columns:repeat(4,minmax(112px,1fr));gap:8px}
-.mobile-menu-grid .mobile-btn{min-height:48px;font-size:12px;white-space:normal;line-height:1.12}
-.mobile-menu-grid .mobile-btn small{display:block;margin-top:2px;font-size:9px;font-weight:800;color:#8fa3cc;letter-spacing:0;text-transform:none}
-body.mobile-device #mobile-orientation-note{display:none!important;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:150;padding:16px 18px;border:2px solid #ffdd44;border-radius:18px;background:rgba(8,12,24,.96);color:#fff3a4;text-align:center;box-shadow:0 0 30px rgba(255,221,68,.28);font-weight:900}
-@media (orientation:portrait) and (max-width:700px){body.mobile-device #mobile-orientation-note{display:none!important}body.mobile-device #hud{grid-template-columns:repeat(2,minmax(0,1fr))!important}body.mobile-device #event-radar-panel{display:none!important}.mobile-menu-grid{grid-template-columns:repeat(2,minmax(116px,1fr))}.mobile-quick-actions{right:calc(env(safe-area-inset-right,0px) + 12px);bottom:calc(env(safe-area-inset-bottom,0px) + 150px);grid-template-columns:repeat(2,70px)}.mobile-fire-btn{width:110px;height:110px}.mobile-joystick{width:116px;height:116px}}
-@media (max-width:760px){body.mobile-device #hud{grid-template-columns:repeat(2,minmax(0,1fr))!important}.mobile-menu-grid{grid-template-columns:repeat(2,minmax(112px,1fr))}.mobile-menu-title{font-size:16px}.mobile-quick-actions{grid-template-columns:repeat(2,68px);gap:6px}.mobile-btn{font-size:10px}.mobile-menu-fab{top:calc(env(safe-area-inset-top,0px) + 82px);right:8px;min-width:82px;height:38px}.mobile-fire-btn{right:10px}.mobile-joystick{left:10px}}
-
-
-
-/* ═══════════════════════════════════════════════════════════════
-   SPACE ECO v4.0.0 MOBILE HUD + COSMETIC SHOP PATCH
-═══════════════════════════════════════════════════════════════ */
-.hud-toggle{position:absolute;right:8px;top:-12px;min-width:28px;height:24px;border:1px solid rgba(255,221,68,.72);border-radius:999px;background:linear-gradient(180deg,#2b230c,#0b1020);color:#ffdd44;font-weight:950;pointer-events:auto;cursor:pointer;box-shadow:0 0 12px rgba(255,221,68,.18);z-index:3}
-.hud-survival-pill{gap:7px!important;justify-content:center;color:#dff8ff!important}
-.hud-survival-pill b{color:#ffdd44!important;margin-left:3px}.hud-survival-pill b:first-child{margin-left:0}
-body.hud-minimized #hud{width:min(560px,calc(100vw - 24px))!important;min-width:0!important;grid-template-columns:1fr!important;padding:10px!important;gap:6px!important;pointer-events:auto!important}
-body.hud-minimized #hud:before{content:"STATUS"!important;display:block!important}
-body.hud-minimized #hud > .pill:not(#bar-wrap):not(.hud-survival-pill){display:none!important}
-body.hud-minimized #bar-wrap{grid-column:1/-1!important;min-height:34px!important;grid-template-columns:auto minmax(55px,1fr) auto minmax(55px,1fr) auto minmax(55px,1fr) auto minmax(55px,1fr)!important;padding:7px 9px!important}
-body.hud-minimized #energy-text,body.hud-minimized #oxygen-text{display:none!important}
-body.hud-minimized .hud-survival-pill{display:flex!important;min-height:26px!important;font-size:11px!important;white-space:normal!important;flex-wrap:wrap!important}
-body.mobile-device.hud-minimized #hud{top:calc(env(safe-area-inset-top,0px) + 8px)!important;left:8px!important;right:auto!important;width:min(440px,calc(100vw - 116px))!important;z-index:88!important}
-body.mobile-device.hud-minimized #player-count{display:none!important}
-body.mobile-device #mobile-orientation-note{display:none!important;visibility:hidden!important;pointer-events:none!important}
-body.mobile-device .mobile-fire-btn{display:flex;align-items:center;justify-content:center;overflow:hidden}
-.mobile-fire-label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;text-shadow:0 1px 5px rgba(0,0,0,.9)}
-.mobile-fire-knob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;border:1px solid rgba(255,240,168,.78);background:radial-gradient(circle,rgba(255,240,168,.88),rgba(255,100,60,.46));box-shadow:0 0 18px rgba(255,221,68,.22);pointer-events:none;transition:transform .04s linear}
-.mobile-fire-btn.aiming{border-color:#ffdd44;box-shadow:0 0 34px rgba(255,221,68,.42),inset 0 0 22px rgba(255,255,255,.06)}
-.mobile-fire-btn.aiming .mobile-fire-label{opacity:.62}
-.cosmetic-grid{display:grid;grid-template-columns:repeat(2,minmax(240px,1fr));gap:10px;margin-top:10px}
-.cosmetic-card{border:1px solid rgba(123,230,255,.28);border-radius:12px;background:linear-gradient(180deg,#101b2e,#070c19);padding:10px;box-shadow:0 0 14px rgba(123,230,255,.06)}
-.cosmetic-preview{height:76px;margin:0 0 9px;border:1px solid rgba(123,230,255,.20);border-radius:11px;background:radial-gradient(circle at 50% 50%,rgba(123,230,255,.12),transparent 58%),linear-gradient(180deg,rgba(4,8,18,.92),rgba(9,16,31,.88));display:grid;place-items:center;overflow:hidden;position:relative}
-.cosmetic-preview:before{content:"";position:absolute;inset:8px;border-radius:9px;border:1px dashed rgba(255,255,255,.06);pointer-events:none}
-.cosmetic-preview svg{position:relative;z-index:1;filter:drop-shadow(0 0 6px currentColor)}
-.cosmetic-preview .preview-stage{position:relative;z-index:1;width:112px;height:52px}
-.preview-bullet-dot{position:absolute;width:14px;height:14px;border-radius:50%;left:20px;top:19px;box-shadow:0 0 15px currentColor}
-.preview-bullet-dot:nth-child(2){left:49px;top:13px;transform:scale(.82)}
-.preview-bullet-dot:nth-child(3){left:78px;top:22px;transform:scale(1.12)}
-.preview-particle{position:absolute;width:7px;height:7px;border-radius:50%;box-shadow:0 0 12px currentColor}
-.preview-particle.p1{left:23px;top:24px}.preview-particle.p2{left:42px;top:13px;transform:scale(.7)}.preview-particle.p3{left:60px;top:31px;transform:scale(1.25)}.preview-particle.p4{left:82px;top:18px;transform:scale(.85)}
-.preview-trail-ship{position:absolute;right:20px;top:17px;width:0;height:0;border-top:10px solid transparent;border-bottom:10px solid transparent;border-left:28px solid currentColor;filter:drop-shadow(0 0 8px currentColor)}
-.preview-trail-line{position:absolute;right:52px;top:24px;width:54px;height:5px;border-radius:999px;background:currentColor;box-shadow:0 0 12px currentColor}
-.preview-trail-line:before,.preview-trail-line:after{content:"";position:absolute;right:8px;width:36px;height:3px;border-radius:999px;background:currentColor;opacity:.65}.preview-trail-line:before{top:-11px}.preview-trail-line:after{top:13px}
-.cosmetic-card.owned{border-color:rgba(120,255,138,.5)}.cosmetic-card.equipped{border-color:rgba(255,221,68,.75);box-shadow:0 0 18px rgba(255,221,68,.16)}
-.cosmetic-title{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#ffdd44;font-weight:900;font-size:12px}.cosmetic-slot{font-size:9px;color:#7be6ff;border:1px solid rgba(123,230,255,.32);border-radius:999px;padding:2px 6px;text-transform:uppercase}
-.cosmetic-desc{font-size:10px;color:#9fb0d0;line-height:1.35;margin:5px 0 8px}.cosmetic-price{font-size:11px;color:#fff0a8;font-weight:900}.cosmetic-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.cosmetic-actions button,.coupon-row button{background:#173a2a;border:1px solid #4a8a6a;border-radius:7px;color:#78ff8a;padding:6px 9px;font-size:11px;font-weight:900;cursor:pointer}.cosmetic-actions button.warn{background:#3a1c1c;border-color:#8a4a4a;color:#ffb2b2}.cosmetic-actions button:disabled{opacity:.45;cursor:default}.coupon-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.coupon-row input{flex:1;min-width:210px;background:#091020;border:1px solid #2a4a7a;border-radius:7px;color:#d6e1ff;padding:8px;font-size:13px}.cosmetic-status{font-size:11px;color:#8fa3cc;margin-top:8px;min-height:16px}
-@media (max-width:760px){.cosmetic-grid{grid-template-columns:1fr}.hud-survival-pill{font-size:10px!important}.mobile-fire-knob{width:42px;height:42px;margin:-21px 0 0 -21px}}
-.mobile-controls-settings{margin-top:10px;padding:12px;border:1px solid rgba(123,230,255,.30);border-radius:16px;background:linear-gradient(180deg,rgba(9,18,36,.82),rgba(4,8,20,.70));box-shadow:inset 0 0 14px rgba(123,230,255,.035)}
-.mobile-controls-settings h3{margin:0 0 4px;color:#7be6ff;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
-.mobile-controls-settings p{margin:0 0 10px;color:#9fb0d0;font-size:11px;line-height:1.35}
-.mobile-sensitivity-row{display:grid;grid-template-columns:150px 1fr 58px;align-items:center;gap:10px;margin:9px 0}
-.mobile-sensitivity-label{font-size:11px;font-weight:900;color:#fff0a8;text-transform:uppercase;letter-spacing:.05em}
-.mobile-sensitivity-value{font-size:11px;font-weight:900;color:#78ff8a;text-align:right;font-variant-numeric:tabular-nums}
-.mobile-sensitivity-row input[type=range]{width:100%;accent-color:#ffdd44;touch-action:auto;min-height:34px}
-.mobile-settings-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.mobile-settings-actions .mobile-btn{min-height:36px;min-width:126px}
-@media (max-width:760px){.mobile-sensitivity-row{grid-template-columns:1fr;gap:3px}.mobile-sensitivity-value{text-align:left}.mobile-controls-settings{padding:10px}.mobile-settings-actions .mobile-btn{min-width:112px}}
-
-
-
-/* ═══════════════════════════════════════════════════════════════
-   v4.0.1 MOBILE FOREGROUND MENU / ACCESSIBILITY LAYER PATCH
-   Keeps every interactive menu above the HUD, chat, and touch controls.
-═══════════════════════════════════════════════════════════════ */
-.overlay-panel{z-index:210!important;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px calc(env(safe-area-inset-bottom,0px) + 8px)!important;box-sizing:border-box!important}
-.overlay-panel .panel-box{position:relative;z-index:211;width:min(920px,96vw)!important;max-width:96vw!important;max-height:92dvh!important;overflow:auto!important;-webkit-overflow-scrolling:touch;box-sizing:border-box}
-.trade-dom-panel,#social-panel{z-index:212!important;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px calc(env(safe-area-inset-bottom,0px) + 8px)!important;box-sizing:border-box!important}
-#trade-request-banner,.social-banner,#random-event-banner{z-index:214!important}
-body.mobile-device .overlay-panel,body.mobile-device .trade-dom-panel,body.mobile-device #social-panel{z-index:230!important;align-items:center!important;justify-content:center!important}
-body.mobile-device .overlay-panel .panel-box{width:min(940px,96vw)!important;min-width:0!important;max-height:90dvh!important;border-radius:18px!important}
-body.mobile-device.mobile-panel-open #hud,body.mobile-device.mobile-panel-open #party-panel,body.mobile-device.mobile-panel-open #event-radar-panel,body.mobile-device.mobile-panel-open #chat-wrap,body.mobile-device.mobile-panel-open #player-count,body.mobile-device.mobile-panel-open #kill-feed{z-index:24!important;opacity:.28;pointer-events:none!important}
-body.mobile-device.mobile-panel-open .mobile-touch-layer{z-index:25!important;pointer-events:none!important}
-body.mobile-device.mobile-panel-open #mobile-panel-tools{z-index:235!important;pointer-events:auto!important}
-@media (max-width:760px){.credit-pack-grid{grid-template-columns:1fr!important}.overlay-panel .panel-box h2{font-size:13px!important}.credit-note{font-size:11px!important}}
-
-
-/* ═══════════════════════════════════════════════════════════════
-   DESKTOP BROWSER BUILD PATCH v4.0.2
-   - Keeps the complete mobile feature set while adding mouse/keyboard-friendly
-     desktop controls and safer panel layering.
-═══════════════════════════════════════════════════════════════ */
-body.browser-build{overflow:hidden}
-body.desktop-browser{touch-action:auto;-webkit-user-select:auto;user-select:auto}
-body.desktop-browser canvas{cursor:crosshair}
-body.desktop-browser .overlay-panel,
-body.desktop-browser .trade-dom-panel,
-body.desktop-browser #social-panel{
-  z-index:240!important;
-  align-items:center!important;
-  justify-content:center!important;
-  padding:18px!important;
-  box-sizing:border-box!important;
-}
-body.desktop-browser .panel-box,
-body.desktop-browser .trade-box,
-body.desktop-browser .social-box{
-  width:min(980px,calc(100vw - 56px))!important;
-  max-width:980px!important;
-  min-width:340px!important;
-  max-height:88vh!important;
-  overflow:auto!important;
-  border-radius:18px!important;
-  box-shadow:0 0 42px rgba(123,230,255,.22),0 0 74px rgba(0,0,0,.58)!important;
-}
-body.desktop-browser .credit-pack-grid{grid-template-columns:repeat(2,minmax(220px,1fr))!important}
-body.desktop-browser .cosmetic-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))!important}
-body.desktop-browser.panel-open #hud,
-body.desktop-browser.panel-open #control-keys-panel,
-body.desktop-browser.panel-open #player-count,
-body.desktop-browser.panel-open #kill-feed,
-body.desktop-browser.panel-open #party-panel,
-body.desktop-browser.panel-open #event-radar-panel,
-body.desktop-browser.panel-open #chat-wrap{
-  opacity:.18;
-  pointer-events:none!important;
-}
-body.desktop-browser #mobile-controls,
-body.desktop-browser #mobile-menu-hub,
-body.desktop-browser #mobile-orientation-note{display:none!important}
-#desktop-command-dock{
-  position:fixed;
-  left:50%;
-  bottom:14px;
-  transform:translateX(-50%);
-  z-index:92;
-  display:none;
-  grid-template-columns:repeat(8,minmax(74px,1fr));
-  gap:6px;
-  width:min(860px,calc(100vw - 28px));
-  padding:8px;
-  border:1px solid rgba(123,230,255,.46);
-  border-radius:18px;
-  background:linear-gradient(180deg,rgba(10,18,36,.88),rgba(5,8,18,.82));
-  box-shadow:0 0 24px rgba(123,230,255,.16),inset 0 0 18px rgba(255,221,68,.025);
-  backdrop-filter:blur(5px);
-  font-family:system-ui,Segoe UI,Arial;
-}
-body.desktop-browser #desktop-command-dock{display:grid}
-.desktop-command-btn{
-  min-height:38px;
-  border:1px solid rgba(123,230,255,.42);
-  border-radius:12px;
-  background:linear-gradient(180deg,rgba(18,34,62,.96),rgba(8,13,27,.96));
-  color:#dff8ff;
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:.02em;
-  cursor:pointer;
-  box-shadow:0 0 10px rgba(123,230,255,.08);
-}
-.desktop-command-btn:hover{border-color:#7be6ff;color:#fff;background:linear-gradient(180deg,rgba(24,50,86,.98),rgba(10,18,34,.98));box-shadow:0 0 17px rgba(123,230,255,.20)}
-.desktop-command-btn.gold{border-color:rgba(255,221,68,.72);color:#ffdd44;background:linear-gradient(180deg,rgba(51,41,12,.96),rgba(10,14,24,.96))}
-.desktop-command-btn.red{border-color:rgba(255,100,80,.72);color:#ffb29f;background:linear-gradient(180deg,rgba(54,20,18,.96),rgba(10,13,22,.96))}
-.desktop-command-btn small{display:block;margin-top:2px;color:#8fa3cc;font-size:9px;font-weight:800;letter-spacing:0}
-body.desktop-browser #chat-wrap{bottom:74px}
-@media (max-width:980px){#desktop-command-dock{grid-template-columns:repeat(4,minmax(72px,1fr));bottom:10px}.desktop-command-btn{min-height:36px;font-size:10px}body.desktop-browser #chat-wrap{bottom:112px}}
-@media (max-height:620px){#desktop-command-dock{right:12px;left:auto;bottom:12px;transform:none;width:248px;grid-template-columns:repeat(2,minmax(72px,1fr))}body.desktop-browser #chat-wrap{bottom:12px}}
-
 </style>
 </head>
 <body>
@@ -971,7 +748,6 @@ body.desktop-browser #chat-wrap{bottom:74px}
 <!-- Game HUD -->
 <div id="wrap" style="display:none">
   <div id="hud">
-    <button id="hud-toggle" class="hud-toggle" type="button" title="Minimize status HUD" aria-label="Minimize status HUD">−</button>
     <span class="pill"><b>Mode:</b> <span id="mode">SPACE</span></span>
     <span class="pill"><b>Cr:</b> <span id="credits">300</span></span>
     <span class="pill"><b>Score:</b> <span id="score">0</span></span>
@@ -986,7 +762,6 @@ body.desktop-browser #chat-wrap{bottom:74px}
       <b>O2</b><div id="oxygen-bar-outer" class="bar-outer"><div id="oxygen-bar-inner" style="width:100%"></div></div>
       <span id="oxygen-text" style="font-size:10px">100%</span>
     </span>
-    <span class="pill hud-survival-pill"><b>Gas:</b> <span id="gas-count">0</span> <b>O₂ Tanks:</b> <span id="o2-tank-count">0</span> <b>CO₂:</b> <span id="co2-level">0%</span> <b>Cargo:</b> <span id="cargo-count">0/24</span></span>
     <span class="pill"><b>📍</b> <span id="coords">0, 0</span></span>
     <span class="pill"><b>Ship:</b> <span id="shipname">Scout</span></span>
     <span class="pill"><b>Inv:</b> <span id="inv">(empty)</span></span>
@@ -1015,8 +790,6 @@ body.desktop-browser #chat-wrap{bottom:74px}
       <div class="control-key-item"><span class="control-key-pill">Z</span><span class="control-key-label">Ship Stats</span></div>
       <div class="control-key-item"><span class="control-key-pill">B</span><span class="control-key-label">Build</span></div>
       <div class="control-key-item"><span class="control-key-pill">M</span><span class="control-key-label">Credits</span></div>
-      <div class="control-key-item"><span class="control-key-pill">Dock</span><span class="control-key-label">Cosmetics</span></div>
-      <div class="control-key-item"><span class="control-key-pill">E</span><span class="control-key-label">Talk / Loot</span></div>
       <div class="control-key-item"><span class="control-key-pill">K</span><span class="control-key-label">Board</span></div>
       <div class="control-key-item"><span class="control-key-pill">N</span><span class="control-key-label">Players</span></div>
       <div class="control-key-item"><span class="control-key-pill">T</span><span class="control-key-label">Chat</span></div>
@@ -1025,114 +798,6 @@ body.desktop-browser #chat-wrap{bottom:74px}
   </div>
   <canvas id="c" width="560" height="310"></canvas>
 </div>
-
-<!-- Mobile APK touch controls + unified menu hub -->
-<div id="mobile-controls" class="mobile-touch-layer" aria-label="Mobile touch controls">
-  <button id="mobile-menu-open" class="mobile-menu-fab" type="button" tabindex="-1">☰ MENU</button>
-  <div id="mobile-panel-tools" class="mobile-panel-tools" aria-label="Mobile panel controls">
-    <button class="mobile-btn" data-mobile-action="scroll-up" type="button" tabindex="-1">▲ Scroll</button>
-    <button class="mobile-btn red" data-mobile-action="close" type="button" tabindex="-1">Close</button>
-    <button class="mobile-btn" data-mobile-action="scroll-down" type="button" tabindex="-1">▼ Scroll</button>
-  </div>
-  <div id="mobile-joystick" class="mobile-joystick" aria-label="Move joystick"><div id="mobile-joystick-knob" class="mobile-joystick-knob"></div></div>
-  <div class="mobile-quick-actions" aria-label="Quick actions">
-    <button id="mobile-land-btn" class="mobile-btn gold" data-mobile-action="land" type="button" tabindex="-1">LAND</button>
-    <button id="mobile-tool-btn" class="mobile-btn" data-mobile-action="tool" type="button" tabindex="-1">TOOL</button>
-    <button class="mobile-btn" data-mobile-action="gas" type="button" tabindex="-1">GAS</button>
-    <button class="mobile-btn" data-mobile-action="oxygen" type="button" tabindex="-1">O₂</button>
-    <button class="mobile-btn" data-mobile-action="inventory" type="button" tabindex="-1">INV</button>
-    <button class="mobile-btn" data-mobile-action="interact" type="button" tabindex="-1">TALK/SHOP</button>
-  </div>
-  <button id="mobile-fire-btn" class="mobile-fire-btn" type="button" tabindex="-1"><span class="mobile-fire-label">FIRE<small>AIM / MINE</small></span><span id="mobile-fire-knob" class="mobile-fire-knob"></span></button>
-</div>
-<div id="mobile-menu-hub" class="mobile-menu-hub" aria-label="Unified mobile menu">
-  <div class="mobile-menu-card">
-    <div class="mobile-menu-head">
-      <div><div class="mobile-menu-title">SPACE ECO COMMAND</div><div class="mobile-menu-sub">All major menus are gathered here for touch players. Desktop players also get a command dock and hotkeys.</div></div>
-      <button id="mobile-menu-close" class="mobile-menu-close" type="button" tabindex="-1">×</button>
-    </div>
-    <div class="mobile-menu-section">Core Menus</div>
-    <div class="mobile-menu-grid">
-      <button class="mobile-btn" data-mobile-action="inventory" type="button" tabindex="-1">Inventory<small>I</small></button>
-      <button class="mobile-btn" data-mobile-action="shop" type="button" tabindex="-1">Station Shop<small>O near station</small></button>
-      <button class="mobile-btn" data-mobile-action="attributes" type="button" tabindex="-1">Attributes<small>P</small></button>
-      <button class="mobile-btn" data-mobile-action="character" type="button" tabindex="-1">Character Bay<small>C</small></button>
-      <button class="mobile-btn" data-mobile-action="ship-status" type="button" tabindex="-1">Ship Stats<small>Z</small></button>
-      <button class="mobile-btn" data-mobile-action="ship-shop" type="button" tabindex="-1">Ship Market<small>H</small></button>
-      <button class="mobile-btn" data-mobile-action="build" type="button" tabindex="-1">Build / Tile<small>B or right-click</small></button>
-      <button class="mobile-btn gold" data-mobile-action="credits" type="button" tabindex="-1">Credits<small>M</small></button>
-      <button class="mobile-btn gold" data-mobile-action="cosmetics" type="button" tabindex="-1">Cosmetics + Coupons<small>New shop</small></button>
-    </div>
-    <div class="mobile-menu-section">Progress + Server</div>
-    <div class="mobile-menu-grid">
-      <button class="mobile-btn" data-mobile-action="quests" type="button" tabindex="-1">Quest Log<small>V</small></button>
-      <button class="mobile-btn" data-mobile-action="badges" type="button" tabindex="-1">Badges<small>Y</small></button>
-      <button class="mobile-btn" data-mobile-action="leaderboard" type="button" tabindex="-1">Leaderboard<small>K</small></button>
-      <button class="mobile-btn" data-mobile-action="players" type="button" tabindex="-1">Players<small>N</small></button>
-    </div>
-    <div class="mobile-menu-section">Social + Interaction</div>
-    <div class="mobile-menu-grid">
-      <button class="mobile-btn" data-mobile-action="social" type="button" tabindex="-1">Social Panel<small>F</small></button>
-      <button class="mobile-btn" data-mobile-action="party" type="button" tabindex="-1">Invite Party<small>J</small></button>
-      <button class="mobile-btn" data-mobile-action="faction" type="button" tabindex="-1">Invite Faction<small>U</small></button>
-      <button class="mobile-btn" data-mobile-action="trade" type="button" tabindex="-1">Player Trade<small>R</small></button>
-      <button class="mobile-btn" data-mobile-action="chat" type="button" tabindex="-1">Chat<small>T</small></button>
-      <button class="mobile-btn" data-mobile-action="interact" type="button" tabindex="-1">Talk / Shop / Loot<small>E / O</small></button>
-      <button class="mobile-btn" data-mobile-action="land" type="button" tabindex="-1">Land / Takeoff<small>L</small></button>
-      <button class="mobile-btn" data-mobile-action="tool" type="button" tabindex="-1">Planet Tool<small>Q</small></button>
-    </div>
-
-    <div class="mobile-menu-section">Pause + Controls</div>
-    <div class="mobile-controls-settings" id="mobile-control-settings">
-      <h3>Controller Sensitivity</h3>
-      <p>Lower values make the ship and aim joystick steadier. Higher values make the controls more responsive.</p>
-      <label class="mobile-sensitivity-row" for="mobile-move-sensitivity">
-        <span class="mobile-sensitivity-label">Movement</span>
-        <input id="mobile-move-sensitivity" type="range" min="35" max="100" value="45" step="5" tabindex="-1"/>
-        <span id="mobile-move-sensitivity-value" class="mobile-sensitivity-value">45%</span>
-      </label>
-      <label class="mobile-sensitivity-row" for="mobile-aim-sensitivity">
-        <span class="mobile-sensitivity-label">Aim / Fire</span>
-        <input id="mobile-aim-sensitivity" type="range" min="35" max="100" value="45" step="5" tabindex="-1"/>
-        <span id="mobile-aim-sensitivity-value" class="mobile-sensitivity-value">45%</span>
-      </label>
-      <div class="mobile-settings-actions">
-        <button class="mobile-btn gold" id="mobile-controls-reset" type="button" tabindex="-1">Reset Controls</button>
-        <button class="mobile-btn" data-mobile-action="close" type="button" tabindex="-1">Resume Game</button>
-      </div>
-    </div>
-    <div class="mobile-menu-section">Survival</div>
-    <div class="mobile-menu-grid">
-      <button class="mobile-btn" data-mobile-action="gas" type="button" tabindex="-1">Use Gas Canister<small>G</small></button>
-      <button class="mobile-btn" data-mobile-action="oxygen" type="button" tabindex="-1">Use Oxygen Tank<small>X / auto at 0</small></button>
-      <button class="mobile-btn" data-mobile-action="scroll-up" type="button" tabindex="-1">Panel Scroll Up<small>canvas menus</small></button>
-      <button class="mobile-btn" data-mobile-action="scroll-down" type="button" tabindex="-1">Panel Scroll Down<small>canvas menus</small></button>
-    </div>
-  </div>
-</div>
-<div id="mobile-orientation-note">Rotate your phone sideways for the cleanest Space Eco controls.</div>
-
-<!-- Desktop browser command dock: all APK/mobile menus remain available, now clickable on desktop too. -->
-<div id="desktop-command-dock" aria-label="Desktop command dock">
-  <button class="desktop-command-btn" data-desktop-action="inventory" type="button">Inventory<small>I</small></button>
-  <button class="desktop-command-btn" data-desktop-action="shop" type="button">Station Shop<small>O / near station</small></button>
-  <button class="desktop-command-btn gold" data-desktop-action="credits" type="button">Credits<small>M</small></button>
-  <button class="desktop-command-btn gold" data-desktop-action="cosmetics" type="button">Cosmetics<small>coupon shop</small></button>
-  <button class="desktop-command-btn" data-desktop-action="ship-shop" type="button">Ships<small>H</small></button>
-  <button class="desktop-command-btn" data-desktop-action="character" type="button">Character<small>C</small></button>
-  <button class="desktop-command-btn" data-desktop-action="social" type="button">Social<small>F</small></button>
-  <button class="desktop-command-btn red" data-desktop-action="close" type="button">Close<small>Esc</small></button>
-  <button class="desktop-command-btn" data-desktop-action="quests" type="button">Quests<small>V</small></button>
-  <button class="desktop-command-btn" data-desktop-action="badges" type="button">Badges<small>Y</small></button>
-  <button class="desktop-command-btn" data-desktop-action="leaderboard" type="button">Board<small>K</small></button>
-  <button class="desktop-command-btn" data-desktop-action="players" type="button">Players<small>N</small></button>
-  <button class="desktop-command-btn" data-desktop-action="build" type="button">Build<small>B</small></button>
-  <button class="desktop-command-btn" data-desktop-action="ship-status" type="button">Ship Stats<small>Z</small></button>
-  <button class="desktop-command-btn" data-desktop-action="trade" type="button">Trade<small>R</small></button>
-  <button class="desktop-command-btn" data-desktop-action="interact" type="button">Talk / Loot<small>E</small></button>
-</div>
-
-
 
 <div id="player-count" style="display:none">👥 1</div>
 <div id="kill-feed"></div>
@@ -1207,25 +872,9 @@ body.desktop-browser #chat-wrap{bottom:74px}
   <div class="panel-box" style="min-width:600px">
     <span class="panel-close" onclick="document.getElementById('credit-panel').style.display='none'">✕</span>
     <h2>💳 CREDIT MARKET — <span id="credit-market-current">300</span> cr owned</h2>
-    <p class="credit-note">Purchases start through Wix. Desktop browser builds use the Wix parent bridge when embedded, or open your Wix checkout page in a new tab. Android/APK builds open the same Wix checkout page externally. Credits are only granted after the Wix backend confirms a successful payment with the Railway server.</p>
+    <p class="credit-note">Purchases are started through the Wix parent page. Credits are only granted after the Wix backend confirms a successful payment with the Railway server.</p>
     <div id="credit-pack-list" class="credit-pack-grid"></div>
     <p id="credit-pay-status" class="credit-note"></p>
-  </div>
-</div>
-
-
-<!-- Cosmetic + coupon shop panel -->
-<div id="cosmetic-panel" class="overlay-panel" style="display:none">
-  <div class="panel-box" style="min-width:680px;max-width:880px">
-    <span class="panel-close" onclick="document.getElementById('cosmetic-panel').style.display='none'">✕</span>
-    <h2>✨ COSMETIC + COUPON SHOP — <span id="cosmetic-credit-current">300</span> cr owned</h2>
-    <p class="credit-note">Cosmetics are intentionally expensive prestige unlocks. They change visual styles only: player ship, NPC trade ships, station looks, planet palettes, bullets, enemy effects, particles, and trails.</p>
-    <div class="coupon-row">
-      <input id="coupon-code-input" maxlength="40" placeholder="Enter coupon code, e.g. SEIA123 or SPACEECOISAWESOME" autocomplete="off"/>
-      <button id="coupon-redeem-btn" type="button">Redeem Coupon</button>
-    </div>
-    <p id="coupon-status" class="cosmetic-status"></p>
-    <div id="cosmetic-list" class="cosmetic-grid"></div>
   </div>
 </div>
 
@@ -1369,59 +1018,21 @@ const keys=new Set();
 let chatFocused=false;
 let mouse={x:canvas.width/2,y:canvas.height/2,down:false,clicked:false};
 
-const FORCE_DESKTOP_BROWSER = _spaceEcoParams.get("desktop") === "1" || _spaceEcoParams.get("browser") === "1";
-const FORCE_MOBILE_TOUCH = _spaceEcoParams.get("mobile") === "1";
-const IS_MOBILE_TOUCH = !FORCE_DESKTOP_BROWSER && (FORCE_MOBILE_TOUCH || matchMedia("(pointer: coarse)").matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||""));
-document.body.classList.add("browser-build");
-document.body.classList.toggle("mobile-device", IS_MOBILE_TOUCH);
-document.body.classList.toggle("desktop-browser", !IS_MOBILE_TOUCH);
-const MOBILE_CONTROL_DEFAULTS={moveSensitivity:.45,aimSensitivity:.45};
-function loadMobileControlSettings(){
-  const read=(key,def)=>{try{const raw=localStorage.getItem(`spaceEco_${key}`);if(raw===null)return def;return clamp(Number(raw),.35,1);}catch(_){return def;}};
-  return {moveSensitivity:read("moveSensitivity",MOBILE_CONTROL_DEFAULTS.moveSensitivity),aimSensitivity:read("aimSensitivity",MOBILE_CONTROL_DEFAULTS.aimSensitivity)};
-}
-let mobileControlSettings=loadMobileControlSettings();
-function saveMobileControlSettings(){try{localStorage.setItem("spaceEco_moveSensitivity",String(mobileControlSettings.moveSensitivity));localStorage.setItem("spaceEco_aimSensitivity",String(mobileControlSettings.aimSensitivity));}catch(_){}}
-function mobileMoveSensitivity(){return clamp(Number(mobileControlSettings.moveSensitivity)||MOBILE_CONTROL_DEFAULTS.moveSensitivity,.35,1);}
-function mobileAimSensitivity(){return clamp(Number(mobileControlSettings.aimSensitivity)||MOBILE_CONTROL_DEFAULTS.aimSensitivity,.35,1);}
-function mobileSensitivityText(v){return `${Math.round(clamp(v,.35,1)*100)}%`;}
-function updateMobileControlSettingsUI(){
-  const move=document.getElementById("mobile-move-sensitivity"),aim=document.getElementById("mobile-aim-sensitivity"),mv=document.getElementById("mobile-move-sensitivity-value"),av=document.getElementById("mobile-aim-sensitivity-value");
-  if(move)move.value=String(Math.round(mobileMoveSensitivity()*100));
-  if(aim)aim.value=String(Math.round(mobileAimSensitivity()*100));
-  if(mv)mv.textContent=mobileSensitivityText(mobileMoveSensitivity());
-  if(av)av.textContent=mobileSensitivityText(mobileAimSensitivity());
-}
-function bindMobileControlSettings(){
-  if(!IS_MOBILE_TOUCH)return;
-  const move=document.getElementById("mobile-move-sensitivity"),aim=document.getElementById("mobile-aim-sensitivity"),reset=document.getElementById("mobile-controls-reset");
-  const wireSlider=(el,key)=>{
-    if(!el)return;
-    ["pointerdown","pointermove","pointerup","touchstart","touchmove","touchend","click"].forEach(type=>el.addEventListener(type,e=>e.stopPropagation(),{passive:true}));
-    el.addEventListener("input",()=>{mobileControlSettings[key]=clamp(Number(el.value)/100,.35,1);saveMobileControlSettings();updateMobileControlSettingsUI();resetMobileControlState("sensitivity-change");});
-  };
-  wireSlider(move,"moveSensitivity");
-  wireSlider(aim,"aimSensitivity");
-  reset?.addEventListener("pointerdown",e=>{mobileEventStop(e);mobileControlSettings={...MOBILE_CONTROL_DEFAULTS};saveMobileControlSettings();updateMobileControlSettingsUI();resetMobileControlState("manual-reset");const wx=mode===MODE.PLANET?astronaut.x:ship.x,wy=mode===MODE.PLANET?astronaut.y:ship.y;showFT("Controls reset",wx,wy-28,"#78ff8a",10);},{passive:false});
-  updateMobileControlSettingsUI();
-}
-
-
-const BLOCKING_DOM_PANEL_IDS=["lb-panel","sl-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
+const BLOCKING_DOM_PANEL_IDS=["lb-panel","sl-panel","ship-panel","build-panel","credit-panel","trade-panel-dom","social-panel"];
 function isShown(el){return !!el&&getComputedStyle(el).display!=="none"&&getComputedStyle(el).visibility!=="hidden";}
-function isTextControl(target){if(target&&target.closest&&target.closest("#mobile-controls,#mobile-menu-hub"))return false;const el=target&&target.closest&&target.closest("input, textarea, select, button, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
+function isTextControl(target){const el=target&&target.closest&&target.closest("input, textarea, select, button, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
 function joinScreenOpen(){return isShown(document.getElementById("join-screen"));}
 function blockingDomPanelOpen(){return BLOCKING_DOM_PANEL_IDS.some(id=>isShown(document.getElementById(id)));}
 function canvasPanelOpen(){return !!(inventoryOpen||shopOpen||attrOpen||characterOpen||questLogOpen||badgeLogOpen||shipStatusOpen);}
 function domInputLocked(target=document.activeElement){return chatFocused||joinScreenOpen()||isTextControl(target)||blockingDomPanelOpen();}
 function gameplayInputLocked(target=document.activeElement){return domInputLocked(target)||canvasPanelOpen();}
-function clearMovementInput(){["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift"].forEach(k=>keys.delete(k));mouse.down=false;mouse.clicked=false;}
+function clearMovementInput(){["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," "].forEach(k=>keys.delete(k));mouse.down=false;mouse.clicked=false;}
 function clearLiveInput(){keys.clear();mouse.down=false;mouse.clicked=false;}
 function hidePanel(id){const el=document.getElementById(id);if(el)el.style.display="none";}
 function closeTopDomPanel(){
   if(isShown(document.getElementById("trade-panel-dom"))){closeTradePanel(true);return true;}
   if(isShown(document.getElementById("social-panel"))){socialOpen=false;hidePanel("social-panel");return true;}
-  for(const id of ["cosmetic-panel","credit-panel","build-panel","ship-panel","sl-panel","lb-panel"]){if(isShown(document.getElementById(id))){hidePanel(id);return true;}}
+  for(const id of ["credit-panel","build-panel","ship-panel","sl-panel","lb-panel"]){if(isShown(document.getElementById(id))){hidePanel(id);return true;}}
   return false;
 }
 function closeMatchingPanelHotkey(key){
@@ -1458,8 +1069,6 @@ window.addEventListener("keydown",e=>{
   if(key==="z"){toggleShipStatusPanel();e.preventDefault();return;}
   if(key==="b"){if(mode===MODE.SPACE&&!shopOpen&&!inventoryOpen&&!attrOpen&&!shipStatusOpen)toggleBuildPanel();return;}
   if(key==="m"){hideCreditShopTip();toggleCreditShop();return;}
-  if(key==="."||key===";"){toggleCosmeticShop();return;}
-  if(key==="e"){keys.add("e");return;}
   if(key==="f"){toggleSocialPanel();return;}
   if(key==="j"){inviteNearestToParty();return;}
   if(key==="u"){inviteNearestToFaction();return;}
@@ -1517,234 +1126,6 @@ function maxCivCommandStationScroll(){
 function maxQuestLogScroll(){return Math.max(0,questLog.length-QUEST_LOG_VISIBLE_ROWS);}
 function maxBadgeLogScroll(){return Math.max(0,Object.keys(badgeState?.badges||{}).length-BADGE_LOG_VISIBLE_ROWS);}
 function clampPanelScrolls(){inventoryScrollRows=clamp(inventoryScrollRows,0,maxInventoryScrollRows());shopInventoryScrollRows=clamp(shopInventoryScrollRows,0,maxShopInventoryScrollRows());civCommandStationScroll=clamp(civCommandStationScroll,0,maxCivCommandStationScroll());questLogScroll=clamp(questLogScroll,0,maxQuestLogScroll());badgeLogScroll=clamp(badgeLogScroll,0,maxBadgeLogScroll());}
-
-/* ── Mobile APK touch controls + unified menu hub ── */
-const MOBILE_CONTROL_KEYS=["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift"];
-let mobileJoystickPointer=null,mobileFirePointer=null;
-function mobileEventStop(e){if(e){e.preventDefault();e.stopPropagation();}try{e?.currentTarget?.blur?.();}catch(_){}}
-function mobileClearMoveKeys(){for(const k of MOBILE_CONTROL_KEYS)keys.delete(k);}
-function mobileCanvasPointFromEvent(e){const r=canvas.getBoundingClientRect(),sx=canvas.width/Math.max(1,r.width),sy=canvas.height/Math.max(1,r.height);mouse.x=clamp((e.clientX-r.left)*sx,0,canvas.width);mouse.y=clamp((e.clientY-r.top)*sy,0,canvas.height);}
-function resizeGameCanvasToDisplay(){
-  const r=canvas.getBoundingClientRect();
-  if(!r||r.width<80||r.height<80)return;
-  const minW=IS_MOBILE_TOUCH?560:560,minH=IS_MOBILE_TOUCH?310:310;
-  const w=Math.max(minW,Math.round(r.width)),h=Math.max(minH,Math.round(r.height));
-  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;mouse.x=canvas.width/2;mouse.y=canvas.height/2;layoutFloatingHud();}
-}
-function mobileAimFallback(){
-  if(mode===MODE.SPACE){const a=Number.isFinite(ship?.angle)?ship.angle:0;mouse.x=canvas.width/2+Math.cos(a)*Math.min(canvas.width*.34,180);mouse.y=canvas.height/2+Math.sin(a)*Math.min(canvas.height*.34,120);}
-  else {mouse.x=canvas.width/2+70;mouse.y=canvas.height/2;}
-}
-function mobileApplyFireAim(e){
-  const base=document.getElementById("mobile-fire-btn"),knob=document.getElementById("mobile-fire-knob");if(!base)return;
-  const r=base.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,rad=r.width/2;
-  const dx=e.clientX-cx,dy=e.clientY-cy,len=Math.hypot(dx,dy),max=Math.max(22,rad-29);
-  const nx=len>0?dx/len:Math.cos(ship.angle||0),ny=len>0?dy/len:Math.sin(ship.angle||0),mag=clamp(len/max,0,1);
-  if(knob)knob.style.transform=`translate(${nx*max*mag}px,${ny*max*mag}px)`;
-  base.classList.add("aiming");
-  const sens=mobileAimSensitivity();
-  const dead=.18+(1-sens)*.06;
-  if(mag<dead){mobileAimFallback();return;}
-  const reachX=Math.min(canvas.width*.42,240),reachY=Math.min(canvas.height*.42,170);
-  const reachScale=clamp(.30+sens*.54,.45,.86);
-  const pull=(.28+.72*mag)*reachScale;
-  const targetX=clamp(canvas.width/2+nx*(reachX*pull),8,canvas.width-8);
-  const targetY=clamp(canvas.height/2+ny*(reachY*pull),8,canvas.height-8);
-  const smooth=clamp(.24+sens*.22,.24,.48);
-  mouse.x=Number.isFinite(mouse.x)?lerp(mouse.x,targetX,smooth):targetX;
-  mouse.y=Number.isFinite(mouse.y)?lerp(mouse.y,targetY,smooth):targetY;
-}
-function mobileResetFireAim(){mobileFirePointer=null;mouse.down=false;mouse.clicked=false;const base=document.getElementById("mobile-fire-btn"),knob=document.getElementById("mobile-fire-knob");if(base)base.classList.remove("aiming");if(knob)knob.style.transform="translate(0,0)";}
-
-function mobileCanvasPointerDown(e){
-  if(!IS_MOBILE_TOUCH||e.pointerType==="mouse")return;
-  mobileEventStop(e);canvas.setPointerCapture?.(e.pointerId);mobileCanvasPointFromEvent(e);mouse.down=true;mouse.clicked=true;
-  const mx=mouse.x,my=mouse.y;
-  if(shipStatusOpen)handleShipStatusClick(mx,my);
-  else if(characterOpen)handleCharacterClick(mx,my);
-  else if(shopOpen)handleShopClick(mx,my);
-  else if(inventoryOpen)handleInventoryClick(mx,my);
-  else if(attrOpen)handleAttrClick(mx,my);
-  else if(gameOver)requestRespawn();
-}
-function mobileCanvasPointerMove(e){if(!IS_MOBILE_TOUCH||e.pointerType==="mouse")return;mobileEventStop(e);mobileCanvasPointFromEvent(e);}
-function mobileCanvasPointerUp(e){if(!IS_MOBILE_TOUCH||e.pointerType==="mouse")return;mobileEventStop(e);try{canvas.releasePointerCapture?.(e.pointerId);}catch(_){ }mouse.down=false;}
-canvas.addEventListener("pointerdown",mobileCanvasPointerDown,{passive:false});
-canvas.addEventListener("pointermove",mobileCanvasPointerMove,{passive:false});
-canvas.addEventListener("pointerup",mobileCanvasPointerUp,{passive:false});
-canvas.addEventListener("pointercancel",mobileCanvasPointerUp,{passive:false});
-function mobileApplyJoystick(e){
-  const base=document.getElementById("mobile-joystick"),knob=document.getElementById("mobile-joystick-knob");if(!base||!knob)return;
-  const r=base.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,rad=r.width/2;
-  const dx=clamp(e.clientX-cx,-rad,rad),dy=clamp(e.clientY-cy,-rad,rad),len=Math.hypot(dx,dy),max=rad-28;
-  const nx=len>0?dx/len:0,ny=len>0?dy/len:0,mag=clamp(len/max,0,1);
-  knob.style.transform=`translate(${nx*max*mag}px,${ny*max*mag}px)`;
-  mobileClearMoveKeys();
-  const sens=mobileMoveSensitivity();
-  const dead=.30-sens*.08;
-  if(mag<dead)return;
-  const turnThreshold=.57-sens*.18;
-  const thrustThreshold=.62-sens*.18;
-  const brakeThreshold=.70-sens*.16;
-  const boostThreshold=.90-sens*.16;
-  if(ny<-thrustThreshold)keys.add("w");
-  if(ny>brakeThreshold)keys.add("s");
-  if(nx<-turnThreshold)keys.add("a");
-  if(nx>turnThreshold)keys.add("d");
-  if(ny<-boostThreshold&&mag>.78)keys.add("shift");
-}
-function mobileResetJoystick(){mobileJoystickPointer=null;mobileClearMoveKeys();const k=document.getElementById("mobile-joystick-knob");if(k)k.style.transform="translate(0,0)";}
-function resetMobileControlState(reason="reset"){
-  if(!IS_MOBILE_TOUCH)return;
-  mobileJoystickPointer=null;
-  mobileFirePointer=null;
-  mobileResetJoystick();
-  mobileResetFireAim();
-  mouse.clicked=false;
-  if(reason==="respawn"||reason==="orientation"||reason==="resize")mobileAimFallback();
-}
-
-function mobileToggleHub(force){if(!IS_MOBILE_TOUCH)return;const open=force===undefined?!document.body.classList.contains("mobile-menu-open"):!!force;document.body.classList.toggle("mobile-menu-open",open);clearMovementInput();}
-function mobileCloseAllPanels(){
-  mobileToggleHub(false);closeTopDomPanel();["lb-panel","sl-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);
-  if(socialOpen){socialOpen=false;hidePanel("social-panel");}
-  try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }
-  inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();
-}
-function mobileScrollPanel(delta){
-  delta=delta>0?1:-1;
-  if(questLogOpen)questLogScroll=clamp(questLogScroll+delta,0,maxQuestLogScroll());
-  else if(badgeLogOpen)badgeLogScroll=clamp(badgeLogScroll+delta,0,maxBadgeLogScroll());
-  else if(inventoryOpen)inventoryScrollRows=clamp(inventoryScrollRows+delta,0,maxInventoryScrollRows());
-  else if(shopOpen&&nearStation?.isCivSuperStation)civCommandStationScroll=clamp(civCommandStationScroll+delta,0,maxCivCommandStationScroll());
-  else if(shopOpen&&shopTab==="sell")shopInventoryScrollRows=clamp(shopInventoryScrollRows+delta,0,maxShopInventoryScrollRows());
-}
-function mobileToggleInventory(){inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
-function mobileToggleAttributes(){attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);}
-function mobileToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
-function mobileLandTakeoff(){if(mode===MODE.SPACE){landOnNearestPlanet();return;}if(mode===MODE.PLANET){if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<42)leavePlanet();else showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
-function mobileInteract(){if(mode===MODE.SPACE&&(nearStation||shopOpen)){mobileToggleShop();return;}keys.add("e");setTimeout(()=>keys.delete("e"),90);}
-function mobileBuildOrTile(){if(mode===MODE.PLANET){placeBuildTileAt(mouse.x||canvas.width/2,mouse.y||canvas.height/2);return;}if(mode===MODE.SPACE)toggleBuildPanel();}
-function mobileUseOxygen(){if(mode===MODE.PLANET)useOxygenTank();else showFT("Oxygen tanks are used on planets",ship.x,ship.y-18,"#7be6ff",9);}
-function mobileUseGas(){if(mode===MODE.SPACE)useGasCanister();else showFT("Gas canisters refill your ship in space",astronaut.x,astronaut.y-24,"#aaff44",9);}
-function mobileAction(action){
-  if(!joined&&!["close"].includes(action))return;
-  const worldX=mode===MODE.PLANET?astronaut.x:ship.x,worldY=mode===MODE.PLANET?astronaut.y:ship.y;
-  switch(action){
-    case "close":mobileCloseAllPanels();break;
-    case "menu":mobileToggleHub(true);break;
-    case "inventory":mobileToggleHub(false);mobileToggleInventory();break;
-    case "shop":mobileToggleHub(false);mobileToggleShop();break;
-    case "attributes":mobileToggleHub(false);mobileToggleAttributes();break;
-    case "character":mobileToggleHub(false);toggleCharacterPanel();break;
-    case "ship-status":mobileToggleHub(false);toggleShipStatusPanel();break;
-    case "ship-shop":mobileToggleHub(false);toggleShipShop();break;
-    case "build":mobileToggleHub(false);mobileBuildOrTile();break;
-    case "credits":mobileToggleHub(false);hideCreditShopTip();toggleCreditShop();break;
-    case "cosmetics":mobileToggleHub(false);toggleCosmeticShop();break;
-    case "quests":mobileToggleHub(false);toggleQuestLog();break;
-    case "badges":mobileToggleHub(false);toggleBadgeLog();break;
-    case "leaderboard":mobileToggleHub(false);toggleLeaderboard();break;
-    case "players":mobileToggleHub(false);toggleServerList();break;
-    case "social":mobileToggleHub(false);toggleSocialPanel();break;
-    case "party":mobileToggleHub(false);inviteNearestToParty();break;
-    case "faction":mobileToggleHub(false);inviteNearestToFaction();break;
-    case "trade":mobileToggleHub(false);sendTradeRequestToNearest();break;
-    case "chat":mobileToggleHub(false);openChat();break;
-    case "interact":mobileToggleHub(false);mobileInteract();break;
-    case "land":mobileToggleHub(false);mobileLandTakeoff();break;
-    case "tool":mobileToggleHub(false);togglePlanetTool();break;
-    case "gas":mobileToggleHub(false);mobileUseGas();break;
-    case "oxygen":mobileToggleHub(false);mobileUseOxygen();break;
-    case "scroll-up":mobileScrollPanel(-1);break;
-    case "scroll-down":mobileScrollPanel(1);break;
-    default:showFT("Mobile action unavailable",worldX,worldY-24,"#ffcc44",8);
-  }
-}
-
-function desktopToggleInventory(){inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
-function desktopToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
-function desktopBuildOrTile(){if(mode===MODE.PLANET){placeBuildTileAt(mouse.x||canvas.width/2,mouse.y||canvas.height/2);return;}if(mode===MODE.SPACE)toggleBuildPanel();}
-function desktopInteract(){if(mode===MODE.SPACE&&(nearStation||shopOpen)){desktopToggleShop();return;}keys.add("e");setTimeout(()=>keys.delete("e"),90);}
-function closeAllDesktopPanels(){closeTopDomPanel();["lb-panel","sl-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);if(socialOpen){socialOpen=false;hidePanel("social-panel");}try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();}
-function desktopAction(action){
-  if(!joined&&action!=="close")return;
-  switch(action){
-    case "close":closeAllDesktopPanels();break;
-    case "inventory":desktopToggleInventory();break;
-    case "shop":desktopToggleShop();break;
-    case "credits":hideCreditShopTip();toggleCreditShop();break;
-    case "cosmetics":toggleCosmeticShop();break;
-    case "ship-shop":toggleShipShop();break;
-    case "character":toggleCharacterPanel();break;
-    case "social":toggleSocialPanel();break;
-    case "quests":toggleQuestLog();break;
-    case "badges":toggleBadgeLog();break;
-    case "leaderboard":toggleLeaderboard();break;
-    case "players":toggleServerList();break;
-    case "build":desktopBuildOrTile();break;
-    case "ship-status":toggleShipStatusPanel();break;
-    case "trade":sendTradeRequestToNearest();break;
-    case "interact":desktopInteract();break;
-  }
-}
-function bindDesktopCommandDock(){
-  if(IS_MOBILE_TOUCH)return;
-  document.querySelectorAll("[data-desktop-action]").forEach(btn=>{
-    btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();desktopAction(btn.dataset.desktopAction);});
-  });
-}
-function syncDesktopPanelState(){
-  if(IS_MOBILE_TOUCH)return;
-  const panelOpen=canvasPanelOpen()||blockingDomPanelOpen()||isShown(document.getElementById("trade-panel-dom"));
-  document.body.classList.toggle("panel-open",panelOpen);
-}
-bindDesktopCommandDock();
-function bindMobileTouchControls(){
-  if(!IS_MOBILE_TOUCH)return;
-  const joy=document.getElementById("mobile-joystick");
-  joy?.addEventListener("pointerdown",e=>{mobileEventStop(e);mobileJoystickPointer=e.pointerId;joy.setPointerCapture?.(e.pointerId);mobileApplyJoystick(e);},{passive:false});
-  joy?.addEventListener("pointermove",e=>{if(e.pointerId!==mobileJoystickPointer)return;mobileEventStop(e);mobileApplyJoystick(e);},{passive:false});
-  ["pointerup","pointercancel","lostpointercapture"].forEach(type=>joy?.addEventListener(type,e=>{if(e.pointerId===mobileJoystickPointer||type==="lostpointercapture"){mobileEventStop(e);mobileResetJoystick();}},{passive:false}));
-  const fire=document.getElementById("mobile-fire-btn");
-  fire?.addEventListener("pointerdown",e=>{mobileEventStop(e);mobileFirePointer=e.pointerId;fire.setPointerCapture?.(e.pointerId);mobileApplyFireAim(e);mouse.down=true;mouse.clicked=true;},{passive:false});
-  fire?.addEventListener("pointermove",e=>{if(e.pointerId!==mobileFirePointer)return;mobileEventStop(e);mobileApplyFireAim(e);mouse.down=true;},{passive:false});
-  fire?.addEventListener("pointerup",e=>{if(e.pointerId!==mobileFirePointer)return;mobileEventStop(e);mobileResetFireAim();},{passive:false});
-  fire?.addEventListener("pointercancel",e=>{if(e.pointerId!==mobileFirePointer)return;mobileEventStop(e);mobileResetFireAim();},{passive:false});
-  fire?.addEventListener("lostpointercapture",e=>{mobileResetFireAim();},{passive:false});
-  document.getElementById("mobile-menu-open")?.addEventListener("pointerdown",e=>{mobileEventStop(e);mobileToggleHub(true);},{passive:false});
-  document.getElementById("mobile-menu-close")?.addEventListener("pointerdown",e=>{mobileEventStop(e);mobileToggleHub(false);},{passive:false});
-  document.querySelectorAll("[data-mobile-action]").forEach(btn=>btn.addEventListener("pointerdown",e=>{mobileEventStop(e);mobileAction(btn.dataset.mobileAction);},{passive:false}));
-}
-function syncMobileTouchUI(){
-  if(!IS_MOBILE_TOUCH)return;
-  const panelOpen=canvasPanelOpen()||blockingDomPanelOpen()||isShown(document.getElementById("trade-panel-dom"));
-  document.body.classList.toggle("mobile-panel-open",panelOpen&&!document.body.classList.contains("mobile-menu-open"));
-  const land=document.getElementById("mobile-land-btn"),tool=document.getElementById("mobile-tool-btn");
-  if(land)land.textContent=mode===MODE.PLANET?"TAKEOFF":"LAND";
-  if(tool){tool.textContent=mode===MODE.PLANET?(planetTool==="mining"?"MINE":"WEAPON"):"TOOL";tool.style.opacity=mode===MODE.PLANET?"1":".55";}
-}
-bindMobileTouchControls();
-bindMobileControlSettings();
-window.addEventListener("pointerup",e=>{if(!IS_MOBILE_TOUCH)return;if(e.pointerId===mobileJoystickPointer)mobileResetJoystick();if(e.pointerId===mobileFirePointer)mobileResetFireAim();},{passive:false});
-window.addEventListener("pointercancel",e=>{if(!IS_MOBILE_TOUCH)return;if(e.pointerId===mobileJoystickPointer)mobileResetJoystick();if(e.pointerId===mobileFirePointer)mobileResetFireAim();},{passive:false});
-window.addEventListener("orientationchange",()=>{if(!IS_MOBILE_TOUCH)return;resetMobileControlState("orientation");setTimeout(resizeGameCanvasToDisplay,80);setTimeout(resizeGameCanvasToDisplay,360);},{passive:true});
-let mobileResizeResetTimer=0,mobileLastViewport="";
-window.addEventListener("resize",()=>{if(!IS_MOBILE_TOUCH)return;const next=`${innerWidth}x${innerHeight}`;if(next===mobileLastViewport)return;mobileLastViewport=next;clearTimeout(mobileResizeResetTimer);mobileResizeResetTimer=setTimeout(()=>{resetMobileControlState("resize");resizeGameCanvasToDisplay();},120);},{passive:true});
-document.addEventListener("visibilitychange",()=>{if(IS_MOBILE_TOUCH&&document.hidden)resetMobileControlState("hidden");});
-
-
-function initHudToggle(){
-  const btn=document.getElementById("hud-toggle");
-  const saved=(()=>{try{return localStorage.getItem("spaceEcoHudMinimized");}catch(_){return null;}})();
-  const startMin=saved===null?IS_MOBILE_TOUCH:saved==="1";
-  document.body.classList.toggle("hud-minimized",startMin);
-  if(btn)btn.textContent=startMin?"+":"−";
-  btn?.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();const min=!document.body.classList.contains("hud-minimized");document.body.classList.toggle("hud-minimized",min);btn.textContent=min?"+":"−";try{localStorage.setItem("spaceEcoHudMinimized",min?"1":"0");}catch(_){};});
-}
-initHudToggle();
-
-
 
 /* ── Resources ── */
 const RES={
@@ -1822,7 +1203,7 @@ function weaponDamage(key){const d=weaponDefFor(key),lvl=weaponLevel(key);return
 function weaponUpgradeCost(key){const d=weaponDefFor(key),lvl=weaponLevel(key);return Math.ceil((price(key)||d.damage*20)*(0.65+lvl*0.85)*Math.pow(1.42,lvl-1));}
 function weaponLine(){const d=equippedWeaponDef();return `${d.name} Lv${weaponLevel(d.key)}`;}
 function addWeaponMuzzleParticles(x,y,ang,d){
-  for(let i=0;i<5;i++)particles.push({x,y,vx:Math.cos(ang+(Math.random()-.5)*.7)*(35+Math.random()*70),vy:Math.sin(ang+(Math.random()-.5)*.7)*(35+Math.random()*70),life:.22+Math.random()*.22,maxLife:.44,color:cosmeticParticleColor(d.color),size:1+Math.random()*2});
+  for(let i=0;i<5;i++)particles.push({x,y,vx:Math.cos(ang+(Math.random()-.5)*.7)*(35+Math.random()*70),vy:Math.sin(ang+(Math.random()-.5)*.7)*(35+Math.random()*70),life:.22+Math.random()*.22,maxLife:.44,color:d.color,size:1+Math.random()*2});
 }
 function fireWeaponLocal(ang){
   const d=equippedWeaponDef(),shots=d.shots||1,baseSpread=d.spread||0,damage=weaponDamage(d.key),now=performance.now();
@@ -1831,7 +1212,7 @@ function fireWeaponLocal(ang){
     const jitter=(d.mode==="swarm"?(Math.random()-.5)*baseSpread*.35:0);
     const a=ang+offset+jitter;
     const speed=(d.speed||300)*(d.mode==="swarm"?(0.84+Math.random()*0.35):1);
-    localPlayerProjectiles.push({x:ship.x+Math.cos(a)*12,y:ship.y+Math.sin(a)*12,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,damage:damage/shots,life:d.life||2,size:cosmeticProjectileSize(d.size||2.8),color:cosmeticProjectileColor(d.color),weaponKey:d.key,mode:d.mode,spawnAt:now});
+    localPlayerProjectiles.push({x:ship.x+Math.cos(a)*12,y:ship.y+Math.sin(a)*12,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,damage:damage/shots,life:d.life||2,size:d.size||2.8,color:d.color,weaponKey:d.key,mode:d.mode,spawnAt:now});
     addWeaponMuzzleParticles(ship.x+Math.cos(a)*12,ship.y+Math.sin(a)*12,a,d);
   }
   return d.cooldown||0.25;
@@ -1846,7 +1227,6 @@ const player={
   attrPoints:0,color:"#7be6ff",shipType:"scout",score:0,kills:0,deaths:0,
   equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
   equippedAttachments:defaultAttachmentSlots(),
-  equippedCosmetics:{ship:null,bullet:null,enemy:null,particle:null,trail:null,station:null,planet:null,npcship:null},
 };
 const character={
   cosmeticColor:"#ffd27a",
@@ -1855,222 +1235,6 @@ const character={
   miningLevel:1,
   oxygenLevel:1,
 };
-
-const COSMETIC_DEFS={
-  ship_nebula_wing:{key:"ship_nebula_wing",slot:"ship",name:"Nebula Wing Hull",price:250000,description:"Purple-blue nebula plating with soft glow and swept wings.",color:"#9d7bff",accent:"#7be6ff",shape:"nebula"},
-  ship_solar_royal:{key:"ship_solar_royal",slot:"ship",name:"Solar Royal Hull",price:750000,description:"Gold solar armor with crown-like fins.",color:"#ffdd44",accent:"#fff0a8",shape:"royal"},
-  ship_void_chrome:{key:"ship_void_chrome",slot:"ship",name:"Void Chrome Hull",price:1500000,description:"Dark chrome ship body with cyan blade trim.",color:"#101827",accent:"#7be6ff",shape:"blade"},
-  ship_aether_flame:{key:"ship_aether_flame",slot:"ship",name:"Aether Flame Hull",price:3000000,description:"Flame-lined starship plating with ember wings.",color:"#ff6b35",accent:"#ffdd44",shape:"flame"},
-  ship_crystal_lancer:{key:"ship_crystal_lancer",slot:"ship",name:"Crystal Lancer Hull",price:1750000,description:"Long crystalline spear-nose frame.",color:"#7be6ff",accent:"#e9fbff",shape:"lancer"},
-  ship_orbital_mantis:{key:"ship_orbital_mantis",slot:"ship",name:"Orbital Mantis Hull",price:2400000,description:"Hooked wing cutter with mantis-like prongs.",color:"#78ff8a",accent:"#d6ff7b",shape:"mantis"},
-  ship_stingray:{key:"ship_stingray",slot:"ship",name:"Stingray Cruiser Hull",price:3200000,description:"Wide gliding ray design with glowing tail engines.",color:"#58a6ff",accent:"#b9f3ff",shape:"stingray"},
-  ship_obelisk_elite:{key:"ship_obelisk_elite",slot:"ship",name:"Obelisk Elite Hull",price:5200000,description:"Tall carrier silhouette with an obelisk core.",color:"#1b1330",accent:"#cc88ff",shape:"obeliskElite"},
-  bullet_ion_rain:{key:"bullet_ion_rain",slot:"bullet",name:"Ion Rain Bullets",price:400000,description:"Bright cyan projectile trail.",color:"#7be6ff",sizeBoost:0.2},
-  bullet_lux_beam:{key:"bullet_lux_beam",slot:"bullet",name:"Lux Beam Bullets",price:950000,description:"Golden laser bolt style.",color:"#ffdd44",sizeBoost:0.45},
-  bullet_shadow_orb:{key:"bullet_shadow_orb",slot:"bullet",name:"Shadow Orb Bullets",price:1800000,description:"Purple shadow-orb projectiles.",color:"#cc88ff",sizeBoost:1.0},
-  bullet_prismatic:{key:"bullet_prismatic",slot:"bullet",name:"Prismatic Bullets",price:4500000,description:"Premium rainbow starfire bullets.",color:"#ffffff",rainbow:true,sizeBoost:0.8},
-  enemy_neon_outline:{key:"enemy_neon_outline",slot:"enemy",name:"Neon Enemy Outline",price:1250000,description:"Turns hostile raiders into angular neon outline ships.",color:"#ff5cff",accent:"#7be6ff",shape:"outline"},
-  enemy_crimson_raid:{key:"enemy_crimson_raid",slot:"enemy",name:"Crimson Raider Pack",price:2500000,description:"Crimson enemy projectiles and fang-shaped raider hulls.",color:"#ff3344",accent:"#ffdd44",shape:"fang"},
-  enemy_void_bats:{key:"enemy_void_bats",slot:"enemy",name:"Void Bat Enemy Ships",price:3400000,description:"Bat-wing hostile ships with dark violet cores.",color:"#7f4dff",accent:"#ff5cff",shape:"bat"},
-  enemy_gold_hunters:{key:"enemy_gold_hunters",slot:"enemy",name:"Gold Hunter Enemy Ships",price:4200000,description:"Gold-trim hunter enemies with forked noses.",color:"#ffdd44",accent:"#ff8844",shape:"hunter"},
-  particle_star_spark:{key:"particle_star_spark",slot:"particle",name:"Star Spark Particles",price:350000,description:"Sparkly star muzzle particles.",color:"#fff0a8"},
-  particle_aether_flame:{key:"particle_aether_flame",slot:"particle",name:"Aether Flame Particles",price:1750000,description:"Warm flame exhaust and shot particles.",color:"#ff8844"},
-  particle_cosmic_bloom:{key:"particle_cosmic_bloom",slot:"particle",name:"Cosmic Bloom Particles",price:5000000,description:"Luxury cosmic bloom particle style.",color:"#cc88ff",accent:"#7be6ff"},
-  trail_comet_tail:{key:"trail_comet_tail",slot:"trail",name:"Comet Tail Trail",price:700000,description:"Comet exhaust trail for boosted travel.",color:"#b9f3ff"},
-  trail_gold_dust:{key:"trail_gold_dust",slot:"trail",name:"Gold Dust Trail",price:2200000,description:"Premium golden engine trail.",color:"#ffdd44"},
-  station_neon_ring:{key:"station_neon_ring",slot:"station",name:"Neon Ring Stations",price:1800000,description:"Space stations become glowing ring hubs.",color:"#7be6ff",accent:"#ff5cff",shape:"ring"},
-  station_crystal_citadel:{key:"station_crystal_citadel",slot:"station",name:"Crystal Citadel Stations",price:2600000,description:"Stations redraw as faceted crystal citadels.",color:"#b9f3ff",accent:"#ffffff",shape:"crystal"},
-  station_solar_fortress:{key:"station_solar_fortress",slot:"station",name:"Solar Fortress Stations",price:3600000,description:"Stations gain armored golden fortress plating.",color:"#ffdd44",accent:"#ff8844",shape:"fortress"},
-  station_void_spire:{key:"station_void_spire",slot:"station",name:"Void Spire Stations",price:4800000,description:"Stations become dark spires with a violet core.",color:"#221833",accent:"#cc88ff",shape:"spire"},
-  planet_lush_worlds:{key:"planet_lush_worlds",slot:"planet",name:"Lush Planet Designs",price:1500000,description:"Planets redraw with green-blue living world bands.",color:"#78ff8a",accent:"#7be6ff",shape:"lush"},
-  planet_crystal_worlds:{key:"planet_crystal_worlds",slot:"planet",name:"Crystal Planet Designs",price:2400000,description:"Planets gain crystal facets and bright ice rings.",color:"#7be6ff",accent:"#ffffff",shape:"crystal"},
-  planet_lava_worlds:{key:"planet_lava_worlds",slot:"planet",name:"Lava Planet Designs",price:3200000,description:"Planets redraw with magma cracks and ember glow.",color:"#ff6b35",accent:"#ffdd44",shape:"lava"},
-  planet_void_worlds:{key:"planet_void_worlds",slot:"planet",name:"Void Planet Designs",price:4300000,description:"Planets become dark eclipse worlds with purple rings.",color:"#1b1330",accent:"#cc88ff",shape:"void"},
-
-  ship_aurora_saber:{key:"ship_aurora_saber",slot:"ship",name:"Aurora Saber Hull",price:2800000,description:"A slim aurora-lit saber frame with bright teal wing edges.",color:"#3affd0",accent:"#fff0a8",shape:"lancer"},
-  ship_ruby_vector:{key:"ship_ruby_vector",slot:"ship",name:"Ruby Vector Hull",price:3600000,description:"Red vector-plated racer hull with neon blade trim.",color:"#ff335d",accent:"#ffcc44",shape:"blade"},
-  ship_quantum_ray:{key:"ship_quantum_ray",slot:"ship",name:"Quantum Ray Hull",price:4400000,description:"Wide manta-ray silhouette with quantum blue glow.",color:"#45a3ff",accent:"#7bffea",shape:"stingray"},
-  ship_codex_crown:{key:"ship_codex_crown",slot:"ship",name:"Codex Crown Hull",price:6500000,description:"Prestige crown-class ship body for late-game pilots.",color:"#ffe66d",accent:"#ff5cff",shape:"royal"},
-  bullet_ember_bolts:{key:"bullet_ember_bolts",slot:"bullet",name:"Ember Bolts",price:650000,description:"Orange ember projectiles with a hot core.",color:"#ff8844",accent:"#ffdd44",sizeBoost:0.3},
-  bullet_arc_lime:{key:"bullet_arc_lime",slot:"bullet",name:"Arc Lime Shots",price:1350000,description:"Electric green shot style with a sharper glow.",color:"#78ff8a",accent:"#d6ff7b",sizeBoost:0.55},
-  bullet_blue_nova:{key:"bullet_blue_nova",slot:"bullet",name:"Blue Nova Rounds",price:2600000,description:"Deep-blue nova shots with a larger impact profile.",color:"#58a6ff",accent:"#b9f3ff",sizeBoost:0.75},
-  bullet_heart_star:{key:"bullet_heart_star",slot:"bullet",name:"Heart Star Shots",price:5200000,description:"Luxury pink starfire projectile style.",color:"#ff77dd",accent:"#fff0ff",sizeBoost:0.95},
-  enemy_aqua_reavers:{key:"enemy_aqua_reavers",slot:"enemy",name:"Aqua Reaver Enemies",price:1850000,description:"Enemy raiders shift into aqua razor silhouettes.",color:"#35e7ff",accent:"#ffffff",shape:"fang"},
-  enemy_ember_wasps:{key:"enemy_ember_wasps",slot:"enemy",name:"Ember Wasp Enemies",price:3100000,description:"Hostile ships become hot orange wasp-like attackers.",color:"#ff8844",accent:"#ffdd44",shape:"hunter"},
-  enemy_emerald_stalkers:{key:"enemy_emerald_stalkers",slot:"enemy",name:"Emerald Stalker Enemies",price:3900000,description:"Green stealth enemy visual pack with sharp wings.",color:"#78ff8a",accent:"#0dffb2",shape:"bat"},
-  enemy_codex_phantoms:{key:"enemy_codex_phantoms",slot:"enemy",name:"Codex Phantom Enemies",price:5600000,description:"Rare phantom enemy silhouettes with violet neon outlines.",color:"#b86bff",accent:"#7be6ff",shape:"outline"},
-  npcship_trader_teal:{key:"npcship_trader_teal",slot:"npcship",name:"Teal NPC Trade Ships",price:900000,description:"Friendly and neutral NPC trade ships use teal courier hulls.",color:"#7be6ff",accent:"#ffffff",shape:"hauler"},
-  npcship_solar_barge:{key:"npcship_solar_barge",slot:"npcship",name:"Solar NPC Barges",price:1750000,description:"NPC trade ships become gold solar barges.",color:"#ffdd44",accent:"#ff8844",shape:"hauler"},
-  npcship_crystal_courier:{key:"npcship_crystal_courier",slot:"npcship",name:"Crystal NPC Couriers",price:2900000,description:"NPC couriers gain crystalline blue lancer hulls.",color:"#b9f3ff",accent:"#7be6ff",shape:"lancer"},
-  npcship_void_caravan:{key:"npcship_void_caravan",slot:"npcship",name:"Void NPC Caravans",price:4700000,description:"NPC trade ships become dark caravan escorts with violet cores.",color:"#26143f",accent:"#cc88ff",shape:"stingray"},
-  particle_neon_snow:{key:"particle_neon_snow",slot:"particle",name:"Neon Snow Particles",price:900000,description:"Cool blue-white twinkle particles.",color:"#dff9ff",accent:"#7be6ff"},
-  particle_green_matrix:{key:"particle_green_matrix",slot:"particle",name:"Green Matrix Particles",price:2600000,description:"Matrix-green digital spark particles.",color:"#78ff8a",accent:"#d6ff7b"},
-  particle_royal_prism:{key:"particle_royal_prism",slot:"particle",name:"Royal Prism Particles",price:6200000,description:"Prismatic prestige sparks for shots and exhaust.",color:"#ffffff",accent:"#ff5cff"},
-  trail_aqua_wake:{key:"trail_aqua_wake",slot:"trail",name:"Aqua Wake Trail",price:1100000,description:"Bright aqua engine wake for travel.",color:"#7be6ff",accent:"#ffffff"},
-  trail_ember_stream:{key:"trail_ember_stream",slot:"trail",name:"Ember Stream Trail",price:3000000,description:"Orange ember exhaust stream.",color:"#ff8844",accent:"#ffdd44"},
-  trail_prism_comet:{key:"trail_prism_comet",slot:"trail",name:"Prism Comet Trail",price:7000000,description:"Prestige rainbow comet exhaust.",color:"#ffffff",accent:"#ff5cff",rainbow:true},
-  station_aqua_array:{key:"station_aqua_array",slot:"station",name:"Aqua Array Stations",price:2200000,description:"Stations gain clean aqua array arms.",color:"#0f3450",accent:"#7be6ff",shape:"ring"},
-  station_emerald_gate:{key:"station_emerald_gate",slot:"station",name:"Emerald Gate Stations",price:3900000,description:"Stations redraw as green gate fortresses.",color:"#123522",accent:"#78ff8a",shape:"fortress"},
-  station_royal_obelisk:{key:"station_royal_obelisk",slot:"station",name:"Royal Obelisk Stations",price:6500000,description:"Prestige obelisk stations with gold-violet cores.",color:"#1b1330",accent:"#ffdd44",shape:"spire"},
-  planet_ocean_worlds:{key:"planet_ocean_worlds",slot:"planet",name:"Ocean Planet Designs",price:1900000,description:"Planets redraw as blue ocean worlds with pale rings.",color:"#2f8dff",accent:"#b9f3ff",shape:"lush"},
-  planet_emerald_worlds:{key:"planet_emerald_worlds",slot:"planet",name:"Emerald Planet Designs",price:3000000,description:"Planets gain luminous emerald bands.",color:"#24b86b",accent:"#78ff8a",shape:"lush"},
-  planet_royal_worlds:{key:"planet_royal_worlds",slot:"planet",name:"Royal Planet Designs",price:6200000,description:"Prestige gold-violet planet palette.",color:"#ffdd44",accent:"#cc88ff",shape:"crystal"}
-};
-const COSMETIC_SLOTS=["ship","bullet","enemy","npcship","particle","trail","station","planet"];
-let cosmeticInventory={},equippedCosmetics={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null},redeemedCoupons={};
-const CLIENT_COUPON_DEFS={SPACEECOISAWESOME:{credits:10000000,description:"Launch celebration coupon"},SEIA123:{credits:10000000,description:"Reusable Space Eco Infinite Awesome coupon",reusable:true}};
-let cosmeticBackendSupported=false;
-let pendingCouponCode=null,pendingCouponTimer=0;
-function loadLocalCosmeticState(){try{return JSON.parse(localStorage.getItem("spaceEcoLocalCosmeticState")||"{}")}catch(_){return {};}}
-function saveLocalCosmeticState(){try{localStorage.setItem("spaceEcoLocalCosmeticState",JSON.stringify({owned:cosmeticInventory,equipped:equippedCosmetics,redeemedCoupons}));}catch(_){}}
-function mergeLocalCosmeticState(){const st=loadLocalCosmeticState();const localOwned=normalizeCosmeticInventory(st.owned||{}),serverOwned=normalizeCosmeticInventory(cosmeticInventory||{});const localEq=normalizeEquippedCosmetics(st.equipped||{}),serverEq=normalizeEquippedCosmetics(equippedCosmetics||{});cosmeticInventory={...localOwned,...serverOwned};equippedCosmetics={...localEq};for(const slot of COSMETIC_SLOTS){if(serverEq[slot])equippedCosmetics[slot]=serverEq[slot];if(equippedCosmetics[slot]&&!cosmeticInventory[equippedCosmetics[slot]])equippedCosmetics[slot]=null;}redeemedCoupons={...normalizeRedeemedCoupons(st.redeemedCoupons||{}),...normalizeRedeemedCoupons(redeemedCoupons||{})};player.equippedCosmetics=equippedCosmetics;}
-
-const LOCAL_GAME_SAVE_KEY="spaceEcoLocalGameStateV401";
-let localGameSaveLoaded=false,localGameSaveDirtyTimer=0;
-function sanitizeLocalSlots(slots,maxSlots=24){
-  const n=Math.max(24,Math.min(96,Math.floor(Number(maxSlots)||24))),out=[];
-  for(let i=0;i<n;i++){const s=Array.isArray(slots)?slots[i]:null;const type=String(s?.type||"");const count=Math.max(0,Math.min(24,Math.floor(Number(s?.count)||0)));out.push(type&&RES[type]&&count>0?{type,count}:{type:null,count:0});}
-  return out;
-}
-function readLocalGameState(){try{const raw=JSON.parse(localStorage.getItem(LOCAL_GAME_SAVE_KEY)||"null");return raw&&typeof raw==="object"?raw:null;}catch(_){return null;}}
-function makeLocalGameSnapshot(reason="local_save"){
-  return {version:401,reason,updatedAt:Date.now(),credits:Math.max(0,Math.floor(Number(player.credits)||0)),maxSlots:Math.max(24,Math.min(96,Math.floor(Number(player.maxSlots)||24))),invSlots:sanitizeLocalSlots(player.invSlots,player.maxSlots),level:Math.max(1,Math.floor(Number(player.level)||1)),xp:Math.max(0,Math.floor(Number(player.xp)||0)),xpToNext:Math.max(1,Math.floor(Number(player.xpToNext)||100)),attrPoints:Math.max(0,Math.floor(Number(player.attrPoints)||0)),attrs:{...player.attrs},shipType:player.shipType||"scout",equippedWeapon:player.equippedWeapon||"weapon_laser_mk1",weaponLevels:{...player.weaponLevels},equippedAttachments:normalizeAttachments(player.equippedAttachments||{}),cosmeticInventory:normalizeCosmeticInventory(cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(equippedCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(redeemedCoupons||{})};
-}
-function saveLocalGameState(reason="local_save"){
-  try{localStorage.setItem(LOCAL_GAME_SAVE_KEY,JSON.stringify(makeLocalGameSnapshot(reason)));}catch(_){/* local storage unavailable */}
-}
-function saveLocalGameStateSoon(reason="local_save"){
-  clearTimeout(localGameSaveDirtyTimer);
-  localGameSaveDirtyTimer=setTimeout(()=>saveLocalGameState(reason),180);
-}
-function localSnapshotHasProgress(snap){return !!(snap&&(Number(snap.credits)>300||Number(snap.level)>1||Number(snap.xp)>0||clientInventoryPayloadHasItems(snap.invSlots)||Object.keys(snap.cosmeticInventory||{}).length));}
-function applyLocalGameSnapshot(snap,reason="local_first"){
-  if(!snap||typeof snap!=="object")return false;
-  if(typeof snap.credits==="number")player.credits=Math.max(player.credits||0,Math.floor(snap.credits));
-  if(typeof snap.maxSlots==="number")player.maxSlots=Math.max(player.maxSlots||24,Math.min(96,Math.floor(snap.maxSlots)));
-  if(Array.isArray(snap.invSlots)&&clientInventoryPayloadHasItems(snap.invSlots))player.invSlots=sanitizeLocalSlots(snap.invSlots,player.maxSlots);
-  if(typeof snap.level==="number")player.level=Math.max(player.level||1,Math.floor(snap.level));
-  if(typeof snap.xp==="number")player.xp=Math.max(player.xp||0,Math.floor(snap.xp));
-  if(typeof snap.xpToNext==="number")player.xpToNext=Math.max(player.xpToNext||100,Math.floor(snap.xpToNext));
-  if(typeof snap.attrPoints==="number")player.attrPoints=Math.max(player.attrPoints||0,Math.floor(snap.attrPoints));
-  if(snap.attrs&&typeof snap.attrs==="object")player.attrs={...player.attrs,...snap.attrs};
-  if(snap.shipType&&SHIP_TYPES[snap.shipType])player.shipType=snap.shipType;
-  if(snap.equippedWeapon)player.equippedWeapon=snap.equippedWeapon;
-  if(snap.weaponLevels&&typeof snap.weaponLevels==="object")player.weaponLevels={...player.weaponLevels,...snap.weaponLevels};
-  if(snap.equippedAttachments&&typeof snap.equippedAttachments==="object")player.equippedAttachments=normalizeAttachments(snap.equippedAttachments);
-  cosmeticInventory={...normalizeCosmeticInventory(snap.cosmeticInventory||{}),...normalizeCosmeticInventory(cosmeticInventory||{})};
-  const localEq=normalizeEquippedCosmetics(snap.equippedCosmetics||{}),curEq=normalizeEquippedCosmetics(equippedCosmetics||{});
-  equippedCosmetics={...localEq,...curEq};
-  for(const slot of COSMETIC_SLOTS)if(equippedCosmetics[slot]&&!cosmeticInventory[equippedCosmetics[slot]])equippedCosmetics[slot]=null;
-  redeemedCoupons={...normalizeRedeemedCoupons(snap.redeemedCoupons||{}),...normalizeRedeemedCoupons(redeemedCoupons||{})};
-  player.equippedCosmetics=equippedCosmetics;
-  ensureClientInventorySlots?.();
-  updateHud?.();
-  return true;
-}
-function bootLocalGameState(){
-  if(localGameSaveLoaded)return;
-  localGameSaveLoaded=true;
-  const snap=readLocalGameState();
-  if(localSnapshotHasProgress(snap))applyLocalGameSnapshot(snap,"boot_local_first");
-}
-bootLocalGameState();
-function safeHtml(v){return String(v??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));}
-function safeColor(v,fb="#7be6ff"){v=String(v||"").trim();return /^#[0-9a-f]{3,8}$/i.test(v)?v:fb;}
-function localCreditBonusForCoupons(){let total=0;for(const code of Object.keys(redeemedCoupons||{})){const d=CLIENT_COUPON_DEFS[code];if(d&&!d.reusable)total+=Math.max(0,Math.floor(Number(d.credits)||0));}return total;}
-function applyLocalCouponBonusIfNeeded(){if(cosmeticBackendSupported)return;const bonus=localCreditBonusForCoupons();if(bonus>0){player.credits=Math.max(player.credits||0,bonus);}updateHud();renderCosmeticShop&&renderCosmeticShop();}
-function normalizeCosmeticInventory(raw){const out={};if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){if(COSMETIC_DEFS[k]&&v===true)out[k]=true;}return out;}
-function normalizeEquippedCosmetics(raw){const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null};if(raw&&typeof raw==="object")for(const slot of COSMETIC_SLOTS){const key=String(raw[slot]||"");if(key&&COSMETIC_DEFS[key]?.slot===slot)out[slot]=key;}return out;}
-function normalizeRedeemedCoupons(raw){const out={};if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){const code=String(k||"").toUpperCase();if(code&&v===true)out[code]=true;}return out;}
-function activeCosmeticDef(slot,source=equippedCosmetics){const key=source?.[slot];return key?COSMETIC_DEFS[key]||null:null;}
-function shipVisualColor(base=player.color,source=equippedCosmetics){return activeCosmeticDef("ship",source)?.color||base;}
-function enemyVisualColor(){return activeCosmeticDef("enemy")?.color||"#ff4422";}
-function cosmeticProjectileColor(base="#ffff44"){const d=activeCosmeticDef("bullet");if(!d)return base;if(d.rainbow){const t=(performance.now()/1000)%6;return `hsl(${Math.floor(t*60)},100%,70%)`;}return d.color||base;}
-function cosmeticParticleColor(base="#ffff44"){return activeCosmeticDef("particle")?.color||base;}
-function cosmeticProjectileSize(base=2.8){return base+(Number(activeCosmeticDef("bullet")?.sizeBoost)||0);}
-
-function cosmeticAccent(slot,source=equippedCosmetics,fb="#ff7744"){return safeColor(activeCosmeticDef(slot,source)?.accent||fb,fb);}
-function drawShipBody(stype,color="#7be6ff",accent="#ff7744",cosDef=null,thrusting=false){
-  const shape=cosDef?.shape||stype||"scout";color=safeColor(color,"#7be6ff");accent=safeColor(cosDef?.accent||accent,"#ff7744");ctx.fillStyle=color;ctx.strokeStyle=accent;ctx.lineWidth=1.6;
-  function poly(points,stroke=true){ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fill();if(stroke)ctx.stroke();}
-  if(shape==="nebula")poly([[15,0],[-9,-8],[-3,-2],[-15,-12],[-8,0],[-15,12],[-3,2],[-9,8]]);
-  else if(shape==="royal")poly([[14,0],[-8,-8],[-2,-4],[-12,-14],[-10,0],[-12,14],[-2,4],[-8,8]]);
-  else if(shape==="blade")poly([[16,0],[-9,-4],[-3,0],[-9,4],[-15,0]]);
-  else if(shape==="flame")poly([[14,0],[-10,-7],[-5,-1],[-15,-4],[-9,0],[-15,4],[-5,1],[-10,7]]);
-  else if(shape==="lancer")poly([[18,0],[-5,-5],[-1,-1],[-16,-1],[-16,1],[-1,1],[-5,5]]);
-  else if(shape==="mantis")poly([[14,0],[-6,-6],[-2,-2],[-15,-13],[-9,0],[-15,13],[-2,2],[-6,6]]);
-  else if(shape==="stingray")poly([[15,0],[-2,-10],[-17,-5],[-7,0],[-17,5],[-2,10]]);
-  else if(shape==="obeliskElite"){ctx.fillRect(-16,-10,32,20);ctx.fillStyle=accent;ctx.fillRect(-3,-16,6,32);ctx.fillStyle=color;ctx.fillRect(9,-5,5,10);ctx.strokeRect(-16,-10,32,20);}
-  else if(shape==="hauler"){ctx.fillRect(-12,-7,24,14);ctx.fillStyle=accent;ctx.fillRect(-14,-4,4,8);}
-  else if(shape==="fighter")poly([[12,0],[-10,-6],[-6,0],[-10,6]],false);
-  else if(shape==="interceptor")poly([[14,0],[-8,-3],[-5,0],[-8,3]],false);
-  else if(shape==="dreadnought"){ctx.fillRect(-14,-9,28,18);ctx.fillStyle=accent;ctx.fillRect(-15,-5,4,10);ctx.fillStyle=color;ctx.fillRect(-10,-12,6,4);ctx.fillRect(-10,8,6,4);}
-  else if(shape==="phantom")poly([[11,0],[-9,-5],[-7,0],[-9,5]],false);
-  else if(shape==="miner_mantis"){ctx.fillRect(-12,-6,20,12);ctx.fillStyle=accent;ctx.fillRect(6,-10,4,20);ctx.fillRect(-15,-2,4,4);}
-  else if(shape==="guardian"){ctx.fillRect(-13,-8,26,16);ctx.strokeStyle=accent;ctx.globalAlpha=.55;ctx.beginPath();ctx.arc(0,0,17,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;ctx.fillStyle=accent;ctx.fillRect(-16,-3,4,6);}
-  else if(shape==="solar_sprinter")poly([[15,0],[-10,-4],[-5,0],[-10,4]],false);
-  else if(shape==="obelisk_carrier"){ctx.fillRect(-16,-10,32,20);ctx.fillStyle=accent;ctx.fillRect(-4,-15,8,30);ctx.fillRect(10,-4,4,8);}
-  else {ctx.fillRect(-6,-4,12,8);ctx.fillStyle=accent;ctx.fillRect(-8,-2,2,4);}
-  if(thrusting){ctx.globalAlpha=0.7;ctx.fillStyle=activeCosmeticDef("trail")?.color||accent;ctx.beginPath();ctx.arc(-11,0,5,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
-}
-function drawEnemyShipBody(color="#ff3344",accent="#ffcc44",shape="raider"){
-  color=safeColor(color,"#ff3344");accent=safeColor(accent,"#ffcc44");ctx.fillStyle=color;ctx.strokeStyle=accent;ctx.lineWidth=1.5;
-  function poly(points){ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fill();ctx.stroke();}
-  if(shape==="fang")poly([[10,0],[-8,-7],[-3,0],[-8,7],[-13,0]]);
-  else if(shape==="bat")poly([[9,0],[-4,-4],[-13,-10],[-9,0],[-13,10],[-4,4]]);
-  else if(shape==="hunter")poly([[11,0],[-6,-6],[-2,-2],[-13,-3],[-8,0],[-13,3],[-2,2],[-6,6]]);
-  else if(shape==="outline"){ctx.fillStyle="rgba(255,255,255,.06)";poly([[9,0],[-8,-6],[-3,0],[-8,6]]);}
-  else poly([[8,0],[-7,-5],[-4,0],[-7,5]]);
-  ctx.fillStyle=accent;ctx.fillRect(-10,-1,4,2);
-}
-function drawStationDesign(cx,cy,size,tier="standard",destroyed=false,baseColor="#66ccaa",strokeColor="#ffffff55"){
-  const d=activeCosmeticDef("station"),shape=d?.shape||tier,color=destroyed?"#3a1c1c":safeColor(d?.color||baseColor,baseColor),accent=destroyed?"#ff4422":safeColor(d?.accent||strokeColor,strokeColor);ctx.fillStyle=color;ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.beginPath();
-  if(shape==="ring"){ctx.arc(cx,cy,size,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.arc(cx,cy,size*1.55,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(cx-size*1.9,cy);ctx.lineTo(cx+size*1.9,cy);ctx.stroke();}
-  else if(shape==="crystal"){for(let k=0;k<6;k++){const a=k*Math.PI/3-Math.PI/2,r=k%2?size*.72:size*1.25;k?ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle=accent;ctx.globalAlpha=.45;ctx.fillRect(cx-3,cy-size*.8,6,size*1.6);ctx.globalAlpha=1;}
-  else if(shape==="fortress"){ctx.rect(cx-size,cy-size*.7,size*2,size*1.4);ctx.fill();ctx.stroke();ctx.fillStyle=accent;ctx.fillRect(cx-size*1.25,cy-size*.35,size*.35,size*.7);ctx.fillRect(cx+size*.9,cy-size*.35,size*.35,size*.7);}
-  else if(shape==="spire"){ctx.moveTo(cx,cy-size*1.45);ctx.lineTo(cx+size*.85,cy+size*.75);ctx.lineTo(cx,cy+size*1.15);ctx.lineTo(cx-size*.85,cy+size*.75);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle=accent;ctx.beginPath();ctx.arc(cx,cy,Math.max(3,size*.22),0,Math.PI*2);ctx.fill();}
-  else if(tier==="outpost"){ctx.rect(cx-size/2,cy-size/2,size,size);ctx.fill();ctx.stroke();}
-  else if(tier==="standard"){ctx.arc(cx,cy,size,0,Math.PI*2);ctx.fill();ctx.stroke();}
-  else if(tier==="advanced"){for(let k=0;k<6;k++){const a=k*Math.PI/3-Math.PI/6;k?ctx.lineTo(cx+Math.cos(a)*size,cy+Math.sin(a)*size):ctx.moveTo(cx+Math.cos(a)*size,cy+Math.sin(a)*size);}ctx.closePath();ctx.fill();ctx.stroke();}
-  else{for(let k=0;k<10;k++){const a=k*Math.PI/5-Math.PI/2,r2=k%2===0?size:size*0.5;k?ctx.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2):ctx.moveTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2);}ctx.closePath();ctx.fill();ctx.stroke();}
-}
-function drawPlanetVisual(p,px,py){
-  const d=activeCosmeticDef("planet");if(!d){ctx.drawImage(p.preview,px-16,py-16);return;}
-  const color=safeColor(d.color||p.pal?.a||"#7be6ff"),accent=safeColor(d.accent||p.pal?.b||"#ffffff"),r=clamp((p.radius||32)/2,14,26);ctx.save();ctx.translate(px,py);ctx.shadowColor=color;ctx.shadowBlur=10;ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=accent;ctx.lineWidth=2;
-  if(d.shape==="crystal"){for(let k=0;k<7;k++){ctx.beginPath();ctx.moveTo(0,0);const a=k*Math.PI*2/7;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);ctx.stroke();}ctx.strokeRect(-r*.55,-r*.55,r*1.1,r*1.1);}
-  else if(d.shape==="lava"){ctx.strokeStyle=accent;for(let k=-1;k<=1;k++){ctx.beginPath();ctx.moveTo(-r*.75,k*r*.28);ctx.bezierCurveTo(-r*.2,k*r*.45,r*.1,k*r*.05,r*.75,k*r*.3);ctx.stroke();}}
-  else if(d.shape==="void"){ctx.beginPath();ctx.ellipse(0,0,r*1.45,r*.38,0,0,Math.PI*2);ctx.stroke();ctx.fillStyle="rgba(0,0,0,.35)";ctx.beginPath();ctx.arc(-r*.25,-r*.15,r*.55,0,Math.PI*2);ctx.fill();}
-  else{ctx.beginPath();ctx.ellipse(0,-r*.22,r*.8,r*.22,0,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.ellipse(0,r*.25,r*.9,r*.25,0,0,Math.PI*2);ctx.stroke();}
-  ctx.restore();
-}
-function cosmeticPreviewHtml(def){
-  const color=safeColor(def.color||"#7be6ff"),accent=safeColor(def.accent||def.color||"#ffdd44");
-  if(def.slot==="ship"||def.slot==="npcship"){const pts=def.shape==="stingray"?"98,29 54,8 16,20 40,29 16,38 54,50":def.shape==="obeliskElite"?"92,29 60,9 48,19 18,16 36,29 18,42 48,39 60,49":def.shape==="mantis"?"96,29 54,13 46,24 18,10 36,29 18,48 46,34 54,45":def.shape==="lancer"?"104,29 46,16 54,25 14,25 34,29 14,33 54,33 46,42":"96,29 48,10 55,25 18,18 38,29 18,40 55,33 48,48";return `<div class="cosmetic-preview" style="color:${color}"><svg width="118" height="58" viewBox="0 0 118 58" aria-hidden="true"><polygon points="${pts}" fill="${color}" stroke="${accent}" stroke-width="3"/><circle cx="61" cy="29" r="5" fill="${accent}"/><path d="M43 15 L31 7 M43 43 L31 51" stroke="${accent}" stroke-width="3" stroke-linecap="round"/></svg></div>`;}
-  if(def.slot==="bullet")return `<div class="cosmetic-preview" style="color:${color}"><div class="preview-stage"><span class="preview-bullet-dot" style="background:${color}"></span><span class="preview-bullet-dot" style="background:${def.rainbow?"linear-gradient(90deg,#ff5cff,#7be6ff,#ffdd44)":accent}"></span><span class="preview-bullet-dot" style="background:${color}"></span></div></div>`;
-  if(def.slot==="enemy")return `<div class="cosmetic-preview" style="color:${color}"><svg width="116" height="58" viewBox="0 0 116 58" aria-hidden="true"><polygon points="18,29 66,9 58,26 100,18 78,29 100,40 58,32 66,49" fill="rgba(255,255,255,.06)" stroke="${color}" stroke-width="4"/><circle cx="53" cy="29" r="6" fill="${accent}"/><path d="M76 19 L92 11 M76 39 L92 47" stroke="${color}" stroke-width="3" stroke-linecap="round"/></svg></div>`;
-  if(def.slot==="station")return `<div class="cosmetic-preview" style="color:${color}"><svg width="118" height="58" viewBox="0 0 118 58" aria-hidden="true"><circle cx="59" cy="29" r="17" fill="rgba(255,255,255,.05)" stroke="${color}" stroke-width="4"/><rect x="52" y="22" width="14" height="14" fill="${accent}"/><path d="M24 29 H94 M59 8 V50" stroke="${color}" stroke-width="3" stroke-linecap="round"/></svg></div>`;
-  if(def.slot==="planet")return `<div class="cosmetic-preview" style="color:${color}"><svg width="118" height="58" viewBox="0 0 118 58" aria-hidden="true"><circle cx="59" cy="29" r="19" fill="${color}" stroke="${accent}" stroke-width="3"/><path d="M40 25 C50 18 68 18 79 25 M40 34 C52 41 66 41 79 34" stroke="rgba(0,0,0,.35)" stroke-width="4" fill="none"/><ellipse cx="59" cy="29" rx="30" ry="9" fill="none" stroke="${accent}" stroke-width="2" opacity=".8"/></svg></div>`;
-  if(def.slot==="particle")return `<div class="cosmetic-preview" style="color:${color}"><div class="preview-stage"><span class="preview-particle p1" style="background:${color}"></span><span class="preview-particle p2" style="background:${accent}"></span><span class="preview-particle p3" style="background:${color}"></span><span class="preview-particle p4" style="background:${accent}"></span></div></div>`;
-  if(def.slot==="trail")return `<div class="cosmetic-preview" style="color:${color}"><div class="preview-stage"><span class="preview-trail-line"></span><span class="preview-trail-ship"></span></div></div>`;
-  return `<div class="cosmetic-preview" style="color:${color}"></div>`;
-}
-function localBuyCosmetic(key,reason="local"){const def=COSMETIC_DEFS[key];if(!def){const st=document.getElementById("coupon-status");if(st)st.textContent="Unknown cosmetic.";return;}if(cosmeticInventory[key]){renderCosmeticShop();return;}const cost=Math.max(0,Math.floor(Number(def.price)||0));if((player.credits||0)<cost){const st=document.getElementById("coupon-status");if(st)st.textContent=`Need ${cost.toLocaleString()} credits.`;return;}player.credits=(player.credits||0)-cost;cosmeticInventory[key]=true;equippedCosmetics[def.slot]=key;player.equippedCosmetics=equippedCosmetics;saveLocalCosmeticState();saveLocalGameStateSoon("cosmetic_local_buy");updateHud();renderCosmeticShop();showFT("Cosmetic unlocked + equipped!",ship.x,ship.y-28,"#ffdd44",11);}
-function localEquipCosmetic(slot,key){slot=String(slot||COSMETIC_DEFS[key]?.slot||"");if(!COSMETIC_SLOTS.includes(slot))return;if(key){const def=COSMETIC_DEFS[key];if(!def||def.slot!==slot)return;if(!cosmeticInventory[key]){const st=document.getElementById("coupon-status");if(st)st.textContent="Buy that cosmetic first.";return;}equippedCosmetics[slot]=key;}else equippedCosmetics[slot]=null;player.equippedCosmetics=equippedCosmetics;saveLocalCosmeticState();saveLocalGameStateSoon("cosmetic_local_equip");renderCosmeticShop();showFT("Cosmetic equipped",ship.x,ship.y-28,"#78ff8a",10);}
-function localRedeemCoupon(code,source="local"){code=String(code||"").trim().toUpperCase();const def=CLIENT_COUPON_DEFS[code];const status=document.getElementById("coupon-status");if(!def){if(status)status.textContent="Coupon code not found.";return false;}if(!def.reusable&&redeemedCoupons[code]){if(status)status.textContent="Coupon already redeemed on this pilot.";return false;}if(!def.reusable)redeemedCoupons[code]=true;const credits=Math.max(0,Math.floor(Number(def.credits)||0));player.credits=(player.credits||0)+credits;saveLocalCosmeticState();saveLocalGameStateSoon("coupon_local");if(status)status.textContent=`${code} redeemed — +${credits.toLocaleString()} credits${def.reusable?" (reusable)":""}!`;showFT(`Coupon +${credits.toLocaleString()}cr`,ship.x,ship.y-34,"#ffdd44",12);updateHud();renderCosmeticShop();return true;}
-function equipCosmetic(slot,key){if(cosmeticBackendSupported&&socket?.connected){socket.emit("equipCosmetic",{slot,key:key||null});setTimeout(()=>{if(!cosmeticBackendSupported)localEquipCosmetic(slot,key);},900);}else localEquipCosmetic(slot,key);}
-function buyCosmetic(key){if(cosmeticBackendSupported&&socket?.connected){socket.emit("buyCosmetic",{key});setTimeout(()=>{if(!cosmeticBackendSupported)localBuyCosmetic(key);},1100);}else localBuyCosmetic(key);}
-function redeemCoupon(){const input=document.getElementById("coupon-code-input"),status=document.getElementById("coupon-status");const code=String(input?.value||"").trim().toUpperCase();if(!code){if(status)status.textContent="Enter a coupon code first.";return;}if(redeemedCoupons[code]&&!CLIENT_COUPON_DEFS[code]?.reusable){if(status)status.textContent="Coupon already redeemed on this pilot.";return;}if(status)status.textContent=cosmeticBackendSupported&&socket?.connected?"Checking coupon…":"Redeeming local coupon…";pendingCouponCode=code;clearTimeout(pendingCouponTimer);if(cosmeticBackendSupported&&socket?.connected){socket.emit("redeemCoupon",{code});pendingCouponTimer=setTimeout(()=>{if(pendingCouponCode===code)localRedeemCoupon(code,"timeout");pendingCouponCode=null;},1400);}else{localRedeemCoupon(code,"offline");pendingCouponCode=null;}}
-function renderCosmeticShop(){
-  const cur=document.getElementById("cosmetic-credit-current"),list=document.getElementById("cosmetic-list");if(cur)cur.textContent=(player.credits||0).toLocaleString();if(!list)return;
-  const order=["ship","npcship","station","planet","bullet","particle","trail","enemy"];
-  const defs=Object.values(COSMETIC_DEFS).sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)||a.price-b.price);
-  list.innerHTML=defs.map(def=>{const owned=!!cosmeticInventory[def.key],equipped=equippedCosmetics[def.slot]===def.key,can=(player.credits||0)>=def.price;return `<div class="cosmetic-card ${owned?"owned":""} ${equipped?"equipped":""}">${cosmeticPreviewHtml(def)}<div class="cosmetic-title"><span>${safeHtml(def.name)}</span><span class="cosmetic-slot">${safeHtml(def.slot)}</span></div><div class="cosmetic-desc">${safeHtml(def.description||"Visual cosmetic.")}</div><div class="cosmetic-price">${owned?"Owned":Number(def.price||0).toLocaleString()+" credits"}</div><div class="cosmetic-actions">${owned?`<button data-cos-equip="${safeHtml(def.key)}" ${equipped?"disabled":""}>${equipped?"Equipped":"Equip"}</button><button class="warn" data-cos-clear="${safeHtml(def.slot)}">Clear Slot</button>`:`<button data-cos-buy="${safeHtml(def.key)}" ${can?"":"disabled"}>Buy</button>`}</div></div>`;}).join("");
-  for(const b of list.querySelectorAll("[data-cos-buy]"))b.onclick=()=>buyCosmetic(b.dataset.cosBuy);
-  for(const b of list.querySelectorAll("[data-cos-equip]"))b.onclick=()=>equipCosmetic(COSMETIC_DEFS[b.dataset.cosEquip]?.slot,b.dataset.cosEquip);
-  for(const b of list.querySelectorAll("[data-cos-clear]"))b.onclick=()=>equipCosmetic(b.dataset.cosClear,null);
-}
-function toggleCosmeticShop(){const el=document.getElementById("cosmetic-panel");if(!el)return;el.style.display=isShown(el)?"none":"flex";if(isShown(el))renderCosmeticShop();}
-
 const CHARACTER_UPGRADES={
   weapon:{label:"Planet Weapon",key:"weaponLevel",baseCost:750},
   mining:{label:"Mining Apparatus",key:"miningLevel",baseCost:650},
@@ -2144,7 +1308,6 @@ let civCommandStationScroll=0;
 
 /* ── Game state ── */
 let gameOver=false,inventoryOpen=false,shopOpen=false,attrOpen=false,questLogOpen=false,badgeLogOpen=false,shipStatusOpen=false;
-let gameOverStartedAt=0,lastRespawnRequestAt=0;
 let questLogScroll=0,badgeLogScroll=0;
 const QUEST_LOG_VISIBLE_ROWS=6,BADGE_LOG_VISIBLE_ROWS=7;
 let shopTab="sell",shopSelectedSlot=null,shopSellQty=1,shopBuyItem=null,shopBuyQty=1,pendingShopBuy=null;
@@ -3535,8 +2698,7 @@ function updateEventPirates(dt){
   }
 }
 function drawEventPirates(camX,camY){
-  const ed=activeCosmeticDef("enemy"),ec=enemyVisualColor(),ea=ed?.accent||"#ffcc44",shape=ed?.shape||"raider";
-  for(const ep of eventPirates){const x=ep.x-camX,y=ep.y-camY;if(x<-60||y<-60||x>canvas.width+60||y>canvas.height+60)continue;ctx.save();ctx.translate(x,y);ctx.rotate(ep.angle);drawEnemyShipBody(ec,ea,shape);ctx.restore();const pct=clamp(ep.hp/ep.maxHp,0,1);ctx.fillStyle="#300";ctx.fillRect(x-12,y-12,24,3);ctx.fillStyle=pct>.5?(ed?.accent||"#ffcc44"):(ed?.color||"#ff5544");ctx.fillRect(x-12,y-12,24*pct,3);}
+  for(const ep of eventPirates){const x=ep.x-camX,y=ep.y-camY;if(x<-60||y<-60||x>canvas.width+60||y>canvas.height+60)continue;ctx.save();ctx.translate(x,y);ctx.rotate(ep.angle);ctx.fillStyle="#ff3344";ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(-7,-5);ctx.lineTo(-4,0);ctx.lineTo(-7,5);ctx.closePath();ctx.fill();ctx.fillStyle="#ffcc44";ctx.fillRect(-10,-1,4,2);ctx.restore();const pct=clamp(ep.hp/ep.maxHp,0,1);ctx.fillStyle="#300";ctx.fillRect(x-12,y-12,24,3);ctx.fillStyle=pct>.5?"#ffcc44":"#ff5544";ctx.fillRect(x-12,y-12,24*pct,3);}
 }
 function tryHitEventPirates(p){
   for(let k=eventPirates.length-1;k>=0;k--){const ep=eventPirates[k];if(dist(p.x,p.y,ep.x,ep.y)<12){const raw={type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y};callOwnedTradeShipsToAssist(raw,"pirate");callMercsToAssist(raw,"pirate");ep.target={type:"player"};ep.playerAggroUntil=performance.now()+7000;ep.retargetTimer=0.05;ep.hp-=p.damage;showFT("-"+Math.round(p.damage),ep.x,ep.y,"#ffcc44",9);return true;}}
@@ -3788,7 +2950,7 @@ function drawPlanetNPCs(cam){
   if(activeRuin)return;
   for(const e of planetEnemies){if(e.hp<=0)continue;const x=e.x-cam.x,y=e.y-cam.y;if(x<-30||y<-40||x>canvas.width+30||y>canvas.height+30)continue;const col={digger:"#b8792a",shooter:"#ff8844",charger:"#ff3344",skitter:"#a3d15c",shieldbug:"#58a6ff"}[e.type]||"#ff5544";ctx.fillStyle=col;ctx.fillRect(x-6,y-13,12,13);ctx.fillStyle="#111";ctx.fillRect(x-3,y-10,2,2);ctx.fillRect(x+2,y-10,2,2);const hp=clamp(e.hp/e.maxHp,0,1);ctx.fillStyle="#300";ctx.fillRect(x-14,y-18,28,2);ctx.fillStyle=hp>.5?"#ffcc44":"#ff5544";ctx.fillRect(x-14,y-18,28*hp,2);ctx.fillStyle=col;ctx.font="6px monospace";ctx.textAlign="center";ctx.fillText(e.type,x,y+8);ctx.textAlign="left";}
   for(const p of planetEnemyProjectiles){const x=p.x-cam.x,y=p.y-cam.y;ctx.fillStyle=p.color||"#ff8844";ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();}
-  for(const p of planetLocalProjectiles){const x=p.x-cam.x,y=p.y-cam.y;ctx.fillStyle=p.color||cosmeticProjectileColor("#ffdd44");ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(x,y,p.size||3.2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
+  for(const p of planetLocalProjectiles){const x=p.x-cam.x,y=p.y-cam.y;ctx.fillStyle="#ffdd44";ctx.shadowColor="#ffdd44";ctx.shadowBlur=6;ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   if(planetQuestTrader){const x=planetQuestTrader.x-cam.x,y=planetQuestTrader.y-cam.y;ctx.fillStyle="#ffdd44";ctx.fillRect(x-5,y-14,10,14);ctx.fillStyle="#7be6ff";ctx.fillRect(x-3,y-11,6,3);ctx.fillStyle="#ffdd44";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("QUEST/TRADER",x,y-20);if(dist(astronaut.x,astronaut.y,planetQuestTrader.x,planetQuestTrader.y)<38)ctx.fillText("E: Talk / Trade",x,y-26);ctx.textAlign="left";}
 }
 
@@ -3799,8 +2961,7 @@ const modeEl=document.getElementById("mode"),creditsEl=document.getElementById("
   scoreEl=document.getElementById("score"),
   xpBar=document.getElementById("xp-bar-inner"),hpBar=document.getElementById("hp-bar-inner"),
   shBar=document.getElementById("shield-bar-inner"),eBar=document.getElementById("energy-bar-inner"),
-  eText=document.getElementById("energy-text"),o2Bar=document.getElementById("oxygen-bar-inner"),o2Text=document.getElementById("oxygen-text"),pcEl=document.getElementById("player-count"),
-  gasCountEl=document.getElementById("gas-count"),o2TankCountEl=document.getElementById("o2-tank-count"),co2LevelEl=document.getElementById("co2-level"),cargoCountEl=document.getElementById("cargo-count");
+  eText=document.getElementById("energy-text"),o2Bar=document.getElementById("oxygen-bar-inner"),o2Text=document.getElementById("oxygen-text"),pcEl=document.getElementById("player-count");
 
 function updateHud(){
   modeEl.textContent=mode===MODE.SPACE?"SPACE":(activeRuin?"SHIP RUIN":"PLANET:"+(activePlanet?activePlanet.type.toUpperCase():""));
@@ -3817,10 +2978,6 @@ function updateHud(){
   const oPct=clamp((oxygen.current/oxygen.max)*100,0,100);
   if(o2Bar){o2Bar.style.width=oPct+"%";o2Bar.style.background=oPct>50?"linear-gradient(90deg,#7be6ff,#b9f3ff)":oPct>25?"linear-gradient(90deg,#ffaa00,#ffdd55)":"linear-gradient(90deg,#ff3322,#ff6644)";}
   if(o2Text)o2Text.textContent=Math.ceil(oPct)+"%";
-  if(gasCountEl)gasCountEl.textContent=inventoryTotal("gas_canister");
-  if(o2TankCountEl)o2TankCountEl.textContent=inventoryTotal("oxygen_tank");
-  if(co2LevelEl)co2LevelEl.textContent=(mode===MODE.PLANET?Math.ceil(100-oPct):0)+"%";
-  if(cargoCountEl)cargoCountEl.textContent=`${filledSlotCount()}/${player.maxSlots||24}`;
   coordsEl.textContent=`${Math.round(ship.x)}, ${Math.round(ship.y)}`;
   shipnameEl.textContent=(SHIP_TYPES[player.shipType]?.name||"Scout")+" / "+weaponLine();
   const entries=[];for(const s of player.invSlots)if(s.type&&s.count>0)entries.push(`${RES[s.type].name}:${s.count}`);
@@ -3875,7 +3032,7 @@ function damageShip(amount){
   ship.hp=clamp(ship.hp-dmg,0,ship.maxHp);
   ship.shield=Math.max(0,Math.min(Number.isFinite(Number(ship.shield))?Number(ship.shield):0,ship.maxShield));
   ship.shieldRegenTimer=Math.max(ship.shieldRegenTimer||0,3);
-  if(ship.hp<=0)enterGameOver("space-hp-zero");
+  if(ship.hp<=0)gameOver=true;
 }
 
 /* ── Kill trade ship (NPC) ── */
@@ -4277,10 +3434,7 @@ const CREDIT_PACKAGES={
   credits_1000000:{credits:1000000,price:"$49.99",label:"Galaxy Treasury"},
 };
 const WIX_PARENT_ORIGIN="*";
-// For desktop browser and Android/APK builds, set this to a Wix page that starts the same credit checkout flow.
-// The page should read packageId, socketId, memberId, playerName, credits, source, clientKind, and serverUrl from the query string.
-const WIX_MOBILE_CHECKOUT_URL="https://www.getfirstpage.com/space-eco-credit-checkout";
-let wixGameToken=null,wixMemberId=null; // Production: replace WIX_PARENT_ORIGIN with your Wix site origin, e.g. "https://www.getfirstpage.com"
+let wixGameToken=null,wixMemberId=null; // Production: replace with your Wix site origin, e.g. "https://www.getfirstpage.com"
 let wixAuthSnapshot=null,wixLinkInFlightToken=null,wixLinkedToken=null,wixSyncedNoticeShown=false;
 let serverAccountPersistenceLoaded=false;
 let accountInventoryPendingLoad=false;
@@ -4447,26 +3601,6 @@ function renderCreditShop(){
 function setCreditPayStatus(text,color="#8fa3cc"){
   const el=document.getElementById("credit-pay-status");if(el){el.textContent=text;el.style.color=color;}
 }
-
-function buildMobileCheckoutUrl(packageId,pkg){
-  const base=String(WIX_MOBILE_CHECKOUT_URL||"").trim();
-  if(!base||!/^https?:\/\//i.test(base))return "";
-  const url=new URL(base);
-  url.searchParams.set("packageId",packageId);
-  url.searchParams.set("socketId",socket?.id||"");
-  url.searchParams.set("playerId",player.id||"");
-  url.searchParams.set("memberId",wixMemberId||"");
-  url.searchParams.set("playerName",player.name||"");
-  url.searchParams.set("credits",String(pkg.credits||0));
-  url.searchParams.set("serverUrl",SERVER_URL);
-  url.searchParams.set("source",IS_MOBILE_TOUCH?"space-eco-mobile":"space-eco-desktop-browser");
-  url.searchParams.set("clientKind",IS_MOBILE_TOUCH?"mobile":"desktop");
-  return url.toString();
-}
-function openExternalCheckout(url){
-  try{if(window.Capacitor?.Plugins?.Browser?.open){window.Capacitor.Plugins.Browser.open({url});return true;}}catch(_){/* Capacitor Browser plugin absent */}
-  try{window.open(url,"_blank","noopener,noreferrer");return true;}catch(_){location.href=url;return true;}
-}
 function startCreditPurchase(packageId){
   const pkg=CREDIT_PACKAGES[packageId];
   if(!pkg){setCreditPayStatus("Unknown credit package.","#ff5544");return;}
@@ -4485,9 +3619,7 @@ function startCreditPurchase(packageId){
     window.parent.postMessage(payload,WIX_PARENT_ORIGIN);
     setCreditPayStatus(`Opening Wix checkout for ${pkg.credits.toLocaleString()} credits...`,"#7be6ff");
   }else{
-    const checkoutUrl=buildMobileCheckoutUrl(packageId,pkg);
-    if(checkoutUrl){openExternalCheckout(checkoutUrl);setCreditPayStatus(`Opened Wix checkout for ${pkg.credits.toLocaleString()} credits. Return to the game after payment; Railway will confirm the grant.`,"#7be6ff");}
-    else setCreditPayStatus("Set WIX_MOBILE_CHECKOUT_URL in index.html to your Wix checkout page for browser/APK purchases.","#ffcc44");
+    setCreditPayStatus("This purchase bridge is meant to run inside your Wix iframe. Open the game from the Wix page to buy credits.","#ffcc44");
   }
 }
 window.addEventListener("message",(event)=>{
@@ -4812,7 +3944,7 @@ socket.on("connect_error",(err)=>{setJoinStatus("Cannot reach global server: " +
 socket.on("reconnect_attempt",()=>{setJoinStatus("Reconnecting to global Space Eco server…","#ffcc44");});
 socket.on("serverFull",()=>{setJoinStatus("Server full. Try again later.","#ffcc44");});
 
-socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons})=>{
+socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs})=>{
   player.id=id;player.color=color;serverAccountPersistenceLoaded=!!persistenceLoaded;accountInventoryPendingLoad=!!(serverMemberId&&!serverAccountPersistenceLoaded);if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken&&serverAccountPersistenceLoaded)wixLinkedToken=wixSnapshotKey();}
   applyAuthoritativeInventory({credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,persistenceLoaded,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,reason:"login"});GALAXY_SEED=seed;serverPrices=prices||{};
   if(shipTypes)SHIP_TYPES=shipTypes;
@@ -4823,11 +3955,6 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   if(weaponLevels&&typeof weaponLevels==="object")player.weaponLevels={...player.weaponLevels,...weaponLevels};
   if(weaponDefs&&typeof weaponDefs==="object")for(const[k,v]of Object.entries(weaponDefs))WEAPON_DEFS[k]={...(WEAPON_DEFS[k]||{}),...v,key:k};
   if(attachmentDefs&&typeof attachmentDefs==="object")for(const[k,v]of Object.entries(attachmentDefs))ATTACHMENT_DEFS[k]={...(ATTACHMENT_DEFS[k]||{}),...v,key:k};
-  cosmeticBackendSupported=!!(cosmeticDefs&&typeof cosmeticDefs==="object");
-  if(cosmeticDefs&&typeof cosmeticDefs==="object")for(const[k,v]of Object.entries(cosmeticDefs))COSMETIC_DEFS[k]={...(COSMETIC_DEFS[k]||{}),...v,key:k};
-  cosmeticInventory=normalizeCosmeticInventory(serverCosmeticInventory||{});equippedCosmetics=normalizeEquippedCosmetics(serverEquippedCosmetics||{});redeemedCoupons=normalizeRedeemedCoupons(serverRedeemedCoupons||{});mergeLocalCosmeticState();player.equippedCosmetics=equippedCosmetics;applyLocalCouponBonusIfNeeded();
-  const localBootSnap=readLocalGameState();
-  if(localSnapshotHasProgress(localBootSnap)&&(Number(localBootSnap.credits||0)>Number(player.credits||0)||clientInventoryPayloadHasItems(localBootSnap.invSlots))){applyLocalGameSnapshot(localBootSnap,"welcome_local_first");socket.emit("clientLocalSaveSync",{snapshot:makeLocalGameSnapshot("client_local_bootstrap")});setCreditPayStatus("Local credits loaded. Syncing local save to Railway...","#7be6ff");}
   ship.x=x;ship.y=y;joined=true;
   joinScreen.style.display="none";gameWrap.style.display="flex";
   document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
@@ -4846,7 +3973,6 @@ socket.on("worldState",({self,others,pvpProjectiles:sp})=>{
     ship.shield=Math.max(0,Math.min(Number.isFinite(Number(self.shield))?Number(self.shield):0,ship.maxShield));
     if(self.equippedWeapon)player.equippedWeapon=self.equippedWeapon;
     if(self.equippedAttachments)player.equippedAttachments=normalizeAttachments(self.equippedAttachments);
-    if(self.equippedCosmetics){equippedCosmetics=normalizeEquippedCosmetics(self.equippedCosmetics);player.equippedCosmetics=equippedCosmetics;}
     // Keep the client regen lock in sync with server-authoritative combat.
     // Without this, the client can visually regen immediately after NPC hits.
     if(self.shieldRegenTimer!==undefined)ship.shieldRegenTimer=Math.max(ship.shieldRegenTimer,self.shieldRegenTimer);
@@ -4870,7 +3996,7 @@ socket.on("hit",({damage,hp,shield,by})=>{
     forceAssistOnAttacker({type:"otherPlayer",playerId:by,x:op.renderX||op.x,y:op.renderY||op.y},op.name||"enemy player");
   }
   showFT(`-${Math.round(damage)} ${by||"Hit"}`,ship.x,ship.y-14,"#ff4422",10);
-  if(hp<=0)enterGameOver("hit-zero");
+  if(hp<=0)gameOver=true;
 });
 socket.on("hitConfirm",({targetId,damage,weaponKey,color})=>{const op=otherPlayers.get(targetId);const hx=op?(op.renderX||op.x):ship.x,hy=op?(op.renderY||op.y):ship.y-28;for(let i=0;i<6;i++)particles.push({x:hx+(Math.random()-.5)*18,y:hy+(Math.random()-.5)*18,vx:(Math.random()-.5)*38,vy:-20-Math.random()*34,life:.35,maxLife:.4,color:color||weaponDefFor(weaponKey).color,size:1.5+Math.random()*2});showFT(`-${Math.round(damage)}`,hx,hy,color||"#ffff44",9);});
 socket.on("weaponEquipped",({weaponKey,equippedWeapon,weaponLevels})=>{const key=equippedWeapon||weaponKey;if(key)player.equippedWeapon=key;if(weaponLevels&&typeof weaponLevels==="object")player.weaponLevels={...player.weaponLevels,...weaponLevels};showFT(`Equipped ${RES[key]?.name||weaponDefFor(key).name||key}`,ship.x,ship.y-28,"#78ff8a",10);updateHud();});
@@ -4883,30 +4009,9 @@ socket.on("civilizationStationTaskSet",({zone,stationId,task,targetZoneId})=>{if
 socket.on("civilizationTaskDenied",({reason})=>{showFT(reason||"Civilization task denied",ship.x,ship.y-26,"#ff5544",10);});
 socket.on("killConfirm",({name})=>{addKillFeed(`☠ You destroyed ${name} (+150cr)`);player.credits+=150;updateHud();});
 socket.on("playerKilled",({victimName,killerName})=>{addKillFeed(`☠ ${killerName} destroyed ${victimName}`);});
-let respawnWatchdogA=0,respawnWatchdogB=0;
-function enterGameOver(reason="destroyed"){
-  if(!gameOver){gameOverStartedAt=performance.now();lastRespawnRequestAt=0;}
-  gameOver=true;resetMobileControlState(reason);clearRespawnWatchdogs();
-  respawnWatchdogA=setTimeout(()=>{if(gameOver)requestRespawn();},900);
-  respawnWatchdogB=setTimeout(()=>{if(gameOver)localRespawnSafetyFallback();},6500);
-}
-function exitGameOver(){gameOver=false;gameOverStartedAt=0;lastRespawnRequestAt=0;clearRespawnWatchdogs();}
-function maintainRespawnFlow(now=performance.now()){
-  if(!gameOver)return;
-  if(!gameOverStartedAt)gameOverStartedAt=now;
-  const age=now-gameOverStartedAt;
-  if(age>900&&(!lastRespawnRequestAt||now-lastRespawnRequestAt>1600))requestRespawn();
-  if(age>7000)localRespawnSafetyFallback();
-}
-function clearRespawnWatchdogs(){clearTimeout(respawnWatchdogA);clearTimeout(respawnWatchdogB);respawnWatchdogA=0;respawnWatchdogB=0;}
-function localRespawnSafetyFallback(){if(!gameOver)return;const spawn={x:0,y:0};ship.x=spawn.x;ship.y=spawn.y;ship.vx=0;ship.vy=0;ship.hp=ship.maxHp;ship.shield=ship.maxShield;ship.shieldRegenTimer=0;energy.current=energy.max;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;mode=MODE.SPACE;planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;exitGameOver();clearLiveInput();resetMobileControlState("local-respawn-fallback");resizeGameCanvasToDisplay();updateChunks();updateHud();showFT("Respawn recovered",ship.x,ship.y-22,"#78ff8a",10);}
-socket.on("youDied",({killedBy})=>{enterGameOver("death");showFT(`Destroyed by ${killedBy}!`,ship.x,ship.y,"#ff4422",14);});
-socket.on("respawn",({x,y})=>{clearRespawnWatchdogs();ship.x=x;ship.y=y;ship.vx=0;ship.vy=0;ship.hp=ship.maxHp;ship.shield=ship.maxShield;ship.shieldRegenTimer=0;energy.current=energy.max;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;mode=MODE.SPACE;exitGameOver();planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;clearLiveInput();resetMobileControlState("respawn");resizeGameCanvasToDisplay();setTimeout(resizeGameCanvasToDisplay,120);updateChunks();updateHud();});
-socket.on("creditUpdate",({credits})=>{player.credits=credits;applyLocalCouponBonusIfNeeded();updateHud();saveLocalGameStateSoon("credit_update");renderCreditShop&&renderCreditShop();renderCosmeticShop&&renderCosmeticShop();});
-socket.on("cosmeticState",({defs,owned,equipped,redeemedCoupons:rc,credits,reason})=>{cosmeticBackendSupported=true;clearTimeout(pendingCouponTimer);pendingCouponCode=null;if(defs&&typeof defs==="object")for(const[k,v]of Object.entries(defs))COSMETIC_DEFS[k]={...(COSMETIC_DEFS[k]||{}),...v,key:k};cosmeticInventory=normalizeCosmeticInventory(owned||{});equippedCosmetics=normalizeEquippedCosmetics(equipped||{});redeemedCoupons=normalizeRedeemedCoupons(rc||{});mergeLocalCosmeticState();player.equippedCosmetics=equippedCosmetics;if(typeof credits==="number")player.credits=credits;applyLocalCouponBonusIfNeeded();saveLocalCosmeticState();saveLocalGameStateSoon("cosmetic_state");renderCosmeticShop();updateHud();if(reason==="bought")showFT("Cosmetic unlocked!",ship.x,ship.y-28,"#ffdd44",11);else if(reason==="equipped")showFT("Cosmetic equipped",ship.x,ship.y-28,"#78ff8a",10);});
-socket.on("cosmeticDenied",({reason})=>{const st=document.getElementById("coupon-status");if(st)st.textContent=reason||"Cosmetic action denied.";showFT(reason||"Cosmetic action denied",ship.x,ship.y-28,"#ff5544",10);});
-socket.on("couponConfirm",({code,creditsAdded,credits,description,reusable})=>{cosmeticBackendSupported=true;clearTimeout(pendingCouponTimer);pendingCouponCode=null;code=String(code||"").toUpperCase();if(!reusable)redeemedCoupons[code]=true;if(typeof credits==="number")player.credits=credits;saveLocalCosmeticState();saveLocalGameStateSoon("coupon_confirm");const st=document.getElementById("coupon-status");if(st)st.textContent=`${code} redeemed — +${Number(creditsAdded||0).toLocaleString()} credits${reusable?" (reusable)":""}!`;showFT(`Coupon +${Number(creditsAdded||0).toLocaleString()}cr`,ship.x,ship.y-34,"#ffdd44",12);updateHud();renderCosmeticShop();});
-socket.on("couponDenied",({reason})=>{const code=pendingCouponCode;clearTimeout(pendingCouponTimer);pendingCouponCode=null;if(code&&CLIENT_COUPON_DEFS[code]&&(String(reason||"").toLowerCase().includes("not found")||!cosmeticBackendSupported)){localRedeemCoupon(code,"server-denied-fallback");return;}const st=document.getElementById("coupon-status");if(st)st.textContent=reason||"Coupon denied.";showFT(reason||"Coupon denied",ship.x,ship.y-28,"#ff5544",10);});
+socket.on("youDied",({killedBy})=>{gameOver=true;showFT(`Destroyed by ${killedBy}!`,ship.x,ship.y,"#ff4422",14);});
+socket.on("respawn",({x,y})=>{ship.x=x;ship.y=y;ship.hp=ship.maxHp;ship.shield=ship.maxShield;energy.current=energy.max;oxygen.current=oxygen.max;mode=MODE.SPACE;gameOver=false;updateChunks();updateHud();});
+socket.on("creditUpdate",({credits})=>{player.credits=credits;updateHud();renderCreditShop&&renderCreditShop();});
 socket.on("accountCreationBonusGranted",({creditsAdded,credits})=>{
   if(typeof credits==="number")player.credits=credits;
   updateHud();renderCreditShop&&renderCreditShop();
@@ -5062,7 +4167,7 @@ socket.on("planetPlayersState",({planetId,players:pps,projectiles})=>{
   }
   for(const id of [...planetProjectiles.keys()])if(!pSeen.has(id))planetProjectiles.delete(id);
 });
-socket.on("planetHit",({damage,hp,attackerName})=>{ship.hp=hp;showFT(`-${Math.round(damage)} ${attackerName||"hit"}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)enterGameOver("hit-zero");});
+socket.on("planetHit",({damage,hp,attackerName})=>{ship.hp=hp;showFT(`-${Math.round(damage)} ${attackerName||"hit"}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)gameOver=true;});
 socket.on("planetAttackConfirm",({targetId,damage,hp})=>{const pp=planetPlayers.get(targetId);if(pp){pp.hp=hp;showFT(`-${Math.round(damage)}`,pp.renderX||pp.x,pp.renderY||pp.y-24,"#ffff44",9);}});
 socket.on("planetAttackDenied",({reason})=>showFT(reason||"Attack missed",astronaut.x,astronaut.y-24,"#ffcc44",8));
 socket.on("characterState",({cosmeticColor,suitColor,weaponLevel,miningLevel,oxygenLevel,credits})=>{if(cosmeticColor)character.cosmeticColor=cosmeticColor;if(suitColor)character.suitColor=suitColor;if(weaponLevel)character.weaponLevel=weaponLevel;if(miningLevel)character.miningLevel=miningLevel;if(oxygenLevel)character.oxygenLevel=oxygenLevel;if(typeof credits==="number")player.credits=credits;applyOxygenLevel();updateHud();});
@@ -5099,7 +4204,7 @@ socket.on("factionDenied",({reason})=>{addChat("Faction",reason||"Faction action
 socket.on("factionLeft",({reason})=>{factionState=null;renderSocialPanel();addChat("Faction",reason||"Left faction.","#ff8844");});
 socket.on("factionQuestCompleted",({rewardPlayerXp,rewardFactionXp,rewardCredits})=>{addChat("Faction",`Quest complete! +${rewardPlayerXp||0} player XP, +${rewardFactionXp||0} faction XP${rewardCredits?`, +${rewardCredits}cr`:""}.`,"#78ff8a");});
 
-socket.on("oxygenDamageUpdate",({hp,damage})=>{ship.hp=hp;showFT(`O2 DAMAGE -${Math.round(damage)}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)enterGameOver("hit-zero");});
+socket.on("oxygenDamageUpdate",({hp,damage})=>{ship.hp=hp;showFT(`O2 DAMAGE -${Math.round(damage)}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)gameOver=true;});
 
 socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield,equippedAttachments})=>{
   player.shipType=shipTypeKey;player.credits=credits;if(equippedAttachments)player.equippedAttachments=normalizeAttachments(equippedAttachments);ship.hp=hp;ship.maxHp=maxHp;ship.shield=shield;ship.maxShield=maxShield;
@@ -5219,9 +4324,9 @@ function updateSpace(dt){
   const domLocked=domInputLocked();
   const controlsLocked=domLocked||canvasPanelOpen();
   const isThrust=!controlsLocked&&keys.has("w"),spd=Math.hypot(ship.vx,ship.vy);
-  if(isThrust){energy.current=Math.max(0,energy.current-ENERGY_DRAIN*ship.gasEfficiency*dt);const td=activeCosmeticDef("trail");if(td&&Math.random()<0.55)particles.push({x:ship.x-Math.cos(ship.angle)*13,y:ship.y-Math.sin(ship.angle)*13,vx:(Math.random()-.5)*20,vy:(Math.random()-.5)*20,life:.28,maxLife:.34,color:td.color,size:1.5+Math.random()*2});}
+  if(isThrust)energy.current=Math.max(0,energy.current-ENERGY_DRAIN*ship.gasEfficiency*dt);
   else if(spd>5)energy.current=Math.max(0,energy.current-ENERGY_IDLE*ship.gasEfficiency*dt);
-  if(energy.current<=0){enterGameOver("energy-empty");return;}
+  if(energy.current<=0){gameOver=true;return;}
   updateRandomEvents(dt);
   updateSpaceEventObjects(dt);
   updateEventPirates(dt);
@@ -5595,7 +4700,7 @@ function useGasCanister(){
   const idx=player.invSlots.findIndex(s=>s.type==="gas_canister"&&s.count>0);if(idx===-1)return;
   socket.emit("useGas");showFT("Requesting energy refill...",ship.x,ship.y-10,"#aaff44",10);
 }
-function requestRespawn(){lastRespawnRequestAt=performance.now();resetMobileControlState("request-respawn");if(socket?.connected)socket.emit("respawn");else localRespawnSafetyFallback();}
+function requestRespawn(){socket.emit("respawn");}
 
 /* ══════════════════════════════════════
    DRAW SPACE
@@ -5636,7 +4741,7 @@ function drawSpace(){
   ctx.fillStyle="#fff";for(const s of STARS){const sx=((s.x-camX*0.12)%canvas.width+canvas.width)%canvas.width,sy=((s.y-camY*0.12)%canvas.height+canvas.height)%canvas.height;ctx.globalAlpha=s.bri;ctx.beginPath();ctx.arc(sx,sy,s.r,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;
 
   // Planets
-  for(const p of visiblePlanets){const px=p.x-camX,py=p.y-camY;if(px<-80||py<-80||px>canvas.width+80||py>canvas.height+80)continue;drawPlanetVisual(p,px,py);if(dist(ship.x,ship.y,p.x,p.y)<p.radius+70){ctx.fillStyle="#b9f3ff";ctx.font="8px monospace";ctx.fillText("L: Land",px-14,py-p.radius/2-4);}
+  for(const p of visiblePlanets){const px=p.x-camX,py=p.y-camY;if(px<-80||py<-80||px>canvas.width+80||py>canvas.height+80)continue;ctx.drawImage(p.preview,px-16,py-16);if(dist(ship.x,ship.y,p.x,p.y)<p.radius+70){ctx.fillStyle="#b9f3ff";ctx.font="8px monospace";ctx.fillText("L: Land",px-14,py-p.radius/2-4);}
     // Coordinate label on minimap planet hover (shown in space too near player)
     if(dist(ship.x,ship.y,p.x,p.y)<p.radius+120){ctx.save();ctx.globalAlpha=0.55;ctx.fillStyle="#7be6ff";ctx.font="7px monospace";ctx.textAlign="center";ctx.fillText(`(${Math.round(p.x)},${Math.round(p.y)})`,px,py+p.radius/2+14);ctx.restore();ctx.globalAlpha=1;}
   }
@@ -5657,7 +4762,8 @@ function drawSpace(){
     const sx=ost.x-camX,sy2=ost.y-camY;
     if(sx<-80||sy2<-80||sx>canvas.width+80||sy2>canvas.height+80)continue;
     const isOwn=ost.isOwn, destroyed=!!ost.destroyed;
-    drawStationDesign(sx,sy2,12,"owned",destroyed,isOwn?"#ffcc44":"#aaaaaa",isOwn?"#ffee88":"#777777");
+    ctx.fillStyle=destroyed?"#4a2a22":isOwn?"#ffcc44":"#aaaaaa";ctx.strokeStyle=destroyed?"#ff4422":isOwn?"#ffee88":"#777777";ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(sx,sy2,12,0,Math.PI*2);ctx.fill();ctx.stroke();
     ctx.fillStyle="#000";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(destroyed?"X":"S",sx,sy2+3);ctx.textAlign="left";
     drawStationBars(sx,sy2-34,34,ost.hp??0,ost.maxHp||playerStationDefenseStats(ost.tier).maxHp,ost.shield??0,ost.maxShield||playerStationDefenseStats(ost.tier).maxShield);
     ctx.fillStyle=isOwn?"#ffcc44":"#aaaaaa";ctx.font="7px monospace";ctx.textAlign="center";
@@ -5678,7 +4784,12 @@ function drawSpace(){
     if(sx<-100||sy2<-100||sx>canvas.width+100||sy2>canvas.height+100)continue;
     const tier=st.tierDef;
     const grad=ctx.createRadialGradient(sx,sy2,0,sx,sy2,tier.size*2.5);grad.addColorStop(0,tier.glowColor);grad.addColorStop(1,"transparent");ctx.fillStyle=grad;ctx.beginPath();ctx.arc(sx,sy2,tier.size*2.5,0,Math.PI*2);ctx.fill();
-    drawStationDesign(sx,sy2,tier.size,st.tier,st.destroyed,tier.color,st.playerRep==="neutral"?"#ffffff55":"#ff444488");
+    ctx.fillStyle=st.destroyed?"#3a1c1c":tier.color;ctx.strokeStyle=st.destroyed?"#ff4422":st.playerRep==="neutral"?"#ffffff55":"#ff444488";ctx.lineWidth=2;ctx.beginPath();
+    if(st.tier==="outpost"){ctx.rect(sx-tier.size/2,sy2-tier.size/2,tier.size,tier.size);}
+    else if(st.tier==="standard"){ctx.arc(sx,sy2,tier.size,0,Math.PI*2);}
+    else if(st.tier==="advanced"){for(let k=0;k<6;k++){const a=k*Math.PI/3-Math.PI/6;k===0?ctx.moveTo(sx+Math.cos(a)*tier.size,sy2+Math.sin(a)*tier.size):ctx.lineTo(sx+Math.cos(a)*tier.size,sy2+Math.sin(a)*tier.size);}ctx.closePath();}
+    else{for(let k=0;k<10;k++){const a=k*Math.PI/5-Math.PI/2,r2=k%2===0?tier.size:tier.size*0.5;k===0?ctx.moveTo(sx+Math.cos(a)*r2,sy2+Math.sin(a)*r2):ctx.lineTo(sx+Math.cos(a)*r2,sy2+Math.sin(a)*r2);}ctx.closePath();}
+    ctx.fill();ctx.stroke();
     drawStationBars(sx,sy2-tier.size-24,Math.max(34,tier.size*2.2),st.hp,st.maxHp,st.shield,st.maxShield);
     ctx.fillStyle=st.destroyed?"#ff5544":"#fff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(st.destroyed?"DESTROYED "+tier.name:(st.isCivSuperStation?"SUPER STATION":tier.name),sx,sy2-tier.size-4);ctx.fillStyle=tier.factionColor;ctx.font="7px monospace";ctx.fillText(st.faction,sx,sy2-tier.size-33);if(st.isCivSuperStation&&st.civOwnerName){ctx.fillStyle="#78ff8a";ctx.fillText(`Owned by ${st.civOwnerName}`,sx,sy2-tier.size-43);}ctx.textAlign="left";
     if(!st.destroyed&&dist(ship.x,ship.y,st.x,st.y)<st.r+70){ctx.fillStyle="#78ff8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText(st.isCivSuperStation?"O: Super Station":"O: Trade",sx,sy2+tier.size+12);ctx.textAlign="left";}
@@ -5694,8 +4805,9 @@ function drawSpace(){
       else if(ts.state==="return"){const stx=st.x-camX,sty=st.y-camY;ctx.save();ctx.globalAlpha=0.18;ctx.strokeStyle=ts.factionColor;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(stx,sty);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
       else if(ts.state==="combat"||ts.state==="flee"){ctx.save();ctx.globalAlpha=ts.state==="combat"?0.35:0.15;ctx.strokeStyle=ts.state==="combat"?"#ff4422":"#ff8844";ctx.lineWidth=1;ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(canvas.width/2,canvas.height/2);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
       ctx.save();ctx.globalAlpha=1;ctx.translate(tsx,tsy);ctx.rotate(ts.angle);
-      const npcCos=activeCosmeticDef("npcship"),npcColor=ts.state==="combat"?"#ff4422":ts.state==="flee"?"#ff8844":safeColor(npcCos?.color||ts.factionColor,ts.factionColor),npcAccent=safeColor(npcCos?.accent||"#fff0a8","#fff0a8");
-      drawShipBody(npcCos?.shape||"hauler",npcColor,npcAccent,npcCos||{shape:"hauler",accent:npcAccent},ts.state==="travel"||ts.state==="return"||ts.state==="combat");
+      ctx.fillStyle=ts.state==="combat"?"#ff4422":ts.state==="flee"?"#ff8844":ts.factionColor;
+      ctx.beginPath();ctx.moveTo(ts.size,0);ctx.lineTo(-ts.size,-ts.size*0.6);ctx.lineTo(-ts.size,ts.size*0.6);ctx.closePath();ctx.fill();
+      if(ts.state==="travel"||ts.state==="return"||ts.state==="combat"){ctx.globalAlpha=ts.state==="combat"?0.7:0.45;ctx.fillStyle=ts.state==="combat"?"#ff2200":"#ff8833";ctx.beginPath();ctx.arc(-ts.size-2,0,ts.size*0.5,0,Math.PI*2);ctx.fill();}
       ctx.restore();ctx.globalAlpha=1;
       const hpPct=ts.hp/ts.maxHp,bw=ts.size*3,bh=2,bx=tsx-bw/2,by=tsy-ts.size-5;
       ctx.fillStyle="#300";ctx.fillRect(bx,by,bw,bh);ctx.fillStyle=hpPct>0.5?"#3f3":"#f80";ctx.fillRect(bx,by,bw*hpPct,bh);
@@ -5711,10 +4823,21 @@ function drawSpace(){
     if(ox<-30||oy<-30||ox>canvas.width+30||oy>canvas.height+30)continue;
     const def=SHIP_TYPES[op.shipType]||SHIP_TYPES.scout;
     ctx.save();ctx.translate(ox,oy);ctx.rotate(op.renderAngle||op.angle);
-    drawShipBody(op.shipType,shipVisualColor(op.color||"#7be6ff",op.equippedCosmetics),cosmeticAccent("ship",op.equippedCosmetics,"#ff7744"),activeCosmeticDef("ship",op.equippedCosmetics),false);
+    ctx.fillStyle=op.color||"#7be6ff";
+    // Draw ship shape based on type
+    if(op.shipType==="hauler"){ctx.fillRect(-12,-7,24,14);}
+    else if(op.shipType==="fighter"){ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-10,-6);ctx.lineTo(-6,0);ctx.lineTo(-10,6);ctx.closePath();ctx.fill();}
+    else if(op.shipType==="interceptor"){ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-8,-3);ctx.lineTo(-5,0);ctx.lineTo(-8,3);ctx.closePath();ctx.fill();}
+    else if(op.shipType==="dreadnought"){ctx.fillRect(-14,-9,28,18);ctx.fillStyle="#aa7722";ctx.fillRect(-15,-5,4,10);}
+    else if(op.shipType==="phantom"){ctx.beginPath();ctx.moveTo(11,0);ctx.lineTo(-9,-5);ctx.lineTo(-7,0);ctx.lineTo(-9,5);ctx.closePath();ctx.fill();}
+    else if(op.shipType==="miner_mantis"){ctx.fillRect(-12,-6,20,12);ctx.fillRect(6,-10,4,20);}
+    else if(op.shipType==="guardian"){ctx.fillRect(-13,-8,26,16);ctx.strokeStyle="#58a6ff";ctx.globalAlpha=.5;ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}
+    else if(op.shipType==="solar_sprinter"){ctx.beginPath();ctx.moveTo(15,0);ctx.lineTo(-10,-4);ctx.lineTo(-5,0);ctx.lineTo(-10,4);ctx.closePath();ctx.fill();}
+    else if(op.shipType==="obelisk_carrier"){ctx.fillRect(-16,-10,32,20);ctx.fillRect(-4,-15,8,30);}
+    else{ctx.fillRect(-6,-4,12,8);} // scout default
     ctx.restore();
     // Name, HP, shield
-    ctx.fillStyle=shipVisualColor(op.color||"#7be6ff",op.equippedCosmetics);ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(op.name,ox,oy-12);
+    ctx.fillStyle=op.color||"#7be6ff";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(op.name,ox,oy-12);
     ctx.fillStyle="#6a5a9a";ctx.font="7px monospace";ctx.fillText(`Lv${op.level} · ${op.score||0}pts`,ox,oy-22);
     const hpP=op.hp/op.maxHp;ctx.fillStyle="#300";ctx.fillRect(ox-15,oy-10,30,2);ctx.fillStyle=hpP>0.5?"#3f3":"#f80";ctx.fillRect(ox-15,oy-10,30*hpP,2);
     if(op.shield>0){const shP=op.shield/op.maxShield;ctx.fillStyle="#005";ctx.fillRect(ox-15,oy-14,30,2);ctx.fillStyle="#44f";ctx.fillRect(ox-15,oy-14,30*shP,2);}
@@ -5725,7 +4848,7 @@ function drawSpace(){
   for(const prt of particles){const px2=prt.x-camX,py2=prt.y-camY,alpha=clamp(prt.life/(prt.maxLife||0.4),0,1);ctx.globalAlpha=alpha;ctx.fillStyle=prt.color||"#fff";ctx.beginPath();ctx.arc(px2,py2,prt.size||2,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
   for(const p of pvpProjectiles){const px2=p.x-camX,py2=p.y-camY;const own=p.ownerId===player.id;ctx.fillStyle=p.color||(own?"#ffff44":"#ff6622");ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(px2,py2,p.size||2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of localPlayerProjectiles){ctx.fillStyle=p.color||"#ffff44";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.size||2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
-  for(const p of enemyProjectiles){const ec=enemyVisualColor();ctx.fillStyle=p.color||ec;ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.3,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
+  for(const p of enemyProjectiles){ctx.fillStyle="#ff4422";ctx.shadowColor="#ff4422";ctx.shadowBlur=4;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of warProjectiles){ctx.fillStyle=p.color||"#ff8844";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.3;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,5.5,0,Math.PI*2);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;}
   for(const p of allyProjectiles){ctx.fillStyle=p.color||"#ffee88";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.35;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,6,0,Math.PI*2);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;}
   ctx.shadowBlur=0;
@@ -5736,9 +4859,21 @@ function drawSpace(){
   // Player ship
   {
     const sx=canvas.width/2,sy=canvas.height/2;ctx.save();ctx.translate(sx,sy);ctx.rotate(ship.angle);
-    const shipColor=shipVisualColor(player.color);drawShipBody(player.shipType,shipColor,cosmeticAccent("ship",equippedCosmetics,"#ff7744"),activeCosmeticDef("ship"),keys.has("w"));
+    const shipColor=player.color;ctx.fillStyle=shipColor;
+    const stype=player.shipType;
+    if(stype==="hauler"){ctx.fillRect(-12,-7,24,14);ctx.fillStyle="#ff7744";ctx.fillRect(-14,-4,4,8);}
+    else if(stype==="fighter"){ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-10,-6);ctx.lineTo(-6,0);ctx.lineTo(-10,6);ctx.closePath();ctx.fill();ctx.fillStyle="#ff4422";ctx.fillRect(-11,-2,3,4);}
+    else if(stype==="interceptor"){ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-8,-3);ctx.lineTo(-5,0);ctx.lineTo(-8,3);ctx.closePath();ctx.fill();ctx.fillStyle="#ff7744";ctx.fillRect(-9,-1,3,2);}
+    else if(stype==="dreadnought"){ctx.fillRect(-14,-9,28,18);ctx.fillStyle="#aa7722";ctx.fillRect(-15,-5,4,10);ctx.fillStyle=shipColor;ctx.fillRect(-10,-12,6,4);ctx.fillRect(-10,8,6,4);}
+    else if(stype==="phantom"){ctx.beginPath();ctx.moveTo(11,0);ctx.lineTo(-9,-5);ctx.lineTo(-7,0);ctx.lineTo(-9,5);ctx.closePath();ctx.fill();ctx.fillStyle="#7722aa";ctx.fillRect(-10,-2,4,4);}
+    else if(stype==="miner_mantis"){ctx.fillRect(-12,-6,20,12);ctx.fillStyle="#d6ff7b";ctx.fillRect(6,-10,4,20);ctx.fillStyle="#ff7744";ctx.fillRect(-15,-2,4,4);}
+    else if(stype==="guardian"){ctx.fillRect(-13,-8,26,16);ctx.strokeStyle="#58a6ff";ctx.globalAlpha=.55;ctx.beginPath();ctx.arc(0,0,17,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;ctx.fillStyle="#ff7744";ctx.fillRect(-16,-3,4,6);}
+    else if(stype==="solar_sprinter"){ctx.beginPath();ctx.moveTo(15,0);ctx.lineTo(-10,-4);ctx.lineTo(-5,0);ctx.lineTo(-10,4);ctx.closePath();ctx.fill();ctx.fillStyle="#ff9b42";ctx.fillRect(-12,-1,4,2);}
+    else if(stype==="obelisk_carrier"){ctx.fillRect(-16,-10,32,20);ctx.fillStyle="#111";ctx.fillRect(-4,-15,8,30);ctx.fillStyle="#fff0a8";ctx.fillRect(10,-4,4,8);}
+    else{ctx.fillRect(-6,-4,12,8);ctx.fillStyle="#ff7744";ctx.fillRect(-8,-2,2,4);}
+    if(keys.has("w")){ctx.globalAlpha=0.7;ctx.fillStyle="#ff8830";ctx.beginPath();ctx.arc(-9,0,5,0,Math.PI*2);ctx.fill();}
     ctx.restore();ctx.globalAlpha=1;
-    ctx.fillStyle=shipVisualColor(player.color);ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(player.name,sx,sy-14);ctx.textAlign="left";
+    ctx.fillStyle=player.color;ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(player.name,sx,sy-14);ctx.textAlign="left";
   }
 
   // Coordinate crosshair on ship
@@ -6484,7 +5619,7 @@ function planetWeaponAttack(){
   }
   planetAttackCooldown=0.18;
   const sx=astronaut.x,sy=astronaut.y-8,ang=angleToward(sx,sy,wx,wy);
-  planetLocalProjectiles.push({x:sx,y:sy,vx:Math.cos(ang)*310,vy:Math.sin(ang)*310,damage:planetWeaponDamage(),life:1.55,color:cosmeticProjectileColor("#ffdd44"),size:cosmeticProjectileSize(3.2)});
+  planetLocalProjectiles.push({x:sx,y:sy,vx:Math.cos(ang)*310,vy:Math.sin(ang)*310,damage:planetWeaponDamage(),life:1.55});
   socket.emit("planetFireProjectile",{planetId:activePlanet.id,x:sx,y:sy,targetX:wx,targetY:wy});
 }
 function inventoryTypeCounts(){const out={};for(const s of player.invSlots){if(s.type&&s.count>0)out[s.type]=(out[s.type]||0)+s.count;}return out;}
@@ -6574,17 +5709,15 @@ function drawCharacterPanel(){
 }
 initTradeDom();
 initSocialDom();
-const _couponRedeemBtn=document.getElementById("coupon-redeem-btn");if(_couponRedeemBtn)_couponRedeemBtn.onclick=redeemCoupon;
-const _couponInput=document.getElementById("coupon-code-input");if(_couponInput)_couponInput.addEventListener("keydown",e=>{if(e.key==="Enter")redeemCoupon();});
 
 /* ── Game over ── */
 function drawGameOver(){
   ctx.fillStyle="rgba(0,0,0,0.85)";ctx.fillRect(0,0,canvas.width,canvas.height);
   const cx=canvas.width/2,cy=canvas.height/2;
   ctx.fillStyle="#ff3322";ctx.font="bold 22px monospace";ctx.textAlign="center";ctx.fillText("SHIP DESTROYED",cx,cy-30);
-  ctx.fillStyle="#cc9944";ctx.font="11px monospace";ctx.fillText("Auto-respawn recovery active…",cx,cy-8);
+  ctx.fillStyle="#cc9944";ctx.font="11px monospace";ctx.fillText("Respawning in 3 seconds…",cx,cy-8);
   ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(`Lv ${player.level} | Score: ${player.score} | Credits: ${player.credits}cr`,cx,cy+10);
-  ctx.fillStyle="#78ff8a";ctx.font="bold 10px monospace";ctx.fillText("[ Tap / click to respawn now ]",cx,cy+32);ctx.textAlign="left";
+  ctx.fillStyle="#78ff8a";ctx.font="bold 10px monospace";ctx.fillText("[ Click to respawn early ]",cx,cy+32);ctx.textAlign="left";
 }
 
 /* ══════════════════════════════════════
@@ -6593,12 +5726,9 @@ function drawGameOver(){
 let last=performance.now();
 function tick(now){
   if(!joined){requestAnimationFrame(tick);return;}
-  resizeGameCanvasToDisplay();
-  syncMobileTouchUI();
-  syncDesktopPanelState();
   const dt=Math.min(0.033,(now-last)/1000);last=now;
   sendInput();
-  if(gameOver){maintainRespawnFlow(now);drawSpace();updateHud();requestAnimationFrame(tick);return;}
+  if(gameOver){drawSpace();updateHud();requestAnimationFrame(tick);return;}
   if(mode===MODE.SPACE){if(!planetLoading&&(activePlanet||planetMap)){activeRuin=null;activePlanet=null;planetMap=null;}updateSpace(dt);drawSpace();if(characterOpen)drawCharacterPanel();}
   else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;planetPlayers.clear();updateSpace(dt);drawSpace();if(characterOpen)drawCharacterPanel();}else drawPlanet();}
   updateHud();requestAnimationFrame(tick);
