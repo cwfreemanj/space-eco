@@ -455,19 +455,47 @@ const COSMETIC_DEFS = {
   planet_ocean_worlds:{key:"planet_ocean_worlds",slot:"planet",name:"Ocean Planet Designs",price:1900000,description:"Planets redraw as blue ocean worlds with pale rings.",color:"#2f8dff",accent:"#b9f3ff",shape:"lush"},
   planet_emerald_worlds:{key:"planet_emerald_worlds",slot:"planet",name:"Emerald Planet Designs",price:3000000,description:"Planets gain luminous emerald bands.",color:"#24b86b",accent:"#78ff8a",shape:"lush"},
   planet_royal_worlds:{key:"planet_royal_worlds",slot:"planet",name:"Royal Planet Designs",price:6200000,description:"Prestige gold-violet planet palette.",color:"#ffdd44",accent:"#cc88ff",shape:"crystal"}
+  ,
+  engine_blue_star:{key:"engine_blue_star",slot:"engine",name:"Blue Star Engine Core",price:1250000,description:"Blue-white engine flare for player and equipped cosmetic ships.",color:"#58a6ff",accent:"#dff9ff",shape:"flare"},
+  engine_ember_core:{key:"engine_ember_core",slot:"engine",name:"Ember Engine Core",price:2400000,description:"Warm orange engine plume and boosted thrust glow.",color:"#ff8844",accent:"#ffdd44",shape:"flare"},
+  engine_emerald_core:{key:"engine_emerald_core",slot:"engine",name:"Emerald Engine Core",price:3600000,description:"Green plasma engine flare for a clean eco-tech look.",color:"#78ff8a",accent:"#d6ff7b",shape:"flare"},
+  engine_void_reactor:{key:"engine_void_reactor",slot:"engine",name:"Void Reactor Engines",price:5800000,description:"Dark purple reactor plume with violet edge glow.",color:"#b86bff",accent:"#ff5cff",shape:"flare"},
+  shield_aqua_ring:{key:"shield_aqua_ring",slot:"shield",name:"Aqua Shield Ring",price:1400000,description:"A cyan circular shield aura around your ship while shields are active.",color:"#7be6ff",accent:"#dff9ff",shape:"ring"},
+  shield_gold_halo:{key:"shield_gold_halo",slot:"shield",name:"Gold Halo Shield",price:2900000,description:"Gold shield aura for prestige pilots.",color:"#ffdd44",accent:"#fff0a8",shape:"ring"},
+  shield_crimson_guard:{key:"shield_crimson_guard",slot:"shield",name:"Crimson Guard Shield",price:4200000,description:"Red-orange combat shield aura with angular pulses.",color:"#ff5544",accent:"#ffcc66",shape:"angular"},
+  shield_prism_barrier:{key:"shield_prism_barrier",slot:"shield",name:"Prism Barrier Shield",price:7000000,description:"Late-game rainbow-tinted shield shimmer.",color:"#ffffff",accent:"#ff5cff",rainbow:true,shape:"ring"},
+  suit_orange_miner:{key:"suit_orange_miner",slot:"suit",name:"Orange Miner Suit",price:650000,description:"Planetside astronaut suit with a classic orange work pack.",color:"#ff8844",accent:"#dff9ff",shape:"suit"},
+  suit_teal_ranger:{key:"suit_teal_ranger",slot:"suit",name:"Teal Ranger Suit",price:1250000,description:"Cool teal planetside explorer suit.",color:"#7be6ff",accent:"#78ff8a",shape:"suit"},
+  suit_gold_captain:{key:"suit_gold_captain",slot:"suit",name:"Gold Captain Suit",price:2600000,description:"Gold-accent planetside captain suit.",color:"#ffdd44",accent:"#7be6ff",shape:"suit"},
+  suit_void_runner:{key:"suit_void_runner",slot:"suit",name:"Void Runner Suit",price:4200000,description:"Dark violet planetside suit with luminous visor accents.",color:"#221833",accent:"#cc88ff",shape:"suit"},
+  laser_mining_cyan:{key:"laser_mining_cyan",slot:"laser",name:"Cyan Mining Beam",price:900000,description:"Changes planetside mining beam highlights to bright cyan.",color:"#7be6ff",accent:"#ffffff",shape:"beam"},
+  laser_mining_gold:{key:"laser_mining_gold",slot:"laser",name:"Gold Mining Beam",price:1800000,description:"Gold mining beam and targeting highlight for planetside mining.",color:"#ffdd44",accent:"#fff0a8",shape:"beam"},
+  laser_mining_lime:{key:"laser_mining_lime",slot:"laser",name:"Lime Mining Beam",price:2800000,description:"Green eco-laser mining beam with brighter target feedback.",color:"#78ff8a",accent:"#d6ff7b",shape:"beam"},
+  laser_mining_prism:{key:"laser_mining_prism",slot:"laser",name:"Prism Mining Beam",price:5600000,description:"Premium rainbow prism mining beam style.",color:"#ffffff",accent:"#ff5cff",rainbow:true,shape:"beam"},
+  ship_pixel_runner:{key:"ship_pixel_runner",slot:"ship",name:"Pixel Runner Hull",price:3900000,description:"Retro blocky racer hull inspired by 16-bit space shooters.",color:"#7be6ff",accent:"#ffdd44",shape:"blade"},
+  ship_emerald_falcon:{key:"ship_emerald_falcon",slot:"ship",name:"Emerald Falcon Hull",price:4900000,description:"Green falcon-style spread-wing frame.",color:"#78ff8a",accent:"#d6ff7b",shape:"mantis"},
+  npcship_pixel_haulers:{key:"npcship_pixel_haulers",slot:"npcship",name:"Pixel NPC Haulers",price:2500000,description:"NPC trade ships get chunky retro hauler silhouettes.",color:"#58a6ff",accent:"#ffdd44",shape:"hauler"},
+  npcship_emerald_convoy:{key:"npcship_emerald_convoy",slot:"npcship",name:"Emerald NPC Convoys",price:3800000,description:"NPC trade convoys use green-lit eco cargo hulls.",color:"#78ff8a",accent:"#d6ff7b",shape:"hauler"},
+  station_pixel_arcade:{key:"station_pixel_arcade",slot:"station",name:"Pixel Arcade Stations",price:5200000,description:"Stations adopt a chunkier retro arcade silhouette.",color:"#162a44",accent:"#7be6ff",shape:"ring"},
+  planet_retro_grid_worlds:{key:"planet_retro_grid_worlds",slot:"planet",name:"Retro Grid Planets",price:4800000,description:"Planets gain bold retro grid bands and bright blue rings.",color:"#0f3450",accent:"#7be6ff",shape:"crystal"},
+  bullet_pixel_stars:{key:"bullet_pixel_stars",slot:"bullet",name:"Pixel Star Shots",price:3400000,description:"Blockier pixel-star projectile look.",color:"#fff0a8",accent:"#7be6ff",sizeBoost:0.65},
+  trail_pixel_sparks:{key:"trail_pixel_sparks",slot:"trail",name:"Pixel Spark Trail",price:3300000,description:"Chunkier retro spark exhaust trail.",color:"#7be6ff",accent:"#ffdd44"},
+  particle_pixel_pop:{key:"particle_pixel_pop",slot:"particle",name:"Pixel Pop Particles",price:2100000,description:"Chunky pop particles for shots and impact feedback.",color:"#ffdd44",accent:"#7be6ff"},
+  enemy_pixel_raiders:{key:"enemy_pixel_raiders",slot:"enemy",name:"Pixel Raider Enemies",price:4600000,description:"Enemies use bolder arcade-like silhouettes and neon edges.",color:"#ff5544",accent:"#ffdd44",shape:"fang"}
+
 };
 const COUPON_DEFS = {
   SPACEECOISAWESOME:{credits:10000000,description:"Launch celebration coupon"},
   SEIA123:{credits:10000000,description:"Reusable Space Eco Infinite Awesome coupon",reusable:true}
 };
-const COSMETIC_SLOTS = ["ship","bullet","enemy","npcship","particle","trail","station","planet"];
+const COSMETIC_SLOTS = ["ship","bullet","enemy","npcship","particle","trail","station","planet","engine","shield","suit","laser"];
 function normalizeCosmeticInventory(raw){
   const out={};
   if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){if(COSMETIC_DEFS[k]&&v===true)out[k]=true;}
   return out;
 }
 function normalizeEquippedCosmetics(raw){
-  const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null};
+  const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null};
   if(raw&&typeof raw==="object")for(const slot of COSMETIC_SLOTS){const key=String(raw[slot]||"");if(key&&COSMETIC_DEFS[key]?.slot===slot)out[slot]=key;}
   return out;
 }
