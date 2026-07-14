@@ -938,6 +938,98 @@ body.desktop-browser #chat-wrap{bottom:74px}
 @media (max-width:980px){#desktop-command-dock{grid-template-columns:repeat(4,minmax(72px,1fr));bottom:10px}.desktop-command-btn{min-height:36px;font-size:10px}body.desktop-browser #chat-wrap{bottom:112px}}
 @media (max-height:620px){#desktop-command-dock{right:12px;left:auto;bottom:12px;transform:none;width:248px;grid-template-columns:repeat(2,minmax(72px,1fr))}body.desktop-browser #chat-wrap{bottom:12px}}
 
+
+
+/* ═══════════════════════════════════════════════════════════════
+   DESKTOP BROWSER MASTER MENU PATCH v4.0.4
+   - Better common-resolution panel sizing.
+   - Universal L master menu with tabbed access to every major menu.
+   - Expanded bottom command dock with all missing hotkey/menu actions.
+═══════════════════════════════════════════════════════════════ */
+body.desktop-browser .overlay-panel,
+body.desktop-browser .trade-dom-panel,
+body.desktop-browser #social-panel,
+body.desktop-browser #master-menu-panel{
+  z-index:260!important;
+  padding:clamp(10px,2.4vh,24px) clamp(10px,2.4vw,34px)!important;
+  box-sizing:border-box!important;
+}
+body.desktop-browser .panel-box,
+body.desktop-browser .trade-box,
+body.desktop-browser .social-box,
+body.desktop-browser .master-menu-box{
+  width:clamp(360px,86vw,1120px)!important;
+  min-width:0!important;
+  max-width:1120px!important;
+  max-height:min(86vh,780px)!important;
+  overflow:auto!important;
+  box-sizing:border-box!important;
+  border-radius:18px!important;
+}
+body.desktop-browser .panel-box table,
+body.desktop-browser .trade-box table,
+body.desktop-browser .social-box table{width:100%;border-collapse:collapse;font-size:clamp(10px,.9vw,12px)}
+body.desktop-browser .panel-box th,
+body.desktop-browser .panel-box td{padding:5px 7px;white-space:nowrap}
+body.desktop-browser #ship-list{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))!important}
+body.desktop-browser .credit-pack-grid{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))!important}
+body.desktop-browser .cosmetic-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))!important}
+body.desktop-browser #cosmetic-panel .panel-box{width:clamp(380px,88vw,1180px)!important;max-width:1180px!important}
+body.desktop-browser #credit-panel .panel-box{width:clamp(380px,82vw,980px)!important}
+body.desktop-browser #lb-panel .panel-box,
+body.desktop-browser #sl-panel .panel-box{width:clamp(420px,88vw,1100px)!important}
+@media (max-width:720px){
+  body.desktop-browser .panel-box,
+  body.desktop-browser .trade-box,
+  body.desktop-browser .social-box,
+  body.desktop-browser .master-menu-box{width:calc(100vw - 20px)!important;max-height:82vh!important;padding:12px!important}
+  body.desktop-browser .panel-box th,
+  body.desktop-browser .panel-box td{padding:4px;font-size:10px}
+}
+#master-menu-panel{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:radial-gradient(circle at 50% 20%,rgba(44,78,126,.28),rgba(0,0,0,.78) 62%);
+  color:#d6e1ff;
+  font-family:system-ui,Segoe UI,Arial;
+}
+.master-menu-box{
+  position:relative;
+  background:linear-gradient(160deg,rgba(12,22,42,.98),rgba(5,8,18,.98));
+  border:2px solid rgba(123,230,255,.62);
+  box-shadow:0 0 34px rgba(123,230,255,.24),0 0 80px rgba(0,0,0,.65),inset 0 0 28px rgba(255,221,68,.035);
+  padding:18px;
+}
+.master-menu-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px;border-bottom:1px solid rgba(123,230,255,.22);padding-bottom:12px}
+.master-menu-title{font-size:20px;font-weight:1000;letter-spacing:.12em;color:#7be6ff;text-shadow:0 0 14px rgba(123,230,255,.38)}
+.master-menu-sub{margin-top:4px;color:#8fa3cc;font-size:12px;line-height:1.35}.master-menu-sub b{color:#ffdd44}
+.master-menu-close{min-width:38px;height:36px;border:1px solid rgba(255,120,100,.65);border-radius:12px;background:#251016;color:#ffb29f;font-weight:1000;font-size:18px;cursor:pointer}
+.master-menu-close:hover{background:#3a171c;color:#fff}
+.master-menu-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0 12px}.master-menu-tab{border:1px solid rgba(123,230,255,.34);background:#0b1428;color:#9fd9ff;border-radius:999px;padding:7px 11px;font-size:11px;font-weight:900;letter-spacing:.03em;cursor:pointer}.master-menu-tab.active,.master-menu-tab:hover{border-color:#ffdd44;color:#ffdd44;background:#201a0c;box-shadow:0 0 14px rgba(255,221,68,.15)}
+.master-menu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px}.master-menu-card{min-height:72px;text-align:left;border:1px solid rgba(123,230,255,.28);border-radius:14px;background:linear-gradient(180deg,rgba(16,30,55,.96),rgba(8,13,27,.96));color:#e7fbff;cursor:pointer;padding:10px 11px;box-shadow:0 0 13px rgba(123,230,255,.07)}.master-menu-card:hover{border-color:#7be6ff;background:linear-gradient(180deg,rgba(22,46,78,.98),rgba(10,17,32,.98));transform:translateY(-1px)}.master-menu-card.gold{border-color:rgba(255,221,68,.58);background:linear-gradient(180deg,rgba(48,39,12,.96),rgba(10,14,24,.96))}.master-menu-card.red{border-color:rgba(255,100,80,.58);background:linear-gradient(180deg,rgba(54,20,18,.96),rgba(10,13,22,.96))}.master-menu-card-title{display:flex;align-items:center;justify-content:space-between;gap:7px;font-size:13px;font-weight:1000}.master-menu-card small{display:block;margin-top:5px;color:#8fa3cc;font-size:10px;line-height:1.28}.master-menu-hotkey{font-size:10px;color:#ffdd44;border:1px solid rgba(255,221,68,.45);border-radius:8px;padding:2px 6px;background:rgba(255,221,68,.08);white-space:nowrap}.master-menu-empty{color:#8fa3cc;border:1px dashed rgba(123,230,255,.25);border-radius:14px;padding:18px;text-align:center}
+#desktop-command-dock{
+  left:50%!important;
+  right:auto!important;
+  bottom:10px!important;
+  transform:translateX(-50%)!important;
+  width:min(1180px,calc(100vw - 24px))!important;
+  max-height:112px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  grid-template-columns:none!important;
+  grid-auto-flow:column;
+  grid-auto-columns:minmax(78px,94px);
+  align-items:stretch;
+  gap:6px;
+  scrollbar-width:thin;
+}
+#desktop-command-dock::-webkit-scrollbar{height:7px}#desktop-command-dock::-webkit-scrollbar-thumb{background:rgba(123,230,255,.34);border-radius:999px}.desktop-command-btn{min-width:78px!important;min-height:42px!important;font-size:10px!important;line-height:1.05;padding:5px 4px}.desktop-command-btn small{font-size:8px!important;white-space:normal!important}.desktop-command-btn.master{border-color:rgba(255,221,68,.95);color:#ffdd44;background:linear-gradient(180deg,rgba(61,45,9,.98),rgba(12,16,24,.98));box-shadow:0 0 18px rgba(255,221,68,.19)}
+body.desktop-browser #chat-wrap{bottom:132px!important}
+@media (max-height:680px){#desktop-command-dock{max-height:62px;grid-auto-columns:minmax(70px,84px)}.desktop-command-btn{min-height:34px!important}body.desktop-browser #chat-wrap{bottom:76px!important}}
+
 </style>
 </head>
 <body>
@@ -998,7 +1090,7 @@ body.desktop-browser #chat-wrap{bottom:74px}
     </div>
     <div class="control-keys-content">
       <div class="control-key-item"><span class="control-key-pill">WASD</span><span class="control-key-label">Move / Fly</span></div>
-      <div class="control-key-item"><span class="control-key-pill">L</span><span class="control-key-label">Land / Takeoff</span></div>
+      <div class="control-key-item"><span class="control-key-pill">L</span><span class="control-key-label">Master Menu</span></div>
       <div class="control-key-item"><span class="control-key-pill">Q</span><span class="control-key-label">Tool</span></div>
       <div class="control-key-item"><span class="control-key-pill">R</span><span class="control-key-label">Trade</span></div>
       <div class="control-key-item"><span class="control-key-pill">C</span><span class="control-key-label">Character</span></div>
@@ -1112,24 +1204,48 @@ body.desktop-browser #chat-wrap{bottom:74px}
 </div>
 <div id="mobile-orientation-note">Rotate your phone sideways for the cleanest Space Eco controls.</div>
 
-<!-- Desktop browser command dock: all APK/mobile menus remain available, now clickable on desktop too. -->
+<!-- Desktop browser universal command dock: expanded so every major menu/action is reachable by mouse. -->
 <div id="desktop-command-dock" aria-label="Desktop command dock">
+  <button class="desktop-command-btn master" data-desktop-action="master" type="button">Master<small>L</small></button>
   <button class="desktop-command-btn" data-desktop-action="inventory" type="button">Inventory<small>I</small></button>
-  <button class="desktop-command-btn" data-desktop-action="shop" type="button">Station Shop<small>O / near station</small></button>
+  <button class="desktop-command-btn" data-desktop-action="shop" type="button">Shop<small>O</small></button>
   <button class="desktop-command-btn gold" data-desktop-action="credits" type="button">Credits<small>M</small></button>
-  <button class="desktop-command-btn gold" data-desktop-action="cosmetics" type="button">Cosmetics<small>coupon shop</small></button>
+  <button class="desktop-command-btn gold" data-desktop-action="cosmetics" type="button">Cosmetics<small>;</small></button>
   <button class="desktop-command-btn" data-desktop-action="ship-shop" type="button">Ships<small>H</small></button>
   <button class="desktop-command-btn" data-desktop-action="character" type="button">Character<small>C</small></button>
-  <button class="desktop-command-btn" data-desktop-action="social" type="button">Social<small>F</small></button>
-  <button class="desktop-command-btn red" data-desktop-action="close" type="button">Close<small>Esc</small></button>
+  <button class="desktop-command-btn" data-desktop-action="attributes" type="button">Attributes<small>P</small></button>
   <button class="desktop-command-btn" data-desktop-action="quests" type="button">Quests<small>V</small></button>
   <button class="desktop-command-btn" data-desktop-action="badges" type="button">Badges<small>Y</small></button>
   <button class="desktop-command-btn" data-desktop-action="leaderboard" type="button">Board<small>K</small></button>
   <button class="desktop-command-btn" data-desktop-action="players" type="button">Players<small>N</small></button>
+  <button class="desktop-command-btn" data-desktop-action="social" type="button">Social<small>F</small></button>
+  <button class="desktop-command-btn" data-desktop-action="party" type="button">Party<small>J</small></button>
+  <button class="desktop-command-btn" data-desktop-action="faction" type="button">Faction<small>U</small></button>
+  <button class="desktop-command-btn" data-desktop-action="trade" type="button">Trade<small>R</small></button>
   <button class="desktop-command-btn" data-desktop-action="build" type="button">Build<small>B</small></button>
   <button class="desktop-command-btn" data-desktop-action="ship-status" type="button">Ship Stats<small>Z</small></button>
-  <button class="desktop-command-btn" data-desktop-action="trade" type="button">Trade<small>R</small></button>
-  <button class="desktop-command-btn" data-desktop-action="interact" type="button">Talk / Loot<small>E</small></button>
+  <button class="desktop-command-btn" data-desktop-action="land" type="button">Land/Launch<small>button</small></button>
+  <button class="desktop-command-btn" data-desktop-action="tool" type="button">Tool<small>Q</small></button>
+  <button class="desktop-command-btn" data-desktop-action="gas" type="button">Gas<small>G</small></button>
+  <button class="desktop-command-btn" data-desktop-action="oxygen" type="button">O₂ Tank<small>X</small></button>
+  <button class="desktop-command-btn" data-desktop-action="chat" type="button">Chat<small>T</small></button>
+  <button class="desktop-command-btn" data-desktop-action="interact" type="button">Talk/Loot<small>E</small></button>
+  <button class="desktop-command-btn red" data-desktop-action="close" type="button">Close<small>Esc</small></button>
+</div>
+
+<!-- Universal master menu. L opens this on desktop/browser builds. -->
+<div id="master-menu-panel" class="master-menu-panel" style="display:none" aria-label="Space Eco master menu">
+  <div class="master-menu-box">
+    <div class="master-menu-head">
+      <div>
+        <div class="master-menu-title">SPACE ECO MASTER MENU</div>
+        <div class="master-menu-sub">Press <b>L</b> to open/close. Pick a tab, then click any card to open that menu or trigger that command.</div>
+      </div>
+      <button id="master-menu-close" class="master-menu-close" type="button" aria-label="Close master menu">×</button>
+    </div>
+    <div id="master-menu-tabs" class="master-menu-tabs" role="tablist"></div>
+    <div id="master-menu-grid" class="master-menu-grid"></div>
+  </div>
 </div>
 
 
@@ -1407,7 +1523,7 @@ function bindMobileControlSettings(){
 }
 
 
-const BLOCKING_DOM_PANEL_IDS=["lb-panel","sl-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
+const BLOCKING_DOM_PANEL_IDS=["master-menu-panel","lb-panel","sl-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
 function isShown(el){return !!el&&getComputedStyle(el).display!=="none"&&getComputedStyle(el).visibility!=="hidden";}
 function isTextControl(target){if(target&&target.closest&&target.closest("#mobile-controls,#mobile-menu-hub"))return false;const el=target&&target.closest&&target.closest("input, textarea, select, button, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
 function joinScreenOpen(){return isShown(document.getElementById("join-screen"));}
@@ -1419,9 +1535,10 @@ function clearMovementInput(){["w","a","s","d","arrowup","arrowdown","arrowleft"
 function clearLiveInput(){keys.clear();mouse.down=false;mouse.clicked=false;}
 function hidePanel(id){const el=document.getElementById(id);if(el)el.style.display="none";}
 function closeTopDomPanel(){
+  if(isShown(document.getElementById("master-menu-panel"))){hidePanel("master-menu-panel");document.body.classList.remove("master-menu-open");return true;}
   if(isShown(document.getElementById("trade-panel-dom"))){closeTradePanel(true);return true;}
   if(isShown(document.getElementById("social-panel"))){socialOpen=false;hidePanel("social-panel");return true;}
-  for(const id of ["cosmetic-panel","credit-panel","build-panel","ship-panel","sl-panel","lb-panel"]){if(isShown(document.getElementById(id))){hidePanel(id);return true;}}
+  for(const id of ["master-menu-panel","cosmetic-panel","credit-panel","build-panel","ship-panel","sl-panel","lb-panel"]){if(isShown(document.getElementById(id))){hidePanel(id);return true;}}
   return false;
 }
 function closeMatchingPanelHotkey(key){
@@ -1434,6 +1551,12 @@ function closeMatchingPanelHotkey(key){
 
 window.addEventListener("keydown",e=>{
   const key=e.key.toLowerCase();
+
+  if(key==="l"&&!isTextControl(e.target)&&!joinScreenOpen()){
+    e.preventDefault();
+    toggleMasterMenu();
+    return;
+  }
 
   // Text fields and open DOM panels own their keyboard input.
   // This prevents typing in login, trade, faction, and edit fields from firing game hotkeys.
@@ -1606,7 +1729,7 @@ function resetMobileControlState(reason="reset"){
 
 function mobileToggleHub(force){if(!IS_MOBILE_TOUCH)return;const open=force===undefined?!document.body.classList.contains("mobile-menu-open"):!!force;document.body.classList.toggle("mobile-menu-open",open);clearMovementInput();}
 function mobileCloseAllPanels(){
-  mobileToggleHub(false);closeTopDomPanel();["lb-panel","sl-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);
+  mobileToggleHub(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);
   if(socialOpen){socialOpen=false;hidePanel("social-panel");}
   try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }
   inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();
@@ -1666,10 +1789,11 @@ function desktopToggleInventory(){inventoryOpen=!inventoryOpen;shopOpen=false;at
 function desktopToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
 function desktopBuildOrTile(){if(mode===MODE.PLANET){placeBuildTileAt(mouse.x||canvas.width/2,mouse.y||canvas.height/2);return;}if(mode===MODE.SPACE)toggleBuildPanel();}
 function desktopInteract(){if(mode===MODE.SPACE&&(nearStation||shopOpen)){desktopToggleShop();return;}keys.add("e");setTimeout(()=>keys.delete("e"),90);}
-function closeAllDesktopPanels(){closeTopDomPanel();["lb-panel","sl-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);if(socialOpen){socialOpen=false;hidePanel("social-panel");}try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();}
+function closeAllDesktopPanels(){showMasterMenu(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);if(socialOpen){socialOpen=false;hidePanel("social-panel");}try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();}
 function desktopAction(action){
   if(!joined&&action!=="close")return;
   switch(action){
+    case "master":showMasterMenu(true);break;
     case "close":closeAllDesktopPanels();break;
     case "inventory":desktopToggleInventory();break;
     case "shop":desktopToggleShop();break;
@@ -1686,8 +1810,73 @@ function desktopAction(action){
     case "ship-status":toggleShipStatusPanel();break;
     case "trade":sendTradeRequestToNearest();break;
     case "interact":desktopInteract();break;
+    case "attributes":desktopToggleAttributes();break;
+    case "party":inviteNearestToParty();break;
+    case "faction":inviteNearestToFaction();break;
+    case "chat":openChat();break;
+    case "land":desktopLandTakeoff();break;
+    case "tool":togglePlanetTool();break;
+    case "gas":desktopUseGas();break;
+    case "oxygen":desktopUseOxygen();break;
   }
 }
+
+const MASTER_MENU_TABS=[
+  {key:"all",label:"All"},{key:"core",label:"Core"},{key:"economy",label:"Economy"},{key:"progress",label:"Progress"},{key:"social",label:"Social"},{key:"survival",label:"Survival"}
+];
+const MASTER_MENU_ENTRIES=[
+  {action:"inventory",cat:"core",label:"Inventory",hotkey:"I",desc:"Open item slots, cargo, gear resources, and inventory details."},
+  {action:"shop",cat:"economy",label:"Station Shop",hotkey:"O",desc:"Open the nearby station buy/sell/quest/hire shop."},
+  {action:"credits",cat:"economy",label:"Credit Market",hotkey:"M",desc:"Open Wix-connected credit packs and purchase status.",style:"gold"},
+  {action:"cosmetics",cat:"economy",label:"Cosmetics + Coupons",hotkey:";",desc:"Open cosmetic shop, coupon code redemption, and owned visual styles.",style:"gold"},
+  {action:"ship-shop",cat:"economy",label:"Ship Market",hotkey:"H",desc:"Buy or switch ship frames from the showroom."},
+  {action:"character",cat:"core",label:"Character Bay",hotkey:"C",desc:"Open pilot upgrades, planetside gear, and character information."},
+  {action:"attributes",cat:"core",label:"Attributes",hotkey:"P",desc:"Spend pilot points and review stats."},
+  {action:"ship-status",cat:"core",label:"Ship Stats + Loadout",hotkey:"Z",desc:"View hull, shield, weapons, and attachment modules."},
+  {action:"quests",cat:"progress",label:"Quest Log",hotkey:"V",desc:"View active station and planetside quests."},
+  {action:"badges",cat:"progress",label:"Badges",hotkey:"Y",desc:"Open badges, achievements, and stat milestones."},
+  {action:"leaderboard",cat:"progress",label:"Leaderboard",hotkey:"K",desc:"Compare pilots by score, kills, deaths, and level."},
+  {action:"players",cat:"social",label:"Players Online",hotkey:"N",desc:"Show pilots currently in the server."},
+  {action:"social",cat:"social",label:"Party + Faction",hotkey:"F",desc:"Open party and faction command panel."},
+  {action:"party",cat:"social",label:"Invite Party",hotkey:"J",desc:"Invite the nearest player to your party."},
+  {action:"faction",cat:"social",label:"Invite Faction",hotkey:"U",desc:"Invite the nearest player to your faction."},
+  {action:"trade",cat:"social",label:"Player Trade",hotkey:"R",desc:"Send a trade request to the nearest pilot."},
+  {action:"chat",cat:"social",label:"Chat",hotkey:"T",desc:"Open the multiplayer chat input."},
+  {action:"build",cat:"core",label:"Build / Tile",hotkey:"B",desc:"Open station builder in space or place a tile planetside."},
+  {action:"land",cat:"core",label:"Land / Takeoff",hotkey:"Dock",desc:"Land on a nearby planet or return to your ship from planetside."},
+  {action:"tool",cat:"survival",label:"Planet Tool",hotkey:"Q",desc:"Toggle planetside mining/weapon tool."},
+  {action:"gas",cat:"survival",label:"Use Gas",hotkey:"G",desc:"Use gas canisters while in space."},
+  {action:"oxygen",cat:"survival",label:"Use O₂ Tank",hotkey:"X",desc:"Use an oxygen tank while planetside."},
+  {action:"interact",cat:"core",label:"Talk / Shop / Loot",hotkey:"E",desc:"Talk, loot, or open a nearby station shop contextually."},
+  {action:"close",cat:"core",label:"Close Panels",hotkey:"Esc",desc:"Close open menus and return to gameplay.",style:"red"}
+];
+let masterMenuTab="all";
+function renderMasterMenu(){
+  const tabs=document.getElementById("master-menu-tabs"),grid=document.getElementById("master-menu-grid");
+  if(!tabs||!grid)return;
+  tabs.innerHTML=MASTER_MENU_TABS.map(t=>`<button class="master-menu-tab ${masterMenuTab===t.key?"active":""}" data-master-tab="${t.key}" type="button">${t.label}</button>`).join("");
+  for(const b of tabs.querySelectorAll("[data-master-tab]"))b.onclick=()=>{masterMenuTab=b.dataset.masterTab||"all";renderMasterMenu();};
+  const entries=MASTER_MENU_ENTRIES.filter(e=>masterMenuTab==="all"||e.cat===masterMenuTab);
+  grid.innerHTML=entries.length?entries.map(e=>`<button class="master-menu-card ${e.style||""}" data-master-action="${e.action}" type="button"><span class="master-menu-card-title"><span>${e.label}</span><span class="master-menu-hotkey">${e.hotkey}</span></span><small>${e.desc}</small></button>`).join(""):`<div class="master-menu-empty">No commands in this tab yet.</div>`;
+  for(const b of grid.querySelectorAll("[data-master-action]"))b.onclick=(ev)=>{ev.preventDefault();ev.stopPropagation();hidePanel("master-menu-panel");document.body.classList.remove("master-menu-open");desktopAction(b.dataset.masterAction);};
+}
+function showMasterMenu(force=true){
+  const el=document.getElementById("master-menu-panel");if(!el)return;
+  const open=force===undefined?!isShown(el):!!force;
+  if(open){renderMasterMenu();el.style.display="flex";document.body.classList.add("master-menu-open");clearMovementInput();}
+  else{el.style.display="none";document.body.classList.remove("master-menu-open");clearMovementInput();}
+}
+function toggleMasterMenu(){const el=document.getElementById("master-menu-panel");showMasterMenu(!(el&&isShown(el)));}
+function bindMasterMenu(){
+  document.getElementById("master-menu-close")?.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();showMasterMenu(false);});
+  document.getElementById("master-menu-panel")?.addEventListener("click",e=>{if(e.target&&e.target.id==="master-menu-panel")showMasterMenu(false);});
+  renderMasterMenu();
+}
+function desktopToggleAttributes(){attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);}
+function desktopLandTakeoff(){mobileLandTakeoff();}
+function desktopUseOxygen(){mobileUseOxygen();}
+function desktopUseGas(){mobileUseGas();}
+
 function bindDesktopCommandDock(){
   if(IS_MOBILE_TOUCH)return;
   document.querySelectorAll("[data-desktop-action]").forEach(btn=>{
