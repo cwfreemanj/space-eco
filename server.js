@@ -32,23 +32,6 @@ app.get("/api/serverinfo", (_req, res) => {
   res.json({ name:SERVER_NAME, playerCount:players.size, maxPlayers:MAX_PLAYERS, uptime:Math.floor((Date.now()-SERVER_START)/1000), leaderboard:buildLeaderboard(10) });
 });
 
-// Railway health check + quick public diagnostics.
-app.get("/health", (_req, res) => {
-  res.json({ ok:true, name:SERVER_NAME, playerCount:players.size, uptime:Math.floor((Date.now()-SERVER_START)/1000) });
-});
-app.get("/api/connection-info", (req, res) => {
-  const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "https").split(",")[0].trim();
-  const host = req.get("host");
-  res.json({
-    ok:true,
-    serverUrl: host ? `${proto}://${host}` : null,
-    socketPath:"/socket.io",
-    playerCount:players.size,
-    maxPlayers:MAX_PLAYERS,
-    serverName:SERVER_NAME
-  });
-});
-
 /* ── Constants ── */
 const SERVER_NAME  = process.env.SERVER_NAME || "Space Eco Galaxy #1";
 const SERVER_START = Date.now();
@@ -393,96 +376,6 @@ function destroyOwnedStation(st,attacker){
   broadcastChat("Server",`${attacker?.name||"A raider"} destroyed ${st.ownerName}'s ${OWNED_STATION_TIERS[st.tier]?.name||st.tier}!`,"#ff5544");
 }
 
-
-
-/* ── Cosmetics + coupon shop ── */
-const COSMETIC_DEFS = {
-  ship_nebula_wing:{key:"ship_nebula_wing",slot:"ship",name:"Nebula Wing Hull",price:250000,description:"Purple-blue nebula plating with soft glow and swept wings.",color:"#9d7bff",accent:"#7be6ff",shape:"nebula"},
-  ship_solar_royal:{key:"ship_solar_royal",slot:"ship",name:"Solar Royal Hull",price:750000,description:"Gold solar armor with crown-like fins.",color:"#ffdd44",accent:"#fff0a8",shape:"royal"},
-  ship_void_chrome:{key:"ship_void_chrome",slot:"ship",name:"Void Chrome Hull",price:1500000,description:"Dark chrome ship body with cyan blade trim.",color:"#101827",accent:"#7be6ff",shape:"blade"},
-  ship_aether_flame:{key:"ship_aether_flame",slot:"ship",name:"Aether Flame Hull",price:3000000,description:"Flame-lined starship plating with ember wings.",color:"#ff6b35",accent:"#ffdd44",shape:"flame"},
-  ship_crystal_lancer:{key:"ship_crystal_lancer",slot:"ship",name:"Crystal Lancer Hull",price:1750000,description:"Long crystalline spear-nose frame.",color:"#7be6ff",accent:"#e9fbff",shape:"lancer"},
-  ship_orbital_mantis:{key:"ship_orbital_mantis",slot:"ship",name:"Orbital Mantis Hull",price:2400000,description:"Hooked wing cutter with mantis-like prongs.",color:"#78ff8a",accent:"#d6ff7b",shape:"mantis"},
-  ship_stingray:{key:"ship_stingray",slot:"ship",name:"Stingray Cruiser Hull",price:3200000,description:"Wide gliding ray design with glowing tail engines.",color:"#58a6ff",accent:"#b9f3ff",shape:"stingray"},
-  ship_obelisk_elite:{key:"ship_obelisk_elite",slot:"ship",name:"Obelisk Elite Hull",price:5200000,description:"Tall carrier silhouette with an obelisk core.",color:"#1b1330",accent:"#cc88ff",shape:"obeliskElite"},
-  bullet_ion_rain:{key:"bullet_ion_rain",slot:"bullet",name:"Ion Rain Bullets",price:400000,description:"Bright cyan projectile trail.",color:"#7be6ff",sizeBoost:0.2},
-  bullet_lux_beam:{key:"bullet_lux_beam",slot:"bullet",name:"Lux Beam Bullets",price:950000,description:"Golden laser bolt style.",color:"#ffdd44",sizeBoost:0.45},
-  bullet_shadow_orb:{key:"bullet_shadow_orb",slot:"bullet",name:"Shadow Orb Bullets",price:1800000,description:"Purple shadow-orb projectiles.",color:"#cc88ff",sizeBoost:1.0},
-  bullet_prismatic:{key:"bullet_prismatic",slot:"bullet",name:"Prismatic Bullets",price:4500000,description:"Premium rainbow starfire bullets.",color:"#ffffff",rainbow:true,sizeBoost:0.8},
-  enemy_neon_outline:{key:"enemy_neon_outline",slot:"enemy",name:"Neon Enemy Outline",price:1250000,description:"Turns hostile raiders into angular neon outline ships.",color:"#ff5cff",accent:"#7be6ff",shape:"outline"},
-  enemy_crimson_raid:{key:"enemy_crimson_raid",slot:"enemy",name:"Crimson Raider Pack",price:2500000,description:"Crimson enemy projectiles and fang-shaped raider hulls.",color:"#ff3344",accent:"#ffdd44",shape:"fang"},
-  enemy_void_bats:{key:"enemy_void_bats",slot:"enemy",name:"Void Bat Enemy Ships",price:3400000,description:"Bat-wing hostile ships with dark violet cores.",color:"#7f4dff",accent:"#ff5cff",shape:"bat"},
-  enemy_gold_hunters:{key:"enemy_gold_hunters",slot:"enemy",name:"Gold Hunter Enemy Ships",price:4200000,description:"Gold-trim hunter enemies with forked noses.",color:"#ffdd44",accent:"#ff8844",shape:"hunter"},
-  particle_star_spark:{key:"particle_star_spark",slot:"particle",name:"Star Spark Particles",price:350000,description:"Sparkly star muzzle particles.",color:"#fff0a8"},
-  particle_aether_flame:{key:"particle_aether_flame",slot:"particle",name:"Aether Flame Particles",price:1750000,description:"Warm flame exhaust and shot particles.",color:"#ff8844"},
-  particle_cosmic_bloom:{key:"particle_cosmic_bloom",slot:"particle",name:"Cosmic Bloom Particles",price:5000000,description:"Luxury cosmic bloom particle style.",color:"#cc88ff",accent:"#7be6ff"},
-  trail_comet_tail:{key:"trail_comet_tail",slot:"trail",name:"Comet Tail Trail",price:700000,description:"Comet exhaust trail for boosted travel.",color:"#b9f3ff"},
-  trail_gold_dust:{key:"trail_gold_dust",slot:"trail",name:"Gold Dust Trail",price:2200000,description:"Premium golden engine trail.",color:"#ffdd44"},
-  station_neon_ring:{key:"station_neon_ring",slot:"station",name:"Neon Ring Stations",price:1800000,description:"Space stations become glowing ring hubs.",color:"#7be6ff",accent:"#ff5cff",shape:"ring"},
-  station_crystal_citadel:{key:"station_crystal_citadel",slot:"station",name:"Crystal Citadel Stations",price:2600000,description:"Stations redraw as faceted crystal citadels.",color:"#b9f3ff",accent:"#ffffff",shape:"crystal"},
-  station_solar_fortress:{key:"station_solar_fortress",slot:"station",name:"Solar Fortress Stations",price:3600000,description:"Stations gain armored golden fortress plating.",color:"#ffdd44",accent:"#ff8844",shape:"fortress"},
-  station_void_spire:{key:"station_void_spire",slot:"station",name:"Void Spire Stations",price:4800000,description:"Stations become dark spires with a violet core.",color:"#221833",accent:"#cc88ff",shape:"spire"},
-  planet_lush_worlds:{key:"planet_lush_worlds",slot:"planet",name:"Lush Planet Designs",price:1500000,description:"Planets redraw with green-blue living world bands.",color:"#78ff8a",accent:"#7be6ff",shape:"lush"},
-  planet_crystal_worlds:{key:"planet_crystal_worlds",slot:"planet",name:"Crystal Planet Designs",price:2400000,description:"Planets gain crystal facets and bright ice rings.",color:"#7be6ff",accent:"#ffffff",shape:"crystal"},
-  planet_lava_worlds:{key:"planet_lava_worlds",slot:"planet",name:"Lava Planet Designs",price:3200000,description:"Planets redraw with magma cracks and ember glow.",color:"#ff6b35",accent:"#ffdd44",shape:"lava"},
-  planet_void_worlds:{key:"planet_void_worlds",slot:"planet",name:"Void Planet Designs",price:4300000,description:"Planets become dark eclipse worlds with purple rings.",color:"#1b1330",accent:"#cc88ff",shape:"void"},
-
-  ship_aurora_saber:{key:"ship_aurora_saber",slot:"ship",name:"Aurora Saber Hull",price:2800000,description:"A slim aurora-lit saber frame with bright teal wing edges.",color:"#3affd0",accent:"#fff0a8",shape:"lancer"},
-  ship_ruby_vector:{key:"ship_ruby_vector",slot:"ship",name:"Ruby Vector Hull",price:3600000,description:"Red vector-plated racer hull with neon blade trim.",color:"#ff335d",accent:"#ffcc44",shape:"blade"},
-  ship_quantum_ray:{key:"ship_quantum_ray",slot:"ship",name:"Quantum Ray Hull",price:4400000,description:"Wide manta-ray silhouette with quantum blue glow.",color:"#45a3ff",accent:"#7bffea",shape:"stingray"},
-  ship_codex_crown:{key:"ship_codex_crown",slot:"ship",name:"Codex Crown Hull",price:6500000,description:"Prestige crown-class ship body for late-game pilots.",color:"#ffe66d",accent:"#ff5cff",shape:"royal"},
-  bullet_ember_bolts:{key:"bullet_ember_bolts",slot:"bullet",name:"Ember Bolts",price:650000,description:"Orange ember projectiles with a hot core.",color:"#ff8844",accent:"#ffdd44",sizeBoost:0.3},
-  bullet_arc_lime:{key:"bullet_arc_lime",slot:"bullet",name:"Arc Lime Shots",price:1350000,description:"Electric green shot style with a sharper glow.",color:"#78ff8a",accent:"#d6ff7b",sizeBoost:0.55},
-  bullet_blue_nova:{key:"bullet_blue_nova",slot:"bullet",name:"Blue Nova Rounds",price:2600000,description:"Deep-blue nova shots with a larger impact profile.",color:"#58a6ff",accent:"#b9f3ff",sizeBoost:0.75},
-  bullet_heart_star:{key:"bullet_heart_star",slot:"bullet",name:"Heart Star Shots",price:5200000,description:"Luxury pink starfire projectile style.",color:"#ff77dd",accent:"#fff0ff",sizeBoost:0.95},
-  enemy_aqua_reavers:{key:"enemy_aqua_reavers",slot:"enemy",name:"Aqua Reaver Enemies",price:1850000,description:"Enemy raiders shift into aqua razor silhouettes.",color:"#35e7ff",accent:"#ffffff",shape:"fang"},
-  enemy_ember_wasps:{key:"enemy_ember_wasps",slot:"enemy",name:"Ember Wasp Enemies",price:3100000,description:"Hostile ships become hot orange wasp-like attackers.",color:"#ff8844",accent:"#ffdd44",shape:"hunter"},
-  enemy_emerald_stalkers:{key:"enemy_emerald_stalkers",slot:"enemy",name:"Emerald Stalker Enemies",price:3900000,description:"Green stealth enemy visual pack with sharp wings.",color:"#78ff8a",accent:"#0dffb2",shape:"bat"},
-  enemy_codex_phantoms:{key:"enemy_codex_phantoms",slot:"enemy",name:"Codex Phantom Enemies",price:5600000,description:"Rare phantom enemy silhouettes with violet neon outlines.",color:"#b86bff",accent:"#7be6ff",shape:"outline"},
-  npcship_trader_teal:{key:"npcship_trader_teal",slot:"npcship",name:"Teal NPC Trade Ships",price:900000,description:"Friendly and neutral NPC trade ships use teal courier hulls.",color:"#7be6ff",accent:"#ffffff",shape:"hauler"},
-  npcship_solar_barge:{key:"npcship_solar_barge",slot:"npcship",name:"Solar NPC Barges",price:1750000,description:"NPC trade ships become gold solar barges.",color:"#ffdd44",accent:"#ff8844",shape:"hauler"},
-  npcship_crystal_courier:{key:"npcship_crystal_courier",slot:"npcship",name:"Crystal NPC Couriers",price:2900000,description:"NPC couriers gain crystalline blue lancer hulls.",color:"#b9f3ff",accent:"#7be6ff",shape:"lancer"},
-  npcship_void_caravan:{key:"npcship_void_caravan",slot:"npcship",name:"Void NPC Caravans",price:4700000,description:"NPC trade ships become dark caravan escorts with violet cores.",color:"#26143f",accent:"#cc88ff",shape:"stingray"},
-  particle_neon_snow:{key:"particle_neon_snow",slot:"particle",name:"Neon Snow Particles",price:900000,description:"Cool blue-white twinkle particles.",color:"#dff9ff",accent:"#7be6ff"},
-  particle_green_matrix:{key:"particle_green_matrix",slot:"particle",name:"Green Matrix Particles",price:2600000,description:"Matrix-green digital spark particles.",color:"#78ff8a",accent:"#d6ff7b"},
-  particle_royal_prism:{key:"particle_royal_prism",slot:"particle",name:"Royal Prism Particles",price:6200000,description:"Prismatic prestige sparks for shots and exhaust.",color:"#ffffff",accent:"#ff5cff"},
-  trail_aqua_wake:{key:"trail_aqua_wake",slot:"trail",name:"Aqua Wake Trail",price:1100000,description:"Bright aqua engine wake for travel.",color:"#7be6ff",accent:"#ffffff"},
-  trail_ember_stream:{key:"trail_ember_stream",slot:"trail",name:"Ember Stream Trail",price:3000000,description:"Orange ember exhaust stream.",color:"#ff8844",accent:"#ffdd44"},
-  trail_prism_comet:{key:"trail_prism_comet",slot:"trail",name:"Prism Comet Trail",price:7000000,description:"Prestige rainbow comet exhaust.",color:"#ffffff",accent:"#ff5cff",rainbow:true},
-  station_aqua_array:{key:"station_aqua_array",slot:"station",name:"Aqua Array Stations",price:2200000,description:"Stations gain clean aqua array arms.",color:"#0f3450",accent:"#7be6ff",shape:"ring"},
-  station_emerald_gate:{key:"station_emerald_gate",slot:"station",name:"Emerald Gate Stations",price:3900000,description:"Stations redraw as green gate fortresses.",color:"#123522",accent:"#78ff8a",shape:"fortress"},
-  station_royal_obelisk:{key:"station_royal_obelisk",slot:"station",name:"Royal Obelisk Stations",price:6500000,description:"Prestige obelisk stations with gold-violet cores.",color:"#1b1330",accent:"#ffdd44",shape:"spire"},
-  planet_ocean_worlds:{key:"planet_ocean_worlds",slot:"planet",name:"Ocean Planet Designs",price:1900000,description:"Planets redraw as blue ocean worlds with pale rings.",color:"#2f8dff",accent:"#b9f3ff",shape:"lush"},
-  planet_emerald_worlds:{key:"planet_emerald_worlds",slot:"planet",name:"Emerald Planet Designs",price:3000000,description:"Planets gain luminous emerald bands.",color:"#24b86b",accent:"#78ff8a",shape:"lush"},
-  planet_royal_worlds:{key:"planet_royal_worlds",slot:"planet",name:"Royal Planet Designs",price:6200000,description:"Prestige gold-violet planet palette.",color:"#ffdd44",accent:"#cc88ff",shape:"crystal"}
-};
-const COUPON_DEFS = {
-  SPACEECOISAWESOME:{credits:10000000,description:"Launch celebration coupon"},
-  SEIA123:{credits:10000000,description:"Reusable Space Eco Infinite Awesome coupon",reusable:true}
-};
-const COSMETIC_SLOTS = ["ship","bullet","enemy","npcship","particle","trail","station","planet"];
-function normalizeCosmeticInventory(raw){
-  const out={};
-  if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){if(COSMETIC_DEFS[k]&&v===true)out[k]=true;}
-  return out;
-}
-function normalizeEquippedCosmetics(raw){
-  const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null};
-  if(raw&&typeof raw==="object")for(const slot of COSMETIC_SLOTS){const key=String(raw[slot]||"");if(key&&COSMETIC_DEFS[key]?.slot===slot)out[slot]=key;}
-  return out;
-}
-function normalizeRedeemedCoupons(raw){
-  const out={};
-  if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){const code=String(k||"").trim().toUpperCase();if(code&&v===true)out[code]=true;}
-  return out;
-}
-function publicCosmeticState(p){
-  return {defs:COSMETIC_DEFS,owned:normalizeCosmeticInventory(p?.cosmeticInventory||{}),equipped:normalizeEquippedCosmetics(p?.equippedCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p?.redeemedCoupons||{})};
-}
-function sendCosmeticState(socket,p,reason="sync"){
-  socket.emit("cosmeticState",{...publicCosmeticState(p),credits:p?.credits||0,reason});
-}
-
 /* ── Player state ── */
 const players = new Map();
 
@@ -502,7 +395,6 @@ function defaultPlayer(id, name, x, y) {
     planetX:0, planetY:0, planetVx:0, planetVy:0, planetTool:"mining",
     cosmeticColor:"#ffd27a", suitColor:"#ffffff", weaponLevel:1, miningLevel:1, oxygenLevel:1,
     badgeRewards:{},
-    cosmeticInventory:{}, equippedCosmetics:{ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null}, redeemedCoupons:{},
     equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
     equippedAttachments:defaultAttachmentSlots(),
   };
@@ -733,7 +625,6 @@ function authHasNonDefaultProgress(auth){
   if(auth.attrs&&typeof auth.attrs==="object"&&Object.entries(auth.attrs).some(([_,v])=>Number(v)>1))return true;
   if(auth.weaponLevels&&typeof auth.weaponLevels==="object"&&Object.entries(auth.weaponLevels).some(([k,v])=>isWeaponKey(k)&&Number(v)>1))return true;
   if(auth.equippedWeapon&&auth.equippedWeapon!=="weapon_laser_mk1")return true;
-  if(objectHasAnyValue(auth.cosmeticInventory)||objectHasAnyValue(auth.redeemedCoupons)||Object.values(auth.equippedCosmetics||{}).some(Boolean))return true;
   return false;
 }
 function authSnapshotExplicitlyReady(auth){
@@ -771,12 +662,11 @@ function playerHasSaveWorthyProgress(p){
   if(p.attrs&&Object.entries(p.attrs).some(([_,v])=>Number(v)>1))return true;
   if(p.weaponLevels&&Object.entries(p.weaponLevels).some(([k,v])=>isWeaponKey(k)&&Number(v)>1))return true;
   if(p.equippedWeapon&&p.equippedWeapon!=="weapon_laser_mk1")return true;
-  if(objectHasAnyValue(p.cosmeticInventory)||objectHasAnyValue(p.redeemedCoupons)||Object.values(p.equippedCosmetics||{}).some(Boolean))return true;
   return false;
 }
 function trustedSnapshotForPlayer(p,reason="cache"){
   if(!p?.memberId)return null;
-  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
+  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),signupCreditBonusGranted:!!p.signupCreditBonusGranted,persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
 }
 function rememberTrustedSnapshot(p,reason="update"){
   if(!p?.memberId||!p.persistenceLoaded)return;
@@ -831,9 +721,6 @@ function cleanClientWixSnapshot(snapshot,memberId){
   if(snapshot.equippedAttachments&&typeof snapshot.equippedAttachments==="object")out.equippedAttachments=normalizeAttachments(snapshot.equippedAttachments);
   if(Array.isArray(snapshot.activeMercs))out.activeMercs=snapshot.activeMercs;
   if(snapshot.buildings&&typeof snapshot.buildings==="object")out.buildings=snapshot.buildings;
-  if(snapshot.cosmeticInventory&&typeof snapshot.cosmeticInventory==="object")out.cosmeticInventory=normalizeCosmeticInventory(snapshot.cosmeticInventory);
-  if(snapshot.equippedCosmetics&&typeof snapshot.equippedCosmetics==="object")out.equippedCosmetics=normalizeEquippedCosmetics(snapshot.equippedCosmetics);
-  if(snapshot.redeemedCoupons&&typeof snapshot.redeemedCoupons==="object")out.redeemedCoupons=normalizeRedeemedCoupons(snapshot.redeemedCoupons);
   if(snapshot.signupCreditBonusGranted===true||snapshot.accountCreationBonusGranted===true)out.signupCreditBonusGranted=true;
   if(snapshot.signupCreditBonusEligible===true||snapshot.isNewMember===true||snapshot.newMember===true)out.signupCreditBonusEligible=true;
   if(snapshot.isNewMember===true)out.isNewMember=true;
@@ -856,7 +743,7 @@ function combineAuthWithClientSnapshot(auth,snapshot){
   const out={...auth};
   // Signed token data wins when it contains a value. The snapshot fills gaps when
   // Wix sends member auth separately from the persisted inventory payload.
-  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","equippedAttachments","activeMercs","buildings","cosmeticInventory","equippedCosmetics","redeemedCoupons","signupCreditBonusGranted","signupCreditBonusEligible","isNewMember","newMember","noSavedGame","savedGameMissing","freshAccount","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
+  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","equippedAttachments","activeMercs","buildings","signupCreditBonusGranted","signupCreditBonusEligible","isNewMember","newMember","noSavedGame","savedGameMissing","freshAccount","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
     if(out[k]===undefined&&snap[k]!==undefined)out[k]=snap[k];
   }
   if(!authHasInventoryPayload(out)&&authHasInventoryPayload(snap)){
@@ -967,7 +854,7 @@ async function persistPlayerNow(p,reason="update"){
   if(!p.persistenceLoaded){console.warn("Wix persistence skipped: account inventory snapshot not loaded yet", p?.id, p?.memberId, reason);return;}
   if(!playerHasSaveWorthyProgress(p)&&!p.signupCreditBonusGranted){console.warn("Wix persistence skipped: refusing to save empty/default account snapshot", p?.id, p?.memberId, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
-  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,reason,updatedAt:Date.now()};
+  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),signupCreditBonusGranted:!!p.signupCreditBonusGranted,reason,updatedAt:Date.now()};
   try{
     const res = await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
     if(!res.ok){
@@ -1050,9 +937,6 @@ function applyAuthAccountToPlayer(p,auth){
   applyShipStats(p,false);
   if(Array.isArray(auth.activeMercs))p.activeMercs=normalizeMercs(auth.activeMercs,p);
   if(auth.buildings&&typeof auth.buildings==="object")p.savedBuildings=auth.buildings;
-  if(auth.cosmeticInventory&&typeof auth.cosmeticInventory==="object")p.cosmeticInventory=normalizeCosmeticInventory(auth.cosmeticInventory);
-  if(auth.equippedCosmetics&&typeof auth.equippedCosmetics==="object")p.equippedCosmetics=normalizeEquippedCosmetics(auth.equippedCosmetics);
-  if(auth.redeemedCoupons&&typeof auth.redeemedCoupons==="object")p.redeemedCoupons=normalizeRedeemedCoupons(auth.redeemedCoupons);
 }
 function applyPersistedSnapshotPreservingSession(p,auth){
   const currentCounts=inventoryCounts({invSlots:p.invSlots||emptySlots(p.maxSlots||24)});
@@ -1320,47 +1204,27 @@ function planetResForTile(planet,t,y,H){
 function hpForPlacedTile(tile){return ({1:22,2:55,6:30,8:45,10:28,11:18,13:20})[tile]||25;}
 
 
-
-async function persistOfflineCreditGrant(memberId,pack,grantBase){
-  memberId=String(memberId||"");
-  if(!memberId||!WIX_PERSIST_URL||!WIX_PERSIST_SECRET)return {ok:false,error:"Player is offline and Wix persistence is not configured."};
-  const loaded=await loadPersistedAccountSnapshot(memberId).catch(()=>null);
-  const cached=accountLastGoodSnapshots.get(memberId);
-  const base=loaded||cached||{memberId,displayName:"Space Eco Pilot",credits:300,maxSlots:24,invSlots:emptySlots(24),level:1,xp:0,shipType:"scout",attrs:{},badgeRewards:{},equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},equippedAttachments:{},activeMercs:[],buildings:{},cosmeticInventory:{},equippedCosmetics:{},redeemedCoupons:{},signupCreditBonusGranted:false};
-  const payload={...base,memberId,credits:Math.max(0,Math.floor(Number(base.credits)||0))+pack.credits,reason:"offline_credit_purchase",updatedAt:Date.now()};
-  const res=await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
-  if(!res.ok){const text=await res.text().catch(()=>"");return {ok:false,error:`Wix persistence failed: ${res.status} ${text.slice(0,160)}`};}
-  accountLastGoodSnapshots.set(memberId,{...payload,persistenceLoaded:true,savedGameReady:true});
-  return {ok:true,grant:{...grantBase,memberId,creditsAdded:pack.credits,credits:payload.credits,offline:true,grantedAt:Date.now()}};
-}
-
 /* ── Credit purchase API called by Wix backend only ── */
 app.get("/api/credit-packages", (_req,res)=>{
   res.json(Object.fromEntries(Object.entries(CREDIT_PACKAGES).map(([id,p])=>[id,{credits:p.credits,amount:p.amount,label:p.label}])));
 });
-app.post("/api/grant-credits", async (req,res)=>{
+app.post("/api/grant-credits", (req,res)=>{
   if(!PURCHASE_WEBHOOK_SECRET){res.status(500).json({ok:false,error:"PURCHASE_WEBHOOK_SECRET is not configured on Railway."});return;}
   const auth=req.get("authorization")||"";
   if(auth!==`Bearer ${PURCHASE_WEBHOOK_SECRET}`){res.status(401).json({ok:false,error:"Unauthorized."});return;}
-  const {paymentId,packageId,socketId,memberId}=req.body||{};
-  if(!paymentId||!packageId||(!socketId&&!memberId)){res.status(400).json({ok:false,error:"paymentId, packageId, and socketId or memberId are required."});return;}
+  const {paymentId,packageId,socketId}=req.body||{};
+  if(!paymentId||!packageId||!socketId){res.status(400).json({ok:false,error:"paymentId, packageId, and socketId are required."});return;}
   const pack=CREDIT_PACKAGES[packageId];
   if(!pack){res.status(400).json({ok:false,error:"Unknown credit package."});return;}
   if(grantedCreditPayments.has(paymentId)){res.json({ok:true,duplicate:true,grant:grantedCreditPayments.get(paymentId)});return;}
-  let p=socketId?players.get(String(socketId)):null;
-  if(!p&&memberId){const sid=socketsByMemberId.get(String(memberId));if(sid)p=players.get(sid);}
-  if(!p){
-    const offline=await persistOfflineCreditGrant(memberId,pack,{paymentId,packageId,socketId:socketId||null,playerName:req.body?.playerName||"Space Eco Pilot"});
-    if(!offline.ok){res.status(409).json({ok:false,error:offline.error||"Player socket is not online."});return;}
-    grantedCreditPayments.set(paymentId,offline.grant);
-    res.json({ok:true,grant:offline.grant});return;
-  }
-  p.credits=(p.credits||0)+pack.credits;
-  const grant={paymentId,packageId,socketId:p.id,playerName:p.name,memberId:p.memberId||memberId||null,creditsAdded:pack.credits,credits:p.credits,grantedAt:Date.now()};
+  const p=players.get(socketId);
+  if(!p){res.status(409).json({ok:false,error:"Player socket is not online. Add account persistence before granting offline purchases."});return;}
+  p.credits+=pack.credits;
+  const grant={paymentId,packageId,socketId,playerName:p.name,memberId:p.memberId||null,creditsAdded:pack.credits,credits:p.credits,grantedAt:Date.now()};
   grantedCreditPayments.set(paymentId,grant);
   addScore(p,Math.floor(pack.credits*0.002),"Credit Purchase");
-  io.to(p.id).emit("creditPurchaseConfirm",grant);
-  io.to(p.id).emit("creditUpdate",{credits:p.credits});
+  io.to(socketId).emit("creditPurchaseConfirm",grant);
+  io.to(socketId).emit("creditUpdate",{credits:p.credits});
   syncAndPersist(p,"credit_purchase");
   res.json({ok:true,grant});
 });
@@ -1474,7 +1338,11 @@ function handlePlayerKill(victimId, killerId){
   }
   io.emit("playerKilled",{victimId,victimName:victim.name,killerId,killerName:killer?.name});
   broadcastLeaderboard();
-  scheduleRespawnForPlayer(victim,"pvp-kill",2500);
+  setTimeout(()=>{
+    const p=players.get(victimId);if(!p)return;
+    const sp=computeSpawnPoint();p.x=sp.x;p.y=sp.y;p.hp=p.maxHp;p.shield=p.maxShield;p.energy=100;p.shieldRegenTimer=0;
+    io.to(victimId).emit("respawn",{x:p.x,y:p.y});
+  },3000);
 }
 
 function applySpaceDamageToPlayer(target, rawDamage, attacker, sourceName="Ally Trade Ship"){
@@ -1486,33 +1354,8 @@ function applySpaceDamageToPlayer(target, rawDamage, attacker, sourceName="Ally 
   return {damage:result.damage,killed:result.killed};
 }
 
-function forceRespawnPlayer(p,reason="respawn"){
-  if(!p)return null;
-  try{if(p.planetId)io.sockets.sockets.get(p.id)?.leave(`planet:${p.planetId}`);}catch(_){/* noop */}
-  const sp=computeSpawnPoint();
-  p.mode="space";p.planetId=null;p.x=sp.x;p.y=sp.y;p.vx=0;p.vy=0;p.angle=0;
-  p.planetX=0;p.planetY=0;p.planetVx=0;p.planetVy=0;p.planetTool="mining";
-  p.hp=Number.isFinite(Number(p.maxHp))?Number(p.maxHp):100;
-  p.shield=Number.isFinite(Number(p.maxShield))?Number(p.maxShield):0;
-  p.energy=100;p.shieldRegenTimer=0;p.dead=false;p.respawnPending=false;p.respawnAt=0;
-  io.to(p.id).emit("respawn",{x:p.x,y:p.y,reason});
-  return p;
-}
-function scheduleRespawnForPlayer(p,reason="death",delay=3000){
-  if(!p||p.respawnPending)return;
-  p.dead=true;p.respawnPending=true;p.respawnAt=Date.now()+Math.max(250,Math.floor(Number(delay)||3000));p.hp=0;
-  setTimeout(()=>{const rp=players.get(p.id);if(!rp)return;forceRespawnPlayer(rp,reason);},Math.max(250,Math.floor(Number(delay)||3000)));
-}
-function tickRespawnFailsafes(){
-  const now=Date.now();
-  for(const p of players.values()){
-    if((Number(p.hp)||0)<=0&&!p.respawnPending)scheduleRespawnForPlayer(p,"failsafe",2500);
-    else if(p.respawnPending&&(now-(p.respawnAt||now)>12000))forceRespawnPlayer(p,"failsafe-force");
-  }
-}
-
 /* ── Physics tick ── */
-const ROT_SPEED=2.25, BASE_THRUST=104, BASE_MAX_VELOCITY=165, ENERGY_DRAIN=1.8, ENERGY_IDLE=0.15, GAS_REFUEL=30;
+const ROT_SPEED=2.4, BASE_THRUST=115, ENERGY_DRAIN=1.8, ENERGY_IDLE=0.15, GAS_REFUEL=30;
 
 function tickPlayers(dt){
   for(const[,p]of players){
@@ -1528,11 +1371,7 @@ function tickPlayers(dt){
     if(inp.thrust){p.vx+=Math.cos(p.angle)*BASE_THRUST*speedStat*dt;p.vy+=Math.sin(p.angle)*BASE_THRUST*speedStat*dt;p.energy=Math.max(0,p.energy-ENERGY_DRAIN*gasEff*dt);}
     else if(Math.hypot(p.vx,p.vy)>5)p.energy=Math.max(0,p.energy-ENERGY_IDLE*gasEff*dt);
     if(inp.brake){p.vx*=0.92;p.vy*=0.92;}
-    const drag=Math.pow(0.995,dt*60);p.vx*=drag;p.vy*=drag;
-    const maxVel=BASE_MAX_VELOCITY*Math.max(0.55,Math.min(1.32,speedStat));
-    const curVel=Math.hypot(p.vx,p.vy);
-    if(curVel>maxVel){const s=maxVel/curVel;p.vx*=s;p.vy*=s;}
-    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    const drag=Math.pow(0.995,dt*60);p.vx*=drag;p.vy*=drag;p.x+=p.vx*dt;p.y+=p.vy*dt;
     // Shield recharge is strictly delayed until the player has been out of combat.
     p.shieldRegenTimer=Math.max(0,(Number(p.shieldRegenTimer)||0)-dt);
     p.shield=Math.max(0,Math.min(Number.isFinite(Number(p.shield))?Number(p.shield):0,p.maxShield));
@@ -1548,7 +1387,7 @@ function tickPlayers(dt){
 }
 
 /* ── Broadcast ── */
-function snap(p){return{id:p.id,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield,shieldRegenTimer:p.shieldRegenTimer||0,color:p.color,level:p.level,mode:p.mode,score:p.score||0,kills:p.kills||0,shipType:p.shipType||"scout",ping:p.ping||0,planetId:p.planetId,planetX:p.planetX||0,planetY:p.planetY||0,cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,weaponLevel:p.weaponLevel||1,equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})};}
+function snap(p){return{id:p.id,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield,shieldRegenTimer:p.shieldRegenTimer||0,color:p.color,level:p.level,mode:p.mode,score:p.score||0,kills:p.kills||0,shipType:p.shipType||"scout",ping:p.ping||0,planetId:p.planetId,planetX:p.planetX||0,planetY:p.planetY||0,cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,weaponLevel:p.weaponLevel||1,equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",equippedAttachments:normalizeAttachments(p.equippedAttachments||{})};}
 function serverListSnap(p){return{id:p.id,name:p.name,x:Math.round(p.x),y:Math.round(p.y),level:p.level,score:p.score||0,kills:p.kills||0,deaths:p.deaths||0,shipType:p.shipType||"scout",ping:p.ping||0,mode:p.mode,partyId:p.partyId||null,factionId:p.factionId||null,factionTag:factionTagFor(p.factionId)};}
 
 function broadcastWorldState(){
@@ -1559,7 +1398,7 @@ function broadcastWorldState(){
     const nearProj=projs.filter(pr=>Math.hypot(pr.x-p.x,pr.y-p.y)<BROADCAST_RANGE);
     io.to(sid).emit("worldState",{self:snap(p),others:nearby,pvpProjectiles:nearProj});
     if(p.mode==="planet"&&p.planetId){
-      const pps=[...players.values()].filter(o=>o.id!==sid&&o.mode==="planet"&&o.planetId===p.planetId).map(o=>({id:o.id,name:o.name,x:o.planetX||0,y:o.planetY||0,vx:o.planetVx||0,vy:o.planetVy||0,hp:o.hp,maxHp:o.maxHp,color:o.color,level:o.level,cosmeticColor:o.cosmeticColor,suitColor:o.suitColor,tool:o.planetTool||"mining",weaponLevel:o.weaponLevel||1,equippedCosmetics:normalizeEquippedCosmetics(o.equippedCosmetics||{})}));
+      const pps=[...players.values()].filter(o=>o.id!==sid&&o.mode==="planet"&&o.planetId===p.planetId).map(o=>({id:o.id,name:o.name,x:o.planetX||0,y:o.planetY||0,vx:o.planetVx||0,vy:o.planetVy||0,hp:o.hp,maxHp:o.maxHp,color:o.color,level:o.level,cosmeticColor:o.cosmeticColor,suitColor:o.suitColor,tool:o.planetTool||"mining",weaponLevel:o.weaponLevel||1}));
       const pprs=planetProjectiles.filter(pr=>pr.planetId===p.planetId).map(pr=>({id:pr.id,ownerId:pr.ownerId,x:pr.x,y:pr.y,vx:pr.vx,vy:pr.vy}));
       io.to(sid).emit("planetPlayersState",{planetId:p.planetId,players:pps,projectiles:pprs});
     }
@@ -1620,7 +1459,7 @@ setInterval(tickCivilizationTaxes,60000);
 let lastTick=Date.now(),ecoTimer=0,lbTimer=0,slTimer=0,socialTimer=0;
 setInterval(()=>{
   const now=Date.now(),dt=Math.min((now-lastTick)/1000,0.05);lastTick=now;
-  economy.tick();tickPlayers(dt);tickProjectiles(dt);tickPlanetProjectiles(dt);tickOwnedStationDefense(dt);tickPlayerStructures(dt);tickRespawnFailsafes();broadcastWorldState();
+  economy.tick();tickPlayers(dt);tickProjectiles(dt);tickPlanetProjectiles(dt);tickOwnedStationDefense(dt);tickPlayerStructures(dt);broadcastWorldState();
   ecoTimer+=dt;if(ecoTimer>=5){io.emit("economyUpdate",economy.snapshot());ecoTimer=0;}
   lbTimer+=dt; if(lbTimer>=10){broadcastLeaderboard();lbTimer=0;}
   slTimer+=dt; if(slTimer>=3){broadcastServerList();broadcastOwnedStationsList();broadcastCivilizationZonesList();slTimer=0;}
@@ -1820,7 +1659,7 @@ io.on("connection",socket=>{
     restorePersistentBuildingsForPlayer(p);
     if(auth)maybeGrantAccountCreationBonus(p,auth,"join");
     applyShipStats(p,false);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
     emitInventorySync(p,"login");
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
@@ -1830,11 +1669,6 @@ io.on("connection",socket=>{
     emitCivilizationZones(socket);
     const mercCat=generateMercOffersForPlayer(p);
     socket.emit("mercOffers",{offers:mercCat.offers,expires:mercCat.expires,activeMercs:(p.activeMercs||[]).map(publicMerc),maxActive:MAX_ACTIVE_MERCS});
-  });
-
-  socket.on("respawn",()=>{
-    const p=players.get(socket.id);if(!p)return;
-    if((Number(p.hp)||0)<=0||p.respawnPending||p.dead)forceRespawnPlayer(p,"manual-request");
   });
 
   socket.on("linkAccount",async ({token,wixSnapshot})=>{
@@ -1857,20 +1691,6 @@ io.on("connection",socket=>{
     if(!p.persistenceLoaded)socket.emit("accountSyncPending",{reason:"Waiting for Wix inventory snapshot before saving."});
     if(!linkResult.alreadyLinked&&p.persistenceLoaded)persistPlayerSoon(p,"account_linked");
     emitPlayerStructures(socket);
-  });
-
-
-
-  socket.on("clientLocalSaveSync",({snapshot})=>{
-    const p=players.get(socket.id);if(!p||!snapshot||typeof snapshot!=="object")return;
-    const credits=Math.max(0,Math.min(100000000,Math.floor(Number(snapshot.credits)||0)));
-    if(credits>(p.credits||0))p.credits=credits;
-    const slots=normalizeInventorySlots(snapshot.invSlots||[],Math.max(p.maxSlots||24,Math.floor(Number(snapshot.maxSlots)||24)));
-    if(inventoryPayloadHasItems(slots)){p.maxSlots=Math.max(p.maxSlots||24,slots.length);p.invSlots=slots;}
-    if(snapshot.cosmeticInventory)p.cosmeticInventory={...normalizeCosmeticInventory(snapshot.cosmeticInventory),...normalizeCosmeticInventory(p.cosmeticInventory||{})};
-    if(snapshot.equippedCosmetics)p.equippedCosmetics={...normalizeEquippedCosmetics(snapshot.equippedCosmetics),...normalizeEquippedCosmetics(p.equippedCosmetics||{})};
-    if(snapshot.redeemedCoupons)p.redeemedCoupons={...normalizeRedeemedCoupons(snapshot.redeemedCoupons),...normalizeRedeemedCoupons(p.redeemedCoupons||{})};
-    emitInventorySync(p,"client_local_bootstrap");sendCosmeticState(socket,p,"client_local_bootstrap");persistPlayerSoon(p,"client_local_bootstrap");
   });
 
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
@@ -2090,45 +1910,6 @@ io.on("connection",socket=>{
     p.planetShootAt=now+180;
     planetProjectiles.push({id:`pp_${p.id}_${now}_${Math.floor(Math.random()*9999)}`,planetId,ownerId:p.id,ownerName:p.name,x,y,vx:Math.cos(ang)*PLANET_PROJ_SPEED,vy:Math.sin(ang)*PLANET_PROJ_SPEED,damage:planetWeaponDamage(p),life:PLANET_PROJ_LIFE});
     socket.emit("planetShotAccepted",{planetId,x,y,targetX,targetY,cooldownMs:180});
-  });
-
-  socket.on("buyCosmetic",({key})=>{
-    const p=players.get(socket.id);if(!p)return;
-    key=String(key||"");const def=COSMETIC_DEFS[key];
-    if(!def){socket.emit("cosmeticDenied",{reason:"Unknown cosmetic."});return;}
-    p.cosmeticInventory=normalizeCosmeticInventory(p.cosmeticInventory||{});
-    p.equippedCosmetics=normalizeEquippedCosmetics(p.equippedCosmetics||{});
-    if(p.cosmeticInventory[key]){socket.emit("cosmeticDenied",{reason:"You already own that cosmetic."});sendCosmeticState(socket,p,"already_owned");return;}
-    const cost=Math.max(0,Math.floor(Number(def.price)||0));
-    if((p.credits||0)<cost){socket.emit("cosmeticDenied",{reason:`Need ${cost.toLocaleString()} credits.`});return;}
-    p.credits=(p.credits||0)-cost;p.cosmeticInventory[key]=true;
-    p.equippedCosmetics[def.slot]=key;
-    socket.emit("creditUpdate",{credits:p.credits});sendCosmeticState(socket,p,"bought");persistPlayerSoon(p,"cosmetic_bought");
-  });
-
-  socket.on("equipCosmetic",({key,slot})=>{
-    const p=players.get(socket.id);if(!p)return;
-    key=String(key||"");slot=String(slot||COSMETIC_DEFS[key]?.slot||"");
-    p.cosmeticInventory=normalizeCosmeticInventory(p.cosmeticInventory||{});
-    p.equippedCosmetics=normalizeEquippedCosmetics(p.equippedCosmetics||{});
-    if(key){const def=COSMETIC_DEFS[key];if(!def||def.slot!==slot){socket.emit("cosmeticDenied",{reason:"That cosmetic does not fit this slot."});return;}if(!p.cosmeticInventory[key]){socket.emit("cosmeticDenied",{reason:"Buy that cosmetic first."});return;}p.equippedCosmetics[slot]=key;}
-    else if(COSMETIC_SLOTS.includes(slot))p.equippedCosmetics[slot]=null;
-    else {socket.emit("cosmeticDenied",{reason:"Unknown cosmetic slot."});return;}
-    sendCosmeticState(socket,p,"equipped");persistPlayerSoon(p,"cosmetic_equipped");
-  });
-
-  socket.on("redeemCoupon",({code})=>{
-    const p=players.get(socket.id);if(!p)return;
-    code=String(code||"").trim().toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,40);
-    const def=COUPON_DEFS[code];
-    if(!def){socket.emit("couponDenied",{reason:"Coupon code not found."});return;}
-    p.redeemedCoupons=normalizeRedeemedCoupons(p.redeemedCoupons||{});
-    if(!def.reusable&&p.redeemedCoupons[code]){socket.emit("couponDenied",{reason:"Coupon already redeemed on this pilot."});return;}
-    const credits=Math.max(0,Math.floor(Number(def.credits)||0));
-    if(!def.reusable)p.redeemedCoupons[code]=true;
-    p.credits=(p.credits||0)+credits;
-    socket.emit("couponConfirm",{code,creditsAdded:credits,credits:p.credits,description:def.description||"Coupon",reusable:!!def.reusable});
-    socket.emit("creditUpdate",{credits:p.credits});sendCosmeticState(socket,p,"coupon");persistPlayerSoon(p,"coupon_redeemed");
   });
 
   socket.on("characterCosmetic",({cosmeticColor,suitColor})=>{
@@ -2762,9 +2543,5 @@ io.on("connection",socket=>{
   });
 });
 
-const PORT = Number(process.env.PORT) || 3000;
-const HOST = process.env.HOST || "0.0.0.0";
-server.listen(PORT, HOST, () => {
-  console.log(`🚀 ${SERVER_NAME} listening on ${HOST}:${PORT} | ${TICK_RATE}Hz | Max:${MAX_PLAYERS}`);
-  console.log("🌍 Global lobby ready. Point every client at your Railway public URL, not localhost.");
-});
+const PORT=process.env.PORT||3000;
+server.listen(PORT,()=>{console.log(`🚀 ${SERVER_NAME} on port ${PORT} | ${TICK_RATE}Hz | Max:${MAX_PLAYERS}`);});
