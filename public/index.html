@@ -1030,6 +1030,44 @@ body.desktop-browser #sl-panel .panel-box{width:clamp(420px,88vw,1100px)!importa
 body.desktop-browser #chat-wrap{bottom:132px!important}
 @media (max-height:680px){#desktop-command-dock{max-height:62px;grid-auto-columns:minmax(70px,84px)}.desktop-command-btn{min-height:34px!important}body.desktop-browser #chat-wrap{bottom:76px!important}}
 
+
+/* ═══════════════════════════════════════════════════════════════
+   DESKTOP BROWSER COSMETICS + SCALED MENUS PATCH v4.0.5
+   - Two-row command dock, no horizontal scrollbar.
+   - Large canvas menu rendering for inventory/shop/attributes/character/quests/badges.
+   - Cosmetic type tabs and new cosmetic categories.
+═══════════════════════════════════════════════════════════════ */
+body.desktop-browser #desktop-command-dock{
+  width:min(1240px,calc(100vw - 24px))!important;
+  max-height:none!important;
+  overflow:visible!important;
+  grid-template-columns:repeat(13,minmax(0,1fr))!important;
+  grid-auto-flow:row!important;
+  grid-auto-columns:auto!important;
+  align-items:stretch!important;
+  gap:6px!important;
+  padding:8px!important;
+}
+body.desktop-browser #desktop-command-dock::-webkit-scrollbar{display:none!important}
+body.desktop-browser .desktop-command-btn{
+  min-width:0!important;
+  min-height:42px!important;
+  padding:5px 3px!important;
+  font-size:clamp(8px,.72vw,10px)!important;
+  line-height:1.05!important;
+  white-space:normal!important;
+}
+body.desktop-browser .desktop-command-btn small{font-size:clamp(7px,.58vw,8px)!important;white-space:normal!important}
+body.desktop-browser #chat-wrap{bottom:128px!important}
+body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!important;max-width:1320px!important;max-height:min(90vh,860px)!important}
+.cosmetic-type-tabs{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 8px;padding:8px;border:1px solid rgba(123,230,255,.14);border-radius:13px;background:rgba(8,13,26,.55)}
+.cosmetic-type-tab{border:1px solid rgba(123,230,255,.35);border-radius:999px;background:#0b1428;color:#9fd9ff;padding:7px 10px;font-size:10px;font-weight:900;letter-spacing:.04em;cursor:pointer;text-transform:uppercase}
+.cosmetic-type-tab.active,.cosmetic-type-tab:hover{border-color:#ffdd44;color:#ffdd44;background:#201a0c;box-shadow:0 0 12px rgba(255,221,68,.15)}
+.cosmetic-type-count{opacity:.75;font-size:9px;margin-left:4px}
+@media (max-width:980px){body.desktop-browser #desktop-command-dock{grid-template-columns:repeat(9,minmax(0,1fr))!important}body.desktop-browser #chat-wrap{bottom:176px!important}}
+@media (max-width:700px){body.desktop-browser #desktop-command-dock{grid-template-columns:repeat(6,minmax(0,1fr))!important}.cosmetic-type-tab{font-size:9px;padding:6px 8px}}
+@media (max-height:620px){body.desktop-browser #desktop-command-dock{grid-template-columns:repeat(13,minmax(0,1fr))!important;max-height:none!important}body.desktop-browser #chat-wrap{bottom:118px!important}}
+
 </style>
 </head>
 <body>
@@ -1335,12 +1373,13 @@ body.desktop-browser #chat-wrap{bottom:132px!important}
   <div class="panel-box" style="min-width:680px;max-width:880px">
     <span class="panel-close" onclick="document.getElementById('cosmetic-panel').style.display='none'">✕</span>
     <h2>✨ COSMETIC + COUPON SHOP — <span id="cosmetic-credit-current">300</span> cr owned</h2>
-    <p class="credit-note">Cosmetics are intentionally expensive prestige unlocks. They change visual styles only: player ship, NPC trade ships, station looks, planet palettes, bullets, enemy effects, particles, and trails.</p>
+    <p class="credit-note">Cosmetics are intentionally expensive prestige unlocks. They change visual styles only: player ship, NPC trade ships, station looks, planet palettes, bullets, enemy effects, particles, trails, engine plumes, shield auras, planetside suits, and mining beams.</p>
     <div class="coupon-row">
       <input id="coupon-code-input" maxlength="40" placeholder="Enter coupon code, e.g. SEIA123 or SPACEECOISAWESOME" autocomplete="off"/>
       <button id="coupon-redeem-btn" type="button">Redeem Coupon</button>
     </div>
     <p id="coupon-status" class="cosmetic-status"></p>
+    <div id="cosmetic-type-tabs" class="cosmetic-type-tabs" aria-label="Cosmetic type tabs"></div>
     <div id="cosmetic-list" class="cosmetic-grid"></div>
   </div>
 </div>
@@ -2035,7 +2074,7 @@ const player={
   attrPoints:0,color:"#7be6ff",shipType:"scout",score:0,kills:0,deaths:0,
   equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
   equippedAttachments:defaultAttachmentSlots(),
-  equippedCosmetics:{ship:null,bullet:null,enemy:null,particle:null,trail:null,station:null,planet:null,npcship:null},
+  equippedCosmetics:{ship:null,bullet:null,enemy:null,particle:null,trail:null,station:null,planet:null,npcship:null,engine:null,shield:null,suit:null,laser:null},
 };
 const character={
   cosmeticColor:"#ffd27a",
@@ -2104,9 +2143,37 @@ const COSMETIC_DEFS={
   planet_ocean_worlds:{key:"planet_ocean_worlds",slot:"planet",name:"Ocean Planet Designs",price:1900000,description:"Planets redraw as blue ocean worlds with pale rings.",color:"#2f8dff",accent:"#b9f3ff",shape:"lush"},
   planet_emerald_worlds:{key:"planet_emerald_worlds",slot:"planet",name:"Emerald Planet Designs",price:3000000,description:"Planets gain luminous emerald bands.",color:"#24b86b",accent:"#78ff8a",shape:"lush"},
   planet_royal_worlds:{key:"planet_royal_worlds",slot:"planet",name:"Royal Planet Designs",price:6200000,description:"Prestige gold-violet planet palette.",color:"#ffdd44",accent:"#cc88ff",shape:"crystal"}
+  ,
+  engine_blue_star:{key:"engine_blue_star",slot:"engine",name:"Blue Star Engine Core",price:1250000,description:"Blue-white engine flare for player and equipped cosmetic ships.",color:"#58a6ff",accent:"#dff9ff",shape:"flare"},
+  engine_ember_core:{key:"engine_ember_core",slot:"engine",name:"Ember Engine Core",price:2400000,description:"Warm orange engine plume and boosted thrust glow.",color:"#ff8844",accent:"#ffdd44",shape:"flare"},
+  engine_emerald_core:{key:"engine_emerald_core",slot:"engine",name:"Emerald Engine Core",price:3600000,description:"Green plasma engine flare for a clean eco-tech look.",color:"#78ff8a",accent:"#d6ff7b",shape:"flare"},
+  engine_void_reactor:{key:"engine_void_reactor",slot:"engine",name:"Void Reactor Engines",price:5800000,description:"Dark purple reactor plume with violet edge glow.",color:"#b86bff",accent:"#ff5cff",shape:"flare"},
+  shield_aqua_ring:{key:"shield_aqua_ring",slot:"shield",name:"Aqua Shield Ring",price:1400000,description:"A cyan circular shield aura around your ship while shields are active.",color:"#7be6ff",accent:"#dff9ff",shape:"ring"},
+  shield_gold_halo:{key:"shield_gold_halo",slot:"shield",name:"Gold Halo Shield",price:2900000,description:"Gold shield aura for prestige pilots.",color:"#ffdd44",accent:"#fff0a8",shape:"ring"},
+  shield_crimson_guard:{key:"shield_crimson_guard",slot:"shield",name:"Crimson Guard Shield",price:4200000,description:"Red-orange combat shield aura with angular pulses.",color:"#ff5544",accent:"#ffcc66",shape:"angular"},
+  shield_prism_barrier:{key:"shield_prism_barrier",slot:"shield",name:"Prism Barrier Shield",price:7000000,description:"Late-game rainbow-tinted shield shimmer.",color:"#ffffff",accent:"#ff5cff",rainbow:true,shape:"ring"},
+  suit_orange_miner:{key:"suit_orange_miner",slot:"suit",name:"Orange Miner Suit",price:650000,description:"Planetside astronaut suit with a classic orange work pack.",color:"#ff8844",accent:"#dff9ff",shape:"suit"},
+  suit_teal_ranger:{key:"suit_teal_ranger",slot:"suit",name:"Teal Ranger Suit",price:1250000,description:"Cool teal planetside explorer suit.",color:"#7be6ff",accent:"#78ff8a",shape:"suit"},
+  suit_gold_captain:{key:"suit_gold_captain",slot:"suit",name:"Gold Captain Suit",price:2600000,description:"Gold-accent planetside captain suit.",color:"#ffdd44",accent:"#7be6ff",shape:"suit"},
+  suit_void_runner:{key:"suit_void_runner",slot:"suit",name:"Void Runner Suit",price:4200000,description:"Dark violet planetside suit with luminous visor accents.",color:"#221833",accent:"#cc88ff",shape:"suit"},
+  laser_mining_cyan:{key:"laser_mining_cyan",slot:"laser",name:"Cyan Mining Beam",price:900000,description:"Changes planetside mining beam highlights to bright cyan.",color:"#7be6ff",accent:"#ffffff",shape:"beam"},
+  laser_mining_gold:{key:"laser_mining_gold",slot:"laser",name:"Gold Mining Beam",price:1800000,description:"Gold mining beam and targeting highlight for planetside mining.",color:"#ffdd44",accent:"#fff0a8",shape:"beam"},
+  laser_mining_lime:{key:"laser_mining_lime",slot:"laser",name:"Lime Mining Beam",price:2800000,description:"Green eco-laser mining beam with brighter target feedback.",color:"#78ff8a",accent:"#d6ff7b",shape:"beam"},
+  laser_mining_prism:{key:"laser_mining_prism",slot:"laser",name:"Prism Mining Beam",price:5600000,description:"Premium rainbow prism mining beam style.",color:"#ffffff",accent:"#ff5cff",rainbow:true,shape:"beam"},
+  ship_pixel_runner:{key:"ship_pixel_runner",slot:"ship",name:"Pixel Runner Hull",price:3900000,description:"Retro blocky racer hull inspired by 16-bit space shooters.",color:"#7be6ff",accent:"#ffdd44",shape:"blade"},
+  ship_emerald_falcon:{key:"ship_emerald_falcon",slot:"ship",name:"Emerald Falcon Hull",price:4900000,description:"Green falcon-style spread-wing frame.",color:"#78ff8a",accent:"#d6ff7b",shape:"mantis"},
+  npcship_pixel_haulers:{key:"npcship_pixel_haulers",slot:"npcship",name:"Pixel NPC Haulers",price:2500000,description:"NPC trade ships get chunky retro hauler silhouettes.",color:"#58a6ff",accent:"#ffdd44",shape:"hauler"},
+  npcship_emerald_convoy:{key:"npcship_emerald_convoy",slot:"npcship",name:"Emerald NPC Convoys",price:3800000,description:"NPC trade convoys use green-lit eco cargo hulls.",color:"#78ff8a",accent:"#d6ff7b",shape:"hauler"},
+  station_pixel_arcade:{key:"station_pixel_arcade",slot:"station",name:"Pixel Arcade Stations",price:5200000,description:"Stations adopt a chunkier retro arcade silhouette.",color:"#162a44",accent:"#7be6ff",shape:"ring"},
+  planet_retro_grid_worlds:{key:"planet_retro_grid_worlds",slot:"planet",name:"Retro Grid Planets",price:4800000,description:"Planets gain bold retro grid bands and bright blue rings.",color:"#0f3450",accent:"#7be6ff",shape:"crystal"},
+  bullet_pixel_stars:{key:"bullet_pixel_stars",slot:"bullet",name:"Pixel Star Shots",price:3400000,description:"Blockier pixel-star projectile look.",color:"#fff0a8",accent:"#7be6ff",sizeBoost:0.65},
+  trail_pixel_sparks:{key:"trail_pixel_sparks",slot:"trail",name:"Pixel Spark Trail",price:3300000,description:"Chunkier retro spark exhaust trail.",color:"#7be6ff",accent:"#ffdd44"},
+  particle_pixel_pop:{key:"particle_pixel_pop",slot:"particle",name:"Pixel Pop Particles",price:2100000,description:"Chunky pop particles for shots and impact feedback.",color:"#ffdd44",accent:"#7be6ff"},
+  enemy_pixel_raiders:{key:"enemy_pixel_raiders",slot:"enemy",name:"Pixel Raider Enemies",price:4600000,description:"Enemies use bolder arcade-like silhouettes and neon edges.",color:"#ff5544",accent:"#ffdd44",shape:"fang"}
+
 };
-const COSMETIC_SLOTS=["ship","bullet","enemy","npcship","particle","trail","station","planet"];
-let cosmeticInventory={},equippedCosmetics={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null},redeemedCoupons={};
+const COSMETIC_SLOTS=["ship","bullet","enemy","npcship","particle","trail","station","planet","engine","shield","suit","laser"];
+let cosmeticInventory={},equippedCosmetics={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null},redeemedCoupons={};
 const CLIENT_COUPON_DEFS={SPACEECOISAWESOME:{credits:10000000,description:"Launch celebration coupon"},SEIA123:{credits:10000000,description:"Reusable Space Eco Infinite Awesome coupon",reusable:true}};
 let cosmeticBackendSupported=false;
 let pendingCouponCode=null,pendingCouponTimer=0;
@@ -2168,7 +2235,7 @@ function safeColor(v,fb="#7be6ff"){v=String(v||"").trim();return /^#[0-9a-f]{3,8
 function localCreditBonusForCoupons(){let total=0;for(const code of Object.keys(redeemedCoupons||{})){const d=CLIENT_COUPON_DEFS[code];if(d&&!d.reusable)total+=Math.max(0,Math.floor(Number(d.credits)||0));}return total;}
 function applyLocalCouponBonusIfNeeded(){if(cosmeticBackendSupported)return;const bonus=localCreditBonusForCoupons();if(bonus>0){player.credits=Math.max(player.credits||0,bonus);}updateHud();renderCosmeticShop&&renderCosmeticShop();}
 function normalizeCosmeticInventory(raw){const out={};if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){if(COSMETIC_DEFS[k]&&v===true)out[k]=true;}return out;}
-function normalizeEquippedCosmetics(raw){const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null};if(raw&&typeof raw==="object")for(const slot of COSMETIC_SLOTS){const key=String(raw[slot]||"");if(key&&COSMETIC_DEFS[key]?.slot===slot)out[slot]=key;}return out;}
+function normalizeEquippedCosmetics(raw){const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null};if(raw&&typeof raw==="object")for(const slot of COSMETIC_SLOTS){const key=String(raw[slot]||"");if(key&&COSMETIC_DEFS[key]?.slot===slot)out[slot]=key;}return out;}
 function normalizeRedeemedCoupons(raw){const out={};if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){const code=String(k||"").toUpperCase();if(code&&v===true)out[code]=true;}return out;}
 function activeCosmeticDef(slot,source=equippedCosmetics){const key=source?.[slot];return key?COSMETIC_DEFS[key]||null:null;}
 function shipVisualColor(base=player.color,source=equippedCosmetics){return activeCosmeticDef("ship",source)?.color||base;}
@@ -2199,7 +2266,7 @@ function drawShipBody(stype,color="#7be6ff",accent="#ff7744",cosDef=null,thrusti
   else if(shape==="solar_sprinter")poly([[15,0],[-10,-4],[-5,0],[-10,4]],false);
   else if(shape==="obelisk_carrier"){ctx.fillRect(-16,-10,32,20);ctx.fillStyle=accent;ctx.fillRect(-4,-15,8,30);ctx.fillRect(10,-4,4,8);}
   else {ctx.fillRect(-6,-4,12,8);ctx.fillStyle=accent;ctx.fillRect(-8,-2,2,4);}
-  if(thrusting){ctx.globalAlpha=0.7;ctx.fillStyle=activeCosmeticDef("trail")?.color||accent;ctx.beginPath();ctx.arc(-11,0,5,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+  if(thrusting){ctx.globalAlpha=0.7;ctx.fillStyle=activeCosmeticDef("engine")?.color||activeCosmeticDef("trail")?.color||accent;ctx.beginPath();ctx.arc(-11,0,5,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 }
 function drawEnemyShipBody(color="#ff3344",accent="#ffcc44",shape="raider"){
   color=safeColor(color,"#ff3344");accent=safeColor(accent,"#ffcc44");ctx.fillStyle=color;ctx.strokeStyle=accent;ctx.lineWidth=1.5;
@@ -2240,6 +2307,10 @@ function cosmeticPreviewHtml(def){
   if(def.slot==="planet")return `<div class="cosmetic-preview" style="color:${color}"><svg width="118" height="58" viewBox="0 0 118 58" aria-hidden="true"><circle cx="59" cy="29" r="19" fill="${color}" stroke="${accent}" stroke-width="3"/><path d="M40 25 C50 18 68 18 79 25 M40 34 C52 41 66 41 79 34" stroke="rgba(0,0,0,.35)" stroke-width="4" fill="none"/><ellipse cx="59" cy="29" rx="30" ry="9" fill="none" stroke="${accent}" stroke-width="2" opacity=".8"/></svg></div>`;
   if(def.slot==="particle")return `<div class="cosmetic-preview" style="color:${color}"><div class="preview-stage"><span class="preview-particle p1" style="background:${color}"></span><span class="preview-particle p2" style="background:${accent}"></span><span class="preview-particle p3" style="background:${color}"></span><span class="preview-particle p4" style="background:${accent}"></span></div></div>`;
   if(def.slot==="trail")return `<div class="cosmetic-preview" style="color:${color}"><div class="preview-stage"><span class="preview-trail-line"></span><span class="preview-trail-ship"></span></div></div>`;
+  if(def.slot==="engine")return `<div class="cosmetic-preview" style="color:${color}"><svg width="118" height="58" viewBox="0 0 118 58" aria-hidden="true"><polygon points="78,29 46,17 52,29 46,41" fill="#26364f" stroke="${accent}" stroke-width="3"/><circle cx="38" cy="29" r="13" fill="${color}" opacity=".85"/><circle cx="30" cy="29" r="6" fill="${accent}" opacity=".9"/></svg></div>`;
+  if(def.slot==="shield")return `<div class="cosmetic-preview" style="color:${color}"><svg width="118" height="58" viewBox="0 0 118 58" aria-hidden="true"><circle cx="59" cy="29" r="21" fill="none" stroke="${color}" stroke-width="4"/><circle cx="59" cy="29" r="12" fill="rgba(255,255,255,.06)" stroke="${accent}" stroke-width="2"/></svg></div>`;
+  if(def.slot==="suit")return `<div class="cosmetic-preview" style="color:${color}"><svg width="118" height="58" viewBox="0 0 118 58" aria-hidden="true"><rect x="54" y="14" width="12" height="10" fill="${accent}"/><rect x="51" y="24" width="18" height="22" fill="${color}" stroke="${accent}" stroke-width="2"/><rect x="55" y="27" width="10" height="5" fill="#6ad1ff"/><path d="M50 29 H42 M70 29 H78 M55 46 V53 M65 46 V53" stroke="${accent}" stroke-width="3" stroke-linecap="round"/></svg></div>`;
+  if(def.slot==="laser")return `<div class="cosmetic-preview" style="color:${color}"><svg width="118" height="58" viewBox="0 0 118 58" aria-hidden="true"><path d="M20 44 L92 12" stroke="${color}" stroke-width="5" stroke-linecap="round"/><path d="M20 44 L92 12" stroke="${accent}" stroke-width="2" stroke-linecap="round"/><rect x="16" y="39" width="16" height="10" fill="#26364f" stroke="${accent}"/></svg></div>`;
   return `<div class="cosmetic-preview" style="color:${color}"></div>`;
 }
 function localBuyCosmetic(key,reason="local"){const def=COSMETIC_DEFS[key];if(!def){const st=document.getElementById("coupon-status");if(st)st.textContent="Unknown cosmetic.";return;}if(cosmeticInventory[key]){renderCosmeticShop();return;}const cost=Math.max(0,Math.floor(Number(def.price)||0));if((player.credits||0)<cost){const st=document.getElementById("coupon-status");if(st)st.textContent=`Need ${cost.toLocaleString()} credits.`;return;}player.credits=(player.credits||0)-cost;cosmeticInventory[key]=true;equippedCosmetics[def.slot]=key;player.equippedCosmetics=equippedCosmetics;saveLocalCosmeticState();saveLocalGameStateSoon("cosmetic_local_buy");updateHud();renderCosmeticShop();showFT("Cosmetic unlocked + equipped!",ship.x,ship.y-28,"#ffdd44",11);}
@@ -2248,11 +2319,23 @@ function localRedeemCoupon(code,source="local"){code=String(code||"").trim().toU
 function equipCosmetic(slot,key){if(cosmeticBackendSupported&&socket?.connected){socket.emit("equipCosmetic",{slot,key:key||null});setTimeout(()=>{if(!cosmeticBackendSupported)localEquipCosmetic(slot,key);},900);}else localEquipCosmetic(slot,key);}
 function buyCosmetic(key){if(cosmeticBackendSupported&&socket?.connected){socket.emit("buyCosmetic",{key});setTimeout(()=>{if(!cosmeticBackendSupported)localBuyCosmetic(key);},1100);}else localBuyCosmetic(key);}
 function redeemCoupon(){const input=document.getElementById("coupon-code-input"),status=document.getElementById("coupon-status");const code=String(input?.value||"").trim().toUpperCase();if(!code){if(status)status.textContent="Enter a coupon code first.";return;}if(redeemedCoupons[code]&&!CLIENT_COUPON_DEFS[code]?.reusable){if(status)status.textContent="Coupon already redeemed on this pilot.";return;}if(status)status.textContent=cosmeticBackendSupported&&socket?.connected?"Checking coupon…":"Redeeming local coupon…";pendingCouponCode=code;clearTimeout(pendingCouponTimer);if(cosmeticBackendSupported&&socket?.connected){socket.emit("redeemCoupon",{code});pendingCouponTimer=setTimeout(()=>{if(pendingCouponCode===code)localRedeemCoupon(code,"timeout");pendingCouponCode=null;},1400);}else{localRedeemCoupon(code,"offline");pendingCouponCode=null;}}
+let selectedCosmeticType="all";
+const COSMETIC_TYPE_LABELS={all:"All",ship:"Player Ships",npcship:"NPC Ships",station:"Stations",planet:"Planets",bullet:"Bullets",particle:"Particles",trail:"Trails",enemy:"Enemies",engine:"Engines",shield:"Shields",suit:"Suits",laser:"Mining Beams"};
+function cosmeticTypeOrder(){return ["all","ship","npcship","station","planet","bullet","particle","trail","enemy","engine","shield","suit","laser"];}
+function renderCosmeticTabs(defs){
+  const tabs=document.getElementById("cosmetic-type-tabs");if(!tabs)return;
+  const counts={all:defs.length};for(const d of defs)counts[d.slot]=(counts[d.slot]||0)+1;
+  tabs.innerHTML=cosmeticTypeOrder().filter(t=>t==="all"||counts[t]).map(t=>`<button class="cosmetic-type-tab ${selectedCosmeticType===t?"active":""}" data-cos-type="${safeHtml(t)}" type="button">${safeHtml(COSMETIC_TYPE_LABELS[t]||t)}<span class="cosmetic-type-count">${counts[t]||0}</span></button>`).join("");
+  for(const b of tabs.querySelectorAll("[data-cos-type]"))b.onclick=()=>{selectedCosmeticType=b.dataset.cosType||"all";renderCosmeticShop();};
+}
 function renderCosmeticShop(){
   const cur=document.getElementById("cosmetic-credit-current"),list=document.getElementById("cosmetic-list");if(cur)cur.textContent=(player.credits||0).toLocaleString();if(!list)return;
-  const order=["ship","npcship","station","planet","bullet","particle","trail","enemy"];
+  const order=["ship","npcship","station","planet","bullet","particle","trail","enemy","engine","shield","suit","laser"];
   const defs=Object.values(COSMETIC_DEFS).sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)||a.price-b.price);
-  list.innerHTML=defs.map(def=>{const owned=!!cosmeticInventory[def.key],equipped=equippedCosmetics[def.slot]===def.key,can=(player.credits||0)>=def.price;return `<div class="cosmetic-card ${owned?"owned":""} ${equipped?"equipped":""}">${cosmeticPreviewHtml(def)}<div class="cosmetic-title"><span>${safeHtml(def.name)}</span><span class="cosmetic-slot">${safeHtml(def.slot)}</span></div><div class="cosmetic-desc">${safeHtml(def.description||"Visual cosmetic.")}</div><div class="cosmetic-price">${owned?"Owned":Number(def.price||0).toLocaleString()+" credits"}</div><div class="cosmetic-actions">${owned?`<button data-cos-equip="${safeHtml(def.key)}" ${equipped?"disabled":""}>${equipped?"Equipped":"Equip"}</button><button class="warn" data-cos-clear="${safeHtml(def.slot)}">Clear Slot</button>`:`<button data-cos-buy="${safeHtml(def.key)}" ${can?"":"disabled"}>Buy</button>`}</div></div>`;}).join("");
+  if(!COSMETIC_TYPE_LABELS[selectedCosmeticType])selectedCosmeticType="all";
+  renderCosmeticTabs(defs);
+  const filtered=selectedCosmeticType==="all"?defs:defs.filter(d=>d.slot===selectedCosmeticType);
+  list.innerHTML=filtered.map(def=>{const owned=!!cosmeticInventory[def.key],equipped=equippedCosmetics[def.slot]===def.key,can=(player.credits||0)>=def.price;return `<div class="cosmetic-card ${owned?"owned":""} ${equipped?"equipped":""}">${cosmeticPreviewHtml(def)}<div class="cosmetic-title"><span>${safeHtml(def.name)}</span><span class="cosmetic-slot">${safeHtml(COSMETIC_TYPE_LABELS[def.slot]||def.slot)}</span></div><div class="cosmetic-desc">${safeHtml(def.description||"Visual cosmetic.")}</div><div class="cosmetic-price">${owned?"Owned":Number(def.price||0).toLocaleString()+" credits"}</div><div class="cosmetic-actions">${owned?`<button data-cos-equip="${safeHtml(def.key)}" ${equipped?"disabled":""}>${equipped?"Equipped":"Equip"}</button><button class="warn" data-cos-clear="${safeHtml(def.slot)}">Clear Slot</button>`:`<button data-cos-buy="${safeHtml(def.key)}" ${can?"":"disabled"}>Buy</button>`}</div></div>`;}).join("")||`<div class="cosmetic-card"><div class="cosmetic-desc">No cosmetics found for this type.</div></div>`;
   for(const b of list.querySelectorAll("[data-cos-buy]"))b.onclick=()=>buyCosmetic(b.dataset.cosBuy);
   for(const b of list.querySelectorAll("[data-cos-equip]"))b.onclick=()=>equipCosmetic(COSMETIC_DEFS[b.dataset.cosEquip]?.slot,b.dataset.cosEquip);
   for(const b of list.querySelectorAll("[data-cos-clear]"))b.onclick=()=>equipCosmetic(b.dataset.cosClear,null);
@@ -5416,7 +5499,7 @@ function updateSpace(dt){
   const domLocked=domInputLocked();
   const controlsLocked=domLocked||canvasPanelOpen();
   const isThrust=!controlsLocked&&keys.has("w"),spd=Math.hypot(ship.vx,ship.vy);
-  if(isThrust){energy.current=Math.max(0,energy.current-ENERGY_DRAIN*ship.gasEfficiency*dt);const td=activeCosmeticDef("trail");if(td&&Math.random()<0.55)particles.push({x:ship.x-Math.cos(ship.angle)*13,y:ship.y-Math.sin(ship.angle)*13,vx:(Math.random()-.5)*20,vy:(Math.random()-.5)*20,life:.28,maxLife:.34,color:td.color,size:1.5+Math.random()*2});}
+  if(isThrust){energy.current=Math.max(0,energy.current-ENERGY_DRAIN*ship.gasEfficiency*dt);const td=activeCosmeticDef("trail")||activeCosmeticDef("engine");if(td&&Math.random()<0.55)particles.push({x:ship.x-Math.cos(ship.angle)*13,y:ship.y-Math.sin(ship.angle)*13,vx:(Math.random()-.5)*20,vy:(Math.random()-.5)*20,life:.28,maxLife:.34,color:td.color,size:1.5+Math.random()*2});}
   else if(spd>5)energy.current=Math.max(0,energy.current-ENERGY_IDLE*ship.gasEfficiency*dt);
   if(energy.current<=0){enterGameOver("energy-empty");return;}
   updateRandomEvents(dt);
@@ -5935,6 +6018,8 @@ function drawSpace(){
     const sx=canvas.width/2,sy=canvas.height/2;ctx.save();ctx.translate(sx,sy);ctx.rotate(ship.angle);
     const shipColor=shipVisualColor(player.color);drawShipBody(player.shipType,shipColor,cosmeticAccent("ship",equippedCosmetics,"#ff7744"),activeCosmeticDef("ship"),keys.has("w"));
     ctx.restore();ctx.globalAlpha=1;
+    const shCos=activeCosmeticDef("shield");
+    if(shCos&&ship.shield>0){const sc=shCos.rainbow?`hsl(${Math.floor(((performance.now()/1000)%6)*60)},100%,70%)`:safeColor(shCos.color||"#7be6ff","#7be6ff");ctx.save();ctx.globalAlpha=.38+.12*Math.sin(performance.now()/130);ctx.strokeStyle=sc;ctx.lineWidth=2;ctx.beginPath();ctx.arc(sx,sy,23+Math.sin(performance.now()/180)*2,0,Math.PI*2);ctx.stroke();if(shCos.shape==="angular"){ctx.rotate(performance.now()/900);ctx.strokeRect(sx-19,sy-19,38,38);}ctx.restore();}
     ctx.fillStyle=shipVisualColor(player.color);ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(player.name,sx,sy-14);ctx.textAlign="left";
   }
 
@@ -6623,7 +6708,7 @@ function drawPlanet(){
     ctx.fillStyle="#ffdd66";ctx.beginPath();ctx.moveTo(ax2+2,ay2);ctx.lineTo(ax2+5,ay2+7+flick);ctx.lineTo(ax2+6,ay2);ctx.closePath();ctx.fill();
     ctx.restore();ctx.globalAlpha=1;
   }
-  ctx.fillStyle=character.cosmeticColor||"#ffd27a";ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=character.suitColor||"#fff";ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle="#6ad1ff";ctx.fillRect(ax2-3,ay2-7,6,3);ctx.fillStyle="#38465c";ctx.fillRect(ax2-7,ay2-7,2,7);ctx.fillRect(ax2+5,ay2-7,2,7);
+  const suitCos=activeCosmeticDef("suit");ctx.fillStyle=safeColor(suitCos?.accent||character.cosmeticColor||"#ffd27a","#ffd27a");ctx.fillRect(ax2-4,ay2-14,8,6);ctx.fillStyle=safeColor(suitCos?.color||character.suitColor||"#fff","#fff");ctx.fillRect(ax2-5,ay2-8,10,8);ctx.fillStyle=safeColor(suitCos?.accent||"#6ad1ff","#6ad1ff");ctx.fillRect(ax2-3,ay2-7,6,3);ctx.fillStyle="#38465c";ctx.fillRect(ax2-7,ay2-7,2,7);ctx.fillRect(ax2+5,ay2-7,2,7);
   for(const it of drops){
     const dx=it.x-cam.x,dy=it.y-cam.y,col=RES[it.kind]?.color||"#fff";
     if(dx<-12||dy<-12||dx>canvas.width+12||dy>canvas.height+12)continue;
@@ -6635,7 +6720,7 @@ function drawPlanet(){
     ctx.globalAlpha=0.9;ctx.fillStyle="#ffffff";ctx.fillRect(dx-1,dy-4,1,1);
     ctx.restore();
   }
-  if(mouse.down&&planetTool==="mining"){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){ctx.strokeStyle="#ff4dff";ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
+  if(mouse.down&&planetTool==="mining"){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){const beamCos=activeCosmeticDef("laser");ctx.strokeStyle=beamCos?.rainbow?`hsl(${Math.floor(((performance.now()/1000)%6)*60)},100%,70%)`:safeColor(beamCos?.color||"#ff4dff","#ff4dff");ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
   const bp=buildableSlot();
   if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
   const ox=8,oy=24,ow=90,oh=7,op=clamp(oxygen.current/oxygen.max,0,1);ctx.fillStyle="#07101b";ctx.fillRect(ox,oy,ow,oh);ctx.fillStyle=op>0.5?"#7be6ff":op>0.25?"#ffcc44":"#ff5544";ctx.fillRect(ox,oy,ow*op,oh);ctx.strokeStyle="#2a4a7a";ctx.strokeRect(ox,oy,ow,oh);ctx.fillStyle="#cfe2ff";ctx.font="8px monospace";ctx.fillText(`O2 ${Math.ceil(op*100)}%`,ox,oy+17);
@@ -6747,7 +6832,7 @@ function drawCharacterPanel(){
   ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("C close · R trade · Q tool",px+292,py+20);
 
   ctx.fillStyle="#091020";ctx.fillRect(px+16,py+36,146,86);ctx.strokeStyle="#274364";ctx.strokeRect(px+16,py+36,146,86);
-  ctx.fillStyle=character.cosmeticColor;ctx.fillRect(px+78,py+54,16,11);ctx.fillStyle=character.suitColor;ctx.fillRect(px+76,py+66,20,22);ctx.fillStyle="#6ad1ff";ctx.fillRect(px+81,py+68,10,4);
+  const suitPreview=activeCosmeticDef("suit");ctx.fillStyle=safeColor(suitPreview?.accent||character.cosmeticColor,"#ffd27a");ctx.fillRect(px+78,py+54,16,11);ctx.fillStyle=safeColor(suitPreview?.color||character.suitColor,"#dfe8ff");ctx.fillRect(px+76,py+66,20,22);ctx.fillStyle=safeColor(suitPreview?.accent||"#6ad1ff","#6ad1ff");ctx.fillRect(px+81,py+68,10,4);
   ctx.fillStyle="#123120";ctx.fillRect(px+24,py+72,126,24);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(px+24,py+72,126,24);
   ctx.fillStyle="#78ff8a";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText("CHANGE COLOR",px+87,py+88);ctx.textAlign="left";
 
@@ -6769,6 +6854,41 @@ function drawCharacterPanel(){
   }
   if(tradeStatus){ctx.fillStyle="#7be6ff";ctx.font="8px monospace";ctx.fillText(tradeStatus,px+20,py+ph-12);}
 }
+
+/* v4.0.5 desktop canvas menu scale layer: doubles core canvas menus when room allows. */
+function largeCanvasMenuBase(kind){
+  if(kind==="inventory")return {w:400,h:220};
+  if(kind==="shop")return {w:520,h:292};
+  if(kind==="attributes")return {w:430,h:268};
+  if(kind==="character")return {w:440,h:258};
+  if(kind==="quest")return {w:450,h:274};
+  if(kind==="badge")return {w:400,h:252};
+  return {w:440,h:270};
+}
+function largeCanvasMenuScale(kind){
+  if(!(document.body?.classList?.contains("desktop-browser")))return 1;
+  const b=largeCanvasMenuBase(kind),fit=Math.min((canvas.width-72)/Math.max(1,b.w),(canvas.height-72)/Math.max(1,b.h));
+  return clamp(Math.min(2,fit),1,2);
+}
+function withLargeCanvasMenu(kind,drawFn){
+  const s=largeCanvasMenuScale(kind);if(s<=1.02){drawFn();return;}
+  const cx=canvas.width/2,cy=canvas.height/2;ctx.save();ctx.translate(cx,cy);ctx.scale(s,s);ctx.translate(-cx,-cy);drawFn();ctx.restore();
+}
+function largeCanvasMenuPoint(kind,x,y){
+  const s=largeCanvasMenuScale(kind);if(s<=1.02)return {x,y};
+  const cx=canvas.width/2,cy=canvas.height/2;return {x:cx+(x-cx)/s,y:cy+(y-cy)/s};
+}
+const _drawInventory_v405=drawInventory;drawInventory=function(){withLargeCanvasMenu("inventory",_drawInventory_v405);};
+const _drawShop_v405=drawShop;drawShop=function(st){withLargeCanvasMenu("shop",()=>_drawShop_v405(st));};
+const _drawAttrScreen_v405=drawAttrScreen;drawAttrScreen=function(){withLargeCanvasMenu("attributes",_drawAttrScreen_v405);};
+const _drawCharacterPanel_v405=drawCharacterPanel;drawCharacterPanel=function(){withLargeCanvasMenu("character",_drawCharacterPanel_v405);};
+const _drawQuestLogPanel_v405=drawQuestLogPanel;drawQuestLogPanel=function(){withLargeCanvasMenu("quest",_drawQuestLogPanel_v405);};
+const _drawBadgeLogPanel_v405=drawBadgeLogPanel;drawBadgeLogPanel=function(){withLargeCanvasMenu("badge",_drawBadgeLogPanel_v405);};
+const _handleInventoryClick_v405=handleInventoryClick;handleInventoryClick=function(mx,my){const p=largeCanvasMenuPoint("inventory",mx,my);return _handleInventoryClick_v405(p.x,p.y);};
+const _handleShopClick_v405=handleShopClick;handleShopClick=function(mx,my){const p=largeCanvasMenuPoint("shop",mx,my);return _handleShopClick_v405(p.x,p.y);};
+const _handleAttrClick_v405=handleAttrClick;handleAttrClick=function(mx,my){const p=largeCanvasMenuPoint("attributes",mx,my);return _handleAttrClick_v405(p.x,p.y);};
+const _handleCharacterClick_v405=handleCharacterClick;handleCharacterClick=function(mx,my){const p=largeCanvasMenuPoint("character",mx,my);return _handleCharacterClick_v405(p.x,p.y);};
+
 initTradeDom();
 initSocialDom();
 const _couponRedeemBtn=document.getElementById("coupon-redeem-btn");if(_couponRedeemBtn)_couponRedeemBtn.onclick=redeemCoupon;
