@@ -526,6 +526,21 @@ Object.assign(COSMETIC_DEFS,{
   laser_mining_rose:{key:"laser_mining_rose",slot:"laser",name:"Rose Mining Beam",price:3450000,description:"Pink rose-colored mining beam and highlight effects.",color:"#ff77dd",accent:"#fff0ff",shape:"beam"}
 });
 
+
+Object.assign(COSMETIC_DEFS,{
+  ship_obsidian_moth:{key:"ship_obsidian_moth",slot:"ship",name:"Obsidian Moth Hull",price:8200000,description:"Black obsidian wings with violet miasma edge glow.",color:"#07070b",accent:"#9b42ff",shape:"stingray"},
+  ship_codex_neon_viper:{key:"ship_codex_neon_viper",slot:"ship",name:"Codex Neon Viper Hull",price:9100000,description:"Cyan-gold viper frame with bright codex accents.",color:"#00f0ff",accent:"#ffdd44",shape:"lancer"},
+  bullet_miasma_bubbles:{key:"bullet_miasma_bubbles",slot:"bullet",name:"Miasma Bubble Shots",price:4400000,description:"Purple miasma bubble projectiles.",color:"#9b42ff",accent:"#d45cff",sizeBoost:.9},
+  bullet_obsidian_sparks:{key:"bullet_obsidian_sparks",slot:"bullet",name:"Obsidian Spark Shots",price:5100000,description:"Dark sparks with violet-white hot centers.",color:"#12051f",accent:"#ffffff",sizeBoost:.7},
+  enemy_void_mimics:{key:"enemy_void_mimics",slot:"enemy",name:"Void Mimic Enemies",price:7200000,description:"Enemies appear as void-mimic silhouettes.",color:"#1a0d2e",accent:"#ff77dd",shape:"bat"},
+  npcship_codex_merchants:{key:"npcship_codex_merchants",slot:"npcship",name:"Codex Merchant Ships",price:6600000,description:"NPC convoys use cyan-gold merchant hulls.",color:"#00f0ff",accent:"#ffdd44",shape:"hauler"},
+  station_obsidian_gate:{key:"station_obsidian_gate",slot:"station",name:"Obsidian Gate Stations",price:7600000,description:"Stations turn into dark gate hubs with purple cores.",color:"#07070b",accent:"#9b42ff",shape:"spire"},
+  planet_miasma_worlds:{key:"planet_miasma_worlds",slot:"planet",name:"Miasma Planet Designs",price:7500000,description:"Planet cosmetics with purple miasma oceans and black crust.",color:"#7324a8",accent:"#d45cff",shape:"void"},
+  engine_void_pulse:{key:"engine_void_pulse",slot:"engine",name:"Void Pulse Engines",price:7200000,description:"Pulsing dark-violet engine core.",color:"#1a0d2e",accent:"#ff77dd",shape:"flare"},
+  shield_charcoal_dome:{key:"shield_charcoal_dome",slot:"shield",name:"Charcoal Dome Shield",price:3900000,description:"Smoky charcoal shield aura.",color:"#25211f",accent:"#7c6a55",shape:"ring"},
+  suit_codex_neon:{key:"suit_codex_neon",slot:"suit",name:"Codex Neon Suit",price:4800000,description:"Planetside suit with codex cyan and gold trim.",color:"#00f0ff",accent:"#ffdd44",shape:"suit"},
+  laser_mining_obsidian:{key:"laser_mining_obsidian",slot:"laser",name:"Obsidian Mining Beam",price:5200000,description:"Dark mining beam with violet edge pulse.",color:"#07070b",accent:"#9b42ff",shape:"beam"}
+});
 const COUPON_DEFS = {
   SPACEECOISAWESOME:{credits:10000000,description:"Launch celebration coupon"},
   SEIA123:{credits:10000000,description:"Reusable Space Eco Infinite Awesome coupon",reusable:true}
@@ -740,6 +755,22 @@ const RES_RARITY={dirt:1,stone:2,copper:3,iron:3,gold:5,crystal:6,fuel:4,gas_can
 Object.assign(RES_BASE,{brake_servo:115,gyroscope_array:150,overdrive_thruster:220,combat_predictor:240,shield_capacitor:185,regen_coil:165,reinforced_bulkhead:175,maneuver_fins:130,titanium:70,cobalt:55,silicon:18,nano_fiber:95,circuit_board:80,plasma_cell:120,dark_matter_shard:260,stardust:145,alloy_frame:180,quantum_core:320,weapon_arc_pulser:1150,weapon_frost_shard:1280,weapon_sunflare_cannon:2100,weapon_graviton_burst:3200,weapon_bio_sprayer:1850,weapon_void_spinner:5200});
 Object.assign(RES_RARITY,{brake_servo:4,gyroscope_array:5,overdrive_thruster:6,combat_predictor:6,shield_capacitor:5,regen_coil:5,reinforced_bulkhead:5,maneuver_fins:4,titanium:5,cobalt:4,silicon:3,nano_fiber:5,circuit_board:4,plasma_cell:5,dark_matter_shard:7,stardust:6,alloy_frame:6,quantum_core:7,weapon_arc_pulser:5,weapon_frost_shard:5,weapon_sunflare_cannon:6,weapon_graviton_burst:7,weapon_bio_sprayer:6,weapon_void_spinner:8});
 RES_KEYS.push("brake_servo","gyroscope_array","overdrive_thruster","combat_predictor","shield_capacitor","regen_coil","reinforced_bulkhead","maneuver_fins","titanium","cobalt","silicon","nano_fiber","circuit_board","plasma_cell","dark_matter_shard","stardust","alloy_frame","quantum_core","weapon_arc_pulser","weapon_frost_shard","weapon_sunflare_cannon","weapon_graviton_burst","weapon_bio_sprayer","weapon_void_spinner");
+
+
+const SERVER_EXTRA_RESOURCE_DEFS={
+  dark_obsidian:{base:210,rarity:6},purple_miasma:{base:145,rarity:5},charcoal_block:{base:12,rarity:2},neon_ore:{base:160,rarity:5},void_ore:{base:310,rarity:7},prism_ore:{base:230,rarity:6},astral_salt:{base:72,rarity:4},ether_glass:{base:205,rarity:6},codex_shard:{base:360,rarity:7},miasma_core:{base:520,rarity:8},black_ice:{base:130,rarity:5},ember_quartz:{base:150,rarity:5},gloom_steel:{base:240,rarity:6}
+};
+const SERVER_PROC_RESOURCE_KEYS=[];
+function registerServerGeneratedResources(){
+  const prefixes=["astra","void","neon","miasma","codex","prism","ember","gloom","ether","nova","quantum","obsidian"],suffixes=["ore","shard","bloom","crystal","core","salt","glass","fiber","pearl","coal","spore","alloy"];
+  const rng=makeRng(GALAXY_SEED+"|finite-proc-resources-v409");
+  for(let i=0;i<28;i++){const key=`proc_${i}_${prefixes[i%prefixes.length]}_${suffixes[Math.floor(rng()*suffixes.length)]}`.replace(/[^a-z0-9_]/g,"_"); if(RES_BASE[key])continue; const rarity=3+Math.floor(rng()*6),base=28+rarity*24+Math.floor(rng()*90); RES_BASE[key]=base;RES_RARITY[key]=rarity;SERVER_PROC_RESOURCE_KEYS.push(key);}
+}
+Object.assign(RES_BASE,Object.fromEntries(Object.entries(SERVER_EXTRA_RESOURCE_DEFS).map(([k,v])=>[k,v.base])));
+Object.assign(RES_RARITY,Object.fromEntries(Object.entries(SERVER_EXTRA_RESOURCE_DEFS).map(([k,v])=>[k,v.rarity])));
+RES_KEYS.push(...Object.keys(SERVER_EXTRA_RESOURCE_DEFS));
+registerServerGeneratedResources();
+RES_KEYS.push(...SERVER_PROC_RESOURCE_KEYS);
 
 const econRng=makeRng(GALAXY_SEED+"|economy");
 const economy={
@@ -1379,9 +1410,9 @@ const BUILD_RESOURCE_TO_TILE={dirt:1,stone:2,ice_block:6,lava_rock:8,toxic_sludg
 const planetMaps=new Map();
 function safePlanetInfo(raw){
   raw=raw||{};
-  const type=(raw.type==="asteroid")?"asteroid":(["lush","desert","ice","toxic","volcanic","void_spawn","codex_neon","crystal_forest","storm","metallic"].includes(raw.type)?raw.type:"lush");
+  const type=(raw.type==="asteroid")?"asteroid":(["lush","desert","ice","toxic","volcanic","void_spawn","codex_neon","crystal_forest","storm","metallic","obsidian","miasma","charcoal","neon_reef","black_ice_world","ember_quartz_world","prism_moon","gloom_steel_world"].includes(raw.type)?raw.type:"lush");
   const resList=Array.isArray(raw.resList)?raw.resList.filter(k=>RES_KEYS.includes(k)).slice(0,8):["dirt","stone","copper","iron"];
-  return {id:safeText(raw.id,80)||"planet",seed:safeText(raw.seed,100)||GALAXY_SEED,type,isAsteroid:!!raw.isAsteroid||type==="asteroid",resList,x:Math.round(Number(raw.x)||0),y:Math.round(Number(raw.y)||0),radius:Math.max(25,Math.min(220,Math.round(Number(raw.radius)||60)))};
+  return {id:safeText(raw.id,80)||"planet",seed:safeText(raw.seed,100)||GALAXY_SEED,type,isAsteroid:!!raw.isAsteroid||type==="asteroid",resList,x:Math.round(Number(raw.x)||0),y:Math.round(Number(raw.y)||0),radius:Math.max(25,Math.min(280,Math.round(Number(raw.radius)||60)))};
 }
 function genPlanetMapServer(planet){
   if(planet?.isAsteroid||planet?.type==="asteroid"){
@@ -1395,7 +1426,7 @@ function genPlanetMapServer(planet){
   const rng=makeRng(planet.seed+"|map"),W=320,H=140,sy2=45+Math.floor(rng()*13)-6;
   const heights=new Array(W).fill(0).map((_,x)=>Math.floor(sy2+Math.sin((x/28)+rng()*10)*6+Math.sin((x/9)+rng()*10)*2+(rng()-0.5)*2));
   const tiles=new Uint8Array(W*H),hp=new Uint8Array(W*H),idx=(x,y)=>y*W+x;
-  const tc={lush:{surface:13,shallow:1,deep:2,sHP:20,shHP:25,dHP:55},desert:{surface:11,shallow:11,deep:12,sHP:18,shHP:22,dHP:50},ice:{surface:6,shallow:6,deep:7,sHP:30,shHP:35,dHP:65},toxic:{surface:10,shallow:1,deep:2,sHP:22,shHP:28,dHP:60},volcanic:{surface:9,shallow:8,deep:2,sHP:40,shHP:50,dHP:70},void_spawn:{surface:10,shallow:2,deep:5,sHP:36,shHP:58,dHP:100},codex_neon:{surface:13,shallow:2,deep:5,sHP:24,shHP:58,dHP:95},crystal_forest:{surface:13,shallow:6,deep:5,sHP:24,shHP:45,dHP:90},storm:{surface:2,shallow:12,deep:4,sHP:32,shHP:54,dHP:82},metallic:{surface:2,shallow:12,deep:3,sHP:40,shHP:62,dHP:88}};
+  const tc={lush:{surface:13,shallow:1,deep:2,sHP:20,shHP:25,dHP:55},desert:{surface:11,shallow:11,deep:12,sHP:18,shHP:22,dHP:50},ice:{surface:6,shallow:6,deep:7,sHP:30,shHP:35,dHP:65},toxic:{surface:10,shallow:1,deep:2,sHP:22,shHP:28,dHP:60},volcanic:{surface:9,shallow:8,deep:2,sHP:40,shHP:50,dHP:70},void_spawn:{surface:10,shallow:2,deep:5,sHP:36,shHP:58,dHP:100},codex_neon:{surface:13,shallow:3,deep:5,sHP:24,shHP:58,dHP:95},crystal_forest:{surface:13,shallow:6,deep:5,sHP:24,shHP:45,dHP:90},storm:{surface:2,shallow:12,deep:4,sHP:32,shHP:54,dHP:82},metallic:{surface:2,shallow:12,deep:3,sHP:40,shHP:62,dHP:88},obsidian:{surface:2,shallow:14,deep:5,sHP:50,shHP:80,dHP:115},miasma:{surface:10,shallow:1,deep:5,sHP:34,shHP:60,dHP:105},charcoal:{surface:1,shallow:2,deep:4,sHP:24,shHP:44,dHP:76},neon_reef:{surface:13,shallow:3,deep:5,sHP:22,shHP:54,dHP:90},black_ice_world:{surface:6,shallow:7,deep:5,sHP:38,shHP:62,dHP:100},ember_quartz_world:{surface:8,shallow:9,deep:5,sHP:42,shHP:62,dHP:105},prism_moon:{surface:6,shallow:3,deep:5,sHP:30,shHP:58,dHP:96},gloom_steel_world:{surface:2,shallow:12,deep:4,sHP:46,shHP:70,dHP:106}};
   const cfg=tc[planet.type]||tc.lush;
   for(let x=0;x<W;x++){const h=Math.max(18,Math.min(H-10,heights[x]));for(let y=h;y<H;y++){let t=cfg.surface,th=cfg.sHP;if(y>h+8){t=cfg.shallow;th=cfg.shHP;}if(y>h+20&&rng()<0.35){t=cfg.deep;th=cfg.dHP;}if(y>h+35&&rng()<0.45){t=cfg.deep;th=cfg.dHP;}tiles[idx(x,y)]=t;hp[idx(x,y)]=th;}}
   const randInt2=(a,b)=>Math.floor(rng()*(b-a+1))+a;
