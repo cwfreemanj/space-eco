@@ -3207,7 +3207,7 @@ function updateTradeShip(ts,station,allPlanets,dt){
           if(target.station?.civilizationZoneId)alertCivilizationZoneDefendersAgainstTarget(target.station.civilizationZoneId,tradeShipRawTarget(ts,station),"enemy civilization ships");
           showFT("CIV DEF -"+Math.round(r.damage),target.station.x,target.station.y-18,"#ffdd44",8);
           if(r.destroyed)destroyNpcStation(target.station);
-        }else{const ba=ang+(Math.random()-0.5)*0.18;enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(ba)*200,vy:Math.sin(ba)*200,damage:ts.damage,life:2.5,source:"Trade Ship",sourceTarget:{type:"npcTradeShip",stationId:station.id,shipId:ts.id,x:ts.x,y:ts.y}});}
+        }else{const ba=ang+(Math.random()-0.5)*0.18;enemyProjectiles.push({x:ts.x,y:ts.y,vx:Math.cos(ba)*200,vy:Math.sin(ba)*200,damage:ts.damage,life:2.5,source:"Trade Ship",color:"#ff3344",sourceTarget:{type:"npcTradeShip",stationId:station.id,shipId:ts.id,x:ts.x,y:ts.y}});}
       }
       if(ts.hp<ts.maxHp*0.2){ts.state="flee";ts.stateTimer=5;}
       if(target.type==="player"&&(gameOver||td>PURSUIT_BREAK_DISTANCE||station.civilizationZoneId&&!pointInsideCivilizationZone(station.civilizationZoneId,ship.x,ship.y,120))&&!station.destroyed){resetNpcTradeShipPath(ts,station,"return");}
@@ -3649,7 +3649,7 @@ function raiderFireAtTarget(ep,target){
   if(!ep||!target)return;
   if(target.type==="player"){
     const ang=angleToward(ep.x,ep.y,ship.x,ship.y)+(Math.random()-.5)*0.18;
-    enemyProjectiles.push({x:ep.x,y:ep.y,vx:Math.cos(ang)*230,vy:Math.sin(ang)*230,damage:ep.damage,life:2.6,source:"Pirate",sourceTarget:{type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y}});
+    enemyProjectiles.push({x:ep.x,y:ep.y,vx:Math.cos(ang)*230,vy:Math.sin(ang)*230,damage:ep.damage,life:2.6,source:"Pirate",color:"#ff3344",sourceTarget:{type:"pirate",pirateId:ep.id,x:ep.x,y:ep.y}});
     return;
   }
   spawnWarProjectile(ep.x,ep.y,target.x,target.y,"#ff5544",330);
@@ -4667,7 +4667,7 @@ function updateOwnedTradeShip(os,st,dt){
     else{
       const pd=dist(os.x,os.y,ship.x,ship.y),ang=angleToward(os.x,os.y,ship.x,ship.y);os.angle=ang;
       os.vx=lerp(os.vx,Math.cos(ang)*os.speed,0.06);os.vy=lerp(os.vy,Math.sin(ang)*os.speed,0.06);
-      if(os.shootTimer<=0&&pd<280){os.shootTimer=0.75;const ba=ang+(Math.random()-0.5)*0.16;enemyProjectiles.push({x:os.x,y:os.y,vx:Math.cos(ba)*220,vy:Math.sin(ba)*220,damage:os.damage,life:2.4,source:"ownedTradeShip",sourceTarget:{type:"ownedTradeShip",stationKey:st.key,shipId:os.id,x:os.x,y:os.y}});}
+      if(os.shootTimer<=0&&pd<280){os.shootTimer=0.75;const ba=ang+(Math.random()-0.5)*0.16;enemyProjectiles.push({x:os.x,y:os.y,vx:Math.cos(ba)*220,vy:Math.sin(ba)*220,damage:os.damage,life:2.4,source:"ownedTradeShip",color:"#ff3344",sourceTarget:{type:"ownedTradeShip",stationKey:st.key,shipId:os.id,x:os.x,y:os.y}});}
       if(pd>PURSUIT_BREAK_DISTANCE&&!st.destroyed){os.state="return";os.aggro=false;os.playerPursuitCooldown=PURSUIT_BREAK_COOLDOWN;}
     }
   }else if(os.state==="idle"){
@@ -6298,7 +6298,7 @@ function drawSpace(){
   for(const p of pvpProjectiles){const px2=p.x-camX,py2=p.y-camY;const own=p.ownerId===player.id;ctx.fillStyle=p.color||(own?"#ffff44":"#ff6622");ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(px2,py2,p.size||2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const a of smallAsteroidFields){ctx.save();ctx.translate(a.x-camX,a.y-camY);ctx.rotate(a.spin||0);ctx.fillStyle="#8792a8";ctx.beginPath();for(let i=0;i<7;i++){const ang=(Math.PI*2*i)/7,rad=a.r*(0.82+((i%2)?0.18:0));const px=Math.cos(ang)*rad,py=Math.sin(ang)*rad;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.closePath();ctx.fill();ctx.strokeStyle="#aeb8c8";ctx.lineWidth=1;ctx.stroke();ctx.fillStyle="#7be6ff";ctx.globalAlpha=.55;ctx.fillRect(-a.r*0.25,-a.r*0.15,a.r*0.4,a.r*0.28);ctx.globalAlpha=1;ctx.restore();const hpPct=Math.max(0,(a.hp||0)/(a.maxHp||1));ctx.fillStyle="#09111b";ctx.fillRect(a.x-camX-a.r,a.y-camY-a.r-8,a.r*2,3);ctx.fillStyle="#7be6ff";ctx.fillRect(a.x-camX-a.r,a.y-camY-a.r-8,a.r*2*hpPct,3);}
   for(const p of localPlayerProjectiles){ctx.fillStyle=p.color||"#ffff44";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.size||2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
-  for(const p of enemyProjectiles){const ec=enemyVisualColor();ctx.fillStyle=p.color||ec;ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.3,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
+  for(const p of enemyProjectiles){ctx.fillStyle=p.color||"#ff3344";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.7,0,Math.PI*2);ctx.fill();ctx.fillStyle="#ffb0a0";ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,1.1,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of warProjectiles){ctx.fillStyle=p.color||"#ff8844";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.3;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,5.5,0,Math.PI*2);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;}
   for(const p of allyProjectiles){ctx.fillStyle=p.color||"#ffee88";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.35;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,6,0,Math.PI*2);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;}
   ctx.shadowBlur=0;
