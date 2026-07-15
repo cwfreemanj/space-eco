@@ -531,7 +531,14 @@ const COUPON_DEFS = {
   SEIA123:{credits:10000000,description:"Reusable Space Eco Infinite Awesome coupon",reusable:true}
 };
 const COSMETIC_SLOTS = ["ship","bullet","enemy","npcship","particle","trail","station","planet","engine","shield","suit","laser"];
-const GLOBAL_WORLD_COSMETICS={npcship:"npcship_codex_freighters",enemy:"enemy_void_spawn",station:"station_codex_gate",planet:"planet_codex_neon_worlds"};
+const WORLD_COSMETIC_SLOTS = ["npcship","enemy","station","planet"];
+function applySharedWorldCosmeticSlot(slot,key){
+  if(!WORLD_COSMETIC_SLOTS.includes(slot))return false;
+  if(key){const def=COSMETIC_DEFS[key]; if(!def||def.slot!==slot)return false; GLOBAL_WORLD_COSMETICS[slot]=key;}
+  else GLOBAL_WORLD_COSMETICS[slot]=null;
+  return true;
+}
+let GLOBAL_WORLD_COSMETICS={npcship:null,enemy:null,station:null,planet:null};
 function normalizeCosmeticInventory(raw){
   const out={};
   if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){if(COSMETIC_DEFS[k]&&v===true)out[k]=true;}
@@ -1962,7 +1969,12 @@ io.on("connection",socket=>{
     const slots=normalizeInventorySlots(snapshot.invSlots||[],Math.max(p.maxSlots||24,Math.floor(Number(snapshot.maxSlots)||24)));
     if(inventoryPayloadHasItems(slots)){p.maxSlots=Math.max(p.maxSlots||24,slots.length);p.invSlots=slots;}
     if(snapshot.cosmeticInventory)p.cosmeticInventory={...normalizeCosmeticInventory(snapshot.cosmeticInventory),...normalizeCosmeticInventory(p.cosmeticInventory||{})};
-    if(snapshot.equippedCosmetics)p.equippedCosmetics={...normalizeEquippedCosmetics(snapshot.equippedCosmetics),...normalizeEquippedCosmetics(p.equippedCosmetics||{})};
+    if(snapshot.equippedCosmetics){
+      const snapEq=normalizeEquippedCosmetics(snapshot.equippedCosmetics),curEq=normalizeEquippedCosmetics(p.equippedCosmetics||{}),merged={...snapEq};
+      for(const slot of COSMETIC_SLOTS)if(curEq[slot])merged[slot]=curEq[slot];
+      p.equippedCosmetics=merged;
+      for(const slot of WORLD_COSMETIC_SLOTS)if(merged[slot])applySharedWorldCosmeticSlot(slot,merged[slot]);
+    }
     if(snapshot.redeemedCoupons)p.redeemedCoupons={...normalizeRedeemedCoupons(snapshot.redeemedCoupons),...normalizeRedeemedCoupons(p.redeemedCoupons||{})};
     emitInventorySync(p,"client_local_bootstrap");sendCosmeticState(socket,p,"client_local_bootstrap");persistPlayerSoon(p,"client_local_bootstrap");
   });
@@ -2207,7 +2219,7 @@ io.on("connection",socket=>{
     const cost=Math.max(0,Math.floor(Number(def.price)||0));
     if((p.credits||0)<cost){socket.emit("cosmeticDenied",{reason:`Need ${cost.toLocaleString()} credits.`});return;}
     p.credits=(p.credits||0)-cost;p.cosmeticInventory[key]=true;
-    p.equippedCosmetics[def.slot]=key;
+    p.equippedCosmetics[def.slot]=key;applySharedWorldCosmeticSlot(def.slot,key);
     socket.emit("creditUpdate",{credits:p.credits});sendCosmeticState(socket,p,"bought");socket.broadcast.emit("cosmeticPeerUpdate",{id:p.id,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})});io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS});persistPlayerSoon(p,"cosmetic_bought");
   });
 
@@ -2216,10 +2228,20 @@ io.on("connection",socket=>{
     key=String(key||"");slot=String(slot||COSMETIC_DEFS[key]?.slot||"");
     p.cosmeticInventory=normalizeCosmeticInventory(p.cosmeticInventory||{});
     p.equippedCosmetics=normalizeEquippedCosmetics(p.equippedCosmetics||{});
-    if(key){const def=COSMETIC_DEFS[key];if(!def||def.slot!==slot){socket.emit("cosmeticDenied",{reason:"That cosmetic does not fit this slot."});return;}if(!p.cosmeticInventory[key]){socket.emit("cosmeticDenied",{reason:"Buy that cosmetic first."});return;}p.equippedCosmetics[slot]=key;}
-    else if(COSMETIC_SLOTS.includes(slot))p.equippedCosmetics[slot]=null;
+    if(key){
+      const def=COSMETIC_DEFS[key];
+      if(!def||def.slot!==slot){socket.emit("cosmeticDenied",{reason:"That cosmetic does not fit this slot."});return;}
+      if(!p.cosmeticInventory[key]){socket.emit("cosmeticDenied",{reason:"Buy that cosmetic first."});return;}
+      p.equippedCosmetics[slot]=key;applySharedWorldCosmeticSlot(slot,key);
+    }
+    else if(COSMETIC_SLOTS.includes(slot)){
+      p.equippedCosmetics[slot]=null;applySharedWorldCosmeticSlot(slot,null);
+    }
     else {socket.emit("cosmeticDenied",{reason:"Unknown cosmetic slot."});return;}
-    sendCosmeticState(socket,p,"equipped");socket.broadcast.emit("cosmeticPeerUpdate",{id:p.id,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})});io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS});persistPlayerSoon(p,"cosmetic_equipped");
+    sendCosmeticState(socket,p,"equipped");
+    socket.broadcast.emit("cosmeticPeerUpdate",{id:p.id,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})});
+    io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS});
+    persistPlayerSoon(p,"cosmetic_equipped");
   });
 
   socket.on("redeemCoupon",({code})=>{
