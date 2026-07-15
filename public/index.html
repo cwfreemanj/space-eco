@@ -1338,10 +1338,14 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
 
 <!-- Ship shop panel -->
 <div id="ship-panel" class="overlay-panel" style="display:none">
-  <div class="panel-box" style="min-width:480px">
+  <div class="panel-box" style="min-width:920px;max-width:1140px;max-height:88vh;overflow:auto">
     <span class="panel-close" onclick="document.getElementById('ship-panel').style.display='none'">✕</span>
-    <h2>🚀 SHIP SHOWROOM — <span id="ship-credits-disp">300</span> cr available</h2>
+    <h2>🚀 SHIP SHOWROOM + CRAFTING BAY — <span id="ship-credits-disp">300</span> cr available</h2>
+    <p style="font-size:11px;color:#8fa3cc;margin:0 0 10px">Craft advanced ships and weapons with rare materials. Crafted weapons are added to inventory, then can be equipped from the inventory menu.</p>
+    <div style="font-size:12px;color:#ffdd44;margin:10px 0 6px">SHIP YARD</div>
     <div id="ship-list" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"></div>
+    <div style="font-size:12px;color:#7be6ff;margin:16px 0 6px">WEAPON FORGE</div>
+    <div id="weapon-craft-list" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
   </div>
 </div>
 
@@ -1990,6 +1994,20 @@ const RES={
   weapon_ion_lance:{name:"Ion Lance",rarity:5,color:"#7be6ff",base:900},weapon_plasma_orb:{name:"Plasma Orb",rarity:6,color:"#cc88ff",base:1450},
   weapon_rail_cannon:{name:"Rail Cannon",rarity:7,color:"#d6e1ff",base:2400},weapon_meteor_swarm:{name:"Meteor Swarm",rarity:8,color:"#ff5c7a",base:4200}
 };
+
+Object.assign(RES,{
+  titanium:{name:"Titanium",rarity:5,color:"#b7c6d8",base:70},
+  cobalt:{name:"Cobalt",rarity:4,color:"#4ea7ff",base:55},
+  silicon:{name:"Silicon",rarity:3,color:"#d9c39a",base:18},
+  nano_fiber:{name:"Nano Fiber",rarity:5,color:"#8ffff2",base:95},
+  circuit_board:{name:"Circuit Board",rarity:4,color:"#62ff9b",base:80},
+  plasma_cell:{name:"Plasma Cell",rarity:5,color:"#ff77dd",base:120},
+  dark_matter_shard:{name:"Dark Matter Shard",rarity:7,color:"#7a5cff",base:260},
+  stardust:{name:"Stardust",rarity:6,color:"#fff4b2",base:145},
+  alloy_frame:{name:"Alloy Frame",rarity:6,color:"#95a7c5",base:180},
+  quantum_core:{name:"Quantum Core",rarity:7,color:"#62ffe0",base:320}
+});
+
 const GAS_COST=40,GAS_REFUEL=30,ENERGY_DRAIN=1.8,ENERGY_IDLE=0.15;
 
 /* ── Ship type definitions (populated from server welcome) ── */
@@ -2005,6 +2023,13 @@ let SHIP_TYPES={
   solar_sprinter:{name:"Solar Sprinter",price:0,craftOnly:true,description:"Crafted solar racer with excellent fuel efficiency and long-range scout speed.",maxHp:95,maxShield:95,thrustMult:1.85,cargoMult:0.85,damageMult:1.25,shieldRegenMult:1.45,size:"small",specialty:"Speed + fuel",recipe:{credits:14000,engine_core:5,nav_chip:3,crystal:25,fuel:20}},
   obelisk_carrier:{name:"Obelisk Carrier",price:0,craftOnly:true,description:"Crafted mothership-class carrier with heavy shields and command presence.",maxHp:390,maxShield:260,thrustMult:0.50,cargoMult:3.4,damageMult:2.35,shieldRegenMult:0.95,size:"huge",specialty:"Mothership",recipe:{credits:45000,obelisk_core:1,hull_plate:16,shield_matrix:8,weapon_array:6,cargo_pod:10,crystal:70,gold:100,magma_core:40}},
 };
+Object.assign(SHIP_TYPES,{
+  salvage_hornet:{name:"Salvage Hornet",price:0,craftOnly:true,description:"Compact salvage skiff with balanced combat and cargo retrieval systems.",maxHp:165,maxShield:105,thrustMult:1.18,cargoMult:1.8,damageMult:1.22,shieldRegenMult:1.18,size:"medium",specialty:"Salvage",recipe:{credits:16000,hull_plate:5,cargo_pod:3,titanium:18,cobalt:22,circuit_board:6}},
+  nebula_freighter:{name:"Nebula Freighter",price:0,craftOnly:true,description:"A long-range freighter with oversized storage and efficient engines.",maxHp:250,maxShield:140,thrustMult:0.84,cargoMult:3.2,damageMult:1.05,shieldRegenMult:1.05,size:"large",specialty:"Trade",recipe:{credits:28000,hull_plate:9,engine_core:4,cargo_pod:8,titanium:30,silicon:24,alloy_frame:5}},
+  aegis_spear:{name:"Aegis Spear",price:0,craftOnly:true,description:"Shield-forward interceptor built for aggressive frontline duels.",maxHp:185,maxShield:220,thrustMult:1.22,cargoMult:1.05,damageMult:1.72,shieldRegenMult:1.95,size:"medium",specialty:"Shield assault",recipe:{credits:34000,shield_matrix:6,weapon_array:5,crystal:36,plasma_cell:12,quantum_core:2}},
+  titan_bloom:{name:"Titan Bloom",price:0,craftOnly:true,description:"Heavy carrier chassis with bloom-reactive shield petals and massive power reserves.",maxHp:420,maxShield:320,thrustMult:0.58,cargoMult:3.6,damageMult:2.48,shieldRegenMult:1.08,size:"huge",specialty:"Capital craft",recipe:{credits:62000,obelisk_core:1,hull_plate:18,alloy_frame:10,plasma_cell:18,dark_matter_shard:6,quantum_core:4,stardust:20}}
+});
+
 let OWNED_STATION_TIERS={
   outpost:{name:"Personal Outpost",price:5000,maxShips:3,shipHireCost:500,collectRange:800},
   base:{name:"Trade Base",price:15000,maxShips:6,shipHireCost:1200,collectRange:1400},
@@ -2025,6 +2050,28 @@ const WEAPON_DEFS={
   weapon_meteor_swarm:{key:"weapon_meteor_swarm",name:"Meteor Swarm",class:"Swarm",rarity:8,color:"#ff5c7a",damage:16,cooldown:0.74,speed:285,life:2.25,shots:8,spread:0.75,size:3.1,mode:"swarm",upgradeMult:1.17,description:"Legendary burst-fire swarm weapon."}
 };
 const WEAPON_ITEM_KEYS=Object.keys(WEAPON_DEFS);
+WEAPON_DEFS.weapon_arc_pulser={key:"weapon_arc_pulser",name:"Arc Pulser",class:"Arc",rarity:5,color:"#62ffe0",damage:22,cooldown:0.27,speed:340,life:1.7,shots:3,spread:0.22,size:2.8,mode:"arc",upgradeMult:1.17,description:"Three-shot electric burst weapon that chains fast volleys.",recipe:{credits:9500,copper:26,cobalt:16,circuit_board:6,plasma_cell:2}};
+WEAPON_DEFS.weapon_frost_shard={key:"weapon_frost_shard",name:"Frost Shard",class:"Shard",rarity:5,color:"#c8f6ff",damage:19,cooldown:0.36,speed:300,life:2.2,shots:4,spread:0.24,size:3.0,mode:"shard",upgradeMult:1.17,description:"Chilled crystal spray with wider shard bursts.",recipe:{credits:12000,ice_block:28,crystal:16,cobalt:10,nano_fiber:4}};
+WEAPON_DEFS.weapon_sunflare_cannon={key:"weapon_sunflare_cannon",name:"Sunflare Cannon",class:"Cannon",rarity:6,color:"#ffb347",damage:58,cooldown:0.78,speed:250,life:2.0,shots:1,spread:0,size:5.0,mode:"cannon",upgradeMult:1.20,description:"Slow solar cannon shell with strong single-hit impact.",recipe:{credits:18000,gold:28,magma_core:14,plasma_cell:8,alloy_frame:3}};
+WEAPON_DEFS.weapon_graviton_burst={key:"weapon_graviton_burst",name:"Graviton Burst",class:"Gravity",rarity:7,color:"#9b7bff",damage:33,cooldown:0.52,speed:260,life:2.4,shots:2,spread:0.1,size:4.5,mode:"gravity",upgradeMult:1.21,description:"Dense graviton spheres for medium-range burst control.",recipe:{credits:26000,crystal:30,dark_matter_shard:4,quantum_core:2,circuit_board:10}};
+WEAPON_DEFS.weapon_bio_sprayer={key:"weapon_bio_sprayer",name:"Bio Sprayer",class:"Sprayer",rarity:6,color:"#7eff7a",damage:13,cooldown:0.18,speed:230,life:1.35,shots:6,spread:0.52,size:2.7,mode:"spray",upgradeMult:1.16,description:"Rapid corrosive spray projector with close-range coverage.",recipe:{credits:15000,toxic_sludge:34,grass_tuft:20,nano_fiber:5,circuit_board:5}};
+WEAPON_DEFS.weapon_void_spinner={key:"weapon_void_spinner",name:"Void Spinner",class:"Void",rarity:8,color:"#ff77ff",damage:27,cooldown:0.46,speed:310,life:2.8,shots:5,spread:0.48,size:3.4,mode:"spinner",upgradeMult:1.22,description:"Legendary spiraling void bolts that saturate an area.",recipe:{credits:38000,obelisk_core:1,dark_matter_shard:8,stardust:15,quantum_core:3,weapon_array:2}};
+Object.assign(RES,{
+  weapon_arc_pulser:{name:"Arc Pulser",rarity:5,color:"#62ffe0",base:1150},
+  weapon_frost_shard:{name:"Frost Shard",rarity:5,color:"#c8f6ff",base:1280},
+  weapon_sunflare_cannon:{name:"Sunflare Cannon",rarity:6,color:"#ffb347",base:2100},
+  weapon_graviton_burst:{name:"Graviton Burst",rarity:7,color:"#9b7bff",base:3200},
+  weapon_bio_sprayer:{name:"Bio Sprayer",rarity:6,color:"#7eff7a",base:1850},
+  weapon_void_spinner:{name:"Void Spinner",rarity:8,color:"#ff77ff",base:5200}
+});
+WEAPON_ITEM_KEYS.push("weapon_arc_pulser","weapon_frost_shard","weapon_sunflare_cannon","weapon_graviton_burst","weapon_bio_sprayer","weapon_void_spinner");
+
+const WEAPON_CRAFT_ORDER=["weapon_arc_pulser","weapon_frost_shard","weapon_sunflare_cannon","weapon_graviton_burst","weapon_bio_sprayer","weapon_void_spinner"];
+function weaponRecipeText(recipe){if(!recipe)return"";return Object.entries(recipe).map(([k,v])=>k==="credits"?`${v}cr`:`${RES[k]?.name||k} ${inventoryTotal(k)}/${v}`).join(" · ");}
+function canCraftWeaponLocal(recipe){if(!recipe)return false;if((player.credits||0)<(recipe.credits||0))return false;for(const [k,v] of Object.entries(recipe)){if(k!=="credits"&&inventoryTotal(k)<v)return false;}return true;}
+function craftWeapon(key){const def=WEAPON_DEFS[key];if(!def?.recipe)return; if(!canCraftWeaponLocal(def.recipe)){showFT("Missing weapon materials",ship.x,ship.y-18,"#ff5544",9);return;} socket.emit("craftWeapon",{weaponKey:key});}
+function renderWeaponCraftList(){const list=document.getElementById("weapon-craft-list");if(!list)return;list.innerHTML="";for(const key of WEAPON_CRAFT_ORDER){const def=WEAPON_DEFS[key];if(!def)continue;const owned=inventoryTotal(key)>0;const can=canCraftWeaponLocal(def.recipe);const div=document.createElement("div");div.style.cssText=`background:${owned?"#14331f":"#0f1824"};border:1px solid ${owned?"#4a8a6a":"#2a3a5a"};border-radius:6px;padding:10px;`;div.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:34px;height:34px;background:#081018;border:1px solid #284258;border-radius:6px;display:flex;align-items:center;justify-content:center;color:${def.color};font-size:20px">⚔</div><div><b style="color:${owned?"#78ff8a":"#d6e1ff"}">${def.name}</b>${owned?` <span style="color:#78ff8a;font-size:10px">Owned: ${inventoryTotal(key)}</span>`:""}<br><span style="font-size:10px;color:#8fa3cc">${def.class} · ${def.mode.toUpperCase()} · ${def.description||"Craftable weapon"}</span></div></div><div style="font-size:10px;color:#6a8aaa;display:grid;grid-template-columns:1fr 1fr;gap:2px"><span>Damage: ${def.damage}</span><span>Cooldown: ${(def.cooldown||0).toFixed(2)}s</span><span>Shots: ${def.shots||1}</span><span>Rarity: ${def.rarity||1}</span></div><div style="font-size:9px;color:#8fa3cc;text-align:left;margin:6px 0">${weaponRecipeText(def.recipe)}</div><div style="text-align:right"><button onclick="craftWeapon('${key}')" style="background:${can?"#102a3a":"#2a1a1a"};border:1px solid ${can?"#5bb9ff":"#5a3a3a"};border-radius:4px;color:${can?"#7be6ff":"#8a7777"};padding:4px 10px;cursor:${can?"pointer":"default"};font-size:11px">CRAFT WEAPON</button></div>`;list.appendChild(div);}}
+
 const ATTACHMENT_DEFS={
   hull_plate:{key:"hull_plate",slot:"hull",name:"Reinforced Hull Plate",maxHpBonus:35,description:"Adds extra hull durability."},
   shield_matrix:{key:"shield_matrix",slot:"shield",name:"Shield Matrix",maxShieldBonus:32,shieldRegenMult:1.10,description:"Boosts shields and shield recovery."},
@@ -2175,6 +2222,26 @@ const COSMETIC_DEFS={
 const COSMETIC_SLOTS=["ship","bullet","enemy","npcship","particle","trail","station","planet","engine","shield","suit","laser"];
 let cosmeticInventory={},equippedCosmetics={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null},redeemedCoupons={};
 const CLIENT_COUPON_DEFS={SPACEECOISAWESOME:{credits:10000000,description:"Launch celebration coupon"},SEIA123:{credits:10000000,description:"Reusable Space Eco Infinite Awesome coupon",reusable:true}};
+Object.assign(COSMETIC_DEFS,{
+  ship_titan_orchid:{key:"ship_titan_orchid",slot:"ship",name:"Titan Orchid Hull",price:7600000,description:"A broad-petal prestige hull with neon magenta bloom fins.",color:"#ff77dd",accent:"#ffd0ff",shape:"flame"},
+  ship_glacier_prism:{key:"ship_glacier_prism",slot:"ship",name:"Glacier Prism Hull",price:5300000,description:"Icy prism hull with luminous polar edges.",color:"#dff9ff",accent:"#58a6ff",shape:"lancer"},
+  bullet_grape_pop:{key:"bullet_grape_pop",slot:"bullet",name:"Grape Pop Shots",price:2100000,description:"Violet pop-shot bullets with a candy-bright flash.",color:"#c77dff",accent:"#fff0ff",sizeBoost:0.55},
+  bullet_solar_sparks:{key:"bullet_solar_sparks",slot:"bullet",name:"Solar Spark Shots",price:3900000,description:"Starry yellow-orange projectiles with brighter core sparks.",color:"#ffdd44",accent:"#ff8844",sizeBoost:0.78},
+  enemy_cobalt_hounds:{key:"enemy_cobalt_hounds",slot:"enemy",name:"Cobalt Hound Enemies",price:2800000,description:"Enemy ships become streamlined cobalt pursuit craft.",color:"#58a6ff",accent:"#dff9ff",shape:"hunter"},
+  enemy_rose_reavers:{key:"enemy_rose_reavers",slot:"enemy",name:"Rose Reaver Enemies",price:5100000,description:"Rose-pink outlaw silhouettes with sharp neon wing tips.",color:"#ff77dd",accent:"#ffdd44",shape:"fang"},
+  npcship_royal_mail:{key:"npcship_royal_mail",slot:"npcship",name:"Royal Mail Convoys",price:4200000,description:"NPC trade convoys use gold-violet courier hulls.",color:"#ffdd44",accent:"#cc88ff",shape:"hauler"},
+  particle_sun_glitter:{key:"particle_sun_glitter",slot:"particle",name:"Sun Glitter Particles",price:1800000,description:"Warm solar twinkle particles for impacts and fire.",color:"#fff0a8",accent:"#ff8844"},
+  particle_void_confetti:{key:"particle_void_confetti",slot:"particle",name:"Void Confetti Particles",price:4100000,description:"Chaotic purple confetti sparks for a playful premium hit effect.",color:"#cc88ff",accent:"#ff77dd"},
+  trail_starlace:{key:"trail_starlace",slot:"trail",name:"Starlace Trail",price:4800000,description:"Elegant sparkling starlace wake behind the ship.",color:"#ffffff",accent:"#7be6ff"},
+  trail_cobalt_fume:{key:"trail_cobalt_fume",slot:"trail",name:"Cobalt Fume Trail",price:1750000,description:"Deep blue exhaust stream with glowing edges.",color:"#58a6ff",accent:"#dff9ff"},
+  station_aurora_hub:{key:"station_aurora_hub",slot:"station",name:"Aurora Hub Stations",price:4700000,description:"Stations glow with aurora arcs and soft layered rings.",color:"#3affd0",accent:"#cc88ff",shape:"ring"},
+  planet_sunset_worlds:{key:"planet_sunset_worlds",slot:"planet",name:"Sunset Planet Designs",price:4100000,description:"Planets gain warm sunset bands with orange-pink rings.",color:"#ff8844",accent:"#ff77dd",shape:"lush"},
+  engine_prism_bloom:{key:"engine_prism_bloom",slot:"engine",name:"Prism Bloom Engines",price:6800000,description:"Multicolor engine bloom for premium ships.",color:"#ffffff",accent:"#ff5cff",rainbow:true,shape:"flare"},
+  shield_nebula_shell:{key:"shield_nebula_shell",slot:"shield",name:"Nebula Shell Shield",price:5300000,description:"A layered violet nebula shell shield aura.",color:"#7a5cff",accent:"#ff77dd",shape:"ring"},
+  suit_cobalt_marshal:{key:"suit_cobalt_marshal",slot:"suit",name:"Cobalt Marshal Suit",price:3300000,description:"A cobalt-blue planetside suit with bright command trim.",color:"#58a6ff",accent:"#fff0a8",shape:"suit"},
+  laser_mining_rose:{key:"laser_mining_rose",slot:"laser",name:"Rose Mining Beam",price:3450000,description:"Pink rose-colored mining beam and highlight effects.",color:"#ff77dd",accent:"#fff0ff",shape:"beam"}
+});
+
 let cosmeticBackendSupported=false;
 let pendingCouponCode=null,pendingCouponTimer=0;
 function loadLocalCosmeticState(){try{return JSON.parse(localStorage.getItem("spaceEcoLocalCosmeticState")||"{}")}catch(_){return {};}}
@@ -2386,6 +2453,10 @@ const allyProjectiles=[];
 let shootCooldown=0;
 const SHOOT_CD=0.22;
 const spaceDrops=[];
+const smallAsteroidFields=[];
+const generatedAsteroidFieldKeys=new Set();
+let asteroidFieldSeq=0;
+
 let spaceLootClaimSeq=0;
 const pendingSpaceLootClaims=new Map();
 const floatingTexts=[];
@@ -2449,6 +2520,10 @@ const TIER_ORDER=["outpost","standard","advanced","capital"];
 STATION_TIERS.standard.itemPool.push("weapon_laser_mk1","weapon_scatter_blaster");
 STATION_TIERS.advanced.itemPool.push("weapon_ion_lance","weapon_plasma_orb");
 STATION_TIERS.capital.itemPool.push("weapon_rail_cannon","weapon_meteor_swarm");
+STATION_TIERS.outpost.itemPool.push("silicon","cobalt");
+STATION_TIERS.standard.itemPool.push("titanium","circuit_board","stardust");
+STATION_TIERS.advanced.itemPool.push("nano_fiber","plasma_cell","alloy_frame","weapon_arc_pulser","weapon_frost_shard","weapon_bio_sprayer");
+STATION_TIERS.capital.itemPool.push("dark_matter_shard","quantum_core","weapon_sunflare_cannon","weapon_graviton_burst","weapon_void_spinner");
 
 /* ── Station health / shield defense ── */
 const NPC_STATION_DEFENSE={
@@ -4502,12 +4577,13 @@ function renderShipShop(){
     // Draw ship preview
     setTimeout(()=>drawShipPreview(key,def),0);
   }
+  renderWeaponCraftList();
 }
 function drawShipPreview(key,def){
   const c=document.getElementById("shippreview_"+key);if(!c)return;
   const pc=c.getContext("2d");pc.clearRect(0,0,40,30);pc.fillStyle="#05060a";pc.fillRect(0,0,40,30);
   pc.save();pc.translate(20,15);
-  const colors={scout:"#aabbcc",hauler:"#88aadd",fighter:"#dd6644",interceptor:"#44ddcc",dreadnought:"#ddaa44",phantom:"#aa66dd",miner_mantis:"#9bd66f",guardian:"#58a6ff",solar_sprinter:"#ffdd66",obelisk_carrier:"#fff0a8"};
+  const colors={scout:"#aabbcc",hauler:"#88aadd",fighter:"#dd6644",interceptor:"#44ddcc",dreadnought:"#ddaa44",phantom:"#aa66dd",miner_mantis:"#9bd66f",guardian:"#58a6ff",solar_sprinter:"#ffdd66",obelisk_carrier:"#fff0a8",salvage_hornet:"#62ffe0",nebula_freighter:"#95a7c5",aegis_spear:"#7be6ff",titan_bloom:"#ff77dd"};
   pc.fillStyle=colors[key]||"#aabbcc";
   if(key==="scout"){pc.fillRect(-8,-5,16,10);pc.fillStyle="#ff7744";pc.fillRect(-10,-3,3,6);}
   else if(key==="hauler"){pc.fillRect(-12,-7,24,14);pc.fillStyle="#ff7744";pc.fillRect(-13,-4,3,8);}
@@ -4519,6 +4595,10 @@ function drawShipPreview(key,def){
   else if(key==="guardian"){pc.fillRect(-13,-8,26,16);pc.fillStyle="#58a6ff";pc.globalAlpha=.45;pc.beginPath();pc.arc(0,0,15,0,Math.PI*2);pc.stroke();pc.globalAlpha=1;}
   else if(key==="solar_sprinter"){pc.beginPath();pc.moveTo(15,0);pc.lineTo(-10,-4);pc.lineTo(-5,0);pc.lineTo(-10,4);pc.closePath();pc.fill();pc.fillStyle="#ff9b42";pc.fillRect(-12,-1,4,2);}
   else if(key==="obelisk_carrier"){pc.fillRect(-15,-10,30,20);pc.fillStyle="#111";pc.fillRect(-4,-14,8,28);pc.fillStyle="#fff0a8";pc.fillRect(10,-4,4,8);}
+  else if(key==="salvage_hornet"){pc.beginPath();pc.moveTo(12,0);pc.lineTo(-10,-7);pc.lineTo(-4,0);pc.lineTo(-10,7);pc.closePath();pc.fill();pc.fillStyle="#dff9ff";pc.fillRect(-14,-2,4,4);}
+  else if(key==="nebula_freighter"){pc.fillRect(-14,-8,26,16);pc.fillStyle="#6b7d99";pc.fillRect(-16,-4,4,8);pc.fillStyle="#fff0a8";pc.fillRect(8,-2,6,4);}
+  else if(key==="aegis_spear"){pc.beginPath();pc.moveTo(15,0);pc.lineTo(-10,-5);pc.lineTo(-6,0);pc.lineTo(-10,5);pc.closePath();pc.fill();pc.strokeStyle="#dff9ff";pc.lineWidth=1.3;pc.stroke();}
+  else if(key==="titan_bloom"){pc.fillRect(-15,-10,28,20);pc.fillStyle="#ff77dd";pc.beginPath();pc.arc(0,0,12,0,Math.PI*2);pc.strokeStyle="#ffd0ff";pc.lineWidth=1.2;pc.stroke();}
   pc.restore();
 }
 function shipRecipeText(recipe){if(!recipe)return"";const parts=Object.entries(recipe).map(([k,v])=>k==="credits"?`${v}cr`:`${RES[k]?.name||k} ${inventoryTotal(k)}/${v}`);return parts.join(" · ");}
@@ -5388,6 +5468,8 @@ socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield,equip
 socket.on("shipBuyDenied",({reason})=>{showFT(reason,ship.x,ship.y-15,"#ff5544");});
 socket.on("craftShipConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield,invSlots,maxSlots,equippedAttachments})=>{player.shipType=shipTypeKey;player.credits=credits;if(equippedAttachments)player.equippedAttachments=normalizeAttachments(equippedAttachments);if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}ship.hp=hp;ship.maxHp=maxHp;ship.shield=shield;ship.maxShield=maxShield;incrementBadgeCounter("crafted",1);showFT(`Crafted: ${SHIP_TYPES[shipTypeKey]?.name}!`,ship.x,ship.y-18,"#ffdd44",13);updateHud();renderShipShop();});
 socket.on("craftShipDenied",({reason})=>{showFT(reason||"Craft denied",ship.x,ship.y-15,"#ff5544");});
+socket.on("craftWeaponConfirm",({weaponKey,credits,invSlots,maxSlots})=>{player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}incrementBadgeCounter("crafted",1);showFT(`Crafted weapon: ${WEAPON_DEFS[weaponKey]?.name||weaponKey}!`,ship.x,ship.y-18,"#7be6ff",13);updateHud();renderWeaponCraftList();});
+socket.on("craftWeaponDenied",({reason})=>{showFT(reason||"Weapon craft denied",ship.x,ship.y-15,"#ff5544");});
 socket.on("stationQuestRewardConfirm",({questId,credits,invSlots,maxSlots,reward})=>{if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}const q=questById(questId);if(q){awardBadge("first_quest","First Contract","Turn in your first station quest.");incrementBadgeCounter("quests",1);removeQuestFromLog(questId);}updateHud();addChat("Quest",`Quest turned in: +${reward?.credits||0}cr +${reward?.xp||0}xp`,"#78ff8a");showFT("QUEST TURNED IN",ship.x,ship.y-24,"#78ff8a",11);});
 socket.on("stationQuestRewardDenied",({questId,reason})=>{const q=questById(questId);if(q)q.pendingTurnIn=false;saveQuestState();addChat("Quest",reason||"Quest reward denied.","#ff5544");});
 socket.on("shipPartRewardConfirm",({credits,invSlots,maxSlots,reward,reason})=>{if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}updateHud();addChat("Reward",`${reason||"Salvage"}: +${reward?.credits||0}cr, items secured.`,"#ffdd44");});
@@ -5485,6 +5567,26 @@ function sendInput(){
 /* ══════════════════════════════════════
    SPACE UPDATE
 ══════════════════════════════════════ */
+function makeAsteroidFieldKey(cx,cy,index){return `${cx},${cy}|${index}`;}
+function ensureSmallAsteroidFieldsAround(x,y){
+  const ccx=Math.floor(x/CHUNK_SIZE),ccy=Math.floor(y/CHUNK_SIZE);
+  for(let cy=ccy-2;cy<=ccy+2;cy++)for(let cx=ccx-2;cx<=ccx+2;cx++){
+    const rng=makeRng(`${GALAXY_SEED}|asteroidField|${cx},${cy}`);
+    const fieldCount=1+Math.floor(rng()*3);
+    for(let fi=0;fi<fieldCount;fi++){
+      const key=makeAsteroidFieldKey(cx,cy,fi); if(generatedAsteroidFieldKeys.has(key))continue; generatedAsteroidFieldKeys.add(key);
+      const centerX=(cx+0.5)*CHUNK_SIZE+(rng()-0.5)*CHUNK_SIZE*0.7, centerY=(cy+0.5)*CHUNK_SIZE+(rng()-0.5)*CHUNK_SIZE*0.7;
+      const rockCount=3+Math.floor(rng()*6);
+      for(let i=0;i<rockCount;i++){const a=rng()*Math.PI*2,r=12+rng()*68,size=6+rng()*10;smallAsteroidFields.push({id:`ast_${asteroidFieldSeq++}`,x:centerX+Math.cos(a)*r,y:centerY+Math.sin(a)*r,vx:(rng()-0.5)*3,vy:(rng()-0.5)*3,r:size,hp:24+Math.floor(size*4),maxHp:24+Math.floor(size*4),spin:rng()*Math.PI*2,spinV:(rng()-0.5)*0.6,lootPool:["stone","iron","copper","crystal","silicon","cobalt","titanium","stardust"]});}
+    }
+  }
+  // Keep generated asteroid chunks persistent so fields stay available when the player backtracks.
+}
+function asteroidLootPool(a){return a.lootPool||["stone","iron","copper"]; }
+function destroySmallAsteroid(a){const drops=1+Math.floor(a.r/5);const pool=asteroidLootPool(a);for(let i=0;i<drops;i++){const type=pool[Math.floor(Math.random()*pool.length)];spaceDrops.push({type,x:a.x+(Math.random()-.5)*a.r*1.2,y:a.y+(Math.random()-.5)*a.r*1.2,vx:(Math.random()-.5)*36,vy:(Math.random()-.5)*36,life:28});}showFT("Asteroid broken",a.x,a.y-14,"#ffcc44",9);}
+function updateSmallAsteroidFields(dt){ensureSmallAsteroidFieldsAround(ship.x,ship.y);const shipRad=(ship.r||8)+4;for(let i=smallAsteroidFields.length-1;i>=0;i--){const a=smallAsteroidFields[i];a.x+=a.vx*dt;a.y+=a.vy*dt;a.spin+=a.spinV*dt;const d=Math.hypot(ship.x-a.x,ship.y-a.y);const minDist=shipRad+a.r; if(d<minDist&&d>0){const nx=(ship.x-a.x)/d, ny=(ship.y-a.y)/d; ship.x=a.x+nx*minDist; ship.y=a.y+ny*minDist; ship.vx+=nx*18; ship.vy+=ny*18; if((a.bumpAt||0)<Date.now()-700){a.bumpAt=Date.now(); showFT("Asteroid impact",ship.x,ship.y-14,"#ff8844",8);} } } }
+function hitSmallAsteroids(projectile){for(let i=smallAsteroidFields.length-1;i>=0;i--){const a=smallAsteroidFields[i];if(Math.hypot(projectile.x-a.x,projectile.y-a.y)<=a.r+(projectile.size||2)){a.hp-=Math.max(1,Math.round(projectile.damage||8));showFT(`-${Math.max(1,Math.round(projectile.damage||8))}`,a.x,a.y-10,"#dff9ff",8);if(a.hp<=0){destroySmallAsteroid(a);smallAsteroidFields.splice(i,1);}return true;}}return false;}
+
 function updateSpace(dt){
   if(gameOver)return;
   chunkTimer-=dt;if(chunkTimer<=0){updateChunks();chunkTimer=2;}
@@ -6004,6 +6106,7 @@ function drawSpace(){
   // PvP projectiles
   for(const prt of particles){const px2=prt.x-camX,py2=prt.y-camY,alpha=clamp(prt.life/(prt.maxLife||0.4),0,1);ctx.globalAlpha=alpha;ctx.fillStyle=prt.color||"#fff";ctx.beginPath();ctx.arc(px2,py2,prt.size||2,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
   for(const p of pvpProjectiles){const px2=p.x-camX,py2=p.y-camY;const own=p.ownerId===player.id;ctx.fillStyle=p.color||(own?"#ffff44":"#ff6622");ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(px2,py2,p.size||2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
+  for(const a of smallAsteroidFields){ctx.save();ctx.translate(a.x-camX,a.y-camY);ctx.rotate(a.spin||0);ctx.fillStyle="#6b7482";ctx.beginPath();for(let i=0;i<7;i++){const ang=(Math.PI*2*i)/7,rad=a.r*(0.82+((i%2)?0.18:0));const px=Math.cos(ang)*rad,py=Math.sin(ang)*rad;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.closePath();ctx.fill();ctx.strokeStyle="#aeb8c8";ctx.lineWidth=1;ctx.stroke();ctx.fillStyle="#314055";ctx.fillRect(-a.r*0.25,-a.r*0.15,a.r*0.4,a.r*0.28);ctx.restore();const hpPct=Math.max(0,(a.hp||0)/(a.maxHp||1));ctx.fillStyle="#09111b";ctx.fillRect(a.x-camX-a.r,a.y-camY-a.r-8,a.r*2,3);ctx.fillStyle="#7be6ff";ctx.fillRect(a.x-camX-a.r,a.y-camY-a.r-8,a.r*2*hpPct,3);}
   for(const p of localPlayerProjectiles){ctx.fillStyle=p.color||"#ffff44";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.size||2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of enemyProjectiles){const ec=enemyVisualColor();ctx.fillStyle=p.color||ec;ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.3,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of warProjectiles){ctx.fillStyle=p.color||"#ff8844";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.3;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,5.5,0,Math.PI*2);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;}
@@ -6011,7 +6114,7 @@ function drawSpace(){
   ctx.shadowBlur=0;
 
   // Space drops
-  for(const d of spaceDrops){ctx.fillStyle=RES[d.type]?.color||"#fff";ctx.fillRect(d.x-camX-2,d.y-camY-2,4,4);}
+  for(const d of spaceDrops){drawItemIcon(ctx,d.type,d.x-camX-4,d.y-camY-4,8);}
 
   // Player ship
   {
@@ -6185,13 +6288,13 @@ function drawShopSell(st,px,py,pw,ph){
     const i=start+n;if(i>=player.maxSlots)break;
     const slot=player.invSlots[i],col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);
     ctx.fillStyle=shopSelectedSlot===i?"#2a3a4a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=shopSelectedSlot===i?"#78ff8a":"#2a3a4a";ctx.lineWidth=shopSelectedSlot===i?2:1;ctx.strokeRect(bx,by,ss,ss);
-    if(slot.type&&slot.count){ctx.fillStyle=RES[slot.type]?.color||"#aaa";ctx.fillRect(bx+4,by+4,ss-8,ss-8);ctx.fillStyle="#fff";ctx.font="bold 8px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-2,by+ss-2);ctx.textAlign="left";}
+    if(slot.type&&slot.count){drawItemIcon(ctx,slot.type,bx+4,by+4,ss-8);ctx.fillStyle="#fff";ctx.font="bold 8px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-2,by+ss-2);ctx.textAlign="left";}
   }
   if(maxShopInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=SHOP_SELL_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(14,trackH*(SHOP_SELL_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(shopInventoryScrollRows/maxShopInventoryScrollRows());ctx.fillStyle="#5a8aaa";ctx.fillRect(trackX,knobY,4,knobH);ctx.fillStyle="#6a8aaa";ctx.font="7px monospace";ctx.fillText("wheel",trackX-8,trackY+trackH+9);}
   const dx=px+260,dy=py+58,dw=170,dh=175;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
   if(shopSelectedSlot!==null&&player.invSlots[shopSelectedSlot]?.type){
     const slot=player.invSlots[shopSelectedSlot],res=RES[slot.type];if(!res)return;
-    ctx.fillStyle=res.color;ctx.fillRect(dx+8,dy+8,38,38);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=2;ctx.strokeRect(dx+8,dy+8,38,38);
+    drawItemIcon(ctx,slot.type,dx+8,dy+8,38);
     ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+52,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Have: ${slot.count}`,dx+52,dy+30);
     const sellPP=stationSellPrice(st,slot.type);ctx.fillStyle="#ffd15c";ctx.font="bold 9px monospace";ctx.fillText(`${sellPP}cr each`,dx+8,dy+58);
     ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+8,dy+68);ctx.lineTo(dx+dw-8,dy+68);ctx.stroke();ctx.fillStyle="#aabbcc";ctx.font="bold 8px monospace";ctx.fillText("SELL QTY",dx+8,dy+82);
@@ -6206,11 +6309,11 @@ function drawShopBuy(st,px,py,pw,ph){
   ctx.fillStyle="#7a9aaa";ctx.font="bold 9px monospace";ctx.fillText("AVAILABLE STOCK",px+10,py+66);
   const stock=st.buyStock;if(!stock.length){ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("No stock (trade ships en route…)",px+10,py+90);return;}
   const iw=195,ih=20,ig=3,startY=py+70;
-  for(let i=0;i<stock.length;i++){const item=stock[i],res=RES[item.type],isSel=shopBuyItem===i,bx=px+10,by=startY+i*(ih+ig);if(by+ih>py+ph-35||!res)break;ctx.fillStyle=isSel?"#1a2a3e":"#0f1419";ctx.fillRect(bx,by,iw,ih);ctx.strokeStyle=isSel?st.tierDef.color:"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,iw,ih);ctx.fillStyle=res.color;ctx.fillRect(bx+3,by+3,14,14);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText(`${res.name} x${item.qty}`,bx+22,by+13);ctx.fillStyle="#ffd15c";ctx.textAlign="right";ctx.fillText(`${item.price}cr`,bx+iw-5,by+13);ctx.textAlign="left";}
+  for(let i=0;i<stock.length;i++){const item=stock[i],res=RES[item.type],isSel=shopBuyItem===i,bx=px+10,by=startY+i*(ih+ig);if(by+ih>py+ph-35||!res)break;ctx.fillStyle=isSel?"#1a2a3e":"#0f1419";ctx.fillRect(bx,by,iw,ih);ctx.strokeStyle=isSel?st.tierDef.color:"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,iw,ih);drawItemIcon(ctx,item.type,bx+2,by+2,16);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText(`${res.name} x${item.qty}`,bx+22,by+13);ctx.fillStyle="#ffd15c";ctx.textAlign="right";ctx.fillText(`${item.price}cr`,bx+iw-5,by+13);ctx.textAlign="left";}
   const dx=px+215,dy=py+58,dw=215,dh=175;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
   if(shopBuyItem!==null&&stock[shopBuyItem]){
     const item=stock[shopBuyItem],res=RES[item.type];if(!res)return;
-    ctx.fillStyle=res.color;ctx.fillRect(dx+8,dy+8,36,36);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=2;ctx.strokeRect(dx+8,dy+8,36,36);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+50,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Stock: ${item.qty}`,dx+50,dy+30);ctx.fillText(`Price: ${item.price}cr each`,dx+8,dy+56);
+    drawItemIcon(ctx,item.type,dx+8,dy+8,36);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+50,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Stock: ${item.qty}`,dx+50,dy+30);ctx.fillText(`Price: ${item.price}cr each`,dx+8,dy+56);
     ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+8,dy+64);ctx.lineTo(dx+dw-8,dy+64);ctx.stroke();ctx.fillStyle="#aabbcc";ctx.font="bold 8px monospace";ctx.fillText("BUY QTY",dx+8,dy+78);
     const bw=28,bh=18,my2=dy+84,mx2=dx+12;ctx.fillStyle=shopBuyQty>1?"#3a4a5a":"#1a1a1a";ctx.fillRect(mx2,my2,bw,bh);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=1;ctx.strokeRect(mx2,my2,bw,bh);ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText("-",mx2+bw/2,my2+13);ctx.fillText(shopBuyQty,dx+dw/2,my2+13);const plusX2=dx+dw-44;ctx.fillStyle=shopBuyQty<item.qty?"#3a4a5a":"#1a1a1a";ctx.fillRect(plusX2,my2,bw,bh);ctx.strokeRect(plusX2,my2,bw,bh);ctx.fillText("+",plusX2+bw/2,my2+13);ctx.textAlign="left";
     const total=item.price*shopBuyQty,canAfford=player.credits>=total,hasSlotSpace=canFitInventoryLocal(item.type,shopBuyQty),hasSpace=hasSlotSpace,isPending=pendingShopBuy&&pendingShopBuy.type===item.type;ctx.fillStyle=canAfford&&hasSpace&&!isPending?"#78ff8a":"#ff5544";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(`Cost: ${total}cr`,dx+dw/2,dy+118);ctx.textAlign="left";
@@ -6365,9 +6468,54 @@ function handleAttrClick(mx,my){
 }
 
 /* ── Inventory UI ── */
+function itemGlyphFor(type){
+  const t=String(type||"");
+  if(t.startsWith("weapon_"))return "⚔";
+  if(t.includes("tank"))return "◉";
+  if(t.includes("canister")||t.includes("fuel")||t.includes("cell"))return "⬢";
+  if(t.includes("core"))return "✦";
+  if(t.includes("chip")||t.includes("board"))return "▣";
+  if(t.includes("matrix"))return "◌";
+  if(t.includes("pod")||t.includes("crate")||t.includes("frame"))return "▤";
+  if(t.includes("crystal")||t.includes("shard"))return "◇";
+  if(t.includes("gold")||t.includes("copper")||t.includes("iron")||t.includes("titanium")||t.includes("cobalt"))return "▰";
+  if(t.includes("sand")||t.includes("dirt")||t.includes("stone")||t.includes("ice")||t.includes("lava")||t.includes("grass"))return "⬟";
+  return "◆";
+}
+function drawItemIcon(icx,type,x,y,size){
+  const res=RES[type]||{color:"#aaa",name:type};
+  icx.save();
+  icx.fillStyle="#09111b"; icx.fillRect(x,y,size,size);
+  icx.strokeStyle="#284258"; icx.lineWidth=Math.max(1,size*0.06); icx.strokeRect(x,y,size,size);
+  const inner=size*0.68,ox=x+(size-inner)/2,oy=y+(size-inner)/2;
+  icx.fillStyle=res.color||"#aaa";
+  if(String(type||"").startsWith("weapon_")){
+    icx.fillRect(ox+inner*0.15,oy+inner*0.42,inner*0.52,inner*0.16);
+    icx.fillRect(ox+inner*0.58,oy+inner*0.32,inner*0.2,inner*0.36);
+    icx.fillStyle="#fff"; icx.fillRect(ox+inner*0.1,oy+inner*0.47,inner*0.12,inner*0.06);
+  }else if(type.includes("tank")||type.includes("canister")){
+    icx.fillRect(ox+inner*0.22,oy+inner*0.12,inner*0.46,inner*0.72);
+    icx.fillStyle="#dff9ff"; icx.fillRect(ox+inner*0.33,oy+inner*0.18,inner*0.24,inner*0.1);
+  }else if(type.includes("chip")||type.includes("board")){
+    icx.fillRect(ox+inner*0.16,oy+inner*0.16,inner*0.68,inner*0.68);
+    icx.fillStyle="#09111b"; icx.fillRect(ox+inner*0.32,oy+inner*0.32,inner*0.36,inner*0.36);
+    icx.fillStyle=res.color||"#aaa"; for(let i=0;i<4;i++){icx.fillRect(ox+inner*(0.05+i*0.2),oy+inner*0.02,inner*0.06,inner*0.1); icx.fillRect(ox+inner*(0.05+i*0.2),oy+inner*0.88,inner*0.06,inner*0.1);}
+  }else if(type.includes("core")||type.includes("crystal")||type.includes("shard")){
+    icx.beginPath(); icx.moveTo(x+size/2,oy); icx.lineTo(ox+inner, y+size/2); icx.lineTo(x+size/2,oy+inner); icx.lineTo(ox,y+size/2); icx.closePath(); icx.fill();
+  }else if(type.includes("gold")||type.includes("copper")||type.includes("iron")||type.includes("titanium")||type.includes("cobalt")||type.includes("alloy")){
+    icx.fillRect(ox+inner*0.12,oy+inner*0.38,inner*0.76,inner*0.28); icx.fillStyle="#ffffff22"; icx.fillRect(ox+inner*0.18,oy+inner*0.42,inner*0.25,inner*0.06);
+  }else if(type.includes("sand")||type.includes("dirt")||type.includes("stone")||type.includes("ice")||type.includes("lava")||type.includes("grass")){
+    icx.beginPath(); icx.arc(x+size/2,y+size/2,inner*0.38,0,Math.PI*2); icx.fill();
+  }else{
+    icx.fillRect(ox+inner*0.14,oy+inner*0.14,inner*0.72,inner*0.72);
+  }
+  icx.fillStyle="#fff"; icx.font=`bold ${Math.max(8,Math.floor(size*0.28))}px monospace`; icx.textAlign="center"; icx.textBaseline="middle"; icx.fillText(itemGlyphFor(type),x+size/2,y+size/2);
+  icx.restore();
+}
+
 function drawInventoryDetail(slot,dx,dy,dw,dh){
   const res=RES[slot.type];if(!res)return;
-  ctx.fillStyle=res.color;ctx.fillRect(dx+8,dy+8,38,38);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=2;ctx.strokeRect(dx+8,dy+8,38,38);
+  drawItemIcon(ctx,slot.type,dx+8,dy+8,38);
   ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+52,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Qty: ${slot.count}`,dx+52,dy+30);
   if(isWeaponKey(slot.type)){
     const d=weaponDefFor(slot.type),lvl=weaponLevel(slot.type),equipped=equippedWeaponKey()===slot.type;
@@ -6597,7 +6745,7 @@ function drawInventory(){
   const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#1a1f2e";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#4a5f8a";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
   ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.fillText("INVENTORY",px+10,py+16);ctx.fillStyle="#8fa3cc";ctx.font="10px monospace";ctx.fillText(`Slots:${filledSlotCount()}/${player.maxSlots} / Max ${MAX_TOTAL_SLOTS}`,px+110,py+16);
   const ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
-  for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg),slot=player.invSlots[i],isSel=selectedSlot===i;ctx.fillStyle=isSel?"#1a2a3a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#5a9aff":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);if(slot.type&&slot.count){ctx.fillStyle=RES[slot.type]?.color||"#aaa";ctx.fillRect(bx+4,by+4,ss-8,ss-8);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-3,by+ss-3);ctx.textAlign="left";}}
+  for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg),slot=player.invSlots[i],isSel=selectedSlot===i;ctx.fillStyle=isSel?"#1a2a3a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#5a9aff":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);if(slot.type&&slot.count){drawItemIcon(ctx,slot.type,bx+4,by+4,ss-8);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-3,by+ss-3);ctx.textAlign="left";}}
   if(maxInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=INV_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(14,trackH*(INV_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(inventoryScrollRows/maxInventoryScrollRows());ctx.fillStyle="#5a8aaa";ctx.fillRect(trackX,knobY,4,knobH);ctx.fillStyle="#6a8aaa";ctx.font="7px monospace";ctx.fillText("wheel",trackX-8,trackY+trackH+9);}
   ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText(`Showing ${start+1}-${Math.min(player.maxSlots,start+visible)} of ${player.maxSlots}`,px+10,py+ph-22);
   const dx=px+250,dy=py+28,dw=140,dh=140;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
