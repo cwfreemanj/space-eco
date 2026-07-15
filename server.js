@@ -790,12 +790,19 @@ function equippedWeaponKeyFor(p){return (p?.equippedWeapon&&isWeaponKey(p.equipp
 function spawnWeaponProjectiles(p,ang,dmgStat){
   const key=equippedWeaponKeyFor(p),d=WEAPON_DEFS[key]||WEAPON_DEFS.weapon_laser_mk1,lvl=weaponLevelFor(p,key),shots=d.shots||1,spread=d.spread||0;
   const totalDamage=d.damage*Math.pow(d.upgradeMult||1.15,lvl-1)*dmgStat;
+  const spawned=[];
   for(let i=0;i<shots;i++){
     const offset=shots===1?0:(i-(shots-1)/2)*(spread/Math.max(1,shots-1));
     const jitter=d.mode==="swarm"?(Math.random()-.5)*spread*.35:0;
     const a=ang+offset+jitter,speed=(d.speed||PROJ_SPEED)*(d.mode==="swarm"?(0.84+Math.random()*0.35):1);
-    pvpProjectiles.push({id:`${p.id}_${Date.now()}_${Math.random()}`,ownerId:p.id,ownerName:p.name,x:p.x+Math.cos(a)*12,y:p.y+Math.sin(a)*12,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,damage:totalDamage/shots,life:d.life||PROJ_LIFE,weaponKey:key,color:d.color,size:d.size||2.5,mode:d.mode});
+    const startX=p.x+Math.cos(a)*12,startY=p.y+Math.sin(a)*12;
+    const projectile={id:`${p.id}_${Date.now()}_${Math.random()}`,ownerId:p.id,ownerName:p.name,x:startX,y:startY,prevX:startX,prevY:startY,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,damage:totalDamage/shots,life:d.life||PROJ_LIFE,weaponKey:key,color:d.color,size:d.size||2.5,mode:d.mode};
+    pvpProjectiles.push(projectile);
+    spawned.push({id:projectile.id,ownerId:projectile.ownerId,x:projectile.x,y:projectile.y,vx:projectile.vx,vy:projectile.vy,weaponKey:projectile.weaponKey,color:projectile.color,size:projectile.size,mode:projectile.mode});
   }
+  // v4.0.12: broadcast spawned bullets immediately so mobile/browser clients see
+  // other players firing without waiting for the next world-state packet.
+  for(const projectile of spawned)io.emit("pvpProjectileSpawn",{projectile});
   return d.cooldown||SHOOT_CD;
 }
 
@@ -1533,22 +1540,39 @@ function applyShieldHullDamageToPlayer(target, rawDamage, useArmor=true){
   return {damage:Math.round(raw/armor),hpDamage,shieldDamage,killed:target.hp<=0};
 }
 
+function pointSegmentDistance(px,py,ax,ay,bx,by){
+  const abx=bx-ax,aby=by-ay,apx=px-ax,apy=py-ay;
+  const ab2=abx*abx+aby*aby;
+  const t=ab2>0?Math.max(0,Math.min(1,(apx*abx+apy*aby)/ab2)):0;
+  const cx=ax+abx*t,cy=ay+aby*t;
+  return Math.hypot(px-cx,py-cy);
+}
+function shipHitRadiusFor(p){
+  const size=(SHIP_TYPES[p?.shipType||"scout"]||SHIP_TYPES.scout).size;
+  return size==="huge"?24:size==="large"?20:size==="medium"?17:15;
+}
 function tickProjectiles(dt){
   for(let i=pvpProjectiles.length-1;i>=0;i--){
-    const p=pvpProjectiles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
+    const p=pvpProjectiles[i];
+    const ox=Number.isFinite(Number(p.x))?p.x:(p.prevX||0),oy=Number.isFinite(Number(p.y))?p.y:(p.prevY||0);
+    p.prevX=ox;p.prevY=oy;p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
     if(p.life<=0){pvpProjectiles.splice(i,1);continue;}
+    let consumed=false;
     for(const[sid,target]of players){
-      if(sid===p.ownerId||target.mode!=="space")continue;
-      if(areAllied(players.get(p.ownerId),target))continue;
-      if(Math.hypot(p.x-target.x,p.y-target.y)<12){
+      if(sid===p.ownerId||target.mode!=="space"||target.hp<=0)continue;
+      const owner=players.get(p.ownerId);
+      if(areAllied(owner,target))continue;
+      const hitRadius=shipHitRadiusFor(target)+(Number(p.size)||2.5);
+      if(pointSegmentDistance(target.x,target.y,ox,oy,p.x,p.y)<=hitRadius){
         const result=applyShieldHullDamageToPlayer(target,p.damage,true);
         io.to(sid).emit("hit",{damage:result.damage,hp:target.hp,shield:target.shield,by:p.ownerId});
-        io.to(p.ownerId).emit("hitConfirm",{targetId:sid,damage:result.damage,weaponKey:p.weaponKey,color:p.color});
-        pvpProjectiles.splice(i,1);
+        if(p.ownerId)io.to(p.ownerId).emit("hitConfirm",{targetId:sid,damage:result.damage,weaponKey:p.weaponKey,color:p.color});
+        pvpProjectiles.splice(i,1);consumed=true;
         if(result.killed)handlePlayerKill(sid,p.ownerId);
         break;
       }
     }
+    if(consumed)continue;
   }
 }
 
@@ -1685,7 +1709,7 @@ function serverListSnap(p){return{id:p.id,name:p.name,x:Math.round(p.x),y:Math.r
 
 function broadcastWorldState(){
   const all=[ ...players.values()].map(snap);
-  const projs=pvpProjectiles.map(p=>({id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,ownerId:p.ownerId,weaponKey:p.weaponKey,color:p.color,size:p.size}));
+  const projs=pvpProjectiles.map(p=>({id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,ownerId:p.ownerId,weaponKey:p.weaponKey,color:p.color,size:p.size,mode:p.mode,life:p.life}));
   for(const[sid,p]of players){
     const nearby=all.filter(s=>s.id!==sid&&Math.hypot(s.x-p.x,s.y-p.y)<BROADCAST_RANGE);
     const nearProj=projs.filter(pr=>Math.hypot(pr.x-p.x,pr.y-p.y)<BROADCAST_RANGE);
@@ -2013,7 +2037,7 @@ io.on("connection",socket=>{
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
     const p=players.get(socket.id);if(!p)return;
     p.input.rotLeft=!!rotLeft;p.input.rotRight=!!rotRight;p.input.thrust=!!thrust;p.input.brake=!!brake;
-    if(shootX!==undefined&&p.input.shootX===null){p.input.shootX=shootX;p.input.shootY=shootY;}
+    if(shootX!==undefined){p.input.shootX=Number(shootX);p.input.shootY=Number(shootY);}
   });
 
   socket.on("ownedTradeShipAttackPlayer",({targetId,stationKey,shipId,damage,x,y})=>{
