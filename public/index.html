@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Space Eco — Desktop Browser</title>
+<title>Space Eco — Mobile App</title>
 <style>
 html,body{margin:0;height:100%;background:#05060a;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial;overflow:hidden}
 #wrap{display:flex;flex-direction:column;height:100%}
@@ -1531,10 +1531,22 @@ let mouse={x:canvas.width/2,y:canvas.height/2,down:false,clicked:false};
 
 const FORCE_DESKTOP_BROWSER = _spaceEcoParams.get("desktop") === "1" || _spaceEcoParams.get("browser") === "1";
 const FORCE_MOBILE_TOUCH = _spaceEcoParams.get("mobile") === "1";
-const IS_MOBILE_TOUCH = !FORCE_DESKTOP_BROWSER && (FORCE_MOBILE_TOUCH || matchMedia("(pointer: coarse)").matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||""));
+function isSpaceEcoNativeApp(){
+  try{
+    if(location.protocol === "capacitor:" || location.hostname === "spaceeco.local") return true;
+    const cap = window.Capacitor;
+    if(cap?.isNativePlatform?.()) return true;
+    const platform = cap?.getPlatform?.();
+    if(platform && platform !== "web") return true;
+  }catch(_){/* ignore native detection failures */}
+  return false;
+}
+const IS_SPACE_ECO_NATIVE_APP = isSpaceEcoNativeApp();
+const IS_MOBILE_TOUCH = !FORCE_DESKTOP_BROWSER && (IS_SPACE_ECO_NATIVE_APP || FORCE_MOBILE_TOUCH || matchMedia("(pointer: coarse)").matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||""));
 document.body.classList.add("browser-build");
 document.body.classList.toggle("mobile-device", IS_MOBILE_TOUCH);
 document.body.classList.toggle("desktop-browser", !IS_MOBILE_TOUCH);
+/* SPACE ECO MOBILE APP SYNC v4.0.12: native app defaults to mobile controls while keeping browser fallbacks. */
 const MOBILE_CONTROL_DEFAULTS={moveSensitivity:.45,aimSensitivity:.45};
 function loadMobileControlSettings(){
   const read=(key,def)=>{try{const raw=localStorage.getItem(`spaceEco_${key}`);if(raw===null)return def;return clamp(Number(raw),.35,1);}catch(_){return def;}};
@@ -1691,16 +1703,59 @@ let mobileJoystickPointer=null,mobileFirePointer=null;
 function mobileEventStop(e){if(e){e.preventDefault();e.stopPropagation();}try{e?.currentTarget?.blur?.();}catch(_){}}
 function mobileClearMoveKeys(){for(const k of MOBILE_CONTROL_KEYS)keys.delete(k);}
 function mobileCanvasPointFromEvent(e){const r=canvas.getBoundingClientRect(),sx=canvas.width/Math.max(1,r.width),sy=canvas.height/Math.max(1,r.height);mouse.x=clamp((e.clientX-r.left)*sx,0,canvas.width);mouse.y=clamp((e.clientY-r.top)*sy,0,canvas.height);}
+let mobileCameraZoom=1;
+let mobilePinchState=null;
+function loadMobileCameraZoom(){try{mobileCameraZoom=clamp(Number(localStorage.getItem("spaceEcoMobileCameraZoom"))||1,.5,2);}catch(_){mobileCameraZoom=1;}}
+function saveMobileCameraZoom(){try{localStorage.setItem("spaceEcoMobileCameraZoom",String(Math.round(mobileCameraZoom*1000)/1000));}catch(_){}}
+loadMobileCameraZoom();
+function mobileLandscapeViewMultiplier(){return IS_MOBILE_TOUCH&&window.innerWidth>window.innerHeight?2:1;}
+function mobileCameraViewMultiplier(){return clamp(mobileLandscapeViewMultiplier()/mobileCameraZoom,.45,3.5);}
+function mobileTouchDistance(touches){const a=touches[0],b=touches[1];return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}
+function mobileTouchMidpoint(touches){const a=touches[0],b=touches[1];return {x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2};}
+function isMiddleCanvasPinch(touches){
+  if(!IS_MOBILE_TOUCH||!touches||touches.length<2)return false;
+  const r=canvas.getBoundingClientRect();
+  const mid=mobileTouchMidpoint(touches);
+  const nx=(mid.x-r.left)/Math.max(1,r.width),ny=(mid.y-r.top)/Math.max(1,r.height);
+  return nx>.18&&nx<.82&&ny>.14&&ny<.86;
+}
+function bindMobilePinchZoom(){
+  if(!IS_MOBILE_TOUCH)return;
+  canvas.addEventListener("touchstart",e=>{
+    if(e.touches&&e.touches.length===2&&isMiddleCanvasPinch(e.touches)){
+      mobilePinchState={startDist:Math.max(20,mobileTouchDistance(e.touches)),startZoom:mobileCameraZoom,lastNoticeAt:0};
+      resetMobileControlState("pinch_zoom");
+      e.preventDefault();
+    }
+  },{passive:false});
+  canvas.addEventListener("touchmove",e=>{
+    if(!mobilePinchState||!e.touches||e.touches.length<2)return;
+    const dist=mobileTouchDistance(e.touches);
+    mobileCameraZoom=clamp(mobilePinchState.startZoom*(dist/mobilePinchState.startDist),.5,2);
+    resizeGameCanvasToDisplay();
+    const now=performance.now();
+    if(now-(mobilePinchState.lastNoticeAt||0)>350){
+      mobilePinchState.lastNoticeAt=now;
+      showFT(`Zoom ${Math.round(mobileCameraZoom*100)}%`,mode===MODE.SPACE?ship.x:astronaut.x,mode===MODE.SPACE?ship.y-22:astronaut.y-30,"#7be6ff",8);
+    }
+    e.preventDefault();
+  },{passive:false});
+  ["touchend","touchcancel"].forEach(type=>canvas.addEventListener(type,e=>{
+    if(mobilePinchState&&(!e.touches||e.touches.length<2)){saveMobileCameraZoom();mobilePinchState=null;}
+  },{passive:false}));
+}
+
 function resizeGameCanvasToDisplay(){
   const r=canvas.getBoundingClientRect();
   if(!r||r.width<80||r.height<80)return;
+  const zoomOut=mobileCameraViewMultiplier();
   const minW=IS_MOBILE_TOUCH?560:560,minH=IS_MOBILE_TOUCH?310:310;
-  const w=Math.max(minW,Math.round(r.width)),h=Math.max(minH,Math.round(r.height));
+  const w=Math.max(minW,Math.round(r.width*zoomOut)),h=Math.max(minH,Math.round(r.height*zoomOut));
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;mouse.x=canvas.width/2;mouse.y=canvas.height/2;layoutFloatingHud();}
 }
 function mobileAimFallback(){
   if(mode===MODE.SPACE){const a=Number.isFinite(ship?.angle)?ship.angle:0;mouse.x=canvas.width/2+Math.cos(a)*Math.min(canvas.width*.34,180);mouse.y=canvas.height/2+Math.sin(a)*Math.min(canvas.height*.34,120);}
-  else {mouse.x=canvas.width/2+70;mouse.y=canvas.height/2;}
+  else {const cam=(planetMap&&typeof planetCamera==="function")?planetCamera():{x:0,y:0};mouse.x=clamp((astronaut?.x||0)+70-cam.x,8,canvas.width-8);mouse.y=clamp((astronaut?.y||0)-8-cam.y,8,canvas.height-8);}
 }
 function mobileApplyFireAim(e){
   const base=document.getElementById("mobile-fire-btn"),knob=document.getElementById("mobile-fire-knob");if(!base)return;
@@ -1712,6 +1767,16 @@ function mobileApplyFireAim(e){
   const sens=mobileAimSensitivity();
   const dead=.18+(1-sens)*.06;
   if(mag<dead){mobileAimFallback();return;}
+  if(mode===MODE.PLANET&&planetTool==="mining"&&planetMap){
+    const cam=planetCamera(),originX=astronaut.x,originY=astronaut.y-astronaut.h/2;
+    const reach=(IS_MOBILE_TOUCH?96:82)*(0.55+0.55*mag);
+    const targetWorldX=originX+nx*reach,targetWorldY=originY+ny*reach;
+    const targetX=clamp(targetWorldX-cam.x,8,canvas.width-8),targetY=clamp(targetWorldY-cam.y,8,canvas.height-8);
+    const smooth=clamp(.32+sens*.24,.32,.56);
+    mouse.x=Number.isFinite(mouse.x)?lerp(mouse.x,targetX,smooth):targetX;
+    mouse.y=Number.isFinite(mouse.y)?lerp(mouse.y,targetY,smooth):targetY;
+    return;
+  }
   const reachX=Math.min(canvas.width*.42,240),reachY=Math.min(canvas.height*.42,170);
   const reachScale=clamp(.30+sens*.54,.45,.86);
   const pull=(.28+.72*mag)*reachScale;
@@ -1959,6 +2024,7 @@ function syncMobileTouchUI(){
 }
 bindMobileTouchControls();
 bindMobileControlSettings();
+bindMobilePinchZoom();
 window.addEventListener("pointerup",e=>{if(!IS_MOBILE_TOUCH)return;if(e.pointerId===mobileJoystickPointer)mobileResetJoystick();if(e.pointerId===mobileFirePointer)mobileResetFireAim();},{passive:false});
 window.addEventListener("pointercancel",e=>{if(!IS_MOBILE_TOUCH)return;if(e.pointerId===mobileJoystickPointer)mobileResetJoystick();if(e.pointerId===mobileFirePointer)mobileResetFireAim();},{passive:false});
 window.addEventListener("orientationchange",()=>{if(!IS_MOBILE_TOUCH)return;resetMobileControlState("orientation");setTimeout(resizeGameCanvasToDisplay,80);setTimeout(resizeGameCanvasToDisplay,360);},{passive:true});
@@ -5331,6 +5397,12 @@ socket.on("worldState",({self,others,pvpProjectiles:sp})=>{
   pvpProjectiles.length=0;if(sp)for(const p of sp)pvpProjectiles.push(p);
 });
 
+socket.on("pvpProjectileSpawn",({projectile}={})=>{
+  if(!projectile||!projectile.id||projectile.ownerId===player.id)return;
+  if(pvpProjectiles.some(p=>p.id===projectile.id))return;
+  pvpProjectiles.push(projectile);
+});
+
 socket.on("economyUpdate",prices=>{serverPrices=prices;});
 socket.on("playerJoined",({name})=>{addChat("Server",`${name} entered the galaxy`,"#78ff8a");pcEl.textContent=`👥 ${(parseInt(pcEl.textContent.replace(/\D/g,""))||1)+1}`;});
 socket.on("worldCosmeticSync",({worldCosmetics}={})=>{if(worldCosmetics){globalWorldCosmetics=normalizeEquippedCosmetics(worldCosmetics);renderCosmeticShop&&renderCosmeticShop();}});
@@ -5669,11 +5741,13 @@ function sendInput(){
   }
   const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
   let shootX=undefined,shootY=undefined;
-  if(mouse.clicked&&!shopOpen&&!inventoryOpen&&!attrOpen&&!characterOpen&&shootCooldownTimer<=0){
+  // v4.0.12: send authoritative PvP/projectile shots while the fire control is held.
+  // The old code only sent a shot on the single pointer/click frame, while mobile kept
+  // drawing local-only bullets during hold-fire. That made other players unable to see
+  // bullets and prevented player-vs-player damage from being applied reliably.
+  const wantsSpaceShot=(mouse.down||mouse.clicked)&&!shopOpen&&!inventoryOpen&&!attrOpen&&!characterOpen&&!chatFocused;
+  if(wantsSpaceShot&&shootCooldownTimer<=0){
     shootX=mouse.x+camX;shootY=mouse.y+camY;
-    const assistTarget=findAssistTargetForShot(shootX,shootY);
-    if(assistTarget){callOwnedTradeShipsToAssist(assistTarget,assistTarget.label||"target");callMercsToAssist(assistTarget,assistTarget.label||"target");}
-    shootCooldownTimer=fireWeaponLocal(angleToward(ship.x,ship.y,shootX,shootY));
   }
   const stormThrottle=activeSpaceEffects.nebulaStorm>0 && Math.floor(performance.now()/220)%5===0;
   socket.emit("input",{rotLeft:keys.has("a"),rotRight:keys.has("d"),thrust:keys.has("w")&&!stormThrottle,brake:keys.has("s"),shootX,shootY});
@@ -5693,14 +5767,14 @@ function ensureSmallAsteroidFieldsAround(x,y){
       const key=makeAsteroidFieldKey(cx,cy,fi); if(generatedAsteroidFieldKeys.has(key))continue; generatedAsteroidFieldKeys.add(key);
       const centerX=(cx+0.5)*CHUNK_SIZE+(rng()-0.5)*CHUNK_SIZE*0.7, centerY=(cy+0.5)*CHUNK_SIZE+(rng()-0.5)*CHUNK_SIZE*0.7;
       const rockCount=5+Math.floor(rng()*8);
-      for(let i=0;i<rockCount;i++){const a=rng()*Math.PI*2,r=12+rng()*68,size=6+rng()*10;smallAsteroidFields.push({id:`ast_${asteroidFieldSeq++}`,x:centerX+Math.cos(a)*r,y:centerY+Math.sin(a)*r,vx:(rng()-0.5)*3,vy:(rng()-0.5)*3,r:size,hp:24+Math.floor(size*4),maxHp:24+Math.floor(size*4),spin:rng()*Math.PI*2,spinV:(rng()-0.5)*0.6,lootPool:["stone","iron","copper","crystal","silicon","cobalt","titanium","stardust","dark_obsidian","charcoal_block","purple_miasma","neon_ore"]});}
+      for(let i=0;i<rockCount;i++){const a=rng()*Math.PI*2,r=12+rng()*68,size=6+rng()*10;smallAsteroidFields.push({id:`ast_${asteroidFieldSeq++}`,x:centerX+Math.cos(a)*r,y:centerY+Math.sin(a)*r,vx:0,vy:0,r:size,hp:24+Math.floor(size*4),maxHp:24+Math.floor(size*4),spin:rng()*Math.PI*2,spinV:(rng()-0.5)*0.6,lootPool:["stone","iron","copper","crystal","silicon","cobalt","titanium","stardust","dark_obsidian","charcoal_block","purple_miasma","neon_ore"]});}
     }
   }
   // Keep generated asteroid chunks persistent so fields stay available when the player backtracks.
 }
 function asteroidLootPool(a){return a.lootPool||["stone","iron","copper"]; }
 function destroySmallAsteroid(a){const drops=1+Math.floor(a.r/5);const pool=asteroidLootPool(a);for(let i=0;i<drops;i++){const type=pool[Math.floor(Math.random()*pool.length)];spaceDrops.push({type,x:a.x+(Math.random()-.5)*a.r*1.2,y:a.y+(Math.random()-.5)*a.r*1.2,vx:(Math.random()-.5)*36,vy:(Math.random()-.5)*36,life:28});}showFT("Asteroid broken",a.x,a.y-14,"#ffcc44",9);}
-function updateSmallAsteroidFields(dt){ensureSmallAsteroidFieldsAround(ship.x,ship.y);const shipRad=(ship.r||8)+4;for(let i=smallAsteroidFields.length-1;i>=0;i--){const a=smallAsteroidFields[i];a.x+=a.vx*dt;a.y+=a.vy*dt;a.spin+=a.spinV*dt;const d=Math.hypot(ship.x-a.x,ship.y-a.y);const minDist=shipRad+a.r; if(d<minDist&&d>0){const nx=(ship.x-a.x)/d, ny=(ship.y-a.y)/d; ship.x=a.x+nx*minDist; ship.y=a.y+ny*minDist; ship.vx+=nx*18; ship.vy+=ny*18; if((a.bumpAt||0)<Date.now()-700){a.bumpAt=Date.now(); showFT("Asteroid impact",ship.x,ship.y-14,"#ff8844",8);} } } }
+function updateSmallAsteroidFields(dt){ensureSmallAsteroidFieldsAround(ship.x,ship.y);const shipRad=(ship.r||8)+4;for(let i=smallAsteroidFields.length-1;i>=0;i--){const a=smallAsteroidFields[i];a.spin+=a.spinV*dt;const d=Math.hypot(ship.x-a.x,ship.y-a.y);const minDist=shipRad+a.r; if(d<minDist&&d>0){const nx=(ship.x-a.x)/d, ny=(ship.y-a.y)/d; ship.x=a.x+nx*minDist; ship.y=a.y+ny*minDist; ship.vx+=nx*18; ship.vy+=ny*18; if((a.bumpAt||0)<Date.now()-700){a.bumpAt=Date.now(); showFT("Asteroid impact",ship.x,ship.y-14,"#ff8844",8);} } } }
 function hitSmallAsteroids(projectile){for(let i=smallAsteroidFields.length-1;i>=0;i--){const a=smallAsteroidFields[i];if(Math.hypot(projectile.x-a.x,projectile.y-a.y)<=a.r+(projectile.size||2)){a.hp-=Math.max(1,Math.round(projectile.damage||8));showFT(`-${Math.max(1,Math.round(projectile.damage||8))}`,a.x,a.y-10,"#dff9ff",8);if(a.hp<=0){destroySmallAsteroid(a);smallAsteroidFields.splice(i,1);}return true;}}return false;}
 
 function updateSpace(dt){
@@ -6222,7 +6296,7 @@ function drawSpace(){
   // PvP projectiles
   for(const prt of particles){const px2=prt.x-camX,py2=prt.y-camY,alpha=clamp(prt.life/(prt.maxLife||0.4),0,1);ctx.globalAlpha=alpha;ctx.fillStyle=prt.color||"#fff";ctx.beginPath();ctx.arc(px2,py2,prt.size||2,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
   for(const p of pvpProjectiles){const px2=p.x-camX,py2=p.y-camY;const own=p.ownerId===player.id;ctx.fillStyle=p.color||(own?"#ffff44":"#ff6622");ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(px2,py2,p.size||2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
-  for(const a of smallAsteroidFields){ctx.save();ctx.translate(a.x-camX,a.y-camY);ctx.rotate(a.spin||0);ctx.fillStyle="#6b7482";ctx.beginPath();for(let i=0;i<7;i++){const ang=(Math.PI*2*i)/7,rad=a.r*(0.82+((i%2)?0.18:0));const px=Math.cos(ang)*rad,py=Math.sin(ang)*rad;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.closePath();ctx.fill();ctx.strokeStyle="#aeb8c8";ctx.lineWidth=1;ctx.stroke();ctx.fillStyle="#314055";ctx.fillRect(-a.r*0.25,-a.r*0.15,a.r*0.4,a.r*0.28);ctx.restore();const hpPct=Math.max(0,(a.hp||0)/(a.maxHp||1));ctx.fillStyle="#09111b";ctx.fillRect(a.x-camX-a.r,a.y-camY-a.r-8,a.r*2,3);ctx.fillStyle="#7be6ff";ctx.fillRect(a.x-camX-a.r,a.y-camY-a.r-8,a.r*2*hpPct,3);}
+  for(const a of smallAsteroidFields){ctx.save();ctx.translate(a.x-camX,a.y-camY);ctx.rotate(a.spin||0);ctx.fillStyle="#8792a8";ctx.beginPath();for(let i=0;i<7;i++){const ang=(Math.PI*2*i)/7,rad=a.r*(0.82+((i%2)?0.18:0));const px=Math.cos(ang)*rad,py=Math.sin(ang)*rad;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.closePath();ctx.fill();ctx.strokeStyle="#aeb8c8";ctx.lineWidth=1;ctx.stroke();ctx.fillStyle="#7be6ff";ctx.globalAlpha=.55;ctx.fillRect(-a.r*0.25,-a.r*0.15,a.r*0.4,a.r*0.28);ctx.globalAlpha=1;ctx.restore();const hpPct=Math.max(0,(a.hp||0)/(a.maxHp||1));ctx.fillStyle="#09111b";ctx.fillRect(a.x-camX-a.r,a.y-camY-a.r-8,a.r*2,3);ctx.fillStyle="#7be6ff";ctx.fillRect(a.x-camX-a.r,a.y-camY-a.r-8,a.r*2*hpPct,3);}
   for(const p of localPlayerProjectiles){ctx.fillStyle=p.color||"#ffff44";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,p.size||2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of enemyProjectiles){const ec=enemyVisualColor();ctx.fillStyle=p.color||ec;ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.3,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}
   for(const p of warProjectiles){ctx.fillStyle=p.color||"#ff8844";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,2.6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.3;ctx.beginPath();ctx.arc(p.x-camX,p.y-camY,5.5,0,Math.PI*2);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;}
