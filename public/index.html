@@ -6456,64 +6456,61 @@ function handleCivilizationSuperStationClick(st,mx,my){
 function drawShop(st){
   if(!st)return;
   if(st.isCivSuperStation){drawCivilizationSuperStationMenu(st);return;}
-  ctx.fillStyle="rgba(0,0,0,0.82)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  beginReadableUi();ctx.fillStyle="rgba(0,0,0,0.82)";ctx.fillRect(0,0,canvas.width,canvas.height);
   const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
   ctx.fillStyle="#111620";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle=st.tierDef.color;ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
-  ctx.fillStyle=st.tierDef.color;ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText(st.tierDef.name+" Station — "+st.faction,px+pw/2,py+16);
-  ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(`Credits: ${player.credits} | ${st.nearbyPlanets} planets nearby`,px+pw/2,py+28);ctx.textAlign="left";
-  const tabs=["sell","buy","quests","hire"];tabs.forEach((t,i)=>{const tx=px+10+i*80,ty=py+34,tw=75,th=18;ctx.fillStyle=shopTab===t?"#1a2a3e":"#0b1020";ctx.fillRect(tx,ty,tw,th);ctx.strokeStyle=shopTab===t?st.tierDef.color:"#2a3a5a";ctx.lineWidth=1;ctx.strokeRect(tx,ty,tw,th);ctx.fillStyle=shopTab===t?"#fff":"#6a8a9a";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(t.toUpperCase(),tx+tw/2,ty+13);ctx.textAlign="left";});
-  const sec=Math.ceil(st.buyStockTimer);ctx.fillStyle="#5a7a6a";ctx.font="8px monospace";ctx.fillText(`Restock: ${Math.floor(sec/60)}:${String(sec%60).padStart(2,"0")}`,px+180,py+48);
-  ctx.strokeStyle="#1a2a3e";ctx.beginPath();ctx.moveTo(px+5,py+55);ctx.lineTo(px+pw-5,py+55);ctx.stroke();
+  drawUiFittedText(`${st.tierDef.name} Station — ${st.faction}`,px+pw/2,py+17,pw-28,st.tierDef.color,uiFont(13,true),"center");
+  drawUiFittedText(`Credits: ${player.credits}  ·  ${st.nearbyPlanets} planets nearby`,px+pw/2,py+30,pw-28,"#9fb0ca",uiFont(8),"center");
+  const tabs=["sell","buy","quests","hire"];tabs.forEach((t,i)=>{const tx=px+10+i*80,ty=py+35,tw=75,th=18;ctx.fillStyle=shopTab===t?"#1a2a3e":"#0b1020";ctx.fillRect(tx,ty,tw,th);ctx.strokeStyle=shopTab===t?st.tierDef.color:"#2a3a5a";ctx.lineWidth=1;ctx.strokeRect(tx,ty,tw,th);drawUiFittedText(t.toUpperCase(),tx+tw/2,ty+13,tw-8,shopTab===t?"#fff":"#7f9eae",uiFont(8,true),"center");});
+  const sec=Math.ceil(st.buyStockTimer);drawUiFittedText(`Restock ${Math.floor(sec/60)}:${String(sec%60).padStart(2,"0")}`,px+405,py+49,90,"#658776",uiFont(7),"right");
   if(shopTab==="sell")drawShopSell(st,px,py,pw,ph);else if(shopTab==="buy")drawShopBuy(st,px,py,pw,ph);else if(shopTab==="quests")drawShopQuests(st,px,py,pw,ph);else drawShopHire(st,px,py,pw,ph);
   const gx=px+10,gy=py+ph-28,gw=130,gh=20,gasPrice=stationGasPrice(),can1=player.credits>=gasPrice;
-  ctx.fillStyle=can1?"#1a3a1a":"#2a1a1a";ctx.fillRect(gx,gy,gw,gh);ctx.strokeStyle=can1?"#4a8a4a":"#5a3a3a";ctx.lineWidth=1;ctx.strokeRect(gx,gy,gw,gh);ctx.fillStyle=can1?"#aaff44":"#6a6a6a";ctx.font="bold 8px monospace";ctx.fillText(`Buy Gas: ${gasPrice}cr (+${GAS_REFUEL}%)`,gx+5,gy+14);
-  ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText("O:close | H:ships | B:build",px+160,py+ph-15);
+  ctx.fillStyle=can1?"#1a3a1a":"#2a1a1a";ctx.fillRect(gx,gy,gw,gh);ctx.strokeStyle=can1?"#4a8a4a":"#5a3a3a";ctx.strokeRect(gx,gy,gw,gh);drawUiFittedText(`Buy Gas: ${gasPrice}cr (+${GAS_REFUEL}%)`,gx+6,gy+14,gw-12,can1?"#aaff44":"#777",uiFont(7,true));
+  drawUiFittedText("O close  ·  H ships  ·  B build",px+160,py+ph-14,pw-170,"#7c8fa3",uiFont(7));
 }
 
 function drawShopSell(st,px,py,pw,ph){
-  clampPanelScrolls();
-  const ss=30,sg=3,cols=INV_COLS,sx=px+10,sy=py+58,start=shopInventoryScrollRows*cols,visible=cols*SHOP_SELL_VISIBLE_ROWS;
-  ctx.fillStyle="#7a9aaa";ctx.font="bold 8px monospace";ctx.fillText(`Inventory slots ${start+1}-${Math.min(player.maxSlots,start+visible)} / ${player.maxSlots}`,sx,sy-6);
+  beginReadableUi();clampPanelScrolls();
+  const ss=30,sg=3,cols=INV_COLS,sx=px+10,sy=py+59,start=shopInventoryScrollRows*cols,visible=cols*SHOP_SELL_VISIBLE_ROWS;
+  drawUiFittedText(`Inventory ${start+1}–${Math.min(player.maxSlots,start+visible)} of ${player.maxSlots}`,sx,sy-5,230,"#87a8b8",uiFont(7,true));
   for(let n=0;n<visible;n++){
-    const i=start+n;if(i>=player.maxSlots)break;
-    const slot=player.invSlots[i],col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);
+    const i=start+n;if(i>=player.maxSlots)break;const slot=player.invSlots[i],col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);
     ctx.fillStyle=shopSelectedSlot===i?"#2a3a4a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=shopSelectedSlot===i?"#78ff8a":"#2a3a4a";ctx.lineWidth=shopSelectedSlot===i?2:1;ctx.strokeRect(bx,by,ss,ss);
-    if(slot.type&&slot.count){drawItemIcon(ctx,slot.type,bx+4,by+4,ss-8);ctx.fillStyle="#fff";ctx.font="bold 8px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-2,by+ss-2);ctx.textAlign="left";}
+    if(slot.type&&slot.count){drawItemIcon(ctx,slot.type,bx+4,by+4,ss-8);drawUiFittedText(slot.count,bx+ss-2,by+ss-3,20,"#fff",uiFont(7,true),"right");}
   }
-  if(maxShopInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=SHOP_SELL_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(14,trackH*(SHOP_SELL_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(shopInventoryScrollRows/maxShopInventoryScrollRows());ctx.fillStyle="#5a8aaa";ctx.fillRect(trackX,knobY,4,knobH);ctx.fillStyle="#6a8aaa";ctx.font="7px monospace";ctx.fillText("wheel",trackX-8,trackY+trackH+9);}
+  if(maxShopInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=SHOP_SELL_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,5,trackH);const knobH=Math.max(14,trackH*(SHOP_SELL_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(shopInventoryScrollRows/maxShopInventoryScrollRows());ctx.fillStyle="#6a9abb";ctx.fillRect(trackX,knobY,5,knobH);}
   const dx=px+260,dy=py+58,dw=170,dh=175;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
   if(shopSelectedSlot!==null&&player.invSlots[shopSelectedSlot]?.type){
-    const slot=player.invSlots[shopSelectedSlot],res=RES[slot.type];if(!res)return;
-    drawItemIcon(ctx,slot.type,dx+8,dy+8,38);
-    ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+52,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Have: ${slot.count}`,dx+52,dy+30);
-    const sellPP=stationSellPrice(st,slot.type);ctx.fillStyle="#ffd15c";ctx.font="bold 9px monospace";ctx.fillText(`${sellPP}cr each`,dx+8,dy+58);
-    ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+8,dy+68);ctx.lineTo(dx+dw-8,dy+68);ctx.stroke();ctx.fillStyle="#aabbcc";ctx.font="bold 8px monospace";ctx.fillText("SELL QTY",dx+8,dy+82);
-    const bw=28,bh=18,my2=dy+90,mx2=dx+20;ctx.fillStyle=shopSellQty>1?"#3a4a5a":"#1a1a1a";ctx.fillRect(mx2,my2,bw,bh);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=1;ctx.strokeRect(mx2,my2,bw,bh);ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText("-",mx2+bw/2,my2+13);ctx.fillText(shopSellQty,dx+dw/2,my2+13);const plusX=dx+dw-52;ctx.fillStyle=shopSellQty<slot.count?"#3a4a5a":"#1a1a1a";ctx.fillRect(plusX,my2,bw,bh);ctx.strokeRect(plusX,my2,bw,bh);ctx.fillText("+",plusX+bw/2,my2+13);ctx.textAlign="left";
-    const total=sellPP*shopSellQty;ctx.fillStyle="#78ff8a";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(`Total: ${total}cr`,dx+dw/2,dy+124);ctx.textAlign="left";
-    ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(itemDescription(slot.type).slice(0,36),dx+8,dy+70);
-    const saX=dx+8,saY=dy+132,saW=68,btnH=18;ctx.fillStyle="#3a4a2a";ctx.fillRect(saX,saY,saW,btnH);ctx.strokeStyle="#5a7a3a";ctx.strokeRect(saX,saY,saW,btnH);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText("Set All",saX+12,saY+13);
-    const sellAllX=dx+8,sellAllY=dy+154,sellAllW=150;ctx.fillStyle="#3a3010";ctx.fillRect(sellAllX,sellAllY,sellAllW,btnH);ctx.strokeStyle="#b8942a";ctx.strokeRect(sellAllX,sellAllY,sellAllW,btnH);ctx.fillStyle="#ffdd44";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(`SELL ALL ${slot.count}x`,sellAllX+sellAllW/2,sellAllY+13);ctx.textAlign="left";
-    const sellX=dx+88,sellW=70;ctx.fillStyle="#2a4a3a";ctx.fillRect(sellX,saY,sellW,btnH);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(sellX,saY,sellW,btnH);ctx.fillStyle="#78ff8a";ctx.font="bold 8px monospace";ctx.fillText("SELL",sellX+22,saY+13);
-  }else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to sell",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
+    const slot=player.invSlots[shopSelectedSlot],res=RES[slot.type];if(!res)return;drawItemIcon(ctx,slot.type,dx+8,dy+8,38);
+    drawUiFittedText(res.name,dx+52,dy+18,dw-60,"#fff",uiFont(9,true));drawUiFittedText(`Have: ${slot.count}`,dx+52,dy+31,dw-60,"#9fb0ca",uiFont(7));
+    const sellPP=stationSellPrice(st,slot.type);drawUiFittedText(`${sellPP}cr each`,dx+8,dy+53,dw-16,"#ffd15c",uiFont(8,true));
+    drawUiWrappedText(itemDescription(slot.type),dx+8,dy+66,dw-16,8,2,"#aebfd2",uiFont(7));
+    drawUiFittedText("SELL QTY",dx+8,dy+86,dw-16,"#c7d2de",uiFont(7,true));
+    const bw=28,bh=18,my2=dy+90,mx2=dx+20;ctx.fillStyle=shopSellQty>1?"#3a4a5a":"#1a1a1a";ctx.fillRect(mx2,my2,bw,bh);ctx.strokeStyle="#4a5a6a";ctx.strokeRect(mx2,my2,bw,bh);drawUiFittedText("-",mx2+bw/2,my2+13,bw-4,"#fff",uiFont(11,true),"center");drawUiFittedText(shopSellQty,dx+dw/2,my2+13,50,"#fff",uiFont(10,true),"center");const plusX=dx+dw-52;ctx.fillStyle=shopSellQty<slot.count?"#3a4a5a":"#1a1a1a";ctx.fillRect(plusX,my2,bw,bh);ctx.strokeRect(plusX,my2,bw,bh);drawUiFittedText("+",plusX+bw/2,my2+13,bw-4,"#fff",uiFont(11,true),"center");
+    const total=sellPP*shopSellQty;drawUiFittedText(`Total: ${total}cr`,dx+dw/2,dy+124,dw-16,"#78ff8a",uiFont(8,true),"center");
+    const saX=dx+8,saY=dy+132,saW=68,btnH=18;ctx.fillStyle="#3a4a2a";ctx.fillRect(saX,saY,saW,btnH);ctx.strokeStyle="#5a7a3a";ctx.strokeRect(saX,saY,saW,btnH);drawUiFittedText("Set All",saX+saW/2,saY+13,saW-8,"#fff",uiFont(7,true),"center");
+    const sellX=dx+88,sellW=70;ctx.fillStyle="#2a4a3a";ctx.fillRect(sellX,saY,sellW,btnH);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(sellX,saY,sellW,btnH);drawUiFittedText("SELL",sellX+sellW/2,saY+13,sellW-8,"#78ff8a",uiFont(7,true),"center");
+    const sellAllX=dx+8,sellAllY=dy+154,sellAllW=150;ctx.fillStyle="#3a3010";ctx.fillRect(sellAllX,sellAllY,sellAllW,btnH);ctx.strokeStyle="#b8942a";ctx.strokeRect(sellAllX,sellAllY,sellAllW,btnH);drawUiFittedText(`SELL ALL ${slot.count}x`,sellAllX+sellAllW/2,sellAllY+13,sellAllW-10,"#ffdd44",uiFont(7,true),"center");
+  }else drawUiFittedText("Click an item to sell",dx+dw/2,dy+dh/2,dw-20,"#617184",uiFont(8),"center");
 }
 
 function drawShopBuy(st,px,py,pw,ph){
-  ctx.fillStyle="#7a9aaa";ctx.font="bold 9px monospace";ctx.fillText("AVAILABLE STOCK",px+10,py+66);
-  const stock=st.buyStock;if(!stock.length){ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("No stock (trade ships en route…)",px+10,py+90);return;}
+  beginReadableUi();drawUiFittedText("AVAILABLE STOCK",px+10,py+67,195,"#87a8b8",uiFont(8,true));
+  const stock=st.buyStock;if(!stock.length){drawUiFittedText("No stock — trade ships are en route",px+10,py+91,195,"#66798c",uiFont(8));return;}
   const iw=195,ih=20,ig=3,startY=py+70;
-  for(let i=0;i<stock.length;i++){const item=stock[i],res=RES[item.type],isSel=shopBuyItem===i,bx=px+10,by=startY+i*(ih+ig);if(by+ih>py+ph-35||!res)break;ctx.fillStyle=isSel?"#1a2a3e":"#0f1419";ctx.fillRect(bx,by,iw,ih);ctx.strokeStyle=isSel?st.tierDef.color:"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,iw,ih);drawItemIcon(ctx,item.type,bx+2,by+2,16);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText(`${res.name} x${item.qty}`,bx+22,by+13);ctx.fillStyle="#ffd15c";ctx.textAlign="right";ctx.fillText(`${item.price}cr`,bx+iw-5,by+13);ctx.textAlign="left";}
+  for(let i=0;i<stock.length;i++){const item=stock[i],res=RES[item.type],isSel=shopBuyItem===i,bx=px+10,by=startY+i*(ih+ig);if(by+ih>py+ph-35||!res)break;ctx.fillStyle=isSel?"#1a2a3e":"#0f1419";ctx.fillRect(bx,by,iw,ih);ctx.strokeStyle=isSel?st.tierDef.color:"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,iw,ih);drawItemIcon(ctx,item.type,bx+2,by+2,16);drawUiFittedText(`${res.name} x${item.qty}`,bx+22,by+13,118,"#fff",uiFont(7));drawUiFittedText(`${item.price}cr`,bx+iw-5,by+13,48,"#ffd15c",uiFont(7),"right");}
   const dx=px+215,dy=py+58,dw=215,dh=175;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
   if(shopBuyItem!==null&&stock[shopBuyItem]){
-    const item=stock[shopBuyItem],res=RES[item.type];if(!res)return;
-    drawItemIcon(ctx,item.type,dx+8,dy+8,36);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+50,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Stock: ${item.qty}`,dx+50,dy+30);ctx.fillText(`Price: ${item.price}cr each`,dx+8,dy+54);ctx.fillStyle="#9fb0d0";ctx.font="7px monospace";ctx.fillText(itemDescription(item.type).slice(0,44),dx+8,dy+66);
-    ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+8,dy+64);ctx.lineTo(dx+dw-8,dy+64);ctx.stroke();ctx.fillStyle="#aabbcc";ctx.font="bold 8px monospace";ctx.fillText("BUY QTY",dx+8,dy+78);
-    const bw=28,bh=18,my2=dy+84,mx2=dx+12;ctx.fillStyle=shopBuyQty>1?"#3a4a5a":"#1a1a1a";ctx.fillRect(mx2,my2,bw,bh);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=1;ctx.strokeRect(mx2,my2,bw,bh);ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText("-",mx2+bw/2,my2+13);ctx.fillText(shopBuyQty,dx+dw/2,my2+13);const plusX2=dx+dw-44;ctx.fillStyle=shopBuyQty<item.qty?"#3a4a5a":"#1a1a1a";ctx.fillRect(plusX2,my2,bw,bh);ctx.strokeRect(plusX2,my2,bw,bh);ctx.fillText("+",plusX2+bw/2,my2+13);ctx.textAlign="left";
-    const total=item.price*shopBuyQty,canAfford=player.credits>=total,hasSlotSpace=canFitInventoryLocal(item.type,shopBuyQty),hasSpace=hasSlotSpace,isPending=pendingShopBuy&&pendingShopBuy.type===item.type;ctx.fillStyle=canAfford&&hasSpace&&!isPending?"#78ff8a":"#ff5544";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(`Cost: ${total}cr`,dx+dw/2,dy+118);ctx.textAlign="left";
-    let msg="";if(isPending)msg="Buying...";else if(!canAfford)msg="Not enough credits";else if(!hasSlotSpace)msg="Inventory slots full";
-    if(msg){ctx.fillStyle="#ff5544";ctx.font="8px monospace";ctx.fillText(msg,dx+8,dy+132);}
-    const allQ=fitQuantityFor(item.type,Math.min(item.qty,Math.floor(player.credits/Math.max(1,item.price))));const allX=dx+8,allY=dy+158,allW=dw-16,allH=18;ctx.fillStyle=allQ>0&&!isPending?"#3a3010":"#1a1a1a";ctx.fillRect(allX,allY,allW,allH);ctx.strokeStyle=allQ>0?"#b8942a":"#555";ctx.strokeRect(allX,allY,allW,allH);ctx.fillStyle=allQ>0?"#ffdd44":"#777";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(allQ>0?`BUY ALL ${allQ}x`:"BUY ALL DISABLED",allX+allW/2,allY+12);ctx.textAlign="left";
-    const bX=dx+8,bY=dy+136,bW=dw-16,bH=20,canBuy=canAfford&&hasSpace&&!isPending;ctx.fillStyle=canBuy?"#1a3a2a":"#2a1a1a";ctx.fillRect(bX,bY,bW,bH);ctx.strokeStyle=canBuy?"#4a9a6a":"#6a3333";ctx.strokeRect(bX,bY,bW,bH);ctx.fillStyle=canBuy?"#78ff8a":"#aa7777";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(canBuy?`BUY ${shopBuyQty}x`:"BUY DISABLED",dx+dw/2,bY+14);ctx.textAlign="left";
-  }else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to buy",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
+    const item=stock[shopBuyItem],res=RES[item.type];if(!res)return;drawItemIcon(ctx,item.type,dx+8,dy+8,36);
+    drawUiFittedText(res.name,dx+50,dy+18,dw-58,"#fff",uiFont(9,true));drawUiFittedText(`Stock: ${item.qty}`,dx+50,dy+31,dw-58,"#9fb0ca",uiFont(7));drawUiFittedText(`Price: ${item.price}cr each`,dx+8,dy+52,dw-16,"#9fb0ca",uiFont(8));
+    drawUiWrappedText(itemDescription(item.type),dx+8,dy+65,dw-16,8,2,"#aebfd2",uiFont(7));
+    drawUiFittedText("BUY QTY",dx+8,dy+88,dw-16,"#c7d2de",uiFont(7,true));
+    const bw=28,bh=18,my2=dy+94,mx2=dx+12;ctx.fillStyle=shopBuyQty>1?"#3a4a5a":"#1a1a1a";ctx.fillRect(mx2,my2,bw,bh);ctx.strokeStyle="#4a5a6a";ctx.strokeRect(mx2,my2,bw,bh);drawUiFittedText("-",mx2+bw/2,my2+13,bw-4,"#fff",uiFont(11,true),"center");drawUiFittedText(shopBuyQty,dx+dw/2,my2+13,50,"#fff",uiFont(10,true),"center");const plusX2=dx+dw-44;ctx.fillStyle=shopBuyQty<item.qty?"#3a4a5a":"#1a1a1a";ctx.fillRect(plusX2,my2,bw,bh);ctx.strokeRect(plusX2,my2,bw,bh);drawUiFittedText("+",plusX2+bw/2,my2+13,bw-4,"#fff",uiFont(11,true),"center");
+    const total=item.price*shopBuyQty,canAfford=player.credits>=total,hasSlotSpace=canFitInventoryLocal(item.type,shopBuyQty),hasSpace=hasSlotSpace,isPending=pendingShopBuy&&pendingShopBuy.type===item.type;drawUiFittedText(`Cost: ${total}cr`,dx+dw/2,dy+126,dw-16,canAfford&&hasSpace?"#78ff8a":"#ff7777",uiFont(8,true),"center");
+    let msg="";if(isPending)msg="Buying…";else if(!canAfford)msg="Not enough credits";else if(!hasSlotSpace)msg="Inventory slots full";if(msg)drawUiFittedText(msg,dx+8,dy+134,dw-16,"#ff7777",uiFont(7));
+    const bX=dx+8,bY=dy+136,bW=dw-16,bH=20,canBuy=canAfford&&hasSpace&&!isPending;ctx.fillStyle=canBuy?"#1a3a2a":"#2a1a1a";ctx.fillRect(bX,bY,bW,bH);ctx.strokeStyle=canBuy?"#4a9a6a":"#6a3333";ctx.strokeRect(bX,bY,bW,bH);drawUiFittedText(canBuy?`BUY ${shopBuyQty}x`:"BUY DISABLED",dx+dw/2,bY+14,bW-10,canBuy?"#78ff8a":"#aa7777",uiFont(8,true),"center");
+    const allQ=fitQuantityFor(item.type,Math.min(item.qty,Math.floor(player.credits/Math.max(1,item.price)))),allX=dx+8,allY=dy+158,allW=dw-16,allH=18;ctx.fillStyle=allQ>0&&!isPending?"#3a3010":"#1a1a1a";ctx.fillRect(allX,allY,allW,allH);ctx.strokeStyle=allQ>0?"#b8942a":"#555";ctx.strokeRect(allX,allY,allW,allH);drawUiFittedText(allQ>0?`BUY ALL ${allQ}x`:"BUY ALL DISABLED",allX+allW/2,allY+12,allW-10,allQ>0?"#ffdd44":"#777",uiFont(7,true),"center");
+  }else drawUiFittedText("Click an item to buy",dx+dw/2,dy+dh/2,dw-20,"#617184",uiFont(8),"center");
 }
 
 function handleShopClick(mx,my){
@@ -6546,7 +6543,7 @@ function handleBuyClick(st,mx,my,px,py,pw,ph){
   const stock=st.buyStock,iw=195,ih=20,ig=3,startY=py+70;
   for(let i=0;i<stock.length;i++){const by=startY+i*(ih+ig);if(by+ih>py+ph-35)break;if(mx>=px+10&&mx<=px+10+iw&&my>=by&&my<=by+ih){shopBuyItem=i;shopBuyQty=1;return;}}
   if(shopBuyItem!==null&&stock[shopBuyItem]){
-    const item=stock[shopBuyItem],dx=px+215,dy=py+58,dw=215,bw=28,bh=18,my2=dy+84,mx2=dx+12;
+    const item=stock[shopBuyItem],dx=px+215,dy=py+58,dw=215,bw=28,bh=18,my2=dy+94,mx2=dx+12;
     if(mx>=mx2&&mx<=mx2+bw&&my>=my2&&my<=my2+bh){shopBuyQty=Math.max(1,shopBuyQty-1);return;}
     const plusX2=dx+dw-44;if(mx>=plusX2&&mx<=plusX2+bw&&my>=my2&&my<=my2+bh){shopBuyQty=Math.min(item.qty,shopBuyQty+1);return;}
     const allQ=fitQuantityFor(item.type,Math.min(item.qty,Math.floor(player.credits/Math.max(1,item.price))));const allX=dx+8,allY=dy+158,allW=dw-16,allH=18;if(mx>=allX&&mx<=allX+allW&&my>=allY&&my<=allY+allH&&allQ>0&&!pendingShopBuy){pendingShopBuy={stationId:st.id,index:shopBuyItem,type:item.type,quantity:allQ,pricePerUnit:item.price};socket.emit("buy",{resourceType:item.type,quantity:allQ,pricePerUnit:item.price,stationId:st.id});return;}
@@ -6600,41 +6597,19 @@ function incrementBadgeCounter(key,amount=1){badgeState.counters[key]=(badgeStat
 function toggleQuestLog(){questLogOpen=!questLogOpen;if(questLogOpen){questLogScroll=0;badgeLogOpen=false;inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;}}
 function toggleBadgeLog(){badgeLogOpen=!badgeLogOpen;if(badgeLogOpen){badgeLogScroll=0;questLogOpen=false;inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;}}
 function drawQuestLogPanel(){
-  clampPanelScrolls();
-  const pw=450,ph=274,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
-  ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#ffdd44";ctx.lineWidth=1;ctx.strokeRect(px,py,pw,ph);
-  ctx.fillStyle="#ffdd44";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("QUEST LOG",px+pw/2,py+18);ctx.textAlign="left";
-  ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("V:close · Mouse wheel scroll · Completed quests must be turned in at a station",px+12,py+32);
-  const ordered=[...questLog].sort((a,b)=>{const rank=q=>q.status==="complete"?0:q.status==="active"?1:2;return rank(a)-rank(b)||(b.acceptedAt||0)-(a.acceptedAt||0);});
-  questLogScroll=clamp(questLogScroll,0,Math.max(0,ordered.length-QUEST_LOG_VISIBLE_ROWS));
-  const list=ordered.slice(questLogScroll,questLogScroll+QUEST_LOG_VISIBLE_ROWS);
-  if(!ordered.length){ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("No quests yet. Visit a station and open O → QUESTS.",px+20,py+70);}
-  list.forEach((q,i)=>{const y=py+52+i*34,pct=Math.floor(((q.progress||0)/(q.target||1))*100),ready=q.status==="complete";ctx.fillStyle=ready?"#102416":"#101420";ctx.fillRect(px+12,y,pw-28,30);ctx.strokeStyle=ready?"#4a8a6a":"#2a3a5a";ctx.strokeRect(px+12,y,pw-28,30);ctx.fillStyle=ready?"#78ff8a":"#fff";ctx.font="bold 8px monospace";ctx.fillText(`${ready?"✓ TURN IN":"• ACTIVE"} ${q.title}`,px+18,y+9);ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(`${q.progress||0}/${q.target} (${pct}%) · +${q.rewardCredits}cr +${q.rewardXp}xp`,px+18,y+19);ctx.fillStyle=ready?"#ffdd44":"#5f7799";ctx.fillText(`Turn-in: ${q.stationName||"Station"} @ ${q.stationX??"?"}, ${q.stationY??"?"}`,px+18,y+28);});
-  if(ordered.length>QUEST_LOG_VISIBLE_ROWS){const trackX=px+pw-11,trackY=py+50,trackH=QUEST_LOG_VISIBLE_ROWS*34-4;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(18,trackH*(QUEST_LOG_VISIBLE_ROWS/ordered.length));const knobY=trackY+(trackH-knobH)*(questLogScroll/Math.max(1,ordered.length-QUEST_LOG_VISIBLE_ROWS));ctx.fillStyle="#ffdd44";ctx.fillRect(trackX,knobY,4,knobH);}
-  const readyCount=questLog.filter(q=>q.status==="complete").length;ctx.fillStyle=readyCount?"#78ff8a":"#6a7a8a";ctx.font="8px monospace";ctx.fillText(`${readyCount} ready to turn in · ${questLog.length} total active/completed quests`,px+14,py+ph-12);
+  beginReadableUi();clampPanelScrolls();const pw=450,ph=274,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#ffdd44";ctx.lineWidth=1;ctx.strokeRect(px,py,pw,ph);drawUiFittedText("QUEST LOG",px+pw/2,py+19,pw-24,"#ffdd44",uiFont(13,true),"center");drawUiFittedText("V close  ·  mouse wheel scroll  ·  turn completed quests in at their station",px+12,py+33,pw-24,"#91a3b8",uiFont(7));
+  const ordered=[...questLog].sort((a,b)=>{const rank=q=>q.status==="complete"?0:q.status==="active"?1:2;return rank(a)-rank(b)||(b.acceptedAt||0)-(a.acceptedAt||0);});questLogScroll=clamp(questLogScroll,0,Math.max(0,ordered.length-QUEST_LOG_VISIBLE_ROWS));const list=ordered.slice(questLogScroll,questLogScroll+QUEST_LOG_VISIBLE_ROWS);if(!ordered.length)drawUiFittedText("No quests yet. Visit a station and open O → QUESTS.",px+20,py+70,pw-40,"#66798c",uiFont(8));
+  list.forEach((q,i)=>{const y=py+52+i*34,pct=Math.floor(((q.progress||0)/(q.target||1))*100),ready=q.status==="complete",rowW=pw-28;ctx.fillStyle=ready?"#102416":"#101420";ctx.fillRect(px+12,y,rowW,30);ctx.strokeStyle=ready?"#4a8a6a":"#2a3a5a";ctx.strokeRect(px+12,y,rowW,30);drawUiFittedText(`${ready?"✓ TURN IN":"• ACTIVE"} ${q.title}`,px+18,y+10,rowW-12,ready?"#78ff8a":"#fff",uiFont(7,true));drawUiFittedText(`${q.progress||0}/${q.target} (${pct}%) · +${q.rewardCredits}cr +${q.rewardXp}xp`,px+18,y+20,rowW-12,"#9fb0ca",uiFont(6));drawUiFittedText(`Turn-in: ${q.stationName||"Station"} @ ${q.stationX??"?"}, ${q.stationY??"?"}`,px+18,y+29,rowW-12,ready?"#ffdd44":"#657d9e",uiFont(6));});
+  if(ordered.length>QUEST_LOG_VISIBLE_ROWS){const trackX=px+pw-11,trackY=py+50,trackH=QUEST_LOG_VISIBLE_ROWS*34-4;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,5,trackH);const knobH=Math.max(18,trackH*(QUEST_LOG_VISIBLE_ROWS/ordered.length));const knobY=trackY+(trackH-knobH)*(questLogScroll/Math.max(1,ordered.length-QUEST_LOG_VISIBLE_ROWS));ctx.fillStyle="#ffdd44";ctx.fillRect(trackX,knobY,5,knobH);}const readyCount=questLog.filter(q=>q.status==="complete").length;drawUiFittedText(`${readyCount} ready to turn in · ${questLog.length} total quests`,px+14,py+ph-12,pw-28,readyCount?"#78ff8a":"#718499",uiFont(7));
 }
 function drawBadgeLogPanel(){
-  clampPanelScrolls();
-  const pw=400,ph=252,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
-  ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#b86bff";ctx.strokeRect(px,py,pw,ph);
-  ctx.fillStyle="#b86bff";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("BADGE LOG",px+pw/2,py+18);ctx.textAlign="left";
-  ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("Y:close · Mouse wheel scroll · badges track long-term milestones",px+12,py+32);
-  const badges=Object.values(badgeState.badges||{}).sort((a,b)=>(b.earnedAt||0)-(a.earnedAt||0));
-  badgeLogScroll=clamp(badgeLogScroll,0,Math.max(0,badges.length-BADGE_LOG_VISIBLE_ROWS));
-  const visible=badges.slice(badgeLogScroll,badgeLogScroll+BADGE_LOG_VISIBLE_ROWS);
-  if(!badges.length){ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("No badges unlocked yet.",px+20,py+70);}
-  visible.forEach((b,i)=>{const y=py+52+i*24;ctx.fillStyle="#171022";ctx.fillRect(px+12,y,pw-28,20);ctx.strokeStyle="#513a7a";ctx.strokeRect(px+12,y,pw-28,20);ctx.fillStyle="#ffdd44";ctx.font="bold 8px monospace";ctx.fillText(`◆ ${b.name}`,px+18,y+8);ctx.fillStyle="#cdb9ff";ctx.font="7px monospace";ctx.fillText(b.description,px+18,y+16);});
-  if(badges.length>BADGE_LOG_VISIBLE_ROWS){const trackX=px+pw-11,trackY=py+50,trackH=BADGE_LOG_VISIBLE_ROWS*24-4;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(18,trackH*(BADGE_LOG_VISIBLE_ROWS/badges.length));const knobY=trackY+(trackH-knobH)*(badgeLogScroll/Math.max(1,badges.length-BADGE_LOG_VISIBLE_ROWS));ctx.fillStyle="#b86bff";ctx.fillRect(trackX,knobY,4,knobH);}
+  beginReadableUi();clampPanelScrolls();const pw=400,ph=252,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101827";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#b86bff";ctx.strokeRect(px,py,pw,ph);drawUiFittedText("BADGE LOG",px+pw/2,py+19,pw-24,"#b86bff",uiFont(13,true),"center");drawUiFittedText("Y close  ·  mouse wheel scroll  ·  long-term milestones",px+12,py+33,pw-24,"#91a3b8",uiFont(7));
+  const badges=Object.values(badgeState.badges||{}).sort((a,b)=>(b.earnedAt||0)-(a.earnedAt||0));badgeLogScroll=clamp(badgeLogScroll,0,Math.max(0,badges.length-BADGE_LOG_VISIBLE_ROWS));const visible=badges.slice(badgeLogScroll,badgeLogScroll+BADGE_LOG_VISIBLE_ROWS);if(!badges.length)drawUiFittedText("No badges unlocked yet.",px+20,py+70,pw-40,"#66798c",uiFont(8));visible.forEach((b,i)=>{const y=py+52+i*24,rowW=pw-28;ctx.fillStyle="#171022";ctx.fillRect(px+12,y,rowW,20);ctx.strokeStyle="#513a7a";ctx.strokeRect(px+12,y,rowW,20);drawUiFittedText(`◆ ${b.name}`,px+18,y+9,rowW-12,"#ffdd44",uiFont(7,true));drawUiFittedText(b.description,px+18,y+18,rowW-12,"#cdb9ff",uiFont(6));});if(badges.length>BADGE_LOG_VISIBLE_ROWS){const trackX=px+pw-11,trackY=py+50,trackH=BADGE_LOG_VISIBLE_ROWS*24-4;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,5,trackH);const knobH=Math.max(18,trackH*(BADGE_LOG_VISIBLE_ROWS/badges.length));const knobY=trackY+(trackH-knobH)*(badgeLogScroll/Math.max(1,badges.length-BADGE_LOG_VISIBLE_ROWS));ctx.fillStyle="#b86bff";ctx.fillRect(trackX,knobY,5,knobH);}
 }
 function drawShopQuests(st,px,py,pw,ph){
-  const qs=getStationQuests(st);
-  ctx.fillStyle="#7a9aaa";ctx.font="bold 9px monospace";ctx.fillText("STATION QUEST BOARD",px+10,py+66);
-  ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText("Accept contracts here. Completed contracts must be turned in here for rewards.",px+10,py+75);
-  qs.forEach((q,i)=>{const y=py+84+i*39;if(y>py+ph-42)return;const active=questById(q.id),ready=active?.status==="complete",pending=!!active?.pendingTurnIn;ctx.fillStyle=active?(ready?"#102416":"#241f10"):"#0f1419";ctx.fillRect(px+10,y,pw-20,34);ctx.strokeStyle=ready?"#78ff8a":active?"#ffdd44":"#2a3a4a";ctx.strokeRect(px+10,y,pw-20,34);ctx.fillStyle=ready?"#78ff8a":active?"#ffdd44":"#fff";ctx.font="bold 8px monospace";ctx.fillText(`${q.title}  Lv${q.level}`,px+18,y+9);ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(q.description,px+18,y+18);ctx.fillText(`Reward: ${q.rewardCredits}cr + ${q.rewardXp}xp + ship parts`,px+18,y+27);const bx=px+pw-92,by=y+7,bw=70,bh=20;let label="ACCEPT",fill="#173a2a",stroke="#4a8a6a",txt="#78ff8a";if(active){if(ready){label=pending?"TURNING":"TURN IN";fill=pending?"#24313a":"#2d4a22";stroke=pending?"#667":"#78ff8a";txt=pending?"#aaa":"#d6ff7b";}else{label="ACTIVE";fill="#334";stroke="#667";txt="#aaa";}}ctx.fillStyle=fill;ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=stroke;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=txt;ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(label,bx+bw/2,by+13);ctx.textAlign="left";});
-  const readyHere=questLog.filter(q=>q.stationId===st.id&&q.status==="complete").length;
-  if(readyHere){ctx.fillStyle="#78ff8a";ctx.font="bold 8px monospace";ctx.fillText(`${readyHere} completed quest(s) ready to turn in at this station.`,px+10,py+ph-40);}
+  beginReadableUi();const qs=getStationQuests(st);drawUiFittedText("STATION QUEST BOARD",px+10,py+67,pw-20,"#87a8b8",uiFont(8,true));drawUiFittedText("Accept here; return here to turn completed contracts in.",px+10,py+77,pw-20,"#91a3b8",uiFont(7));
+  qs.forEach((q,i)=>{const y=py+84+i*39;if(y>py+ph-42)return;const active=questById(q.id),ready=active?.status==="complete",pending=!!active?.pendingTurnIn,bx=px+pw-92,by=y+7,bw=70,bh=20,textW=pw-118;ctx.fillStyle=active?(ready?"#102416":"#241f10"):"#0f1419";ctx.fillRect(px+10,y,pw-20,34);ctx.strokeStyle=ready?"#78ff8a":active?"#ffdd44":"#2a3a4a";ctx.strokeRect(px+10,y,pw-20,34);drawUiFittedText(`${q.title}  Lv${q.level}`,px+18,y+10,textW,ready?"#78ff8a":active?"#ffdd44":"#fff",uiFont(7,true));drawUiFittedText(q.description,px+18,y+20,textW,"#9fb0ca",uiFont(6));drawUiFittedText(`Reward ${q.rewardCredits}cr + ${q.rewardXp}xp + ship parts`,px+18,y+29,textW,"#9fb0ca",uiFont(6));let label="ACCEPT",fill="#173a2a",stroke="#4a8a6a",txt="#78ff8a";if(active){if(ready){label=pending?"TURNING":"TURN IN";fill=pending?"#24313a":"#2d4a22";stroke=pending?"#667":"#78ff8a";txt=pending?"#aaa":"#d6ff7b";}else{label="ACTIVE";fill="#334";stroke="#667";txt="#aaa";}}ctx.fillStyle=fill;ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=stroke;ctx.strokeRect(bx,by,bw,bh);drawUiFittedText(label,bx+bw/2,by+13,bw-8,txt,uiFont(7,true),"center");});
+  const readyHere=questLog.filter(q=>q.stationId===st.id&&q.status==="complete").length;if(readyHere)drawUiFittedText(`${readyHere} completed quest(s) ready to turn in here.`,px+10,py+ph-40,pw-20,"#78ff8a",uiFont(7,true));
 }
 function handleQuestClick(st,mx,my,px,py,pw,ph){
   const qs=getStationQuests(st);
@@ -6676,6 +6651,41 @@ function inventoryMappedCanvasPoint(mx,my){try{if(typeof largeCanvasMenuPoint===
 function updateInventoryScrollDragFromCanvas(mx,my){if(!inventoryScrollDrag)return;const p=inventoryMappedCanvasPoint(mx,my);setInventoryScrollFromY(p.y);}
 function endInventoryScrollDrag(){inventoryScrollDrag=null;}
 function itemDescription(type){const d=RES[type]||{};if(d.description)return d.description;const bits=[];if(isWeaponKey(type))bits.push(`${WEAPON_DEFS[type].class} weapon`);if(isAttachmentKey(type))bits.push(`${ATTACHMENT_DEFS[type].slot} attachment`);if(d.stats)bits.push(Object.entries(d.stats).map(([k,v])=>`${k}+${v}`).join(" "));if(type==="gas_canister")bits.push("Refuels ship energy.");if(type==="oxygen_tank")bits.push("Restores oxygen planetside.");return bits.join(" · ")||"Trade, sell, craft, or turn in for station contracts.";}
+
+const SPACE_ECO_UI_FONT='"Segoe UI",Arial,sans-serif';
+function uiFont(size,bold=false){return `${bold?"600 ":""}${Math.max(6,size)}px ${SPACE_ECO_UI_FONT}`;}
+function fitUiText(text,maxWidth,font=ctx.font){
+  text=String(text??"");ctx.save();ctx.font=font;
+  if(ctx.measureText(text).width<=maxWidth){ctx.restore();return text;}
+  const ell="…";let out=text;
+  while(out.length&&ctx.measureText(out+ell).width>maxWidth)out=out.slice(0,-1);
+  ctx.restore();return out+ell;
+}
+function drawUiFittedText(text,x,y,maxWidth,color="#d6e1ff",font=uiFont(8),align="left"){
+  ctx.save();ctx.font=font;ctx.fillStyle=color;ctx.textAlign=align;ctx.textBaseline="alphabetic";
+  ctx.fillText(fitUiText(text,maxWidth,font),x,y);ctx.restore();
+}
+function wrapUiLines(text,maxWidth,font=uiFont(8),maxLines=2){
+  const words=String(text??"").replace(/\s+/g," ").trim().split(" ").filter(Boolean),lines=[];let line="";
+  ctx.save();ctx.font=font;
+  for(let i=0;i<words.length;i++){
+    const word=words[i],test=line?`${line} ${word}`:word;
+    if(!line||ctx.measureText(test).width<=maxWidth){line=test;continue;}
+    lines.push(line);line=word;
+    if(lines.length===Math.max(0,maxLines-1)){
+      const finalText=[line,...words.slice(i+1)].join(" ");
+      lines.push(fitUiText(finalText,maxWidth,font));ctx.restore();return lines.slice(0,maxLines);
+    }
+  }
+  if(line&&lines.length<maxLines)lines.push(fitUiText(line,maxWidth,font));
+  ctx.restore();return lines.slice(0,maxLines);
+}
+function drawUiWrappedText(text,x,y,maxWidth,lineHeight=9,maxLines=2,color="#9fb0d0",font=uiFont(7)){
+  const lines=wrapUiLines(text,maxWidth,font,maxLines);ctx.save();ctx.font=font;ctx.fillStyle=color;ctx.textAlign="left";ctx.textBaseline="alphabetic";
+  lines.forEach((line,i)=>ctx.fillText(line,x,y+i*lineHeight));ctx.restore();return lines.length;
+}
+function beginReadableUi(){ctx.textBaseline="alphabetic";ctx.lineJoin="round";ctx.lineCap="round";ctx.imageSmoothingEnabled=true;}
+
 function fitQuantityFor(type,maxQty){let q=Math.max(0,Math.floor(maxQty||0));while(q>0&&!canFitInventoryLocal(type,q))q--;return q;}
 
 /* ── Inventory UI ── */
@@ -6725,43 +6735,33 @@ function drawItemIcon(icx,type,x,y,size){
 }
 
 function drawInventoryDetail(slot,dx,dy,dw,dh){
-  const res=RES[slot.type];if(!res)return;
-  drawItemIcon(ctx,slot.type,dx+8,dy+8,38);
-  ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+52,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Qty: ${slot.count}`,dx+52,dy+30);
+  beginReadableUi();const res=RES[slot.type];if(!res)return;drawItemIcon(ctx,slot.type,dx+8,dy+8,38);
+  drawUiFittedText(res.name,dx+52,dy+18,dw-60,"#fff",uiFont(9,true));drawUiFittedText(`Qty: ${slot.count}`,dx+52,dy+31,dw-60,"#9fb0ca",uiFont(7));
   if(isWeaponKey(slot.type)){
     const d=weaponDefFor(slot.type),lvl=weaponLevel(slot.type),equipped=equippedWeaponKey()===slot.type;
-    ctx.fillStyle=d.color;ctx.font="bold 8px monospace";ctx.fillText(`${d.class} · ${d.mode.toUpperCase()} · Rarity ${d.rarity}`,dx+8,dy+58);
-    ctx.fillStyle="#d6e1ff";ctx.font="8px monospace";ctx.fillText(`Lv${lvl} Damage: ${Math.round(weaponDamage(slot.type))}`,dx+8,dy+72);ctx.fillText(`Cooldown: ${d.cooldown.toFixed(2)}s · Shots: ${d.shots}`,dx+8,dy+84);
-    const eqX=dx+8,eqY=dy+102,upX=dx+70,btnH=20;ctx.fillStyle=equipped?"#3a3010":"#173a2a";ctx.fillRect(eqX,eqY,54,btnH);ctx.strokeStyle=equipped?"#ffdd44":"#4a8a6a";ctx.strokeRect(eqX,eqY,54,btnH);ctx.fillStyle=equipped?"#ffdd44":"#78ff8a";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(equipped?"EQUIPPED":"EQUIP",eqX+27,eqY+13);
-    const cost=weaponUpgradeCost(slot.type),can=player.credits>=cost;ctx.fillStyle=can?"#1a2e3a":"#25161a";ctx.fillRect(upX,eqY,92,btnH);ctx.strokeStyle=can?"#7be6ff":"#884444";ctx.strokeRect(upX,eqY,92,btnH);ctx.fillStyle=can?"#7be6ff":"#ff7777";ctx.fillText(`UPGRADE ${cost}cr`,upX+46,eqY+13);ctx.textAlign="left";
-    ctx.fillStyle="#7a8aa0";ctx.font="7px monospace";ctx.fillText((d.description||"").slice(0,36),dx+8,dy+138);
+    drawUiFittedText(`${d.class} · ${d.mode.toUpperCase()} · Rarity ${d.rarity}`,dx+8,dy+58,dw-16,d.color,uiFont(7,true));drawUiFittedText(`Lv${lvl} Damage ${Math.round(weaponDamage(slot.type))}`,dx+8,dy+72,dw-16,"#d6e1ff",uiFont(7));drawUiFittedText(`Cooldown ${d.cooldown.toFixed(2)}s · Shots ${d.shots}`,dx+8,dy+84,dw-16,"#d6e1ff",uiFont(7));
+    const eqX=dx+8,eqY=dy+101,upX=dx+70,btnH=20;ctx.fillStyle=equipped?"#3a3010":"#173a2a";ctx.fillRect(eqX,eqY,54,btnH);ctx.strokeStyle=equipped?"#ffdd44":"#4a8a6a";ctx.strokeRect(eqX,eqY,54,btnH);drawUiFittedText(equipped?"EQUIPPED":"EQUIP",eqX+27,eqY+13,50,equipped?"#ffdd44":"#78ff8a",uiFont(7,true),"center");
+    const cost=weaponUpgradeCost(slot.type),can=player.credits>=cost;ctx.fillStyle=can?"#1a2e3a":"#25161a";ctx.fillRect(upX,eqY,62,btnH);ctx.strokeStyle=can?"#7be6ff":"#884444";ctx.strokeRect(upX,eqY,62,btnH);drawUiFittedText(`UP ${cost}cr`,upX+31,eqY+13,58,can?"#7be6ff":"#ff7777",uiFont(7,true),"center");drawUiFittedText(d.description||"",dx+8,dy+136,dw-16,"#8393a8",uiFont(6));
   }else if(isAttachmentKey(slot.type)){
     const d=ATTACHMENT_DEFS[slot.type],loadout=normalizeAttachments(player.equippedAttachments),equipped=loadout[d.slot]===slot.type;
-    ctx.fillStyle="#ffdd44";ctx.font="bold 8px monospace";ctx.fillText(`${d.name} · ${d.slot.toUpperCase()} MODULE`,dx+8,dy+58);
-    ctx.fillStyle="#d6e1ff";ctx.font="8px monospace";ctx.fillText(attachmentBonusLine(slot.type).slice(0,36),dx+8,dy+72);
-    ctx.fillStyle="#8fa3cc";ctx.fillText((d.description||"Ship attachment").slice(0,36),dx+8,dy+85);
-    const eqX=dx+8,eqY=dy+102,btnH=20;ctx.fillStyle=equipped?"#3a3010":"#173a2a";ctx.fillRect(eqX,eqY,90,btnH);ctx.strokeStyle=equipped?"#ffdd44":"#4a8a6a";ctx.strokeRect(eqX,eqY,90,btnH);ctx.fillStyle=equipped?"#ffdd44":"#78ff8a";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(equipped?"EQUIPPED":"EQUIP MODULE",eqX+45,eqY+13);ctx.textAlign="left";
+    drawUiFittedText(`${d.name} · ${d.slot.toUpperCase()} MODULE`,dx+8,dy+58,dw-16,"#ffdd44",uiFont(7,true));drawUiFittedText(attachmentBonusLine(slot.type),dx+8,dy+72,dw-16,"#d6e1ff",uiFont(7));drawUiWrappedText(d.description||"Ship attachment",dx+8,dy+85,dw-16,8,2,"#9fb0ca",uiFont(7));
+    const eqX=dx+8,eqY=dy+108,btnH=20;ctx.fillStyle=equipped?"#3a3010":"#173a2a";ctx.fillRect(eqX,eqY,90,btnH);ctx.strokeStyle=equipped?"#ffdd44":"#4a8a6a";ctx.strokeRect(eqX,eqY,90,btnH);drawUiFittedText(equipped?"EQUIPPED":"EQUIP MODULE",eqX+45,eqY+13,84,equipped?"#ffdd44":"#78ff8a",uiFont(7,true),"center");
   }else{
-    ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Value: ${price(slot.type)}cr`,dx+8,dy+58);
-    if(slot.type==="gas_canister")ctx.fillText("Use G in space to refill energy.",dx+8,dy+72);
-    else if(slot.type==="oxygen_tank")ctx.fillText("Use E on planet to refill oxygen.",dx+8,dy+72);
-    else if(BUILDABLE_RES_TO_TILE[slot.type])ctx.fillText("Right-click planet map to build with this.",dx+8,dy+72);
-    else ctx.fillText(itemDescription(slot.type).slice(0,39),dx+8,dy+72);
+    drawUiFittedText(`Value: ${price(slot.type)}cr`,dx+8,dy+58,dw-16,"#9fb0ca",uiFont(8));let text=itemDescription(slot.type);if(slot.type==="gas_canister")text="Use G in space to refill ship energy.";else if(slot.type==="oxygen_tank")text="Use E on a planet to refill oxygen.";else if(BUILDABLE_RES_TO_TILE[slot.type])text="Right-click the planet map to build with this resource.";drawUiWrappedText(text,dx+8,dy+74,dw-16,9,5,"#b5c3d4",uiFont(7));
   }
 }
 function handleInventoryWeaponButtons(mx,my,px,py){
   if(selectedSlot===null||!player.invSlots[selectedSlot]?.type)return false;
-  const key=player.invSlots[selectedSlot].type;
-  const dx=px+250,dy=py+28,eqX=dx+8,eqY=dy+102,upX=dx+70;
+  const key=player.invSlots[selectedSlot].type,dx=px+250,dy=py+28,eqX=dx+8,upX=dx+70;
   if(isWeaponKey(key)){
+    const eqY=dy+101;
     if(mx>=eqX&&mx<=eqX+54&&my>=eqY&&my<=eqY+20){socket.emit("equipWeapon",{weaponKey:key});showFT(`Equipping ${RES[key]?.name||key}`,ship.x,ship.y-18,"#78ff8a",10);return true;}
-    if(mx>=upX&&mx<=upX+92&&my>=eqY&&my<=eqY+20){socket.emit("upgradeWeapon",{weaponKey:key});showFT(`Upgrading ${RES[key]?.name||key}`,ship.x,ship.y-18,"#7be6ff",10);return true;}
+    if(mx>=upX&&mx<=upX+62&&my>=eqY&&my<=eqY+20){socket.emit("upgradeWeapon",{weaponKey:key});showFT(`Upgrading ${RES[key]?.name||key}`,ship.x,ship.y-18,"#7be6ff",10);return true;}
   }else if(isAttachmentKey(key)){
-    const d=ATTACHMENT_DEFS[key],loadout=normalizeAttachments(player.equippedAttachments);
+    const d=ATTACHMENT_DEFS[key],loadout=normalizeAttachments(player.equippedAttachments),eqY=dy+108;
     if(mx>=eqX&&mx<=eqX+90&&my>=eqY&&my<=eqY+20){
       if(loadout[d.slot]===key)showFT("Already equipped",ship.x,ship.y-18,"#ffdd44",9);
-      else{socket.emit("equipAttachment",{attachmentKey:key});showFT(`Equipping ${d.name}`,ship.x,ship.y-18,"#78ff8a",10);}
-      return true;
+      else{socket.emit("equipAttachment",{attachmentKey:key});showFT(`Equipping ${d.name}`,ship.x,ship.y-18,"#78ff8a",10);}return true;
     }
   }
   return false;
@@ -6952,20 +6952,16 @@ function handleShipStatusClick(mx,my){
 }
 
 function drawInventory(){
-  if(!inventoryOpen)return;
-  clampPanelScrolls();
-  ctx.fillStyle="rgba(0,0,0,0.75)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  if(!inventoryOpen)return;beginReadableUi();clampPanelScrolls();ctx.fillStyle="rgba(0,0,0,0.75)";ctx.fillRect(0,0,canvas.width,canvas.height);
   const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#1a1f2e";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#4a5f8a";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
-  ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.fillText("INVENTORY",px+10,py+16);ctx.fillStyle="#8fa3cc";ctx.font="10px monospace";ctx.fillText(`Slots:${filledSlotCount()}/${player.maxSlots} / Max ${MAX_TOTAL_SLOTS}`,px+110,py+16);
+  drawUiFittedText("INVENTORY",px+10,py+17,95,"#fff",uiFont(12,true));drawUiFittedText(`Slots ${filledSlotCount()}/${player.maxSlots}  ·  Max ${MAX_TOTAL_SLOTS}`,px+110,py+17,275,"#9fb0ca",uiFont(9));
   const ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
-  for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg),slot=player.invSlots[i],isSel=selectedSlot===i;ctx.fillStyle=isSel?"#1a2a3a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#5a9aff":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);if(slot.type&&slot.count){drawItemIcon(ctx,slot.type,bx+4,by+4,ss-8);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-3,by+ss-3);ctx.textAlign="left";}}
-  if(maxInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=INV_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(14,trackH*(INV_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(inventoryScrollRows/maxInventoryScrollRows());ctx.fillStyle="#5a8aaa";ctx.fillRect(trackX,knobY,4,knobH);ctx.fillStyle="#6a8aaa";ctx.font="7px monospace";ctx.fillText("wheel",trackX-8,trackY+trackH+9);}
-  drawInventoryManageButtons(px,py);ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText(`Showing ${start+1}-${Math.min(player.maxSlots,start+visible)} of ${player.maxSlots}`,px+10,py+ph-22);
-  const dx=px+250,dy=py+28,dw=140,dh=140;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
-  if(selectedSlot!==null&&player.invSlots[selectedSlot]?.type){drawInventoryDetail(player.invSlots[selectedSlot],dx,dy,dw,dh);}
-  else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to view",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
-  if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24,canB=player.credits>=SLOT_COST;ctx.fillStyle=canB?"#2d4a3e":"#3a2a2a";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=canB?"#4a8a6a":"#6a4a4a";ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=canB?"#7be6ff":"#8a7a7a";ctx.font="9px monospace";ctx.fillText(`Buy Slot:${SLOT_COST}cr`,bx+8,by+15);}
-  ctx.fillStyle="#5a6a7a";ctx.font="8px monospace";ctx.fillText("I:close · drag scrollbar · management buttons sort/compact inventory",px+10,py+ph-10);
+  for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg),slot=player.invSlots[i],isSel=selectedSlot===i;ctx.fillStyle=isSel?"#1a2a3a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#5a9aff":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);if(slot.type&&slot.count){drawItemIcon(ctx,slot.type,bx+4,by+4,ss-8);drawUiFittedText(slot.count,bx+ss-3,by+ss-3,20,"#fff",uiFont(8,true),"right");}}
+  if(maxInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=INV_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,5,trackH);const knobH=Math.max(14,trackH*(INV_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(inventoryScrollRows/maxInventoryScrollRows());ctx.fillStyle="#6a9abb";ctx.fillRect(trackX,knobY,5,knobH);}
+  drawInventoryManageButtons(px,py);drawUiFittedText(`Showing ${start+1}–${Math.min(player.maxSlots,start+visible)} of ${player.maxSlots}`,px+10,py+ph-22,220,"#718499",uiFont(7));
+  const dx=px+250,dy=py+28,dw=140,dh=140;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);if(selectedSlot!==null&&player.invSlots[selectedSlot]?.type)drawInventoryDetail(player.invSlots[selectedSlot],dx,dy,dw,dh);else drawUiFittedText("Click an item to view",dx+dw/2,dy+dh/2,dw-20,"#617184",uiFont(8),"center");
+  if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24,canB=player.credits>=SLOT_COST;ctx.fillStyle=canB?"#2d4a3e":"#3a2a2a";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=canB?"#4a8a6a":"#6a4a4a";ctx.strokeRect(bx,by,bw,bh);drawUiFittedText(`Buy Slot: ${SLOT_COST}cr`,bx+bw/2,by+16,bw-12,canB?"#7be6ff":"#8a7a7a",uiFont(8,true),"center");}
+  drawUiFittedText("I close  ·  drag scrollbar  ·  use buttons to sort or compact",px+10,py+ph-9,pw-20,"#718499",uiFont(7));
 }
 
 /* ── Planet mode ── */
