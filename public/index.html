@@ -1637,7 +1637,7 @@ window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 window.addEventListener("blur",clearLiveInput);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)clearLiveInput();});
 
-canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;mouse.x=(e.clientX-r.left)*sx;mouse.y=(e.clientY-r.top)*sy;});
+canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;mouse.x=(e.clientX-r.left)*sx;mouse.y=(e.clientY-r.top)*sy;updateInventoryScrollDragFromCanvas(mouse.x,mouse.y);});
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("mousedown",e=>{
   if(domInputLocked(e.target)){clearLiveInput();return;}
@@ -1652,7 +1652,7 @@ canvas.addEventListener("mousedown",e=>{
   else if(attrOpen)handleAttrClick(mx,my);
   else if(gameOver)requestRespawn();
 });
-window.addEventListener("mouseup",()=>{mouse.down=false;});
+window.addEventListener("mouseup",()=>{mouse.down=false;endInventoryScrollDrag();});
 canvas.addEventListener("wheel",e=>{
   if(domInputLocked(e.target)){clearLiveInput();return;}
   if(questLogOpen){
@@ -1733,8 +1733,8 @@ function mobileCanvasPointerDown(e){
   else if(attrOpen)handleAttrClick(mx,my);
   else if(gameOver)requestRespawn();
 }
-function mobileCanvasPointerMove(e){if(!IS_MOBILE_TOUCH||e.pointerType==="mouse")return;mobileEventStop(e);mobileCanvasPointFromEvent(e);}
-function mobileCanvasPointerUp(e){if(!IS_MOBILE_TOUCH||e.pointerType==="mouse")return;mobileEventStop(e);try{canvas.releasePointerCapture?.(e.pointerId);}catch(_){ }mouse.down=false;}
+function mobileCanvasPointerMove(e){if(!IS_MOBILE_TOUCH||e.pointerType==="mouse")return;mobileEventStop(e);mobileCanvasPointFromEvent(e);updateInventoryScrollDragFromCanvas(mouse.x,mouse.y);}
+function mobileCanvasPointerUp(e){if(!IS_MOBILE_TOUCH||e.pointerType==="mouse")return;mobileEventStop(e);try{canvas.releasePointerCapture?.(e.pointerId);}catch(_){ }mouse.down=false;endInventoryScrollDrag();}
 canvas.addEventListener("pointerdown",mobileCanvasPointerDown,{passive:false});
 canvas.addEventListener("pointermove",mobileCanvasPointerMove,{passive:false});
 canvas.addEventListener("pointerup",mobileCanvasPointerUp,{passive:false});
@@ -2016,6 +2016,42 @@ Object.assign(RES,{
   maneuver_fins:{name:"Maneuver Fins",rarity:4,color:"#b9f3ff",base:130}
 });
 
+
+const RESOURCE_EXTRA_DEFS={
+  dark_obsidian:{name:"Dark Obsidian",rarity:6,color:"#07070b",base:210,stats:{armor:3,void:2},description:"Glass-black volcanic stone used in heavy hulls and void quests."},
+  purple_miasma:{name:"Purple Miasma",rarity:5,color:"#9b42ff",base:145,stats:{magic:2,toxic:2},description:"Violet vapor-block mineral used for exotic reactors and miasma contracts."},
+  charcoal_block:{name:"Charcoal Block",rarity:2,color:"#25211f",base:12,stats:{fuel:1},description:"Compressed carbon block for early crafting, smelting, and station orders."},
+  neon_ore:{name:"Neon Ore",rarity:5,color:"#00f0ff",base:160,stats:{energy:2},description:"Bright codex-neon ore used in circuitry, signs, and energy tools."},
+  void_ore:{name:"Void Ore",rarity:7,color:"#1a0d2e",base:310,stats:{void:4},description:"Dense shadow ore used for void weapons and high-value trade."},
+  prism_ore:{name:"Prism Ore",rarity:6,color:"#ffd6ff",base:230,stats:{shield:2,energy:1},description:"Prismatic ore for shield crafting and luxury station work orders."},
+  astral_salt:{name:"Astral Salt",rarity:4,color:"#fff4d6",base:72,stats:{trade:2},description:"Glittering salt crystal used in trade quests and refinement."},
+  ether_glass:{name:"Ether Glass",rarity:6,color:"#b8fff3",base:205,stats:{handling:2},description:"Translucent glass resource for sensor optics and agile ship parts."},
+  codex_shard:{name:"Codex Shard",rarity:7,color:"#ffdd44",base:360,stats:{codex:4},description:"Rare golden-cyan data crystal used in codex-neon crafting."},
+  miasma_core:{name:"Miasma Core",rarity:8,color:"#c13bff",base:520,stats:{toxic:4,void:2},description:"Condensed miasma heart for dangerous late-game recipes and contracts."},
+  black_ice:{name:"Black Ice",rarity:5,color:"#1b2738",base:130,stats:{shield:1,void:1},description:"Frozen shadow crystal from dark ice worlds."},
+  ember_quartz:{name:"Ember Quartz",rarity:5,color:"#ff6b35",base:150,stats:{damage:2},description:"Fiery quartz used in cannons, reactors, and forge quests."},
+  gloom_steel:{name:"Gloom Steel",rarity:6,color:"#384052",base:240,stats:{armor:2,braking:1},description:"Heavy twilight alloy for hulls, brake assemblies, and defense orders."}
+};
+const PROC_RESOURCE_KEYS=[];
+function registerGeneratedResources(){
+  const prefixes=["Astra","Void","Neon","Miasma","Codex","Prism","Ember","Gloom","Ether","Nova","Quantum","Obsidian"];
+  const suffixes=["Ore","Shard","Bloom","Crystal","Core","Salt","Glass","Fiber","Pearl","Coal","Spore","Alloy"];
+  const statKeys=["attack","damage","shield","regen","speed","braking","handling","craft","trade","quest","energy","armor"];
+  const rng=makeRng(GALAXY_SEED+"|finite-proc-resources-v409");
+  for(let i=0;i<28;i++){
+    const key=`proc_${i}_${prefixes[i%prefixes.length].toLowerCase()}_${suffixes[Math.floor(rng()*suffixes.length)].toLowerCase()}`.replace(/[^a-z0-9_]/g,"_");
+    if(RES[key])continue;
+    const hue=Math.floor(rng()*360),rarity=3+Math.floor(rng()*6),base=28+rarity*24+Math.floor(rng()*90);
+    const stats={};stats[statKeys[Math.floor(rng()*statKeys.length)]]=1+Math.floor(rng()*4);stats[statKeys[Math.floor(rng()*statKeys.length)]]=1+Math.floor(rng()*3);
+    const name=`${prefixes[Math.floor(rng()*prefixes.length)]} ${suffixes[Math.floor(rng()*suffixes.length)]}`;
+    RES[key]={name,rarity,color:`hsl(${hue},88%,62%)`,base,stats,generated:true,description:`Procedural ${name.toLowerCase()} with ${Object.keys(stats).join("/")} affinity. Useful for station contracts, trading, and advanced crafting formulas.`};
+    PROC_RESOURCE_KEYS.push(key);
+  }
+}
+Object.assign(RES,RESOURCE_EXTRA_DEFS);
+registerGeneratedResources();
+const EXTRA_RESOURCE_KEYS=Object.keys(RESOURCE_EXTRA_DEFS).concat(PROC_RESOURCE_KEYS);
+
 const GAS_COST=40,GAS_REFUEL=30,ENERGY_DRAIN=1.8,ENERGY_IDLE=0.15;
 
 /* ── Ship type definitions (populated from server welcome) ── */
@@ -2250,6 +2286,21 @@ const COSMETIC_DEFS={
   suit_codex_pilot:{key:"suit_codex_pilot",slot:"suit",name:"Codex Pilot Suit",price:5600000,description:"Planetside codex pilot armor with bright cyan visor trim.",color:"#0f3450",accent:"#7be6ff",shape:"suit"},
   laser_void_cutter:{key:"laser_void_cutter",slot:"laser",name:"Void Cutter Mining Beam",price:6200000,description:"Void-magenta mining cutter beam for planetside work.",color:"#cc88ff",accent:"#ff77dd",shape:"beam"}
 };
+
+Object.assign(COSMETIC_DEFS,{
+  ship_obsidian_moth:{key:"ship_obsidian_moth",slot:"ship",name:"Obsidian Moth Hull",price:8200000,description:"Black obsidian wings with violet miasma edge glow.",color:"#07070b",accent:"#9b42ff",shape:"stingray"},
+  ship_codex_neon_viper:{key:"ship_codex_neon_viper",slot:"ship",name:"Codex Neon Viper Hull",price:9100000,description:"Cyan-gold viper frame with bright codex accents.",color:"#00f0ff",accent:"#ffdd44",shape:"lancer"},
+  bullet_miasma_bubbles:{key:"bullet_miasma_bubbles",slot:"bullet",name:"Miasma Bubble Shots",price:4400000,description:"Purple miasma bubble projectiles.",color:"#9b42ff",accent:"#d45cff",sizeBoost:.9},
+  bullet_obsidian_sparks:{key:"bullet_obsidian_sparks",slot:"bullet",name:"Obsidian Spark Shots",price:5100000,description:"Dark sparks with violet-white hot centers.",color:"#12051f",accent:"#ffffff",sizeBoost:.7},
+  enemy_void_mimics:{key:"enemy_void_mimics",slot:"enemy",name:"Void Mimic Enemies",price:7200000,description:"Enemies appear as void-mimic silhouettes.",color:"#1a0d2e",accent:"#ff77dd",shape:"bat"},
+  npcship_codex_merchants:{key:"npcship_codex_merchants",slot:"npcship",name:"Codex Merchant Ships",price:6600000,description:"NPC convoys use cyan-gold merchant hulls.",color:"#00f0ff",accent:"#ffdd44",shape:"hauler"},
+  station_obsidian_gate:{key:"station_obsidian_gate",slot:"station",name:"Obsidian Gate Stations",price:7600000,description:"Stations turn into dark gate hubs with purple cores.",color:"#07070b",accent:"#9b42ff",shape:"spire"},
+  planet_miasma_worlds:{key:"planet_miasma_worlds",slot:"planet",name:"Miasma Planet Designs",price:7500000,description:"Planet cosmetics with purple miasma oceans and black crust.",color:"#7324a8",accent:"#d45cff",shape:"void"},
+  engine_void_pulse:{key:"engine_void_pulse",slot:"engine",name:"Void Pulse Engines",price:7200000,description:"Pulsing dark-violet engine core.",color:"#1a0d2e",accent:"#ff77dd",shape:"flare"},
+  shield_charcoal_dome:{key:"shield_charcoal_dome",slot:"shield",name:"Charcoal Dome Shield",price:3900000,description:"Smoky charcoal shield aura.",color:"#25211f",accent:"#7c6a55",shape:"ring"},
+  suit_codex_neon:{key:"suit_codex_neon",slot:"suit",name:"Codex Neon Suit",price:4800000,description:"Planetside suit with codex cyan and gold trim.",color:"#00f0ff",accent:"#ffdd44",shape:"suit"},
+  laser_mining_obsidian:{key:"laser_mining_obsidian",slot:"laser",name:"Obsidian Mining Beam",price:5200000,description:"Dark mining beam with violet edge pulse.",color:"#07070b",accent:"#9b42ff",shape:"beam"}
+});
 const COSMETIC_SLOTS=["ship","bullet","enemy","npcship","particle","trail","station","planet","engine","shield","suit","laser"];
 let cosmeticInventory={},equippedCosmetics={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null},redeemedCoupons={};
 const WORLD_COSMETIC_SLOTS=["npcship","enemy","station","planet"];
@@ -2392,8 +2443,8 @@ function drawStationDesign(cx,cy,size,tier="standard",destroyed=false,baseColor=
   else{for(let k=0;k<10;k++){const a=k*Math.PI/5-Math.PI/2,r2=k%2===0?size:size*0.5;k?ctx.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2):ctx.moveTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2);}ctx.closePath();ctx.fill();ctx.stroke();}
 }
 function drawPlanetVisual(p,px,py){
-  const d=worldCosmeticDef("planet");if(!d){ctx.drawImage(p.preview,px-16,py-16);return;}
-  const color=safeColor(d.color||p.pal?.a||"#7be6ff"),accent=safeColor(d.accent||p.pal?.b||"#ffffff"),r=clamp((p.radius||32)/2,14,26);ctx.save();ctx.translate(px,py);ctx.shadowColor=color;ctx.shadowBlur=10;ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=accent;ctx.lineWidth=2;
+  const d=worldCosmeticDef("planet"),baseR=clamp((p.radius||32)/2,18,68);if(!d){ctx.save();ctx.shadowColor=p.pal?.a||"#7be6ff";ctx.shadowBlur=9;ctx.drawImage(p.preview,px-baseR,py-baseR,baseR*2,baseR*2);ctx.restore();return;}
+  const color=safeColor(d.color||p.pal?.a||"#7be6ff"),accent=safeColor(d.accent||p.pal?.b||"#ffffff"),r=clamp((p.radius||32)/2,22,72);ctx.save();ctx.translate(px,py);ctx.shadowColor=color;ctx.shadowBlur=10;ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=accent;ctx.lineWidth=2;
   if(d.shape==="crystal"){for(let k=0;k<7;k++){ctx.beginPath();ctx.moveTo(0,0);const a=k*Math.PI*2/7;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);ctx.stroke();}ctx.strokeRect(-r*.55,-r*.55,r*1.1,r*1.1);}
   else if(d.shape==="lava"){ctx.strokeStyle=accent;for(let k=-1;k<=1;k++){ctx.beginPath();ctx.moveTo(-r*.75,k*r*.28);ctx.bezierCurveTo(-r*.2,k*r*.45,r*.1,k*r*.05,r*.75,k*r*.3);ctx.stroke();}}
   else if(d.shape==="void"){ctx.beginPath();ctx.ellipse(0,0,r*1.45,r*.38,0,0,Math.PI*2);ctx.stroke();ctx.fillStyle="rgba(0,0,0,.35)";ctx.beginPath();ctx.arc(-r*.25,-r*.15,r*.55,0,Math.PI*2);ctx.fill();}
@@ -2668,7 +2719,7 @@ function drawStationBars(x,y,w,hp,maxHp,shield,maxShield){
 }
 
 /* ── Chunk / procedural world ── */
-const CHUNK_SIZE=900,PLANETS_PER_CHUNK=5,CHUNK_RADIUS=3;
+const CHUNK_SIZE=900,PLANETS_PER_CHUNK=4,CHUNK_RADIUS=3;
 const generatedPlanets=new Map(),generatedStations=new Map();
 let visiblePlanets=[],visibleStations=[];
 let GALAXY_SEED="GALAXY-01";
@@ -2842,6 +2893,22 @@ function makeCivilizationStation(zone,idx,tierKey,rng){
   setLocalStationTask(st);return st;
 }
 
+
+const PLANET_PALETTES={
+  lush:{a:"#2bff88",b:"#166b3f",sky:"#071324"},desert:{a:"#ffd27a",b:"#b9772d",sky:"#120d07"},ice:{a:"#b9f3ff",b:"#4fa8c8",sky:"#071021"},toxic:{a:"#b3ff4e",b:"#3d7b20",sky:"#0b1206"},volcanic:{a:"#ff6b5e",b:"#6b1d1a",sky:"#160707"},
+  void_spawn:{a:"#12051f",b:"#9b42ff",sky:"#05010a"},codex_neon:{a:"#00f0ff",b:"#ffdd44",sky:"#030816"},crystal_forest:{a:"#9fffe8",b:"#206a7a",sky:"#061220"},storm:{a:"#7f93a8",b:"#26364f",sky:"#060a12"},metallic:{a:"#b8c7d9",b:"#49566a",sky:"#070a10"},
+  obsidian:{a:"#050508",b:"#5f3cff",sky:"#020205"},miasma:{a:"#7324a8",b:"#d45cff",sky:"#090212"},charcoal:{a:"#25211f",b:"#7c6a55",sky:"#050403"},neon_reef:{a:"#00ffb8",b:"#ff3df2",sky:"#020814"},black_ice_world:{a:"#162338",b:"#74d7ff",sky:"#030711"},ember_quartz_world:{a:"#ff6b35",b:"#ffd27a",sky:"#120603"},prism_moon:{a:"#ffd6ff",b:"#7be6ff",sky:"#080716"},gloom_steel_world:{a:"#384052",b:"#1a1d27",sky:"#05060a"}
+};
+const PLANET_RESOURCES={
+  lush:["dirt","grass_tuft","stone","copper","iron","crystal"],desert:["sand","dirt","stone","copper","gold","astral_salt"],ice:["ice_block","black_ice","stone","iron","crystal"],toxic:["toxic_sludge","purple_miasma","miasma_core","dirt","stone","copper","crystal"],volcanic:["lava_rock","magma_core","ember_quartz","stone","iron","gold","crystal"],
+  void_spawn:["dark_obsidian","purple_miasma","void_ore","dark_matter_shard","stardust","crystal","stone","obelisk_core"],codex_neon:["neon_ore","codex_shard","silicon","circuit_board","quantum_core","crystal","gold","stardust"],crystal_forest:["crystal","prism_ore","ether_glass","nano_fiber","grass_tuft","cobalt","ice_block"],storm:["cobalt","titanium","plasma_cell","ether_glass","iron","crystal"],metallic:["iron","titanium","alloy_frame","gloom_steel","copper","silicon"],
+  obsidian:["dark_obsidian","charcoal_block","gloom_steel","void_ore","stone","dark_matter_shard"],miasma:["purple_miasma","miasma_core","toxic_sludge","void_ore","dark_obsidian","stardust"],charcoal:["charcoal_block","dark_obsidian","stone","iron","ember_quartz"],neon_reef:["neon_ore","codex_shard","ether_glass","prism_ore","silicon","crystal"],black_ice_world:["black_ice","dark_obsidian","ice_block","prism_ore","crystal"],ember_quartz_world:["ember_quartz","magma_core","lava_rock","gold","plasma_cell"],prism_moon:["prism_ore","ether_glass","astral_salt","crystal","stardust"],gloom_steel_world:["gloom_steel","dark_obsidian","titanium","alloy_frame","iron"]
+};
+function generatedResourceSlice(seed,count=3){const out=[],rng=makeRng(`${seed}|proc-resource-slice`);if(!PROC_RESOURCE_KEYS.length)return out;for(let i=0;i<count;i++)out.push(PROC_RESOURCE_KEYS[Math.floor(rng()*PROC_RESOURCE_KEYS.length)]);return [...new Set(out)];}
+function planetPaletteFor(type,rng){const base=PLANET_PALETTES[type]||PLANET_PALETTES.lush;return {...base};}
+function planetResourcesFor(type,rng,seed){const base=[...(PLANET_RESOURCES[type]||PLANET_RESOURCES.lush)];return [...new Set(base.concat(generatedResourceSlice(seed,2+Math.floor((rng?.()||0)*3))))].filter(k=>RES[k]).slice(0,12);}
+function planetWeights(){return [{v:"lush",w:2.3},{v:"desert",w:2.1},{v:"ice",w:1.7},{v:"toxic",w:1.5},{v:"volcanic",w:1.25},{v:"void_spawn",w:1.45},{v:"codex_neon",w:1.5},{v:"crystal_forest",w:1.25},{v:"storm",w:1.15},{v:"metallic",w:1.25},{v:"obsidian",w:1.05},{v:"miasma",w:1.05},{v:"charcoal",w:.95},{v:"neon_reef",w:1.1},{v:"black_ice_world",w:.95},{v:"ember_quartz_world",w:.95},{v:"prism_moon",w:.9},{v:"gloom_steel_world",w:.9}];}
+
 function generateChunk(cx,cy){
   const key=chunkKey(cx,cy);
   if(!generatedPlanets.has(key)){
@@ -2853,16 +2920,15 @@ function generateChunk(cx,cy){
       if(skip&&Math.hypot(px,py)<300)continue;
       let tooClose=false;for(const ep of planets){if(dist(px,py,ep.x,ep.y)<110){tooClose=true;break;}}if(tooClose)continue;
       const id=key+"|"+i,prng=makeRng(GALAXY_SEED+"|planet|"+id);
-      const radius=randInt(prng,26,65);
-      const type=pickWeighted(prng,[{v:"lush",w:3},{v:"desert",w:3},{v:"ice",w:2},{v:"toxic",w:2},{v:"volcanic",w:1},{v:"void_spawn",w:1.1},{v:"codex_neon",w:1.2},{v:"crystal_forest",w:1.1},{v:"storm",w:1},{v:"metallic",w:1.1}]);
-      const pals={lush:{a:"#2bff88",b:"#166b3f",sky:"#071324"},desert:{a:"#ffd27a",b:"#b9772d",sky:"#120d07"},ice:{a:"#b9f3ff",b:"#4fa8c8",sky:"#071021"},toxic:{a:"#b3ff4e",b:"#3d7b20",sky:"#0b1206"},volcanic:{a:"#ff6b5e",b:"#6b1d1a",sky:"#160707"},void_spawn:{a:"#3b1a66",b:"#07020d",sky:"#05010a"},codex_neon:{a:"#00f0ff",b:"#ffdd44",sky:"#030816"},crystal_forest:{a:"#9fffe8",b:"#206a7a",sky:"#061220"},storm:{a:"#7f93a8",b:"#26364f",sky:"#060a12"},metallic:{a:"#b8c7d9",b:"#49566a",sky:"#070a10"}};
-      const pal=pals[type];
-      const resTbl={lush:["dirt","grass_tuft","stone","copper","iron","crystal"],desert:["sand","dirt","stone","copper","gold"],ice:["ice_block","stone","iron","crystal"],toxic:["toxic_sludge","dirt","stone","copper","crystal"],volcanic:["lava_rock","magma_core","stone","iron","gold","crystal"],void_spawn:["dark_matter_shard","stardust","crystal","stone","obelisk_core"],codex_neon:["silicon","circuit_board","quantum_core","crystal","gold","stardust"],crystal_forest:["crystal","nano_fiber","grass_tuft","cobalt","ice_block"],storm:["cobalt","titanium","plasma_cell","iron","crystal"],metallic:["iron","titanium","alloy_frame","copper","silicon"]};
+      const radius=randInt(prng,52,130);
+      const type=pickWeighted(prng,planetWeights());
+      const pal=planetPaletteFor(type,prng);
+      const resList=planetResourcesFor(type,prng,id);
       const prev=document.createElement("canvas");prev.width=32;prev.height=32;
       const pctx=prev.getContext("2d");pctx.imageSmoothingEnabled=false;
       for(let y=0;y<32;y++)for(let x=0;x<32;x++){if(Math.hypot(x-16,y-16)<=15){pctx.fillStyle=prng()<0.5?pal.a:pal.b;pctx.fillRect(x,y,1,1);}}
       for(let c=0;c<randInt(prng,2,5);c++){const cx2=randInt(prng,8,24),cy2=randInt(prng,8,24),rr=randInt(prng,2,5);pctx.fillStyle="#00000055";for(let y=-rr;y<=rr;y++)for(let x=-rr;x<=rr;x++){if(x*x+y*y<=rr*rr)pctx.fillRect(cx2+x,cy2+y,1,1);}}
-      planets.push({id,seed:GALAXY_SEED+"|planet|"+id,x:px,y:py,radius,type,pal,preview:prev,resList:resTbl[type]});
+      planets.push({id,seed:GALAXY_SEED+"|planet|"+id,x:px,y:py,radius,type,pal,preview:prev,resList});
     }
     generatedPlanets.set(key,planets);
     const srng=makeRng(GALAXY_SEED+"|stations|"+key);
@@ -2912,7 +2978,7 @@ function refreshBuyStock(st){
   if(st.destroyed)return;
   const tier=st.tierDef,rng=makeRng(GALAXY_SEED+"|stock|"+st.id+"|"+Math.floor(Date.now()/300000));
   st.buyStock=[];
-  const pool=[...tier.itemPool],count=Math.min(pool.length,randInt(rng,4,7));
+  const pool=[...new Set([...(tier.itemPool||[]),...EXTRA_RESOURCE_KEYS.filter((_,i)=>i%2===0)])],count=Math.min(pool.length,randInt(rng,8,13));
   for(let i=0;i<count;i++){const idx=randInt(rng,0,pool.length-1),rk=pool.splice(idx,1)[0],qty=randInt(rng,tier.stockMin,tier.stockMax),bp=stationBuyPrice(st,rk,rng);st.buyStock.push({type:rk,qty,maxQty:qty,price:bp});}
 }
 
@@ -4057,15 +4123,16 @@ function genPlanetMap(planet){
   const rng=makeRng(planet.seed+"|map"),W=320,H=140,sy2=45+randInt(rng,-6,6);
   const heights=new Array(W).fill(0).map((_,x)=>Math.floor(sy2+Math.sin((x/28)+rng()*10)*6+Math.sin((x/9)+rng()*10)*2+(rng()-0.5)*2));
   const tiles=new Uint8Array(W*H),hp=new Uint8Array(W*H),idx=(x,y)=>y*W+x;
-  const tc={lush:{surface:13,shallow:1,deep:2,sHP:20,shHP:25,dHP:55},desert:{surface:11,shallow:11,deep:12,sHP:18,shHP:22,dHP:50},ice:{surface:6,shallow:6,deep:7,sHP:30,shHP:35,dHP:65},toxic:{surface:10,shallow:1,deep:2,sHP:22,shHP:28,dHP:60},volcanic:{surface:9,shallow:8,deep:2,sHP:40,shHP:50,dHP:70}};
-  const cfg=tc[planet.type];
+  const tc={lush:{surface:13,shallow:1,deep:2,sHP:20,shHP:25,dHP:55},desert:{surface:11,shallow:11,deep:12,sHP:18,shHP:22,dHP:50},ice:{surface:6,shallow:6,deep:7,sHP:30,shHP:35,dHP:65},toxic:{surface:10,shallow:1,deep:2,sHP:22,shHP:28,dHP:60},volcanic:{surface:9,shallow:8,deep:2,sHP:40,shHP:50,dHP:70},void_spawn:{surface:10,shallow:2,deep:5,sHP:36,shHP:58,dHP:100},codex_neon:{surface:13,shallow:3,deep:5,sHP:24,shHP:58,dHP:95},crystal_forest:{surface:13,shallow:6,deep:5,sHP:24,shHP:45,dHP:90},storm:{surface:2,shallow:12,deep:4,sHP:32,shHP:54,dHP:82},metallic:{surface:2,shallow:12,deep:3,sHP:40,shHP:62,dHP:88},obsidian:{surface:2,shallow:14,deep:5,sHP:50,shHP:80,dHP:115},miasma:{surface:10,shallow:1,deep:5,sHP:34,shHP:60,dHP:105},charcoal:{surface:1,shallow:2,deep:4,sHP:24,shHP:44,dHP:76},neon_reef:{surface:13,shallow:3,deep:5,sHP:22,shHP:54,dHP:90},black_ice_world:{surface:6,shallow:7,deep:5,sHP:38,shHP:62,dHP:100},ember_quartz_world:{surface:8,shallow:9,deep:5,sHP:42,shHP:62,dHP:105},prism_moon:{surface:6,shallow:3,deep:5,sHP:30,shHP:58,dHP:96},gloom_steel_world:{surface:2,shallow:12,deep:4,sHP:46,shHP:70,dHP:106}};
+  const cfg=tc[planet.type]||tc.lush;
   for(let x=0;x<W;x++){const h=clamp(heights[x],18,H-10);for(let y=h;y<H;y++){let t=cfg.surface,th=cfg.sHP;if(y>h+8){t=cfg.shallow;th=cfg.shHP;}if(y>h+20&&rng()<0.35){t=cfg.deep;th=cfg.dHP;}if(y>h+35&&rng()<0.45){t=cfg.deep;th=cfg.dHP;}tiles[idx(x,y)]=t;hp[idx(x,y)]=th;}}
   for(let i=0;i<7;i++){let cx2=randInt(rng,10,W-11),cy2=randInt(rng,35,H-20);const steps=randInt(rng,120,220);for(let s=0;s<steps;s++){const r=randInt(rng,2,4);for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++){const x=cx2+xx,y=cy2+yy;if(x>1&&y>1&&x<W-2&&y<H-2&&xx*xx+yy*yy<=r*r){tiles[idx(x,y)]=0;hp[idx(x,y)]=0;}}cx2+=randInt(rng,-1,1);cy2=clamp(cy2+randInt(rng,-1,1),25,H-10);cx2=clamp(cx2,2,W-3);}}
   const pc=(t,count,minY)=>{for(let n=0;n<count;n++){const cx3=randInt(rng,10,W-11),cy3=randInt(rng,minY,H-10),rr=randInt(rng,3,8);for(let y=-rr;y<=rr;y++)for(let x=-rr;x<=rr;x++){if(x*x+y*y<=rr*rr){const px2=cx3+x,py2=cy3+y;if(px2>1&&py2>1&&px2<W-2&&py2<H-2){const id=idx(px2,py2);if(tiles[id]!==0){tiles[id]=t;hp[id]=t===5?95:70;}}}}}};
   pc(3,randInt(rng,10,16),55);pc(4,randInt(rng,8,14),65);pc(5,randInt(rng,3,6),85);
   return{W,H,tiles,hp,heights,planet};
 }
-function resForTile(planet,t,y,H){const d=y/H,l=planet.resList;if(planet?.isAsteroid||planet?.type==="asteroid"){if(t===5)return Math.random()<0.85?"crystal":"gold";if(t===4)return Math.random()<0.62?"crystal":"gold";if(t===3)return Math.random()<0.5?"iron":"copper";return Math.random()<0.18?"crystal":"stone";}if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>["copper","iron","titanium","cobalt","silicon"].includes(k));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){if(l.includes("gold")&&Math.random()<0.55)return"gold";if(l.includes("crystal")&&Math.random()<0.65)return"crystal";return l[Math.floor(Math.random()*l.length)];}if(t===5){if(l.includes("crystal")&&Math.random()<0.6+d*0.3)return"crystal";if(l.includes("gold")&&Math.random()<0.4+d*0.3)return"gold";return l[l.length-1];}return"stone";}
+function resForTile(planet,t,y,H){const d=y/H,l=planet.resList;if(planet?.isAsteroid||planet?.type==="asteroid"){if(t===5)return Math.random()<0.85?"crystal":"gold";if(t===4)return Math.random()<0.62?"crystal":"gold";if(t===3)return Math.random()<0.5?"iron":"copper";return Math.random()<0.18?"crystal":"stone";}if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>((RES[k]?.rarity||1)>=3));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){const m=l.filter(k=>((RES[k]?.rarity||1)>=4));return m.length?m[Math.floor(Math.random()*m.length)]:l[Math.floor(Math.random()*l.length)];}if(t===5){const m=l.filter(k=>((RES[k]?.rarity||1)>=5));return m.length?m[Math.floor(Math.random()*m.length)]:l[l.length-1];}return"stone";}
+function tileColorForActivePlanet(t){const pal=activePlanet?.pal||{};if(!activePlanet)return TILECOLORS[t];if([3,4,5].includes(t)){const list=activePlanet.resList||[];const pick=list.find(k=>(RES[k]?.rarity||1)>=5)||list.find(k=>(RES[k]?.rarity||1)>=3);return RES[pick]?.color||pal.a||TILECOLORS[t];}if(t===1||t===2||t===12||t===14)return pal.b||TILECOLORS[t];if(t===10)return RES.purple_miasma?.color||TILECOLORS[t];if(t===13)return pal.a||TILECOLORS[t];return TILECOLORS[t];}
 function tileAt(x,y){if(!planetMap||x<0||x>=planetMap.W||y<0)return 0;if(y>=planetMap.H)return TILE.BEDROCK;return planetMap.tiles[y*planetMap.W+x];}
 function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.tiles[y*planetMap.W+x]=t;}
 function tileHP(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.hp[y*planetMap.W+x];}
@@ -5617,12 +5684,12 @@ function ensureSmallAsteroidFieldsAround(x,y){
   const ccx=Math.floor(x/CHUNK_SIZE),ccy=Math.floor(y/CHUNK_SIZE);
   for(let cy=ccy-2;cy<=ccy+2;cy++)for(let cx=ccx-2;cx<=ccx+2;cx++){
     const rng=makeRng(`${GALAXY_SEED}|asteroidField|${cx},${cy}`);
-    const fieldCount=1+Math.floor(rng()*3);
+    const fieldCount=3+Math.floor(rng()*4);
     for(let fi=0;fi<fieldCount;fi++){
       const key=makeAsteroidFieldKey(cx,cy,fi); if(generatedAsteroidFieldKeys.has(key))continue; generatedAsteroidFieldKeys.add(key);
       const centerX=(cx+0.5)*CHUNK_SIZE+(rng()-0.5)*CHUNK_SIZE*0.7, centerY=(cy+0.5)*CHUNK_SIZE+(rng()-0.5)*CHUNK_SIZE*0.7;
-      const rockCount=3+Math.floor(rng()*6);
-      for(let i=0;i<rockCount;i++){const a=rng()*Math.PI*2,r=12+rng()*68,size=6+rng()*10;smallAsteroidFields.push({id:`ast_${asteroidFieldSeq++}`,x:centerX+Math.cos(a)*r,y:centerY+Math.sin(a)*r,vx:(rng()-0.5)*3,vy:(rng()-0.5)*3,r:size,hp:24+Math.floor(size*4),maxHp:24+Math.floor(size*4),spin:rng()*Math.PI*2,spinV:(rng()-0.5)*0.6,lootPool:["stone","iron","copper","crystal","silicon","cobalt","titanium","stardust"]});}
+      const rockCount=5+Math.floor(rng()*8);
+      for(let i=0;i<rockCount;i++){const a=rng()*Math.PI*2,r=12+rng()*68,size=6+rng()*10;smallAsteroidFields.push({id:`ast_${asteroidFieldSeq++}`,x:centerX+Math.cos(a)*r,y:centerY+Math.sin(a)*r,vx:(rng()-0.5)*3,vy:(rng()-0.5)*3,r:size,hp:24+Math.floor(size*4),maxHp:24+Math.floor(size*4),spin:rng()*Math.PI*2,spinV:(rng()-0.5)*0.6,lootPool:["stone","iron","copper","crystal","silicon","cobalt","titanium","stardust","dark_obsidian","charcoal_block","purple_miasma","neon_ore"]});}
     }
   }
   // Keep generated asteroid chunks persistent so fields stay available when the player backtracks.
@@ -6345,7 +6412,9 @@ function drawShopSell(st,px,py,pw,ph){
     ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+8,dy+68);ctx.lineTo(dx+dw-8,dy+68);ctx.stroke();ctx.fillStyle="#aabbcc";ctx.font="bold 8px monospace";ctx.fillText("SELL QTY",dx+8,dy+82);
     const bw=28,bh=18,my2=dy+90,mx2=dx+20;ctx.fillStyle=shopSellQty>1?"#3a4a5a":"#1a1a1a";ctx.fillRect(mx2,my2,bw,bh);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=1;ctx.strokeRect(mx2,my2,bw,bh);ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText("-",mx2+bw/2,my2+13);ctx.fillText(shopSellQty,dx+dw/2,my2+13);const plusX=dx+dw-52;ctx.fillStyle=shopSellQty<slot.count?"#3a4a5a":"#1a1a1a";ctx.fillRect(plusX,my2,bw,bh);ctx.strokeRect(plusX,my2,bw,bh);ctx.fillText("+",plusX+bw/2,my2+13);ctx.textAlign="left";
     const total=sellPP*shopSellQty;ctx.fillStyle="#78ff8a";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(`Total: ${total}cr`,dx+dw/2,dy+124);ctx.textAlign="left";
-    const saX=dx+8,saY=dy+132,saW=68,btnH=18;ctx.fillStyle="#3a4a2a";ctx.fillRect(saX,saY,saW,btnH);ctx.strokeStyle="#5a7a3a";ctx.strokeRect(saX,saY,saW,btnH);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText("Sell All",saX+12,saY+13);
+    ctx.fillStyle="#8fa3cc";ctx.font="7px monospace";ctx.fillText(itemDescription(slot.type).slice(0,36),dx+8,dy+70);
+    const saX=dx+8,saY=dy+132,saW=68,btnH=18;ctx.fillStyle="#3a4a2a";ctx.fillRect(saX,saY,saW,btnH);ctx.strokeStyle="#5a7a3a";ctx.strokeRect(saX,saY,saW,btnH);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText("Set All",saX+12,saY+13);
+    const sellAllX=dx+8,sellAllY=dy+154,sellAllW=150;ctx.fillStyle="#3a3010";ctx.fillRect(sellAllX,sellAllY,sellAllW,btnH);ctx.strokeStyle="#b8942a";ctx.strokeRect(sellAllX,sellAllY,sellAllW,btnH);ctx.fillStyle="#ffdd44";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(`SELL ALL ${slot.count}x`,sellAllX+sellAllW/2,sellAllY+13);ctx.textAlign="left";
     const sellX=dx+88,sellW=70;ctx.fillStyle="#2a4a3a";ctx.fillRect(sellX,saY,sellW,btnH);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(sellX,saY,sellW,btnH);ctx.fillStyle="#78ff8a";ctx.font="bold 8px monospace";ctx.fillText("SELL",sellX+22,saY+13);
   }else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to sell",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
 }
@@ -6358,12 +6427,13 @@ function drawShopBuy(st,px,py,pw,ph){
   const dx=px+215,dy=py+58,dw=215,dh=175;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
   if(shopBuyItem!==null&&stock[shopBuyItem]){
     const item=stock[shopBuyItem],res=RES[item.type];if(!res)return;
-    drawItemIcon(ctx,item.type,dx+8,dy+8,36);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+50,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Stock: ${item.qty}`,dx+50,dy+30);ctx.fillText(`Price: ${item.price}cr each`,dx+8,dy+56);
+    drawItemIcon(ctx,item.type,dx+8,dy+8,36);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText(res.name,dx+50,dy+18);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Stock: ${item.qty}`,dx+50,dy+30);ctx.fillText(`Price: ${item.price}cr each`,dx+8,dy+54);ctx.fillStyle="#9fb0d0";ctx.font="7px monospace";ctx.fillText(itemDescription(item.type).slice(0,44),dx+8,dy+66);
     ctx.strokeStyle="#2a3a4a";ctx.beginPath();ctx.moveTo(dx+8,dy+64);ctx.lineTo(dx+dw-8,dy+64);ctx.stroke();ctx.fillStyle="#aabbcc";ctx.font="bold 8px monospace";ctx.fillText("BUY QTY",dx+8,dy+78);
     const bw=28,bh=18,my2=dy+84,mx2=dx+12;ctx.fillStyle=shopBuyQty>1?"#3a4a5a":"#1a1a1a";ctx.fillRect(mx2,my2,bw,bh);ctx.strokeStyle="#4a5a6a";ctx.lineWidth=1;ctx.strokeRect(mx2,my2,bw,bh);ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText("-",mx2+bw/2,my2+13);ctx.fillText(shopBuyQty,dx+dw/2,my2+13);const plusX2=dx+dw-44;ctx.fillStyle=shopBuyQty<item.qty?"#3a4a5a":"#1a1a1a";ctx.fillRect(plusX2,my2,bw,bh);ctx.strokeRect(plusX2,my2,bw,bh);ctx.fillText("+",plusX2+bw/2,my2+13);ctx.textAlign="left";
     const total=item.price*shopBuyQty,canAfford=player.credits>=total,hasSlotSpace=canFitInventoryLocal(item.type,shopBuyQty),hasSpace=hasSlotSpace,isPending=pendingShopBuy&&pendingShopBuy.type===item.type;ctx.fillStyle=canAfford&&hasSpace&&!isPending?"#78ff8a":"#ff5544";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(`Cost: ${total}cr`,dx+dw/2,dy+118);ctx.textAlign="left";
     let msg="";if(isPending)msg="Buying...";else if(!canAfford)msg="Not enough credits";else if(!hasSlotSpace)msg="Inventory slots full";
     if(msg){ctx.fillStyle="#ff5544";ctx.font="8px monospace";ctx.fillText(msg,dx+8,dy+132);}
+    const allQ=fitQuantityFor(item.type,Math.min(item.qty,Math.floor(player.credits/Math.max(1,item.price))));const allX=dx+8,allY=dy+158,allW=dw-16,allH=18;ctx.fillStyle=allQ>0&&!isPending?"#3a3010":"#1a1a1a";ctx.fillRect(allX,allY,allW,allH);ctx.strokeStyle=allQ>0?"#b8942a":"#555";ctx.strokeRect(allX,allY,allW,allH);ctx.fillStyle=allQ>0?"#ffdd44":"#777";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(allQ>0?`BUY ALL ${allQ}x`:"BUY ALL DISABLED",allX+allW/2,allY+12);ctx.textAlign="left";
     const bX=dx+8,bY=dy+136,bW=dw-16,bH=20,canBuy=canAfford&&hasSpace&&!isPending;ctx.fillStyle=canBuy?"#1a3a2a":"#2a1a1a";ctx.fillRect(bX,bY,bW,bH);ctx.strokeStyle=canBuy?"#4a9a6a":"#6a3333";ctx.strokeRect(bX,bY,bW,bH);ctx.fillStyle=canBuy?"#78ff8a":"#aa7777";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(canBuy?`BUY ${shopBuyQty}x`:"BUY DISABLED",dx+dw/2,bY+14);ctx.textAlign="left";
   }else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to buy",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
 }
@@ -6385,6 +6455,7 @@ function handleSellClick(st,mx,my,px,py,pw,ph){
     if(mx>=mx2&&mx<=mx2+bw&&my>=my2&&my<=my2+bh){shopSellQty=Math.max(1,shopSellQty-1);return;}
     const plusX=dx+dw-52;if(mx>=plusX&&mx<=plusX+bw&&my>=my2&&my<=my2+bh){shopSellQty=Math.min(slot.count,shopSellQty+1);return;}
     const saX=dx+8,saY=dy+132,saW=68,btnH=18;if(mx>=saX&&mx<=saX+saW&&my>=saY&&my<=saY+btnH){shopSellQty=slot.count;return;}
+    const sellAllX=dx+8,sellAllY=dy+154,sellAllW=150;if(mx>=sellAllX&&mx<=sellAllX+sellAllW&&my>=sellAllY&&my<=sellAllY+btnH){const type=slot.type,qty=slot.count;shopSellQty=1;socket.emit("sell",{resourceType:type,quantity:qty,stationId:nearStation.id});return;}
     const sellX=dx+88,sellY=dy+132,sellW=70;
     if(mx>=sellX&&mx<=sellX+sellW&&my>=sellY&&my<=sellY+btnH){
       const type=slot.type,qty=Math.min(shopSellQty,slot.count);
@@ -6400,6 +6471,7 @@ function handleBuyClick(st,mx,my,px,py,pw,ph){
     const item=stock[shopBuyItem],dx=px+215,dy=py+58,dw=215,bw=28,bh=18,my2=dy+84,mx2=dx+12;
     if(mx>=mx2&&mx<=mx2+bw&&my>=my2&&my<=my2+bh){shopBuyQty=Math.max(1,shopBuyQty-1);return;}
     const plusX2=dx+dw-44;if(mx>=plusX2&&mx<=plusX2+bw&&my>=my2&&my<=my2+bh){shopBuyQty=Math.min(item.qty,shopBuyQty+1);return;}
+    const allQ=fitQuantityFor(item.type,Math.min(item.qty,Math.floor(player.credits/Math.max(1,item.price))));const allX=dx+8,allY=dy+158,allW=dw-16,allH=18;if(mx>=allX&&mx<=allX+allW&&my>=allY&&my<=allY+allH&&allQ>0&&!pendingShopBuy){pendingShopBuy={stationId:st.id,index:shopBuyItem,type:item.type,quantity:allQ,pricePerUnit:item.price};socket.emit("buy",{resourceType:item.type,quantity:allQ,pricePerUnit:item.price,stationId:st.id});return;}
     const bX=dx+8,bY=dy+136,bW=dw-16,bH=20;
     if(mx>=bX&&mx<=bX+bW&&my>=bY&&my<=bY+bH){
       const qty=Math.min(shopBuyQty,item.qty),total=item.price*qty;
@@ -6512,6 +6584,22 @@ function handleAttrClick(mx,my){
   for(let i=0;i<ATTRS.length;i++){const attr=ATTRS[i],cv=player.attrs[attr.key]||1,ry=startY+i*rowH,cost=attrUpgradeCostLocal(attr.key),hasPoint=(player.attrPoints||0)>0,canPaid=player.credits>=cost.credits&&player.xp>=cost.xp,bx=px+330,by=ry+7,bw=80,bh=21;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){if(cv>=10){showFT("Already maxed",canvas.width/2,canvas.height/2,"#ff5544",10);return;}if(hasPoint){socket.emit("upgradeAttr",{attr:attr.key});showFT("Spending attr point...",canvas.width/2,canvas.height/2,"#cc88ff",9);return;}if(canPaid){socket.emit("upgradeAttrPaid",{attr:attr.key});showFT("Buying upgrade...",canvas.width/2,canvas.height/2,"#cc88ff",9);return;}showFT("Need credits + XP",canvas.width/2,canvas.height/2,"#ff5544",10);return;}}
 }
 
+
+let inventorySortMode="type",inventoryScrollDrag=null;
+function inventoryPanelRectBase(){const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;return {px,py,pw,ph,ss:32,sg:4,cols:INV_COLS,sx:px+10,sy:py+28};}
+function inventoryScrollbarRectBase(){const r=inventoryPanelRectBase();return {x:r.sx+r.cols*(r.ss+r.sg)+2,y:r.sy,w:7,h:INV_VISIBLE_ROWS*(r.ss+r.sg)-r.sg};}
+function compactInventory(){ensureClientInventorySlots();const counts={};for(const s of player.invSlots)if(s?.type&&s.count>0)counts[s.type]=(counts[s.type]||0)+s.count;const filled=[];for(const [type,total] of Object.entries(counts)){let rem=total;while(rem>0){filled.push({type,count:Math.min(MAX_STACK,rem)});rem-=Math.min(MAX_STACK,rem);}}player.invSlots=Array(player.maxSlots).fill(null).map((_,i)=>filled[i]||{type:null,count:0});selectedSlot=null;inventoryScrollRows=0;saveLocalGameStateSoon("inventory_compact");try{socket?.emit?.("clientLocalSaveSync",{snapshot:makeLocalGameSnapshot("inventory_compact")});}catch(_){ }showFT("Inventory compacted",ship.x,ship.y-22,"#7be6ff",10);}
+function sortInventory(mode="type"){ensureClientInventorySlots();compactInventory();const filled=player.invSlots.filter(s=>s?.type&&s.count>0);const rarity=k=>Number(RES[k]?.rarity)||1;const value=k=>price(k)||RES[k]?.base||1;filled.sort((a,b)=>{if(mode==="value")return value(b.type)-value(a.type)||String(a.type).localeCompare(b.type);if(mode==="rarity")return rarity(b.type)-rarity(a.type)||value(b.type)-value(a.type);if(mode==="name")return String(RES[a.type]?.name||a.type).localeCompare(String(RES[b.type]?.name||b.type));return String(a.type).localeCompare(String(b.type));});player.invSlots=Array(player.maxSlots).fill(null).map((_,i)=>filled[i]||{type:null,count:0});selectedSlot=null;inventorySortMode=mode;saveLocalGameStateSoon("inventory_sort");try{socket?.emit?.("clientLocalSaveSync",{snapshot:makeLocalGameSnapshot("inventory_sort")});}catch(_){ }showFT(`Inventory sorted: ${mode}`,ship.x,ship.y-22,"#78ff8a",10);}
+function drawInventoryManageButtons(px,py){const labels=[["COMPACT","compact"],["TYPE","type"],["VALUE","value"],["RARITY","rarity"],["NAME","name"]];for(let i=0;i<labels.length;i++){const [lab,mode]=labels[i],bx=px+10+i*45,by=py+174,bw=41,bh=17;ctx.fillStyle=(inventorySortMode===mode)?"#203a2a":"#101820";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=(inventorySortMode===mode)?"#78ff8a":"#2a4a6a";ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=(inventorySortMode===mode)?"#78ff8a":"#9fb0d0";ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(lab,bx+bw/2,by+11);ctx.textAlign="left";}}
+function handleInventoryManageClick(mx,my,px,py){const labels=[["compact","compact"],["type","type"],["value","value"],["rarity","rarity"],["name","name"]];for(let i=0;i<labels.length;i++){const mode=labels[i][1],bx=px+10+i*45,by=py+174,bw=41,bh=17;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){if(mode==="compact")compactInventory();else sortInventory(mode);return true;}}return false;}
+function startInventoryScrollDrag(mx,my){const r=inventoryScrollbarRectBase();if(maxInventoryScrollRows()<=0)return false;if(mx>=r.x-3&&mx<=r.x+r.w+5&&my>=r.y&&my<=r.y+r.h){inventoryScrollDrag={y:r.y,h:r.h};setInventoryScrollFromY(my);return true;}return false;}
+function setInventoryScrollFromY(my){if(!inventoryScrollDrag)return;const max=maxInventoryScrollRows();const t=clamp((my-inventoryScrollDrag.y)/Math.max(1,inventoryScrollDrag.h),0,1);inventoryScrollRows=clamp(Math.round(t*max),0,max);}
+function inventoryMappedCanvasPoint(mx,my){try{if(typeof largeCanvasMenuPoint==="function")return largeCanvasMenuPoint("inventory",mx,my);}catch(_){ }return {x:mx,y:my};}
+function updateInventoryScrollDragFromCanvas(mx,my){if(!inventoryScrollDrag)return;const p=inventoryMappedCanvasPoint(mx,my);setInventoryScrollFromY(p.y);}
+function endInventoryScrollDrag(){inventoryScrollDrag=null;}
+function itemDescription(type){const d=RES[type]||{};if(d.description)return d.description;const bits=[];if(isWeaponKey(type))bits.push(`${WEAPON_DEFS[type].class} weapon`);if(isAttachmentKey(type))bits.push(`${ATTACHMENT_DEFS[type].slot} attachment`);if(d.stats)bits.push(Object.entries(d.stats).map(([k,v])=>`${k}+${v}`).join(" "));if(type==="gas_canister")bits.push("Refuels ship energy.");if(type==="oxygen_tank")bits.push("Restores oxygen planetside.");return bits.join(" · ")||"Trade, sell, craft, or turn in for station contracts.";}
+function fitQuantityFor(type,maxQty){let q=Math.max(0,Math.floor(maxQty||0));while(q>0&&!canFitInventoryLocal(type,q))q--;return q;}
+
 /* ── Inventory UI ── */
 function itemGlyphFor(type){
   const t=String(type||"");
@@ -6580,7 +6668,7 @@ function drawInventoryDetail(slot,dx,dy,dw,dh){
     if(slot.type==="gas_canister")ctx.fillText("Use G in space to refill energy.",dx+8,dy+72);
     else if(slot.type==="oxygen_tank")ctx.fillText("Use E on planet to refill oxygen.",dx+8,dy+72);
     else if(BUILDABLE_RES_TO_TILE[slot.type])ctx.fillText("Right-click planet map to build with this.",dx+8,dy+72);
-    else ctx.fillText("Sell at a station or use for crafting.",dx+8,dy+72);
+    else ctx.fillText(itemDescription(slot.type).slice(0,39),dx+8,dy+72);
   }
 }
 function handleInventoryWeaponButtons(mx,my,px,py){
@@ -6604,6 +6692,8 @@ function handleInventoryWeaponButtons(mx,my,px,py){
 function handleInventoryClick(mx,my){
   clampPanelScrolls();
   const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
+  if(handleInventoryManageClick(mx,my,px,py))return;
+  if(startInventoryScrollDrag(mx,my))return;
   for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){const slot=player.invSlots[i];selectedSlot=(slot.type&&slot.count)?i:null;if(selectedSlot!==null&&BUILDABLE_RES_TO_TILE[slot.type])buildSlotIndex=selectedSlot;return;}}
   if(handleInventoryWeaponButtons(mx,my,px,py))return;
   if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){buyInventorySlot();return;}}
@@ -6792,12 +6882,12 @@ function drawInventory(){
   const ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
   for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg),slot=player.invSlots[i],isSel=selectedSlot===i;ctx.fillStyle=isSel?"#1a2a3a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#5a9aff":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);if(slot.type&&slot.count){drawItemIcon(ctx,slot.type,bx+4,by+4,ss-8);ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.textAlign="right";ctx.fillText(slot.count,bx+ss-3,by+ss-3);ctx.textAlign="left";}}
   if(maxInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=INV_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,4,trackH);const knobH=Math.max(14,trackH*(INV_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(inventoryScrollRows/maxInventoryScrollRows());ctx.fillStyle="#5a8aaa";ctx.fillRect(trackX,knobY,4,knobH);ctx.fillStyle="#6a8aaa";ctx.font="7px monospace";ctx.fillText("wheel",trackX-8,trackY+trackH+9);}
-  ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText(`Showing ${start+1}-${Math.min(player.maxSlots,start+visible)} of ${player.maxSlots}`,px+10,py+ph-22);
+  drawInventoryManageButtons(px,py);ctx.fillStyle="#6a7a8a";ctx.font="8px monospace";ctx.fillText(`Showing ${start+1}-${Math.min(player.maxSlots,start+visible)} of ${player.maxSlots}`,px+10,py+ph-22);
   const dx=px+250,dy=py+28,dw=140,dh=140;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
   if(selectedSlot!==null&&player.invSlots[selectedSlot]?.type){drawInventoryDetail(player.invSlots[selectedSlot],dx,dy,dw,dh);}
   else{ctx.fillStyle="#4a5a6a";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("Click item to view",dx+dw/2,dy+dh/2);ctx.textAlign="left";}
   if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24,canB=player.credits>=SLOT_COST;ctx.fillStyle=canB?"#2d4a3e":"#3a2a2a";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=canB?"#4a8a6a":"#6a4a4a";ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=canB?"#7be6ff":"#8a7a7a";ctx.font="9px monospace";ctx.fillText(`Buy Slot:${SLOT_COST}cr`,bx+8,by+15);}
-  ctx.fillStyle="#5a6a7a";ctx.font="9px monospace";ctx.fillText("I:close  G:gas  X:O2  right-click:build",px+10,py+ph-10);
+  ctx.fillStyle="#5a6a7a";ctx.font="8px monospace";ctx.fillText("I:close · drag scrollbar · management buttons sort/compact inventory",px+10,py+ph-10);
 }
 
 /* ── Planet mode ── */
@@ -6874,7 +6964,7 @@ function drawPlanet(){
   syncShipStatusOverlayState();
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle=(activePlanet?.pal?.sky)||"#05060a";ctx.fillRect(0,0,canvas.width,canvas.height);
   const cam=planetCamera(),TP=16,x0=Math.floor(cam.x/TP),y0=Math.floor(cam.y/TP),x1=Math.ceil((cam.x+canvas.width)/TP),y1=Math.ceil((cam.y+canvas.height)/TP);
-  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=tileAt(x,y);if(!t)continue;const px2=x*TP-cam.x,py2=y*TP-cam.y;ctx.fillStyle=TILECOLORS[t]||"#6b7075";ctx.fillRect(px2,py2,TP,TP);ctx.globalAlpha=0.3;ctx.fillStyle="#fff";ctx.fillRect(px2+3,py2+3,1,1);ctx.globalAlpha=1;}
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=tileAt(x,y);if(!t)continue;const px2=x*TP-cam.x,py2=y*TP-cam.y;ctx.fillStyle=tileColorForActivePlanet(t)||TILECOLORS[t]||"#6b7075";ctx.fillRect(px2,py2,TP,TP);ctx.globalAlpha=0.3;ctx.fillStyle="#fff";ctx.fillRect(px2+3,py2+3,1,1);ctx.globalAlpha=1;}
   const sx2=landedShip.x-cam.x,sy2=landedShip.y-cam.y;ctx.fillStyle="#ccc";ctx.fillRect(sx2-6,sy2-10,12,10);ctx.fillRect(sx2-2,sy2-14,4,4);ctx.fillStyle="#78ff8a";ctx.font="9px monospace";ctx.fillText("Ship (L)",sx2-12,sy2-18);
   for(const [,pp] of planetPlayers){
     const pxp=(pp.renderX=lerp(pp.renderX??pp.x,pp.x,0.35))-cam.x,pyp=(pp.renderY=lerp(pp.renderY??pp.y,pp.y,0.35))-cam.y;
