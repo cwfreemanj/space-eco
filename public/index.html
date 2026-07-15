@@ -943,7 +943,7 @@ body.desktop-browser #chat-wrap{bottom:74px}
 /* ═══════════════════════════════════════════════════════════════
    DESKTOP BROWSER MASTER MENU PATCH v4.0.4
    - Better common-resolution panel sizing.
-   - Universal L master menu with tabbed access to every major menu.
+   - Universal 1 master menu with tabbed access to every major menu. L is reserved for Land/Takeoff.
    - Expanded bottom command dock with all missing hotkey/menu actions.
 ═══════════════════════════════════════════════════════════════ */
 body.desktop-browser .overlay-panel,
@@ -1128,7 +1128,8 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
     </div>
     <div class="control-keys-content">
       <div class="control-key-item"><span class="control-key-pill">WASD</span><span class="control-key-label">Move / Fly</span></div>
-      <div class="control-key-item"><span class="control-key-pill">L</span><span class="control-key-label">Master Menu</span></div>
+      <div class="control-key-item"><span class="control-key-pill">1</span><span class="control-key-label">Master Menu</span></div>
+      <div class="control-key-item"><span class="control-key-pill">L</span><span class="control-key-label">Land / Takeoff</span></div>
       <div class="control-key-item"><span class="control-key-pill">Q</span><span class="control-key-label">Tool</span></div>
       <div class="control-key-item"><span class="control-key-pill">R</span><span class="control-key-label">Trade</span></div>
       <div class="control-key-item"><span class="control-key-pill">C</span><span class="control-key-label">Character</span></div>
@@ -1244,7 +1245,7 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
 
 <!-- Desktop browser universal command dock: expanded so every major menu/action is reachable by mouse. -->
 <div id="desktop-command-dock" aria-label="Desktop command dock">
-  <button class="desktop-command-btn master" data-desktop-action="master" type="button">Master<small>L</small></button>
+  <button class="desktop-command-btn master" data-desktop-action="master" type="button">Master<small>1</small></button>
   <button class="desktop-command-btn" data-desktop-action="inventory" type="button">Inventory<small>I</small></button>
   <button class="desktop-command-btn" data-desktop-action="shop" type="button">Shop<small>O</small></button>
   <button class="desktop-command-btn gold" data-desktop-action="credits" type="button">Credits<small>M</small></button>
@@ -1262,7 +1263,7 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
   <button class="desktop-command-btn" data-desktop-action="trade" type="button">Trade<small>R</small></button>
   <button class="desktop-command-btn" data-desktop-action="build" type="button">Build<small>B</small></button>
   <button class="desktop-command-btn" data-desktop-action="ship-status" type="button">Ship Stats<small>Z</small></button>
-  <button class="desktop-command-btn" data-desktop-action="land" type="button">Land/Launch<small>button</small></button>
+  <button class="desktop-command-btn" data-desktop-action="land" type="button">Land/Launch<small>L</small></button>
   <button class="desktop-command-btn" data-desktop-action="tool" type="button">Tool<small>Q</small></button>
   <button class="desktop-command-btn" data-desktop-action="gas" type="button">Gas<small>G</small></button>
   <button class="desktop-command-btn" data-desktop-action="oxygen" type="button">O₂ Tank<small>X</small></button>
@@ -1271,13 +1272,13 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
   <button class="desktop-command-btn red" data-desktop-action="close" type="button">Close<small>Esc</small></button>
 </div>
 
-<!-- Universal master menu. L opens this on desktop/browser builds. -->
+<!-- Universal master menu. 1 opens this on desktop/browser builds. L is land/takeoff. -->
 <div id="master-menu-panel" class="master-menu-panel" style="display:none" aria-label="Space Eco master menu">
   <div class="master-menu-box">
     <div class="master-menu-head">
       <div>
         <div class="master-menu-title">SPACE ECO MASTER MENU</div>
-        <div class="master-menu-sub">Press <b>L</b> to open/close. Pick a tab, then click any card to open that menu or trigger that command.</div>
+        <div class="master-menu-sub">Press <b>1</b> to open/close. Pick a tab, then click any card to open that menu or trigger that command.</div>
       </div>
       <button id="master-menu-close" class="master-menu-close" type="button" aria-label="Close master menu">×</button>
     </div>
@@ -1379,7 +1380,7 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
     <h2>✨ COSMETIC + COUPON SHOP — <span id="cosmetic-credit-current">300</span> cr owned</h2>
     <p class="credit-note">Cosmetics are intentionally expensive prestige unlocks. They change visual styles only: player ship, NPC trade ships, station looks, planet palettes, bullets, enemy effects, particles, trails, engine plumes, shield auras, planetside suits, and mining beams.</p>
     <div class="coupon-row">
-      <input id="coupon-code-input" maxlength="40" placeholder="Enter coupon code, e.g. SEIA123 or SPACEECOISAWESOME" autocomplete="off"/>
+      <input id="coupon-code-input" maxlength="40" placeholder="Enter Coupon Code" autocomplete="off"/>
       <button id="coupon-redeem-btn" type="button">Redeem Coupon</button>
     </div>
     <p id="coupon-status" class="cosmetic-status"></p>
@@ -1595,7 +1596,7 @@ function closeMatchingPanelHotkey(key){
 window.addEventListener("keydown",e=>{
   const key=e.key.toLowerCase();
 
-  if(key==="l"&&!isTextControl(e.target)&&!joinScreenOpen()){
+  if(key==="1"&&!isTextControl(e.target)&&!joinScreenOpen()){
     e.preventDefault();
     toggleMasterMenu();
     return;
@@ -1886,7 +1887,7 @@ const MASTER_MENU_ENTRIES=[
   {action:"trade",cat:"social",label:"Player Trade",hotkey:"R",desc:"Send a trade request to the nearest pilot."},
   {action:"chat",cat:"social",label:"Chat",hotkey:"T",desc:"Open the multiplayer chat input."},
   {action:"build",cat:"core",label:"Build / Tile",hotkey:"B",desc:"Open station builder in space or place a tile planetside."},
-  {action:"land",cat:"core",label:"Land / Takeoff",hotkey:"Dock",desc:"Land on a nearby planet or return to your ship from planetside."},
+  {action:"land",cat:"core",label:"Land / Takeoff",hotkey:"L",desc:"Land on a nearby planet or return to your ship from planetside."},
   {action:"tool",cat:"survival",label:"Planet Tool",hotkey:"Q",desc:"Toggle planetside mining/weapon tool."},
   {action:"gas",cat:"survival",label:"Use Gas",hotkey:"G",desc:"Use gas canisters while in space."},
   {action:"oxygen",cat:"survival",label:"Use O₂ Tank",hotkey:"X",desc:"Use an oxygen tank while planetside."},
