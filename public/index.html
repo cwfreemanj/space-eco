@@ -2017,6 +2017,9 @@ Object.assign(RES,{
 });
 
 
+// v4.0.10 hotfix: these globals must exist before optional/generated systems register.
+var GALAXY_SEED="GALAXY-01";
+var inventoryScrollDrag=null;
 const RESOURCE_EXTRA_DEFS={
   dark_obsidian:{name:"Dark Obsidian",rarity:6,color:"#07070b",base:210,stats:{armor:3,void:2},description:"Glass-black volcanic stone used in heavy hulls and void quests."},
   purple_miasma:{name:"Purple Miasma",rarity:5,color:"#9b42ff",base:145,stats:{magic:2,toxic:2},description:"Violet vapor-block mineral used for exotic reactors and miasma contracts."},
@@ -2722,7 +2725,7 @@ function drawStationBars(x,y,w,hp,maxHp,shield,maxShield){
 const CHUNK_SIZE=900,PLANETS_PER_CHUNK=4,CHUNK_RADIUS=3;
 const generatedPlanets=new Map(),generatedStations=new Map();
 let visiblePlanets=[],visibleStations=[];
-let GALAXY_SEED="GALAXY-01";
+GALAXY_SEED=GALAXY_SEED||"GALAXY-01";
 
 function chunkKey(cx,cy){return `${cx},${cy}`;}
 function randomFactionName(rng){
@@ -6585,7 +6588,7 @@ function handleAttrClick(mx,my){
 }
 
 
-let inventorySortMode="type",inventoryScrollDrag=null;
+let inventorySortMode="type";inventoryScrollDrag=null;
 function inventoryPanelRectBase(){const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;return {px,py,pw,ph,ss:32,sg:4,cols:INV_COLS,sx:px+10,sy:py+28};}
 function inventoryScrollbarRectBase(){const r=inventoryPanelRectBase();return {x:r.sx+r.cols*(r.ss+r.sg)+2,y:r.sy,w:7,h:INV_VISIBLE_ROWS*(r.ss+r.sg)-r.sg};}
 function compactInventory(){ensureClientInventorySlots();const counts={};for(const s of player.invSlots)if(s?.type&&s.count>0)counts[s.type]=(counts[s.type]||0)+s.count;const filled=[];for(const [type,total] of Object.entries(counts)){let rem=total;while(rem>0){filled.push({type,count:Math.min(MAX_STACK,rem)});rem-=Math.min(MAX_STACK,rem);}}player.invSlots=Array(player.maxSlots).fill(null).map((_,i)=>filled[i]||{type:null,count:0});selectedSlot=null;inventoryScrollRows=0;saveLocalGameStateSoon("inventory_compact");try{socket?.emit?.("clientLocalSaveSync",{snapshot:makeLocalGameSnapshot("inventory_compact")});}catch(_){ }showFT("Inventory compacted",ship.x,ship.y-22,"#7be6ff",10);}
