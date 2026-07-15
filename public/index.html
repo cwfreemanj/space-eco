@@ -2005,29 +2005,37 @@ Object.assign(RES,{
   dark_matter_shard:{name:"Dark Matter Shard",rarity:7,color:"#7a5cff",base:260},
   stardust:{name:"Stardust",rarity:6,color:"#fff4b2",base:145},
   alloy_frame:{name:"Alloy Frame",rarity:6,color:"#95a7c5",base:180},
-  quantum_core:{name:"Quantum Core",rarity:7,color:"#62ffe0",base:320}
+  quantum_core:{name:"Quantum Core",rarity:7,color:"#62ffe0",base:320},
+  brake_servo:{name:"Brake Servo",rarity:4,color:"#ffcc66",base:115},
+  gyroscope_array:{name:"Gyroscope Array",rarity:5,color:"#7be6ff",base:150},
+  overdrive_thruster:{name:"Overdrive Thruster",rarity:6,color:"#ff8844",base:220},
+  combat_predictor:{name:"Combat Predictor",rarity:6,color:"#ff5c7a",base:240},
+  shield_capacitor:{name:"Shield Capacitor",rarity:5,color:"#58a6ff",base:185},
+  regen_coil:{name:"Regen Coil",rarity:5,color:"#78ff8a",base:165},
+  reinforced_bulkhead:{name:"Reinforced Bulkhead",rarity:5,color:"#b7c6d8",base:175},
+  maneuver_fins:{name:"Maneuver Fins",rarity:4,color:"#b9f3ff",base:130}
 });
 
 const GAS_COST=40,GAS_REFUEL=30,ENERGY_DRAIN=1.8,ENERGY_IDLE=0.15;
 
 /* ── Ship type definitions (populated from server welcome) ── */
 let SHIP_TYPES={
-  scout:{name:"Scout",price:0,description:"Starter ship. Fast and agile.",maxHp:100,maxShield:60,thrustMult:1,cargoMult:1,damageMult:1,shieldRegenMult:1,size:"small"},
-  hauler:{name:"Hauler",price:2500,description:"Massive trade frame. Built for long-haul commerce.",maxHp:160,maxShield:40,thrustMult:0.7,cargoMult:2.2,damageMult:0.8,shieldRegenMult:0.8,size:"large"},
-  fighter:{name:"Fighter",price:3500,description:"Combat-focused with strong weapons.",maxHp:130,maxShield:80,thrustMult:1.15,cargoMult:0.7,damageMult:1.8,shieldRegenMult:1.2,size:"medium"},
-  interceptor:{name:"Interceptor",price:5000,description:"Extreme speed. Fragile but deadly fast.",maxHp:80,maxShield:50,thrustMult:1.6,cargoMult:0.5,damageMult:1.3,shieldRegenMult:1.5,size:"small"},
-  dreadnought:{name:"Dreadnought",price:12000,description:"Tanky powerhouse. Slow but devastating.",maxHp:280,maxShield:150,thrustMult:0.55,cargoMult:1.5,damageMult:2.2,shieldRegenMult:0.7,size:"huge"},
-  phantom:{name:"Phantom",price:8000,description:"Balanced stealth raider.",maxHp:110,maxShield:90,thrustMult:1.3,cargoMult:0.9,damageMult:1.5,shieldRegenMult:1.4,size:"medium",specialty:"Raiding"},
-  miner_mantis:{name:"Miner Mantis",price:0,craftOnly:true,description:"Crafted mining cutter with an ore scanner and reinforced storage racks.",maxHp:145,maxShield:75,thrustMult:1.05,cargoMult:2.7,damageMult:1.05,shieldRegenMult:1.0,size:"large",specialty:"Mining",recipe:{credits:6000,hull_plate:4,engine_core:2,cargo_pod:4,copper:40,iron:30}},
-  guardian:{name:"Guardian",price:0,craftOnly:true,description:"Crafted escort cruiser built to protect stations and allies.",maxHp:230,maxShield:210,thrustMult:0.82,cargoMult:1.2,damageMult:1.65,shieldRegenMult:1.8,size:"large",specialty:"Defense escort",recipe:{credits:11000,hull_plate:8,shield_matrix:3,weapon_array:2,iron:70,gold:20}},
-  solar_sprinter:{name:"Solar Sprinter",price:0,craftOnly:true,description:"Crafted solar racer with excellent fuel efficiency and long-range scout speed.",maxHp:95,maxShield:95,thrustMult:1.85,cargoMult:0.85,damageMult:1.25,shieldRegenMult:1.45,size:"small",specialty:"Speed + fuel",recipe:{credits:14000,engine_core:5,nav_chip:3,crystal:25,fuel:20}},
-  obelisk_carrier:{name:"Obelisk Carrier",price:0,craftOnly:true,description:"Crafted mothership-class carrier with heavy shields and command presence.",maxHp:390,maxShield:260,thrustMult:0.50,cargoMult:3.4,damageMult:2.35,shieldRegenMult:0.95,size:"huge",specialty:"Mothership",recipe:{credits:45000,obelisk_core:1,hull_plate:16,shield_matrix:8,weapon_array:6,cargo_pod:10,crystal:70,gold:100,magma_core:40}},
+  scout:{name:"Scout",price:0,description:"Starter ship. Fast and agile.",maxHp:100,maxShield:60,thrustMult:1,cargoMult:1,damageMult:1,shieldRegenMult:1,brakingMult:1.08,turnMult:1.10,size:"small"},
+  hauler:{name:"Hauler",price:2500,description:"Massive trade frame. Built for long-haul commerce.",maxHp:160,maxShield:40,thrustMult:0.7,cargoMult:2.2,damageMult:0.8,shieldRegenMult:0.8,brakingMult:0.78,turnMult:0.82,size:"large"},
+  fighter:{name:"Fighter",price:3500,description:"Combat-focused with strong weapons.",maxHp:130,maxShield:80,thrustMult:1.15,cargoMult:0.7,damageMult:1.8,shieldRegenMult:1.2,brakingMult:1.12,turnMult:1.06,size:"medium"},
+  interceptor:{name:"Interceptor",price:5000,description:"Extreme speed. Fragile but deadly fast.",maxHp:80,maxShield:50,thrustMult:1.6,cargoMult:0.5,damageMult:1.3,shieldRegenMult:1.5,brakingMult:1.28,turnMult:1.20,size:"small"},
+  dreadnought:{name:"Dreadnought",price:12000,description:"Tanky powerhouse. Slow but devastating.",maxHp:280,maxShield:150,thrustMult:0.55,cargoMult:1.5,damageMult:2.2,shieldRegenMult:0.7,brakingMult:0.62,turnMult:0.70,size:"huge"},
+  phantom:{name:"Phantom",price:8000,description:"Balanced stealth raider.",maxHp:110,maxShield:90,thrustMult:1.3,cargoMult:0.9,damageMult:1.5,shieldRegenMult:1.4,brakingMult:1.18,turnMult:1.14,size:"medium",specialty:"Raiding"},
+  miner_mantis:{name:"Miner Mantis",price:0,craftOnly:true,description:"Crafted mining cutter with an ore scanner and reinforced storage racks.",maxHp:145,maxShield:75,thrustMult:1.05,cargoMult:2.7,damageMult:1.05,shieldRegenMult:1.0,brakingMult:1.04,turnMult:0.98,size:"large",specialty:"Mining",recipe:{credits:6000,hull_plate:4,engine_core:2,cargo_pod:4,copper:40,iron:30}},
+  guardian:{name:"Guardian",price:0,craftOnly:true,description:"Crafted escort cruiser built to protect stations and allies.",maxHp:230,maxShield:210,thrustMult:0.82,cargoMult:1.2,damageMult:1.65,shieldRegenMult:1.8,brakingMult:0.96,turnMult:0.92,size:"large",specialty:"Defense escort",recipe:{credits:11000,hull_plate:8,shield_matrix:3,weapon_array:2,iron:70,gold:20}},
+  solar_sprinter:{name:"Solar Sprinter",price:0,craftOnly:true,description:"Crafted solar racer with excellent fuel efficiency and long-range scout speed.",maxHp:95,maxShield:95,thrustMult:1.85,cargoMult:0.85,damageMult:1.25,shieldRegenMult:1.45,brakingMult:1.38,turnMult:1.28,size:"small",specialty:"Speed + fuel",recipe:{credits:14000,engine_core:5,nav_chip:3,crystal:25,fuel:20}},
+  obelisk_carrier:{name:"Obelisk Carrier",price:0,craftOnly:true,description:"Crafted mothership-class carrier with heavy shields and command presence.",maxHp:390,maxShield:260,thrustMult:0.50,cargoMult:3.4,damageMult:2.35,shieldRegenMult:0.95,brakingMult:0.58,turnMult:0.66,size:"huge",specialty:"Mothership",recipe:{credits:45000,obelisk_core:1,hull_plate:16,shield_matrix:8,weapon_array:6,cargo_pod:10,crystal:70,gold:100,magma_core:40}},
 };
 Object.assign(SHIP_TYPES,{
-  salvage_hornet:{name:"Salvage Hornet",price:0,craftOnly:true,description:"Compact salvage skiff with balanced combat and cargo retrieval systems.",maxHp:165,maxShield:105,thrustMult:1.18,cargoMult:1.8,damageMult:1.22,shieldRegenMult:1.18,size:"medium",specialty:"Salvage",recipe:{credits:16000,hull_plate:5,cargo_pod:3,titanium:18,cobalt:22,circuit_board:6}},
-  nebula_freighter:{name:"Nebula Freighter",price:0,craftOnly:true,description:"A long-range freighter with oversized storage and efficient engines.",maxHp:250,maxShield:140,thrustMult:0.84,cargoMult:3.2,damageMult:1.05,shieldRegenMult:1.05,size:"large",specialty:"Trade",recipe:{credits:28000,hull_plate:9,engine_core:4,cargo_pod:8,titanium:30,silicon:24,alloy_frame:5}},
-  aegis_spear:{name:"Aegis Spear",price:0,craftOnly:true,description:"Shield-forward interceptor built for aggressive frontline duels.",maxHp:185,maxShield:220,thrustMult:1.22,cargoMult:1.05,damageMult:1.72,shieldRegenMult:1.95,size:"medium",specialty:"Shield assault",recipe:{credits:34000,shield_matrix:6,weapon_array:5,crystal:36,plasma_cell:12,quantum_core:2}},
-  titan_bloom:{name:"Titan Bloom",price:0,craftOnly:true,description:"Heavy carrier chassis with bloom-reactive shield petals and massive power reserves.",maxHp:420,maxShield:320,thrustMult:0.58,cargoMult:3.6,damageMult:2.48,shieldRegenMult:1.08,size:"huge",specialty:"Capital craft",recipe:{credits:62000,obelisk_core:1,hull_plate:18,alloy_frame:10,plasma_cell:18,dark_matter_shard:6,quantum_core:4,stardust:20}}
+  salvage_hornet:{name:"Salvage Hornet",price:0,craftOnly:true,description:"Compact salvage skiff with balanced combat and cargo retrieval systems.",maxHp:165,maxShield:105,thrustMult:1.18,cargoMult:1.8,damageMult:1.22,shieldRegenMult:1.18,brakingMult:1.18,turnMult:1.12,size:"medium",specialty:"Salvage",recipe:{credits:16000,hull_plate:5,cargo_pod:3,titanium:18,cobalt:22,circuit_board:6}},
+  nebula_freighter:{name:"Nebula Freighter",price:0,craftOnly:true,description:"A long-range freighter with oversized storage and efficient engines.",maxHp:250,maxShield:140,thrustMult:0.84,cargoMult:3.2,damageMult:1.05,shieldRegenMult:1.05,brakingMult:0.84,turnMult:0.82,size:"large",specialty:"Trade",recipe:{credits:28000,hull_plate:9,engine_core:4,cargo_pod:8,titanium:30,silicon:24,alloy_frame:5}},
+  aegis_spear:{name:"Aegis Spear",price:0,craftOnly:true,description:"Shield-forward interceptor built for aggressive frontline duels.",maxHp:185,maxShield:220,thrustMult:1.22,cargoMult:1.05,damageMult:1.72,shieldRegenMult:1.95,brakingMult:1.14,turnMult:1.08,size:"medium",specialty:"Shield assault",recipe:{credits:34000,shield_matrix:6,weapon_array:5,crystal:36,plasma_cell:12,quantum_core:2}},
+  titan_bloom:{name:"Titan Bloom",price:0,craftOnly:true,description:"Heavy carrier chassis with bloom-reactive shield petals and massive power reserves.",maxHp:420,maxShield:320,thrustMult:0.58,cargoMult:3.6,damageMult:2.48,shieldRegenMult:1.08,brakingMult:0.62,turnMult:0.68,size:"huge",specialty:"Capital craft",recipe:{credits:62000,obelisk_core:1,hull_plate:18,alloy_frame:10,plasma_cell:18,dark_matter_shard:6,quantum_core:4,stardust:20}}
 });
 
 let OWNED_STATION_TIERS={
@@ -2078,7 +2086,15 @@ const ATTACHMENT_DEFS={
   engine_core:{key:"engine_core",slot:"engine",name:"Engine Core",thrustMult:1.10,description:"Improves ship thrust and handling."},
   nav_chip:{key:"nav_chip",slot:"utility",name:"Navigation Chip",gasEfficiencyMult:1.14,description:"Reduces travel energy drain."},
   cargo_pod:{key:"cargo_pod",slot:"utility",name:"Storage Pod",maxHpBonus:12,gasEfficiencyMult:1.06,description:"Balanced utility support module."},
-  weapon_array:{key:"weapon_array",slot:"weapon",name:"Weapon Array",damageMult:1.12,description:"Amplifies ship weapon damage."}
+  weapon_array:{key:"weapon_array",slot:"weapon",name:"Weapon Array",damageMult:1.12,description:"Amplifies ship weapon damage."},
+  brake_servo:{key:"brake_servo",slot:"utility",name:"Brake Servo",brakingMult:1.32,description:"Increases braking response and drift control."},
+  gyroscope_array:{key:"gyroscope_array",slot:"utility",name:"Gyroscope Array",turnMult:1.18,description:"Improves turn handling and rotational response."},
+  overdrive_thruster:{key:"overdrive_thruster",slot:"engine",name:"Overdrive Thruster",thrustMult:1.22,turnMult:1.08,description:"Boosts speed and handling for agile ships."},
+  combat_predictor:{key:"combat_predictor",slot:"weapon",name:"Combat Predictor",damageMult:1.18,turnMult:1.05,description:"Improves attack output and combat tracking."},
+  shield_capacitor:{key:"shield_capacitor",slot:"shield",name:"Shield Capacitor",maxShieldBonus:55,description:"Adds a large shield capacity bonus."},
+  regen_coil:{key:"regen_coil",slot:"shield",name:"Regen Coil",shieldRegenMult:1.34,description:"Improves shield recharge speed."},
+  reinforced_bulkhead:{key:"reinforced_bulkhead",slot:"hull",name:"Reinforced Bulkhead",maxHpBonus:65,description:"Adds extra hull health for heavy builds."},
+  maneuver_fins:{key:"maneuver_fins",slot:"utility",name:"Maneuver Fins",turnMult:1.28,brakingMult:1.12,description:"Improves turn handling and braking."}
 };
 const ATTACHMENT_SLOTS=["hull","shield","engine","utility","weapon"];
 function isWeaponKey(k){return !!WEAPON_DEFS[k];}
@@ -2086,8 +2102,8 @@ function isAttachmentKey(k){return !!ATTACHMENT_DEFS[k];}
 function weaponDefFor(k){return WEAPON_DEFS[k]||WEAPON_DEFS.weapon_laser_mk1;}
 function defaultAttachmentSlots(){return {hull:null,shield:null,engine:null,utility:null,weapon:null};}
 function normalizeAttachments(raw={}){const out=defaultAttachmentSlots();if(raw&&typeof raw==="object"){for(const slot of ATTACHMENT_SLOTS){const key=String(raw[slot]||"");if(key&&ATTACHMENT_DEFS[key]?.slot===slot)out[slot]=key;}}return out;}
-function attachmentEffects(){const fx={maxHpBonus:0,maxShieldBonus:0,thrustMult:1,damageMult:1,shieldRegenMult:1,gasEfficiencyMult:1};const loadout=normalizeAttachments(player.equippedAttachments||{});for(const key of Object.values(loadout)){const d=ATTACHMENT_DEFS[key];if(!d)continue;fx.maxHpBonus+=Number(d.maxHpBonus)||0;fx.maxShieldBonus+=Number(d.maxShieldBonus)||0;fx.thrustMult*=Number(d.thrustMult)||1;fx.damageMult*=Number(d.damageMult)||1;fx.shieldRegenMult*=Number(d.shieldRegenMult)||1;fx.gasEfficiencyMult*=Number(d.gasEfficiencyMult)||1;}return fx;}
-function attachmentBonusLine(key){const d=ATTACHMENT_DEFS[key];if(!d)return "";const bits=[];if(d.maxHpBonus)bits.push(`+${d.maxHpBonus} HP`);if(d.maxShieldBonus)bits.push(`+${d.maxShieldBonus} Shield`);if(d.thrustMult&&d.thrustMult!==1)bits.push(`Thrust x${d.thrustMult.toFixed(2)}`);if(d.damageMult&&d.damageMult!==1)bits.push(`Damage x${d.damageMult.toFixed(2)}`);if(d.shieldRegenMult&&d.shieldRegenMult!==1)bits.push(`Shield Regen x${d.shieldRegenMult.toFixed(2)}`);if(d.gasEfficiencyMult&&d.gasEfficiencyMult!==1)bits.push(`Efficiency x${d.gasEfficiencyMult.toFixed(2)}`);return bits.join(" · ")||d.description||"Passive ship module";}
+function attachmentEffects(){const fx={maxHpBonus:0,maxShieldBonus:0,thrustMult:1,damageMult:1,shieldRegenMult:1,gasEfficiencyMult:1,brakingMult:1,turnMult:1};const loadout=normalizeAttachments(player.equippedAttachments||{});for(const key of Object.values(loadout)){const d=ATTACHMENT_DEFS[key];if(!d)continue;fx.maxHpBonus+=Number(d.maxHpBonus)||0;fx.maxShieldBonus+=Number(d.maxShieldBonus)||0;fx.thrustMult*=Number(d.thrustMult)||1;fx.damageMult*=Number(d.damageMult)||1;fx.shieldRegenMult*=Number(d.shieldRegenMult)||1;fx.gasEfficiencyMult*=Number(d.gasEfficiencyMult)||1;}return fx;}
+function attachmentBonusLine(key){const d=ATTACHMENT_DEFS[key];if(!d)return "";const bits=[];if(d.maxHpBonus)bits.push(`+${d.maxHpBonus} HP`);if(d.maxShieldBonus)bits.push(`+${d.maxShieldBonus} Shield`);if(d.thrustMult&&d.thrustMult!==1)bits.push(`Thrust x${d.thrustMult.toFixed(2)}`);if(d.damageMult&&d.damageMult!==1)bits.push(`Damage x${d.damageMult.toFixed(2)}`);if(d.shieldRegenMult&&d.shieldRegenMult!==1)bits.push(`Shield Regen x${d.shieldRegenMult.toFixed(2)}`);if(d.gasEfficiencyMult&&d.gasEfficiencyMult!==1)bits.push(`Efficiency x${d.gasEfficiencyMult.toFixed(2)}`);if(d.brakingMult&&d.brakingMult!==1)bits.push(`Braking x${d.brakingMult.toFixed(2)}`);if(d.turnMult&&d.turnMult!==1)bits.push(`Handling x${d.turnMult.toFixed(2)}`);return bits.join(" · ")||d.description||"Passive ship module";}
 function inventoryTotal(type){let n=0;for(const s of player.invSlots)if(s?.type===type)n+=s.count||0;return n;}
 function playerOwnsWeaponForEquip(key){return key==="weapon_laser_mk1"||inventoryTotal(key)>0;}
 function weaponLevel(key){return Math.max(1,Math.floor(player.weaponLevels?.[key]||1));}
@@ -2117,7 +2133,7 @@ const player={
   id:null,name:"",credits:300,
   invSlots:Array(24).fill(null).map(()=>({type:null,count:0})),
   maxSlots:24,xp:0,level:1,xpToNext:100,
-  attrs:{damage:1,speed:1,cargoMax:1,armor:1,gasEfficiency:1,shieldRegen:1},
+  attrs:{damage:1,speed:1,cargoMax:1,armor:1,gasEfficiency:1,shieldRegen:1,braking:1},
   attrPoints:0,color:"#7be6ff",shipType:"scout",score:0,kills:0,deaths:0,
   equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
   equippedAttachments:defaultAttachmentSlots(),
@@ -2217,10 +2233,26 @@ const COSMETIC_DEFS={
   trail_pixel_sparks:{key:"trail_pixel_sparks",slot:"trail",name:"Pixel Spark Trail",price:3300000,description:"Chunkier retro spark exhaust trail.",color:"#7be6ff",accent:"#ffdd44"},
   particle_pixel_pop:{key:"particle_pixel_pop",slot:"particle",name:"Pixel Pop Particles",price:2100000,description:"Chunky pop particles for shots and impact feedback.",color:"#ffdd44",accent:"#7be6ff"},
   enemy_pixel_raiders:{key:"enemy_pixel_raiders",slot:"enemy",name:"Pixel Raider Enemies",price:4600000,description:"Enemies use bolder arcade-like silhouettes and neon edges.",color:"#ff5544",accent:"#ffdd44",shape:"fang"}
-
+,
+  ship_codex_sentinel:{key:"ship_codex_sentinel",slot:"ship",name:"Codex Sentinel Hull",price:8800000,description:"Angular neon-codex sentinel plating with twin energy fins.",color:"#00f0ff",accent:"#ffdd44",shape:"lancer"},
+  ship_void_bloom:{key:"ship_void_bloom",slot:"ship",name:"Void Bloom Hull",price:9300000,description:"Dark floral void frame with magenta bloom wings.",color:"#201030",accent:"#ff77dd",shape:"flame"},
+  bullet_codex_runes:{key:"bullet_codex_runes",slot:"bullet",name:"Codex Rune Shots",price:5800000,description:"Runic cyan-gold projectile style for high-tier pilots.",color:"#7be6ff",accent:"#ffdd44",sizeBoost:0.88},
+  bullet_void_sparks:{key:"bullet_void_sparks",slot:"bullet",name:"Void Spark Shots",price:6400000,description:"Dark-matter purple bolts with pink spark cores.",color:"#8d5cff",accent:"#ff77dd",sizeBoost:0.92},
+  enemy_neon_serpents:{key:"enemy_neon_serpents",slot:"enemy",name:"Neon Serpent Enemies",price:6200000,description:"Enemy ships use long neon serpent silhouettes.",color:"#78ff8a",accent:"#7be6ff",shape:"bat"},
+  enemy_void_spawn:{key:"enemy_void_spawn",slot:"enemy",name:"Void Spawn Enemies",price:7800000,description:"Hostile ships shift into dark void-spawn outlines.",color:"#4b2a7f",accent:"#ff77dd",shape:"outline"},
+  npcship_codex_freighters:{key:"npcship_codex_freighters",slot:"npcship",name:"Codex NPC Freighters",price:5200000,description:"NPC trade ships use neon-codex freighter hulls.",color:"#0fd8ff",accent:"#ffdd44",shape:"hauler"},
+  station_codex_gate:{key:"station_codex_gate",slot:"station",name:"Codex Gate Stations",price:7600000,description:"Stations become symmetrical codex gates with teal-gold cores.",color:"#062033",accent:"#7be6ff",shape:"ring"},
+  station_void_anchor:{key:"station_void_anchor",slot:"station",name:"Void Anchor Stations",price:8200000,description:"Stations become violet-black anchors in space.",color:"#170d26",accent:"#cc88ff",shape:"spire"},
+  planet_codex_neon_worlds:{key:"planet_codex_neon_worlds",slot:"planet",name:"Codex Neon Planet Designs",price:7200000,description:"Planets draw with neon grid bands and codex cyan-gold accents.",color:"#0fd8ff",accent:"#ffdd44",shape:"crystal"},
+  planet_void_spawn_worlds:{key:"planet_void_spawn_worlds",slot:"planet",name:"Void Spawn Planet Designs",price:8400000,description:"Planets become shadowed void-spawn worlds with magenta eclipse rings.",color:"#1a0d2e",accent:"#ff77dd",shape:"void"},
+  engine_codex_afterburn:{key:"engine_codex_afterburn",slot:"engine",name:"Codex Afterburn Engines",price:7800000,description:"Teal-gold afterburn plumes with rune sparks.",color:"#7be6ff",accent:"#ffdd44",shape:"flare"},
+  shield_void_shell:{key:"shield_void_shell",slot:"shield",name:"Void Shell Shield",price:7900000,description:"Dark violet defensive shell with magenta edge pulses.",color:"#3c1d66",accent:"#ff77dd",shape:"angular"},
+  suit_codex_pilot:{key:"suit_codex_pilot",slot:"suit",name:"Codex Pilot Suit",price:5600000,description:"Planetside codex pilot armor with bright cyan visor trim.",color:"#0f3450",accent:"#7be6ff",shape:"suit"},
+  laser_void_cutter:{key:"laser_void_cutter",slot:"laser",name:"Void Cutter Mining Beam",price:6200000,description:"Void-magenta mining cutter beam for planetside work.",color:"#cc88ff",accent:"#ff77dd",shape:"beam"}
 };
 const COSMETIC_SLOTS=["ship","bullet","enemy","npcship","particle","trail","station","planet","engine","shield","suit","laser"];
 let cosmeticInventory={},equippedCosmetics={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null},redeemedCoupons={};
+let globalWorldCosmetics={npcship:null,enemy:null,station:null,planet:null};
 const CLIENT_COUPON_DEFS={SPACEECOISAWESOME:{credits:10000000,description:"Launch celebration coupon"},SEIA123:{credits:10000000,description:"Reusable Space Eco Infinite Awesome coupon",reusable:true}};
 Object.assign(COSMETIC_DEFS,{
   ship_titan_orchid:{key:"ship_titan_orchid",slot:"ship",name:"Titan Orchid Hull",price:7600000,description:"A broad-petal prestige hull with neon magenta bloom fins.",color:"#ff77dd",accent:"#ffd0ff",shape:"flame"},
@@ -2276,7 +2308,7 @@ function applyLocalGameSnapshot(snap,reason="local_first"){
   if(typeof snap.xp==="number")player.xp=Math.max(player.xp||0,Math.floor(snap.xp));
   if(typeof snap.xpToNext==="number")player.xpToNext=Math.max(player.xpToNext||100,Math.floor(snap.xpToNext));
   if(typeof snap.attrPoints==="number")player.attrPoints=Math.max(player.attrPoints||0,Math.floor(snap.attrPoints));
-  if(snap.attrs&&typeof snap.attrs==="object")player.attrs={...player.attrs,...snap.attrs};
+  if(snap.attrs&&typeof snap.attrs==="object")player.attrs={...player.attrs,...snap.attrs}; if(!player.attrs.braking)player.attrs.braking=1;
   if(snap.shipType&&SHIP_TYPES[snap.shipType])player.shipType=snap.shipType;
   if(snap.equippedWeapon)player.equippedWeapon=snap.equippedWeapon;
   if(snap.weaponLevels&&typeof snap.weaponLevels==="object")player.weaponLevels={...player.weaponLevels,...snap.weaponLevels};
@@ -2305,8 +2337,9 @@ function normalizeCosmeticInventory(raw){const out={};if(raw&&typeof raw==="obje
 function normalizeEquippedCosmetics(raw){const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null};if(raw&&typeof raw==="object")for(const slot of COSMETIC_SLOTS){const key=String(raw[slot]||"");if(key&&COSMETIC_DEFS[key]?.slot===slot)out[slot]=key;}return out;}
 function normalizeRedeemedCoupons(raw){const out={};if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){const code=String(k||"").toUpperCase();if(code&&v===true)out[code]=true;}return out;}
 function activeCosmeticDef(slot,source=equippedCosmetics){const key=source?.[slot];return key?COSMETIC_DEFS[key]||null:null;}
+function worldCosmeticDef(slot){return activeCosmeticDef(slot,globalWorldCosmetics)||activeCosmeticDef(slot);}
 function shipVisualColor(base=player.color,source=equippedCosmetics){return activeCosmeticDef("ship",source)?.color||base;}
-function enemyVisualColor(){return activeCosmeticDef("enemy")?.color||"#ff4422";}
+function enemyVisualColor(){return worldCosmeticDef("enemy")?.color||"#ff4422";}
 function cosmeticProjectileColor(base="#ffff44"){const d=activeCosmeticDef("bullet");if(!d)return base;if(d.rainbow){const t=(performance.now()/1000)%6;return `hsl(${Math.floor(t*60)},100%,70%)`;}return d.color||base;}
 function cosmeticParticleColor(base="#ffff44"){return activeCosmeticDef("particle")?.color||base;}
 function cosmeticProjectileSize(base=2.8){return base+(Number(activeCosmeticDef("bullet")?.sizeBoost)||0);}
@@ -2346,7 +2379,7 @@ function drawEnemyShipBody(color="#ff3344",accent="#ffcc44",shape="raider"){
   ctx.fillStyle=accent;ctx.fillRect(-10,-1,4,2);
 }
 function drawStationDesign(cx,cy,size,tier="standard",destroyed=false,baseColor="#66ccaa",strokeColor="#ffffff55"){
-  const d=activeCosmeticDef("station"),shape=d?.shape||tier,color=destroyed?"#3a1c1c":safeColor(d?.color||baseColor,baseColor),accent=destroyed?"#ff4422":safeColor(d?.accent||strokeColor,strokeColor);ctx.fillStyle=color;ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.beginPath();
+  const d=worldCosmeticDef("station"),shape=d?.shape||tier,color=destroyed?"#3a1c1c":safeColor(d?.color||baseColor,baseColor),accent=destroyed?"#ff4422":safeColor(d?.accent||strokeColor,strokeColor);ctx.fillStyle=color;ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.beginPath();
   if(shape==="ring"){ctx.arc(cx,cy,size,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.arc(cx,cy,size*1.55,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(cx-size*1.9,cy);ctx.lineTo(cx+size*1.9,cy);ctx.stroke();}
   else if(shape==="crystal"){for(let k=0;k<6;k++){const a=k*Math.PI/3-Math.PI/2,r=k%2?size*.72:size*1.25;k?ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle=accent;ctx.globalAlpha=.45;ctx.fillRect(cx-3,cy-size*.8,6,size*1.6);ctx.globalAlpha=1;}
   else if(shape==="fortress"){ctx.rect(cx-size,cy-size*.7,size*2,size*1.4);ctx.fill();ctx.stroke();ctx.fillStyle=accent;ctx.fillRect(cx-size*1.25,cy-size*.35,size*.35,size*.7);ctx.fillRect(cx+size*.9,cy-size*.35,size*.35,size*.7);}
@@ -2357,7 +2390,7 @@ function drawStationDesign(cx,cy,size,tier="standard",destroyed=false,baseColor=
   else{for(let k=0;k<10;k++){const a=k*Math.PI/5-Math.PI/2,r2=k%2===0?size:size*0.5;k?ctx.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2):ctx.moveTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2);}ctx.closePath();ctx.fill();ctx.stroke();}
 }
 function drawPlanetVisual(p,px,py){
-  const d=activeCosmeticDef("planet");if(!d){ctx.drawImage(p.preview,px-16,py-16);return;}
+  const d=worldCosmeticDef("planet");if(!d){ctx.drawImage(p.preview,px-16,py-16);return;}
   const color=safeColor(d.color||p.pal?.a||"#7be6ff"),accent=safeColor(d.accent||p.pal?.b||"#ffffff"),r=clamp((p.radius||32)/2,14,26);ctx.save();ctx.translate(px,py);ctx.shadowColor=color;ctx.shadowBlur=10;ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=accent;ctx.lineWidth=2;
   if(d.shape==="crystal"){for(let k=0;k<7;k++){ctx.beginPath();ctx.moveTo(0,0);const a=k*Math.PI*2/7;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);ctx.stroke();}ctx.strokeRect(-r*.55,-r*.55,r*1.1,r*1.1);}
   else if(d.shape==="lava"){ctx.strokeStyle=accent;for(let k=-1;k<=1;k++){ctx.beginPath();ctx.moveTo(-r*.75,k*r*.28);ctx.bezierCurveTo(-r*.2,k*r*.45,r*.1,k*r*.05,r*.75,k*r*.3);ctx.stroke();}}
@@ -2426,6 +2459,8 @@ const ship={
   energy:{current:100,max:100},
   get def(){return SHIP_TYPES[player.shipType]||SHIP_TYPES.scout;},
   get speedStat(){return(1+((player.attrs.speed-1)*0.3))*this.def.thrustMult*attachmentEffects().thrustMult;},
+  get turnStat(){return Math.max(0.55,(this.def.turnMult||1))*attachmentEffects().turnMult;},
+  get brakingStat(){return(1+(((player.attrs.braking||1)-1)*0.22))*Math.max(0.35,(this.def.brakingMult||1))*attachmentEffects().brakingMult;},
   get damageStat(){return(1+((player.attrs.damage-1)*0.4))*this.def.damageMult*attachmentEffects().damageMult;},
   get armorStat(){return 1+((player.attrs.armor-1)*0.2);},
   get cargoMax(){return Infinity;},
@@ -2524,6 +2559,10 @@ STATION_TIERS.outpost.itemPool.push("silicon","cobalt");
 STATION_TIERS.standard.itemPool.push("titanium","circuit_board","stardust");
 STATION_TIERS.advanced.itemPool.push("nano_fiber","plasma_cell","alloy_frame","weapon_arc_pulser","weapon_frost_shard","weapon_bio_sprayer");
 STATION_TIERS.capital.itemPool.push("dark_matter_shard","quantum_core","weapon_sunflare_cannon","weapon_graviton_burst","weapon_void_spinner");
+STATION_TIERS.outpost.itemPool.push("brake_servo","maneuver_fins");
+STATION_TIERS.standard.itemPool.push("gyroscope_array","regen_coil","shield_capacitor");
+STATION_TIERS.advanced.itemPool.push("overdrive_thruster","combat_predictor","reinforced_bulkhead");
+STATION_TIERS.capital.itemPool.push("overdrive_thruster","combat_predictor","shield_capacitor","reinforced_bulkhead","gyroscope_array");
 
 /* ── Station health / shield defense ── */
 const NPC_STATION_DEFENSE={
@@ -2811,10 +2850,10 @@ function generateChunk(cx,cy){
       let tooClose=false;for(const ep of planets){if(dist(px,py,ep.x,ep.y)<110){tooClose=true;break;}}if(tooClose)continue;
       const id=key+"|"+i,prng=makeRng(GALAXY_SEED+"|planet|"+id);
       const radius=randInt(prng,26,65);
-      const type=pickWeighted(prng,[{v:"lush",w:3},{v:"desert",w:3},{v:"ice",w:2},{v:"toxic",w:2},{v:"volcanic",w:1}]);
-      const pals={lush:{a:"#2bff88",b:"#166b3f",sky:"#071324"},desert:{a:"#ffd27a",b:"#b9772d",sky:"#120d07"},ice:{a:"#b9f3ff",b:"#4fa8c8",sky:"#071021"},toxic:{a:"#b3ff4e",b:"#3d7b20",sky:"#0b1206"},volcanic:{a:"#ff6b5e",b:"#6b1d1a",sky:"#160707"}};
+      const type=pickWeighted(prng,[{v:"lush",w:3},{v:"desert",w:3},{v:"ice",w:2},{v:"toxic",w:2},{v:"volcanic",w:1},{v:"void_spawn",w:1.1},{v:"codex_neon",w:1.2},{v:"crystal_forest",w:1.1},{v:"storm",w:1},{v:"metallic",w:1.1}]);
+      const pals={lush:{a:"#2bff88",b:"#166b3f",sky:"#071324"},desert:{a:"#ffd27a",b:"#b9772d",sky:"#120d07"},ice:{a:"#b9f3ff",b:"#4fa8c8",sky:"#071021"},toxic:{a:"#b3ff4e",b:"#3d7b20",sky:"#0b1206"},volcanic:{a:"#ff6b5e",b:"#6b1d1a",sky:"#160707"},void_spawn:{a:"#3b1a66",b:"#07020d",sky:"#05010a"},codex_neon:{a:"#00f0ff",b:"#ffdd44",sky:"#030816"},crystal_forest:{a:"#9fffe8",b:"#206a7a",sky:"#061220"},storm:{a:"#7f93a8",b:"#26364f",sky:"#060a12"},metallic:{a:"#b8c7d9",b:"#49566a",sky:"#070a10"}};
       const pal=pals[type];
-      const resTbl={lush:["dirt","grass_tuft","stone","copper","iron","crystal"],desert:["sand","dirt","stone","copper","gold"],ice:["ice_block","stone","iron","crystal"],toxic:["toxic_sludge","dirt","stone","copper","crystal"],volcanic:["lava_rock","magma_core","stone","iron","gold","crystal"]};
+      const resTbl={lush:["dirt","grass_tuft","stone","copper","iron","crystal"],desert:["sand","dirt","stone","copper","gold"],ice:["ice_block","stone","iron","crystal"],toxic:["toxic_sludge","dirt","stone","copper","crystal"],volcanic:["lava_rock","magma_core","stone","iron","gold","crystal"],void_spawn:["dark_matter_shard","stardust","crystal","stone","obelisk_core"],codex_neon:["silicon","circuit_board","quantum_core","crystal","gold","stardust"],crystal_forest:["crystal","nano_fiber","grass_tuft","cobalt","ice_block"],storm:["cobalt","titanium","plasma_cell","iron","crystal"],metallic:["iron","titanium","alloy_frame","copper","silicon"]};
       const prev=document.createElement("canvas");prev.width=32;prev.height=32;
       const pctx=prev.getContext("2d");pctx.imageSmoothingEnabled=false;
       for(let y=0;y<32;y++)for(let x=0;x<32;x++){if(Math.hypot(x-16,y-16)<=15){pctx.fillStyle=prng()<0.5?pal.a:pal.b;pctx.fillRect(x,y,1,1);}}
@@ -4022,7 +4061,7 @@ function genPlanetMap(planet){
   pc(3,randInt(rng,10,16),55);pc(4,randInt(rng,8,14),65);pc(5,randInt(rng,3,6),85);
   return{W,H,tiles,hp,heights,planet};
 }
-function resForTile(planet,t,y,H){const d=y/H,l=planet.resList;if(planet?.isAsteroid||planet?.type==="asteroid"){if(t===5)return Math.random()<0.85?"crystal":"gold";if(t===4)return Math.random()<0.62?"crystal":"gold";if(t===3)return Math.random()<0.5?"iron":"copper";return Math.random()<0.18?"crystal":"stone";}if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>["copper","iron"].includes(k));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){if(l.includes("gold")&&Math.random()<0.55)return"gold";if(l.includes("crystal")&&Math.random()<0.65)return"crystal";return l[Math.floor(Math.random()*l.length)];}if(t===5){if(l.includes("crystal")&&Math.random()<0.6+d*0.3)return"crystal";if(l.includes("gold")&&Math.random()<0.4+d*0.3)return"gold";return l[l.length-1];}return"stone";}
+function resForTile(planet,t,y,H){const d=y/H,l=planet.resList;if(planet?.isAsteroid||planet?.type==="asteroid"){if(t===5)return Math.random()<0.85?"crystal":"gold";if(t===4)return Math.random()<0.62?"crystal":"gold";if(t===3)return Math.random()<0.5?"iron":"copper";return Math.random()<0.18?"crystal":"stone";}if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>["copper","iron","titanium","cobalt","silicon"].includes(k));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){if(l.includes("gold")&&Math.random()<0.55)return"gold";if(l.includes("crystal")&&Math.random()<0.65)return"crystal";return l[Math.floor(Math.random()*l.length)];}if(t===5){if(l.includes("crystal")&&Math.random()<0.6+d*0.3)return"crystal";if(l.includes("gold")&&Math.random()<0.4+d*0.3)return"gold";return l[l.length-1];}return"stone";}
 function tileAt(x,y){if(!planetMap||x<0||x>=planetMap.W||y<0)return 0;if(y>=planetMap.H)return TILE.BEDROCK;return planetMap.tiles[y*planetMap.W+x];}
 function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.tiles[y*planetMap.W+x]=t;}
 function tileHP(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.hp[y*planetMap.W+x];}
@@ -4730,7 +4769,7 @@ function applyAuthoritativeInventory(payload){
   if(typeof payload.xpToNext==="number")player.xpToNext=payload.xpToNext;
   else if(typeof payload.level==="number")player.xpToNext=xpForLevel(payload.level);
   if(typeof payload.attrPoints==="number")player.attrPoints=payload.attrPoints;
-  if(payload.attrs&&typeof payload.attrs==="object")player.attrs={...player.attrs,...payload.attrs};
+  if(payload.attrs&&typeof payload.attrs==="object")player.attrs={...player.attrs,...payload.attrs}; if(!player.attrs.braking)player.attrs.braking=1;
   if(payload.equippedWeapon)player.equippedWeapon=payload.equippedWeapon;
   if(payload.weaponLevels&&typeof payload.weaponLevels==="object")player.weaponLevels={...player.weaponLevels,...payload.weaponLevels};
   if(payload.equippedAttachments&&typeof payload.equippedAttachments==="object")player.equippedAttachments=normalizeAttachments(payload.equippedAttachments);
@@ -5172,10 +5211,10 @@ socket.on("connect_error",(err)=>{setJoinStatus("Cannot reach global server: " +
 socket.on("reconnect_attempt",()=>{setJoinStatus("Reconnecting to global Space Eco server…","#ffcc44");});
 socket.on("serverFull",()=>{setJoinStatus("Server full. Try again later.","#ffcc44");});
 
-socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons})=>{
+socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons,worldCosmetics})=>{
   player.id=id;player.color=color;serverAccountPersistenceLoaded=!!persistenceLoaded;accountInventoryPendingLoad=!!(serverMemberId&&!serverAccountPersistenceLoaded);if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken&&serverAccountPersistenceLoaded)wixLinkedToken=wixSnapshotKey();}
   applyAuthoritativeInventory({credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,persistenceLoaded,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,reason:"login"});GALAXY_SEED=seed;serverPrices=prices||{};
-  if(shipTypes)SHIP_TYPES=shipTypes;
+  if(shipTypes)SHIP_TYPES=shipTypes;if(worldCosmetics)globalWorldCosmetics=normalizeEquippedCosmetics(worldCosmetics);
   if(ownedStationTiers)OWNED_STATION_TIERS=ownedStationTiers;
   if(structureTypes)STRUCTURE_TYPES=structureTypes;
   if(Array.isArray(serverMercs))activeMercShips=serverMercs.map(normalizeClientMerc);
@@ -5219,6 +5258,8 @@ socket.on("worldState",({self,others,pvpProjectiles:sp})=>{
 
 socket.on("economyUpdate",prices=>{serverPrices=prices;});
 socket.on("playerJoined",({name})=>{addChat("Server",`${name} entered the galaxy`,"#78ff8a");pcEl.textContent=`👥 ${(parseInt(pcEl.textContent.replace(/\D/g,""))||1)+1}`;});
+socket.on("worldCosmeticSync",({worldCosmetics}={})=>{if(worldCosmetics)globalWorldCosmetics=normalizeEquippedCosmetics(worldCosmetics);});
+socket.on("cosmeticPeerUpdate",({id,equippedCosmetics:eq}={})=>{if(!id)return;if(id===myId){equippedCosmetics=normalizeEquippedCosmetics(eq||{});player.equippedCosmetics=equippedCosmetics;return;}const op=otherPlayers.get(id);if(op)op.equippedCosmetics=normalizeEquippedCosmetics(eq||{});});
 socket.on("playerLeft",({id})=>{otherPlayers.delete(id);pcEl.textContent=`👥 ${Math.max(1,(parseInt(pcEl.textContent.replace(/\D/g,""))||2)-1)}`;});
 socket.on("hit",({damage,hp,shield,by})=>{
   ship.hp=hp;
@@ -6076,7 +6117,7 @@ function drawSpace(){
       else if(ts.state==="return"){const stx=st.x-camX,sty=st.y-camY;ctx.save();ctx.globalAlpha=0.18;ctx.strokeStyle=ts.factionColor;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(stx,sty);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
       else if(ts.state==="combat"||ts.state==="flee"){ctx.save();ctx.globalAlpha=ts.state==="combat"?0.35:0.15;ctx.strokeStyle=ts.state==="combat"?"#ff4422":"#ff8844";ctx.lineWidth=1;ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(canvas.width/2,canvas.height/2);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
       ctx.save();ctx.globalAlpha=1;ctx.translate(tsx,tsy);ctx.rotate(ts.angle);
-      const npcCos=activeCosmeticDef("npcship"),npcColor=ts.state==="combat"?"#ff4422":ts.state==="flee"?"#ff8844":safeColor(npcCos?.color||ts.factionColor,ts.factionColor),npcAccent=safeColor(npcCos?.accent||"#fff0a8","#fff0a8");
+      const npcCos=worldCosmeticDef("npcship"),npcColor=ts.state==="combat"?"#ff4422":ts.state==="flee"?"#ff8844":safeColor(npcCos?.color||ts.factionColor,ts.factionColor),npcAccent=safeColor(npcCos?.accent||"#fff0a8","#fff0a8");
       drawShipBody(npcCos?.shape||"hauler",npcColor,npcAccent,npcCos||{shape:"hauler",accent:npcAccent},ts.state==="travel"||ts.state==="return"||ts.state==="combat");
       ctx.restore();ctx.globalAlpha=1;
       const hpPct=ts.hp/ts.maxHp,bw=ts.size*3,bh=2,bx=tsx-bw/2,by=tsy-ts.size-5;
@@ -6448,21 +6489,21 @@ function handleQuestClick(st,mx,my,px,py,pw,ph){
 
 
 /* ── Attr screen ── */
-const ATTRS=[{key:"damage",name:"Weapon Damage",icon:"⚔"},{key:"speed",name:"Engine Thrust",icon:"🚀"},{key:"armor",name:"Hull Armor",icon:"🛡"},{key:"gasEfficiency",name:"Fuel Efficiency",icon:"⚡"},{key:"shieldRegen",name:"Shield Regen",icon:"🔵"}];
+const ATTRS=[{key:"damage",name:"Weapon Damage",icon:"⚔"},{key:"speed",name:"Engine Thrust",icon:"🚀"},{key:"braking",name:"Brake Response",icon:"⛔"},{key:"armor",name:"Hull Armor",icon:"🛡"},{key:"gasEfficiency",name:"Fuel Efficiency",icon:"⚡"},{key:"shieldRegen",name:"Shield Regen",icon:"🔵"}];
 function attrUpgradeCostLocal(attr){
   const cv=Math.max(1,Math.floor(Number(player.attrs[attr]||1)));
   return {credits:Math.floor(500*Math.pow(1.55,cv-1)),xp:Math.floor(80*Math.pow(1.38,cv-1))};
 }
 function drawAttrScreen(){
   ctx.fillStyle="rgba(0,0,0,0.85)";ctx.fillRect(0,0,canvas.width,canvas.height);
-  const pw=430,ph=268,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#0e1424";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#aa44ff";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
+  const rowH=38,pw=430,ph=Math.max(268,70+ATTRS.length*rowH),px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#0e1424";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#aa44ff";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
   ctx.fillStyle="#cc88ff";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("PLAYER ATTRIBUTES",px+pw/2,py+16);ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(`Credits ${player.credits}cr | XP ${player.xp}/${player.xpToNext} | Level ${player.level} | Points ${player.attrPoints||0}`,px+pw/2,py+31);ctx.textAlign="left";
-  const rowH=38,startY=py+46;
+  const startY=py+46;
   ATTRS.forEach((attr,i)=>{const cv=player.attrs[attr.key]||1,ry=startY+i*rowH,cost=attrUpgradeCostLocal(attr.key),hasPoint=(player.attrPoints||0)>0,canPaid=player.credits>=cost.credits&&player.xp>=cost.xp,canUp=cv<10&&(hasPoint||canPaid);ctx.fillStyle=i%2===0?"#0f1824":"#111e2e";ctx.fillRect(px+8,ry,pw-16,rowH-3);ctx.fillStyle="#ccd8ff";ctx.font="bold 9px monospace";ctx.fillText(`${attr.icon} ${attr.name}`,px+14,ry+12);ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.fillText(`Lv ${cv}/10`,px+14,ry+25);for(let p=0;p<10;p++){const ppX=px+118+p*12,ppY=ry+8;ctx.fillStyle=p<cv?"#aa44ff":"#1a1a2a";ctx.fillRect(ppX,ppY,9,13);ctx.strokeStyle=p<cv?"#cc88ff":"#2a2a4a";ctx.lineWidth=1;ctx.strokeRect(ppX,ppY,9,13);}ctx.fillStyle=canUp?"#78ff8a":"#aa7777";ctx.font="7px monospace";ctx.fillText(hasPoint?"Uses 1 point":`${cost.credits}cr + ${cost.xp}xp`,px+244,ry+13);const bx=px+330,by=ry+7,bw=80,bh=21;ctx.fillStyle=canUp?"#1a3a2a":"#2a1a1a";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=canUp?"#4a8a6a":"#6a3333";ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=canUp?"#78ff8a":"#aa7777";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(cv>=10?"MAX":hasPoint?"POINT UP":"BUY UP",bx+bw/2,by+14);ctx.textAlign="left";});
   ctx.fillStyle="#5a6a8a";ctx.font="8px monospace";ctx.textAlign="center";ctx.fillText("P to close · points are used first, then credits + current XP",px+pw/2,py+ph-8);ctx.textAlign="left";
 }
 function handleAttrClick(mx,my){
-  const pw=430,ph=268,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,rowH=38,startY=py+46;
+  const rowH=38,pw=430,ph=Math.max(268,70+ATTRS.length*rowH),px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,startY=py+46;
   if(mx<px||mx>px+pw||my<py||my>py+ph){attrOpen=false;return;}
   for(let i=0;i<ATTRS.length;i++){const attr=ATTRS[i],cv=player.attrs[attr.key]||1,ry=startY+i*rowH,cost=attrUpgradeCostLocal(attr.key),hasPoint=(player.attrPoints||0)>0,canPaid=player.credits>=cost.credits&&player.xp>=cost.xp,bx=px+330,by=ry+7,bw=80,bh=21;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){if(cv>=10){showFT("Already maxed",canvas.width/2,canvas.height/2,"#ff5544",10);return;}if(hasPoint){socket.emit("upgradeAttr",{attr:attr.key});showFT("Spending attr point...",canvas.width/2,canvas.height/2,"#cc88ff",9);return;}if(canPaid){socket.emit("upgradeAttrPaid",{attr:attr.key});showFT("Buying upgrade...",canvas.width/2,canvas.height/2,"#cc88ff",9);return;}showFT("Need credits + XP",canvas.width/2,canvas.height/2,"#ff5544",10);return;}}
 }
