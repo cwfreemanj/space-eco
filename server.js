@@ -154,6 +154,13 @@ const SHIP_TYPES = {
   obelisk_carrier:{ name:"Obelisk Carrier",price:0,craftOnly:true,description:"Crafted mothership-class carrier with heavy shields and command presence.",maxHp:390,maxShield:260,thrustMult:0.50,cargoMult:3.4,damageMult:2.35,shieldRegenMult:0.95,size:"huge",specialty:"Mothership",recipe:{credits:45000,obelisk_core:1,hull_plate:16,shield_matrix:8,weapon_array:6,cargo_pod:10,crystal:70,gold:100,magma_core:40}},
 };
 
+Object.assign(SHIP_TYPES,{
+  salvage_hornet:{name:"Salvage Hornet",price:0,craftOnly:true,description:"Compact salvage skiff with balanced combat and cargo retrieval systems.",maxHp:165,maxShield:105,thrustMult:1.18,cargoMult:1.8,damageMult:1.22,shieldRegenMult:1.18,size:"medium",specialty:"Salvage",recipe:{credits:16000,hull_plate:5,cargo_pod:3,titanium:18,cobalt:22,circuit_board:6}},
+  nebula_freighter:{name:"Nebula Freighter",price:0,craftOnly:true,description:"A long-range freighter with oversized storage and efficient engines.",maxHp:250,maxShield:140,thrustMult:0.84,cargoMult:3.2,damageMult:1.05,shieldRegenMult:1.05,size:"large",specialty:"Trade",recipe:{credits:28000,hull_plate:9,engine_core:4,cargo_pod:8,titanium:30,silicon:24,alloy_frame:5}},
+  aegis_spear:{name:"Aegis Spear",price:0,craftOnly:true,description:"Shield-forward interceptor built for aggressive frontline duels.",maxHp:185,maxShield:220,thrustMult:1.22,cargoMult:1.05,damageMult:1.72,shieldRegenMult:1.95,size:"medium",specialty:"Shield assault",recipe:{credits:34000,shield_matrix:6,weapon_array:5,crystal:36,plasma_cell:12,quantum_core:2}},
+  titan_bloom:{name:"Titan Bloom",price:0,craftOnly:true,description:"Heavy carrier chassis with bloom-reactive shield petals and massive power reserves.",maxHp:420,maxShield:320,thrustMult:0.58,cargoMult:3.6,damageMult:2.48,shieldRegenMult:1.08,size:"huge",specialty:"Capital craft",recipe:{credits:62000,obelisk_core:1,hull_plate:18,alloy_frame:10,plasma_cell:18,dark_matter_shard:6,quantum_core:4,stardust:20}}
+});
+
 /* ── Owned station tiers ── */
 const OWNED_STATION_TIERS = {
   outpost:  { name:"Personal Outpost",  price:5000,  maxShips:3,  shipHireCost:500,  collectRange:800  },
@@ -484,6 +491,26 @@ const COSMETIC_DEFS = {
   enemy_pixel_raiders:{key:"enemy_pixel_raiders",slot:"enemy",name:"Pixel Raider Enemies",price:4600000,description:"Enemies use bolder arcade-like silhouettes and neon edges.",color:"#ff5544",accent:"#ffdd44",shape:"fang"}
 
 };
+Object.assign(COSMETIC_DEFS,{
+  ship_titan_orchid:{key:"ship_titan_orchid",slot:"ship",name:"Titan Orchid Hull",price:7600000,description:"A broad-petal prestige hull with neon magenta bloom fins.",color:"#ff77dd",accent:"#ffd0ff",shape:"flame"},
+  ship_glacier_prism:{key:"ship_glacier_prism",slot:"ship",name:"Glacier Prism Hull",price:5300000,description:"Icy prism hull with luminous polar edges.",color:"#dff9ff",accent:"#58a6ff",shape:"lancer"},
+  bullet_grape_pop:{key:"bullet_grape_pop",slot:"bullet",name:"Grape Pop Shots",price:2100000,description:"Violet pop-shot bullets with a candy-bright flash.",color:"#c77dff",accent:"#fff0ff",sizeBoost:0.55},
+  bullet_solar_sparks:{key:"bullet_solar_sparks",slot:"bullet",name:"Solar Spark Shots",price:3900000,description:"Starry yellow-orange projectiles with brighter core sparks.",color:"#ffdd44",accent:"#ff8844",sizeBoost:0.78},
+  enemy_cobalt_hounds:{key:"enemy_cobalt_hounds",slot:"enemy",name:"Cobalt Hound Enemies",price:2800000,description:"Enemy ships become streamlined cobalt pursuit craft.",color:"#58a6ff",accent:"#dff9ff",shape:"hunter"},
+  enemy_rose_reavers:{key:"enemy_rose_reavers",slot:"enemy",name:"Rose Reaver Enemies",price:5100000,description:"Rose-pink outlaw silhouettes with sharp neon wing tips.",color:"#ff77dd",accent:"#ffdd44",shape:"fang"},
+  npcship_royal_mail:{key:"npcship_royal_mail",slot:"npcship",name:"Royal Mail Convoys",price:4200000,description:"NPC trade convoys use gold-violet courier hulls.",color:"#ffdd44",accent:"#cc88ff",shape:"hauler"},
+  particle_sun_glitter:{key:"particle_sun_glitter",slot:"particle",name:"Sun Glitter Particles",price:1800000,description:"Warm solar twinkle particles for impacts and fire.",color:"#fff0a8",accent:"#ff8844"},
+  particle_void_confetti:{key:"particle_void_confetti",slot:"particle",name:"Void Confetti Particles",price:4100000,description:"Chaotic purple confetti sparks for a playful premium hit effect.",color:"#cc88ff",accent:"#ff77dd"},
+  trail_starlace:{key:"trail_starlace",slot:"trail",name:"Starlace Trail",price:4800000,description:"Elegant sparkling starlace wake behind the ship.",color:"#ffffff",accent:"#7be6ff"},
+  trail_cobalt_fume:{key:"trail_cobalt_fume",slot:"trail",name:"Cobalt Fume Trail",price:1750000,description:"Deep blue exhaust stream with glowing edges.",color:"#58a6ff",accent:"#dff9ff"},
+  station_aurora_hub:{key:"station_aurora_hub",slot:"station",name:"Aurora Hub Stations",price:4700000,description:"Stations glow with aurora arcs and soft layered rings.",color:"#3affd0",accent:"#cc88ff",shape:"ring"},
+  planet_sunset_worlds:{key:"planet_sunset_worlds",slot:"planet",name:"Sunset Planet Designs",price:4100000,description:"Planets gain warm sunset bands with orange-pink rings.",color:"#ff8844",accent:"#ff77dd",shape:"lush"},
+  engine_prism_bloom:{key:"engine_prism_bloom",slot:"engine",name:"Prism Bloom Engines",price:6800000,description:"Multicolor engine bloom for premium ships.",color:"#ffffff",accent:"#ff5cff",rainbow:true,shape:"flare"},
+  shield_nebula_shell:{key:"shield_nebula_shell",slot:"shield",name:"Nebula Shell Shield",price:5300000,description:"A layered violet nebula shell shield aura.",color:"#7a5cff",accent:"#ff77dd",shape:"ring"},
+  suit_cobalt_marshal:{key:"suit_cobalt_marshal",slot:"suit",name:"Cobalt Marshal Suit",price:3300000,description:"A cobalt-blue planetside suit with bright command trim.",color:"#58a6ff",accent:"#fff0a8",shape:"suit"},
+  laser_mining_rose:{key:"laser_mining_rose",slot:"laser",name:"Rose Mining Beam",price:3450000,description:"Pink rose-colored mining beam and highlight effects.",color:"#ff77dd",accent:"#fff0ff",shape:"beam"}
+});
+
 const COUPON_DEFS = {
   SPACEECOISAWESOME:{credits:10000000,description:"Launch celebration coupon"},
   SEIA123:{credits:10000000,description:"Reusable Space Eco Infinite Awesome coupon",reusable:true}
@@ -530,7 +557,7 @@ function defaultPlayer(id, name, x, y) {
     planetX:0, planetY:0, planetVx:0, planetVy:0, planetTool:"mining",
     cosmeticColor:"#ffd27a", suitColor:"#ffffff", weaponLevel:1, miningLevel:1, oxygenLevel:1,
     badgeRewards:{},
-    cosmeticInventory:{}, equippedCosmetics:{ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null}, redeemedCoupons:{},
+    cosmeticInventory:{}, equippedCosmetics:{ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null}, redeemedCoupons:{},
     equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
     equippedAttachments:defaultAttachmentSlots(),
   };
@@ -608,6 +635,15 @@ const WEAPON_DEFS={
   weapon_meteor_swarm:{key:"weapon_meteor_swarm",name:"Meteor Swarm",class:"Swarm",rarity:8,color:"#ff5c7a",damage:16,cooldown:0.74,speed:285,life:2.25,shots:8,spread:0.75,size:3.1,mode:"swarm",upgradeMult:1.17}
 };
 const WEAPON_KEYS=Object.keys(WEAPON_DEFS);
+Object.assign(WEAPON_DEFS,{
+  weapon_arc_pulser:{key:"weapon_arc_pulser",name:"Arc Pulser",class:"Arc",rarity:5,color:"#62ffe0",damage:22,cooldown:0.27,speed:340,life:1.7,shots:3,spread:0.22,size:2.8,mode:"arc",upgradeMult:1.17,recipe:{credits:9500,copper:26,cobalt:16,circuit_board:6,plasma_cell:2}},
+  weapon_frost_shard:{key:"weapon_frost_shard",name:"Frost Shard",class:"Shard",rarity:5,color:"#c8f6ff",damage:19,cooldown:0.36,speed:300,life:2.2,shots:4,spread:0.24,size:3.0,mode:"shard",upgradeMult:1.17,recipe:{credits:12000,ice_block:28,crystal:16,cobalt:10,nano_fiber:4}},
+  weapon_sunflare_cannon:{key:"weapon_sunflare_cannon",name:"Sunflare Cannon",class:"Cannon",rarity:6,color:"#ffb347",damage:58,cooldown:0.78,speed:250,life:2.0,shots:1,spread:0,size:5.0,mode:"cannon",upgradeMult:1.20,recipe:{credits:18000,gold:28,magma_core:14,plasma_cell:8,alloy_frame:3}},
+  weapon_graviton_burst:{key:"weapon_graviton_burst",name:"Graviton Burst",class:"Gravity",rarity:7,color:"#9b7bff",damage:33,cooldown:0.52,speed:260,life:2.4,shots:2,spread:0.1,size:4.5,mode:"gravity",upgradeMult:1.21,recipe:{credits:26000,crystal:30,dark_matter_shard:4,quantum_core:2,circuit_board:10}},
+  weapon_bio_sprayer:{key:"weapon_bio_sprayer",name:"Bio Sprayer",class:"Sprayer",rarity:6,color:"#7eff7a",damage:13,cooldown:0.18,speed:230,life:1.35,shots:6,spread:0.52,size:2.7,mode:"spray",upgradeMult:1.16,recipe:{credits:15000,toxic_sludge:34,grass_tuft:20,nano_fiber:5,circuit_board:5}},
+  weapon_void_spinner:{key:"weapon_void_spinner",name:"Void Spinner",class:"Void",rarity:8,color:"#ff77ff",damage:27,cooldown:0.46,speed:310,life:2.8,shots:5,spread:0.48,size:3.4,mode:"spinner",upgradeMult:1.22,recipe:{credits:38000,obelisk_core:1,dark_matter_shard:8,stardust:15,quantum_core:3,weapon_array:2}}
+});
+WEAPON_KEYS.push("weapon_arc_pulser","weapon_frost_shard","weapon_sunflare_cannon","weapon_graviton_burst","weapon_bio_sprayer","weapon_void_spinner");
 
 /* ── Ship attachments / loadout ──
    Attachments are server-authoritative passive modules. They are equipped from
@@ -670,6 +706,10 @@ function applyShipStats(p,refill=false){
 const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft","hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip","obelisk_core",...WEAPON_KEYS];
 const RES_BASE={dirt:1,stone:3,copper:9,iron:10,gold:40,crystal:60,fuel:25,gas_canister:30,oxygen_tank:35,ice_block:4,lava_rock:12,magma_core:22,toxic_sludge:8,sand:2,grass_tuft:1,hull_plate:85,engine_core:140,shield_matrix:170,weapon_array:190,cargo_pod:95,nav_chip:155,obelisk_core:800,weapon_laser_mk1:260,weapon_scatter_blaster:520,weapon_ion_lance:900,weapon_plasma_orb:1450,weapon_rail_cannon:2400,weapon_meteor_swarm:4200};
 const RES_RARITY={dirt:1,stone:2,copper:3,iron:3,gold:5,crystal:6,fuel:4,gas_canister:2,oxygen_tank:2,ice_block:2,lava_rock:3,magma_core:4,toxic_sludge:3,sand:1,grass_tuft:1,hull_plate:5,engine_core:6,shield_matrix:6,weapon_array:6,cargo_pod:5,nav_chip:6,obelisk_core:8,weapon_laser_mk1:3,weapon_scatter_blaster:4,weapon_ion_lance:5,weapon_plasma_orb:6,weapon_rail_cannon:7,weapon_meteor_swarm:8};
+Object.assign(RES_BASE,{titanium:70,cobalt:55,silicon:18,nano_fiber:95,circuit_board:80,plasma_cell:120,dark_matter_shard:260,stardust:145,alloy_frame:180,quantum_core:320,weapon_arc_pulser:1150,weapon_frost_shard:1280,weapon_sunflare_cannon:2100,weapon_graviton_burst:3200,weapon_bio_sprayer:1850,weapon_void_spinner:5200});
+Object.assign(RES_RARITY,{titanium:5,cobalt:4,silicon:3,nano_fiber:5,circuit_board:4,plasma_cell:5,dark_matter_shard:7,stardust:6,alloy_frame:6,quantum_core:7,weapon_arc_pulser:5,weapon_frost_shard:5,weapon_sunflare_cannon:6,weapon_graviton_burst:7,weapon_bio_sprayer:6,weapon_void_spinner:8});
+RES_KEYS.push("titanium","cobalt","silicon","nano_fiber","circuit_board","plasma_cell","dark_matter_shard","stardust","alloy_frame","quantum_core","weapon_arc_pulser","weapon_frost_shard","weapon_sunflare_cannon","weapon_graviton_burst","weapon_bio_sprayer","weapon_void_spinner");
+
 const econRng=makeRng(GALAXY_SEED+"|economy");
 const economy={
   drift:Object.fromEntries(RES_KEYS.map(k=>[k,1])),
@@ -1965,6 +2005,17 @@ io.on("connection",socket=>{
     if((p.credits||0)<cost){socket.emit("weaponDenied",{reason:`Need ${cost}cr to upgrade this weapon.`});return;}
     p.credits-=cost;p.weaponLevels[weaponKey]=weaponLevelFor(p,weaponKey)+1;
     socket.emit("weaponUpgraded",{weaponKey,level:p.weaponLevels[weaponKey],credits:p.credits,weaponLevels:p.weaponLevels});syncAndPersist(p,"upgrade_weapon");
+  });
+  socket.on("craftWeapon",({weaponKey})=>{
+    const p=players.get(socket.id);weaponKey=String(weaponKey||"");
+    const def=WEAPON_DEFS[weaponKey];
+    if(!p||!def||!def.recipe){socket.emit("craftWeaponDenied",{reason:"Unknown craftable weapon."});return;}
+    const check=canCraftRecipe(p,def.recipe);
+    if(!check.ok){socket.emit("craftWeaponDenied",{reason:check.reason||"Missing parts."});return;}
+    if(!canFitInventory(p,weaponKey,1)){socket.emit("craftWeaponDenied",{reason:"Inventory full."});return;}
+    consumeCraftRecipe(p,def.recipe); addInventory(p,weaponKey,1); p.weaponLevels=p.weaponLevels||{}; if(!p.weaponLevels[weaponKey])p.weaponLevels[weaponKey]=1;
+    socket.emit("craftWeaponConfirm",{weaponKey,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,weaponLevels:p.weaponLevels});
+    syncAndPersist(p,"craft_weapon");
   });
   socket.on("setCivilizationStationTask",({zoneId,stationId,task,targetZoneId,targetZone})=>{
     const p=players.get(socket.id);if(!p||p.mode!=="space")return;
