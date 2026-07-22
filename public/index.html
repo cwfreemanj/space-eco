@@ -1568,7 +1568,7 @@ function pickWeighted(r,items){let s=0;for(const i of items)s+=i.w;let t=r()*s;f
 function angleToward(ax,ay,bx,by){return Math.atan2(by-ay,bx-ax);}
 function angleLerp(a,b,t){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+d*t;}
 
-const canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
+const canvas=document.getElementById("c"),ctx=canvas.getContext("2d");canvas.tabIndex=0;canvas.setAttribute("aria-label","Space Eco game canvas");
 
 /* ── Input ── */
 const keys=new Set();
@@ -1675,7 +1675,7 @@ function drawGalaxyMapOverlay(){
 
 const BLOCKING_DOM_PANEL_IDS=["master-menu-panel","lb-panel","sl-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
 function isShown(el){return !!el&&getComputedStyle(el).display!=="none"&&getComputedStyle(el).visibility!=="hidden";}
-function isTextControl(target){if(target&&target.closest&&target.closest("#mobile-controls,#mobile-menu-hub"))return false;const el=target&&target.closest&&target.closest("input, textarea, select, button, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
+function isTextControl(target){if(target&&target.closest&&target.closest("#mobile-controls,#mobile-menu-hub"))return false;const el=target&&target.closest&&target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
 function joinScreenOpen(){return isShown(document.getElementById("join-screen"));}
 function blockingDomPanelOpen(){return BLOCKING_DOM_PANEL_IDS.some(id=>isShown(document.getElementById(id)));}
 function canvasPanelOpen(){return !!(inventoryOpen||shopOpen||attrOpen||characterOpen||questLogOpen||badgeLogOpen||shipStatusOpen);}
@@ -1750,12 +1750,13 @@ canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),s
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("mousedown",e=>{
   if(domInputLocked(e.target)){clearLiveInput();return;}
+  try{canvas.focus({preventScroll:true});}catch(_){try{canvas.focus();}catch(__){}}
   const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;
   const mx=(e.clientX-r.left)*sx,my=(e.clientY-r.top)*sy;
   if(e.button===0&&pointInsideMinimap(mx,my)){toggleGalaxyMap();mouse.down=false;mouse.clicked=false;e.preventDefault();e.stopPropagation();return;}
   if(mode===MODE.PLANET&&e.button===2){placeBuildTileAt(mx,my);e.preventDefault();return;}
   mouse.down=true;mouse.clicked=true;
-  if(mode===MODE.PLANET&&e.button===0&&planetTool==="mining"&&!activeRuin&&!canvasPanelOpen()){queueMiningClick(mx,my);mouse.clicked=false;}
+  if(mode===MODE.PLANET&&e.button===0&&planetTool==="mining"&&!activeRuin&&!canvasPanelOpen()){queueMiningClick(mx,my);mouse.clicked=false;doMining(0);}
   if(shipStatusOpen)handleShipStatusClick(mx,my);
   else if(characterOpen)handleCharacterClick(mx,my);
   else if(shopOpen)handleShopClick(mx,my);
@@ -4639,7 +4640,8 @@ function genPlanetMap(planet){
   pc(3,randInt(rng,10,16),55);pc(4,randInt(rng,8,14),65);pc(5,randInt(rng,3,6),85);
   return{W,H,tiles,hp,heights,planet};
 }
-function resForTile(planet,t,y,H){const d=y/H,l=planet.resList;if(planet?.isAsteroid||planet?.type==="asteroid"){if(t===5)return Math.random()<0.85?"crystal":"gold";if(t===4)return Math.random()<0.62?"crystal":"gold";if(t===3)return Math.random()<0.5?"iron":"copper";return Math.random()<0.18?"crystal":"stone";}if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>((RES[k]?.rarity||1)>=3));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){const m=l.filter(k=>((RES[k]?.rarity||1)>=4));return m.length?m[Math.floor(Math.random()*m.length)]:l[Math.floor(Math.random()*l.length)];}if(t===5){const m=l.filter(k=>((RES[k]?.rarity||1)>=5));return m.length?m[Math.floor(Math.random()*m.length)]:l[l.length-1];}return"stone";}
+function clientPlanetTileHash(planet,t,x,y){let h=2166136261;const seed=`${planet?.id||planet?.seed||"planet"}|${x}|${y}|${t}`;for(let i=0;i<seed.length;i++){h^=seed.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function resForTile(planet,t,y,H,x=0){const l=Array.isArray(planet?.resList)&&planet.resList.length?planet.resList:["dirt","stone","copper","iron"];if(planet?.isAsteroid||planet?.type==="asteroid"){const pools={3:["iron","copper"],4:["crystal","gold"],5:["crystal","gold"]},pool=pools[t]||["stone"];return pool[clientPlanetTileHash(planet,t,x,y)%pool.length];}if(t===1)return"dirt";if(t===13)return"grass_tuft";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return"black_ice";if(t===8)return"lava_rock";if(t===9)return"magma_core";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===14)return"dark_obsidian";if([3,4,5].includes(t)){const min=t===5?5:t===4?4:3,candidates=l.filter(k=>(RES[k]?.rarity||1)>=min),pool=candidates.length?candidates:l;return pool[clientPlanetTileHash(planet,t,x,y)%pool.length]||"stone";}return"stone";}
 function tileColorForActivePlanet(t){const pal=activePlanet?.pal||{};if(!activePlanet)return TILECOLORS[t];if([3,4,5].includes(t)){const list=activePlanet.resList||[];const pick=list.find(k=>(RES[k]?.rarity||1)>=5)||list.find(k=>(RES[k]?.rarity||1)>=3);return RES[pick]?.color||pal.a||TILECOLORS[t];}if(t===1||t===2||t===12||t===14)return pal.b||TILECOLORS[t];if(t===10)return RES.purple_miasma?.color||TILECOLORS[t];if(t===13)return pal.a||TILECOLORS[t];return TILECOLORS[t];}
 function tileAt(x,y){if(!planetMap||x<0||x>=planetMap.W||y<0)return 0;if(y>=planetMap.H)return TILE.BEDROCK;return planetMap.tiles[y*planetMap.W+x];}
 function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H){planetMap.tiles[y*planetMap.W+x]=t;invalidatePlanetTileRenderCache(x,y);}}
@@ -4689,8 +4691,8 @@ function spawnPlanetLootVisual({planetId,kind,x,y,qty=1,ownerId=null,serverGrant
   }
 }
 
-let mineCooldown=0,lastMiningTargetKey="",miningRequestPending=false,miningRequestSentAt=0,miningMapRefreshAt=0,miningClickQueue=null,miningBeamTarget=null,miningBeamLife=0,miningRequestSeq=0;
-function mineableTileAt(tx,ty){if(!planetMap||tx<0||ty<0||tx>=planetMap.W||ty>=planetMap.H-3)return 0;const t=tileAt(tx,ty);return t&&t!==TILE.BEDROCK?t:0;}
+let mineCooldown=0,lastMiningTargetKey="",miningRequestPending=false,miningRequestSentAt=0,miningMapRefreshAt=0,miningClickQueue=null,miningBeamTarget=null,miningBeamLife=0,miningRequestSeq=0;const pendingMineTransactions=new Map();let activeMineRequestId=null;
+function mineableTileAt(tx,ty){if(!planetMap||tx<0||ty<0||tx>=planetMap.W||ty>=planetMap.H-3)return 0;const t=tileAt(tx,ty);return t||0;}
 function findMineableTargetTile(wx,wy,maxRing=2){
   if(!planetMap)return null;const TP=16,ox=astronaut.x,oy=astronaut.y-astronaut.h*.5,maxReach=132;
   const directX=Math.floor(wx/TP),directY=Math.floor(wy/TP);
@@ -4701,7 +4703,9 @@ function findMineableTargetTile(wx,wy,maxRing=2){
   if(!candidates.length){const dx=wx-ox,dy=wy-oy,len=Math.hypot(dx,dy)||1,reach=Math.min(maxReach,len),steps=Math.ceil(reach/4);for(let i=1;i<=steps;i++){const px=ox+dx/len*(i*4),py=oy+dy/len*(i*4),tx=Math.floor(px/TP),ty=Math.floor(py/TP);add(tx,ty,-18);if(candidates.length)break;}}
   candidates.sort((a,b)=>a.score-b.score);return candidates[0]||null;
 }
-function resetMiningRequestState(){miningRequestPending=false;miningRequestSentAt=0;}
+function restorePendingMineTransaction(requestId,reason=""){const tr=pendingMineTransactions.get(requestId);if(!tr)return false;pendingMineTransactions.delete(requestId);if(activeMineRequestId===requestId)activeMineRequestId=null;if(activePlanet&&String(activePlanet.id)===String(tr.planetId)&&planetMap&&tileAt(tr.tx,tr.ty)===0){setTile(tr.tx,tr.ty,tr.tile);setTileHP(tr.tx,tr.ty,tr.hp);}if(reason)showFT(reason,astronaut.x,astronaut.y-28,"#ffcc44",9);return true;}
+function confirmPendingMineTransaction(requestId){if(!requestId)return;pendingMineTransactions.delete(requestId);if(activeMineRequestId===requestId)activeMineRequestId=null;}
+function resetMiningRequestState({restore=false,reason=""}={}){if(restore&&activeMineRequestId)restorePendingMineTransaction(activeMineRequestId,reason);miningRequestPending=false;miningRequestSentAt=0;activeMineRequestId=null;}
 function queueMiningClick(screenX,screenY){
   if(mode!==MODE.PLANET||planetTool!=="mining"||activeRuin||!planetMap||!activePlanet)return false;
   miningClickQueue={screenX:Number(screenX)||0,screenY:Number(screenY)||0,queuedAt:performance.now()};
@@ -4713,15 +4717,18 @@ function doMining(dt){
   const now=performance.now();
   if(miningRequestPending){
     const age=now-miningRequestSentAt;if(age<1350)return;
-    resetMiningRequestState();
+    resetMiningRequestState({restore:true,reason:"Mining request timed out — tile restored"});
     if(now-miningMapRefreshAt>1800){miningMapRefreshAt=now;socket.emit("requestPlanetMap",{planet:activePlanet});}
   }
   if(mineCooldown>0)return;
   const click=miningClickQueue;miningClickQueue=null;
   const cam=planetCamera(),wx=click.screenX+cam.x,wy=click.screenY+cam.y,target=findMineableTargetTile(wx,wy,2);
   if(!target){lastMiningTargetKey="";showFT("No mineable tile in reach",astronaut.x,astronaut.y-26,"#ffcc44",9);mineCooldown=.12;return;}
-  lastMiningTargetKey=`${target.tx},${target.ty}`;miningBeamTarget={x:target.cx,y:target.cy,tx:target.tx,ty:target.ty};miningBeamLife=.32;mineCooldown=.12;miningRequestPending=true;miningRequestSentAt=now;
-  socket.emit("minePlanetTile",{planetId:activePlanet.id,tx:target.tx,ty:target.ty,power:planetMiningPower(),oneClick:true,requestId:`mine_${++miningRequestSeq}_${Math.floor(now)}`,clientX:astronaut.x,clientY:astronaut.y});
+  const requestId=`mine_${++miningRequestSeq}_${Math.floor(now)}`,originalTile=target.t,originalHp=Math.max(1,tileHP(target.tx,target.ty)||1);
+  lastMiningTargetKey=`${target.tx},${target.ty}`;miningBeamTarget={x:target.cx,y:target.cy,tx:target.tx,ty:target.ty};miningBeamLife=.32;mineCooldown=.12;miningRequestPending=true;miningRequestSentAt=now;activeMineRequestId=requestId;
+  pendingMineTransactions.set(requestId,{requestId,planetId:activePlanet.id,tx:target.tx,ty:target.ty,tile:originalTile,hp:originalHp,createdAt:now});
+  setTile(target.tx,target.ty,0);setTileHP(target.tx,target.ty,0);
+  socket.emit("minePlanetTile",{planetId:activePlanet.id,tx:target.tx,ty:target.ty,power:planetMiningPower(),oneClick:true,requestId,clientX:astronaut.x,clientY:astronaut.y},ack=>{if(!ack||ack.ok!==false)return;if(ack.requestId&&ack.requestId!==requestId)return;restorePendingMineTransaction(requestId,ack.reason||"Mining was rejected");resetMiningRequestState();});
 }
 function showResourcePickupPopup(kind,qty=1){const def=RES[kind],name=def?.name||String(kind||"Resource"),amount=Math.max(1,Math.floor(Number(qty)||1));showFT(`+${amount} ${name}`,astronaut.x,astronaut.y-32,def?.color||"#78ff8a",12);}
 
@@ -6011,12 +6018,12 @@ socket.on("planetMapState",({planetId,W,H,tiles,hp,heights,error}={})=>{
   planetMap=incomingMap;mineCooldown=0;lastMiningTargetKey="";resetMiningRequestState();enterPlanetWithLoadedMap();
 });
 socket.on("planetMapError",({planetId,reason}={})=>{if(activePlanet&&String(activePlanet.id)===String(planetId)){console.warn("Planet map request failed:",reason);if(planetLoading&&performance.now()-planetLoadStartedAt>1800)useLocalPlanetMapFallback();}});
-socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
-  if(!activePlanet||activePlanet.id!==planetId||!planetMap)return;
-  resetMiningRequestState();setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
+socket.on("planetTileUpdate",({planetId,requestId,tx,ty,tile,hp})=>{
+  if(!activePlanet||String(activePlanet.id)!==String(planetId)||!planetMap)return;
+  if(requestId)confirmPendingMineTransaction(requestId);resetMiningRequestState();setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
 });
-socket.on("planetMineReward",({planetId,kind,x,y,qty,invSlots,maxSlots,credits})=>{resetMiningRequestState();noteCollectedResource(kind,qty,true);
-  if(!activePlanet||activePlanet.id!==planetId)return;
+socket.on("planetMineReward",({planetId,requestId,kind,x,y,qty,invSlots,maxSlots,credits})=>{if(requestId)confirmPendingMineTransaction(requestId);resetMiningRequestState();noteCollectedResource(kind,qty,true);
+  if(!activePlanet||String(activePlanet.id)!==String(planetId))return;
   const amount=Math.max(1,Math.floor(Number(qty)||1));
 
   // The server is authoritative, but we also apply the confirmed reward locally
@@ -6048,7 +6055,7 @@ socket.on("planetMineReward",({planetId,kind,x,y,qty,invSlots,maxSlots,credits})
   // visible planetMineDrop event. Newer servers send planetMineDrop to everyone.
   const key=makeMineDropKey(planetId,kind,x,y);
   setTimeout(()=>{
-    if(!activePlanet||activePlanet.id!==planetId)return;
+    if(!activePlanet||String(activePlanet.id)!==String(planetId))return;
     const seen=recentMineDropVisuals.get(key)||0;
     if(performance.now()-seen>220)spawnPlanetLootVisual({planetId,kind,x,y,qty:amount,ownerId:player.id,serverGranted:true});
   },90);
@@ -6056,19 +6063,19 @@ socket.on("planetMineReward",({planetId,kind,x,y,qty,invSlots,maxSlots,credits})
 // Visible mining loot. These drops are visual pickup feedback only because the
 // server has already granted/synced the resource for the miner.
 socket.on("planetMineDrop",({planetId,kind,x,y,qty,ownerId})=>{
-  if(!activePlanet||activePlanet.id!==planetId)return;
+  if(!activePlanet||String(activePlanet.id)!==String(planetId))return;
   spawnPlanetLootVisual({planetId,kind,x,y,qty,ownerId,serverGranted:true});
 });
-socket.on("planetMineDenied",({planetId,reason,x,y})=>{
-  if(planetId&&activePlanet&&activePlanet.id!==planetId)return;
-  resetMiningRequestState();mineCooldown=0.08;showFT(reason||"Unable to mine resource",Number(x)||astronaut.x,(Number(y)||astronaut.y)-12,"#ffcc44",9);
+socket.on("planetMineDenied",({planetId,requestId,reason,x,y})=>{
+  if(planetId&&activePlanet&&String(activePlanet.id)!==String(planetId))return;
+  if(requestId)restorePendingMineTransaction(requestId);else if(activeMineRequestId)restorePendingMineTransaction(activeMineRequestId);resetMiningRequestState();mineCooldown=0.08;showFT(reason||"Unable to mine resource",Number(x)||astronaut.x,(Number(y)||astronaut.y)-12,"#ffcc44",9);
   if(/map was not ready|reland|reload/i.test(String(reason||""))&&activePlanet)socket.emit("requestPlanetMap",{planet:activePlanet});else if(!/empty tile|bedrock/i.test(String(reason||"")))socket.emit("requestInventorySync");
 });
 socket.on("planetBuildDenied",({reason,resourceType})=>{
   showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
 });
 socket.on("planetPlayersState",({planetId,players:pps,projectiles})=>{
-  if(!activePlanet||activePlanet.id!==planetId)return;
+  if(!activePlanet||String(activePlanet.id)!==String(planetId))return;
   const seen=new Set();
   for(const pp of pps||[]){
     if(pp.id===player.id)continue;
@@ -7508,7 +7515,8 @@ function updatePlanet(dt){
   if(astronaut.y>bottomY){astronaut.y=bottomY;astronaut.vy=0;astronaut.onGround=true;}
   if(!controlsLocked&&keys.has("x")){keys.delete("x");useOxygenTank();}
   if(!controlsLocked&&keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
-  if(!controlsLocked&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon"&&mouse.down)planetWeaponAttack();else if(!activeRuin&&planetTool==="mining"){if(mouse.clicked)queueMiningClick(mouse.x,mouse.y);doMining(dt);}}
+  if(!controlsLocked&&!inventoryOpen&&!characterOpen&&planetTool==="weapon"&&mouse.down)planetWeaponAttack();
+  if(!activeRuin&&planetTool==="mining"&&!canvasPanelOpen()&&!blockingDomPanelOpen()){if(mouse.clicked)queueMiningClick(mouse.x,mouse.y);doMining(dt);}
   mouse.clicked=false;
   if(activeRuin)updateRuinContents(dt);
   else updatePlanetNPCs(dt);
