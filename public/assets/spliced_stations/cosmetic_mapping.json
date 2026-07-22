@@ -1,0 +1,345 @@
+[
+  {
+    "index": 1,
+    "file": "whitey.png_auto_1.png",
+    "key": "station_sprite_01",
+    "name": "Orbital Nexus",
+    "color": "#6b764c"
+  },
+  {
+    "index": 2,
+    "file": "whitey.png_auto_2.png",
+    "key": "station_sprite_02",
+    "name": "Solar Dock",
+    "color": "#593c39"
+  },
+  {
+    "index": 3,
+    "file": "whitey.png_auto_3.png",
+    "key": "station_sprite_03",
+    "name": "Golden Relay",
+    "color": "#576674"
+  },
+  {
+    "index": 4,
+    "file": "whitey.png_auto_4.png",
+    "key": "station_sprite_04",
+    "name": "Verdant Crosshub",
+    "color": "#49637b"
+  },
+  {
+    "index": 5,
+    "file": "whitey.png_auto_5.png",
+    "key": "station_sprite_05",
+    "name": "Azure Solar Hub",
+    "color": "#866738"
+  },
+  {
+    "index": 6,
+    "file": "whitey.png_auto_6.png",
+    "key": "station_sprite_06",
+    "name": "Crimson Bastion",
+    "color": "#736584"
+  },
+  {
+    "index": 7,
+    "file": "whitey.png_auto_7.png",
+    "key": "station_sprite_07",
+    "name": "Void Halo",
+    "color": "#5b6a75"
+  },
+  {
+    "index": 8,
+    "file": "whitey.png_auto_8.png",
+    "key": "station_sprite_08",
+    "name": "Frontier Port",
+    "color": "#65513e"
+  },
+  {
+    "index": 9,
+    "file": "whitey.png_auto_9.png",
+    "key": "station_sprite_09",
+    "name": "Industrial Yard",
+    "color": "#5a696e"
+  },
+  {
+    "index": 10,
+    "file": "whitey.png_auto_10.png",
+    "key": "station_sprite_10",
+    "name": "Blue Citadel",
+    "color": "#695636"
+  },
+  {
+    "index": 11,
+    "file": "whitey.png_auto_11.png",
+    "key": "station_sprite_11",
+    "name": "Sky Spire",
+    "color": "#525f69"
+  },
+  {
+    "index": 12,
+    "file": "whitey.png_auto_12.png",
+    "key": "station_sprite_12",
+    "name": "Ore Foundry",
+    "color": "#506370"
+  },
+  {
+    "index": 13,
+    "file": "whitey.png_auto_13.png",
+    "key": "station_sprite_13",
+    "name": "Forge Ring",
+    "color": "#655e52"
+  },
+  {
+    "index": 14,
+    "file": "whitey.png_auto_14.png",
+    "key": "station_sprite_14",
+    "name": "Verdant Cluster",
+    "color": "#56663d"
+  },
+  {
+    "index": 15,
+    "file": "whitey.png_auto_15.png",
+    "key": "station_sprite_15",
+    "name": "Trade Beacon",
+    "color": "#58656e"
+  },
+  {
+    "index": 16,
+    "file": "whitey.png_auto_16.png",
+    "key": "station_sprite_16",
+    "name": "Deep Dish Array",
+    "color": "#674c7f"
+  },
+  {
+    "index": 17,
+    "file": "whitey.png_auto_17.png",
+    "key": "station_sprite_17",
+    "name": "Shield Sphere",
+    "color": "#4f5f67"
+  },
+  {
+    "index": 18,
+    "file": "whitey.png_auto_18.png",
+    "key": "station_sprite_18",
+    "name": "Twin-Sail Orbiter",
+    "color": "#6b7474"
+  },
+  {
+    "index": 19,
+    "file": "whitey.png_auto_19.png",
+    "key": "station_sprite_19",
+    "name": "Violet Core Hub",
+    "color": "#616663"
+  },
+  {
+    "index": 20,
+    "file": "whitey.png_auto_20.png",
+    "key": "station_sprite_20",
+    "name": "Aegis Ring",
+    "color": "#536772"
+  },
+  {
+    "index": 21,
+    "file": "whitey.png_auto_21.png",
+    "key": "station_sprite_21",
+    "name": "Triad Beacon",
+    "color": "#515e62"
+  },
+  {
+    "index": 22,
+    "file": "whitey.png_auto_22.png",
+    "key": "station_sprite_22",
+    "name": "Bio Reactor",
+    "color": "#674a35"
+  },
+  {
+    "index": 23,
+    "file": "whitey.png_auto_23.png",
+    "key": "station_sprite_23",
+    "name": "Refinery Campus",
+    "color": "#685039"
+  },
+  {
+    "index": 24,
+    "file": "whitey.png_auto_24.png",
+    "key": "station_sprite_24",
+    "name": "Lava Furnace",
+    "color": "#4f5352"
+  },
+  {
+    "index": 25,
+    "file": "whitey.png_auto_25.png",
+    "key": "station_sprite_25",
+    "name": "Pulse Anchor",
+    "color": "#565b5c"
+  },
+  {
+    "index": 26,
+    "file": "whitey.png_auto_26.png",
+    "key": "station_sprite_26",
+    "name": "Cargo Pad",
+    "color": "#506546"
+  },
+  {
+    "index": 27,
+    "file": "whitey.png_auto_27.png",
+    "key": "station_sprite_27",
+    "name": "Freight Pad",
+    "color": "#69523d"
+  },
+  {
+    "index": 28,
+    "file": "whitey.png_auto_28.png",
+    "key": "station_sprite_28",
+    "name": "Survey Disc",
+    "color": "#5e594b"
+  },
+  {
+    "index": 29,
+    "file": "whitey.png_auto_29.png",
+    "key": "station_sprite_29",
+    "name": "Orbital Loop",
+    "color": "#847868"
+  },
+  {
+    "index": 30,
+    "file": "whitey.png_auto_30.png",
+    "key": "station_sprite_30",
+    "name": "Centroid Ring",
+    "color": "#717a7c"
+  },
+  {
+    "index": 31,
+    "file": "whitey.png_auto_31.png",
+    "key": "station_sprite_31",
+    "name": "Golden Braces Hub",
+    "color": "#85735c"
+  },
+  {
+    "index": 32,
+    "file": "whitey.png_auto_32.png",
+    "key": "station_sprite_32",
+    "name": "Wheelworks Station",
+    "color": "#7c8589"
+  },
+  {
+    "index": 33,
+    "file": "whitey.png_auto_33.png",
+    "key": "station_sprite_33",
+    "name": "Spoke Relay",
+    "color": "#808586"
+  },
+  {
+    "index": 34,
+    "file": "whitey.png_auto_34.png",
+    "key": "station_sprite_34",
+    "name": "Celestial Crown",
+    "color": "#71797f"
+  },
+  {
+    "index": 35,
+    "file": "whitey.png_auto_35.png",
+    "key": "station_sprite_35",
+    "name": "Moon Dock",
+    "color": "#72776a"
+  },
+  {
+    "index": 36,
+    "file": "whitey.png_auto_36.png",
+    "key": "station_sprite_36",
+    "name": "Glass Dome Port",
+    "color": "#5a4d88"
+  },
+  {
+    "index": 37,
+    "file": "whitey.png_auto_37.png",
+    "key": "station_sprite_37",
+    "name": "Aether Pylon",
+    "color": "#483c80"
+  },
+  {
+    "index": 38,
+    "file": "whitey.png_auto_38.png",
+    "key": "station_sprite_38",
+    "name": "Verdant Talon",
+    "color": "#614479"
+  },
+  {
+    "index": 39,
+    "file": "whitey.png_auto_39.png",
+    "key": "station_sprite_39",
+    "name": "Crystal Obelisk",
+    "color": "#46708a"
+  },
+  {
+    "index": 40,
+    "file": "whitey.png_auto_40.png",
+    "key": "station_sprite_40",
+    "name": "Blue Gate Hub",
+    "color": "#306868"
+  },
+  {
+    "index": 41,
+    "file": "whitey.png_auto_41.png",
+    "key": "station_sprite_41",
+    "name": "Royal Violet Hub",
+    "color": "#5a736f"
+  },
+  {
+    "index": 42,
+    "file": "whitey.png_auto_42.png",
+    "key": "station_sprite_42",
+    "name": "Teal Shrine",
+    "color": "#5c6e2d"
+  },
+  {
+    "index": 43,
+    "file": "whitey.png_auto_43.png",
+    "key": "station_sprite_43",
+    "name": "War Red Bastion",
+    "color": "#513c37"
+  },
+  {
+    "index": 44,
+    "file": "whitey.png_auto_44.png",
+    "key": "station_sprite_44",
+    "name": "Red Blockhold",
+    "color": "#53413e"
+  },
+  {
+    "index": 45,
+    "file": "whitey.png_auto_45.png",
+    "key": "station_sprite_45",
+    "name": "Red Citadel",
+    "color": "#4e3633"
+  },
+  {
+    "index": 46,
+    "file": "whitey.png_auto_46.png",
+    "key": "station_sprite_46",
+    "name": "Red Core Disk",
+    "color": "#4f423f"
+  },
+  {
+    "index": 47,
+    "file": "whitey.png_auto_47.png",
+    "key": "station_sprite_47",
+    "name": "Red Spear Relay",
+    "color": "#4d3531"
+  },
+  {
+    "index": 48,
+    "file": "whitey.png_auto_48.png",
+    "key": "station_sprite_48",
+    "name": "Red Foundry",
+    "color": "#4b3a37"
+  },
+  {
+    "index": 49,
+    "file": "whitey.png_auto_49.png",
+    "key": "station_sprite_49",
+    "name": "Red Tower",
+    "color": "#514542"
+  }
+]
