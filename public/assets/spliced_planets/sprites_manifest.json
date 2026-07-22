@@ -1,0 +1,835 @@
+{
+  "exportedAt": "2026-07-22T17:53:03.744Z",
+  "transparentPng": true,
+  "count": 36,
+  "sprites": [
+    {
+      "file": "whitey 2/whitey 2.png_auto_1.png",
+      "id": "spr_5hyanr6_rpbk",
+      "name": "whitey 2.png_auto_1",
+      "width": 147,
+      "height": 151,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 448,
+        "y": 40,
+        "w": 149,
+        "h": 153
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 147,
+        "h": 151
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_2.png",
+      "id": "spr_oie4zfp_rpbo",
+      "name": "whitey 2.png_auto_2",
+      "width": 147,
+      "height": 152,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 853,
+        "y": 40,
+        "w": 149,
+        "h": 154
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 147,
+        "h": 152
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_3.png",
+      "id": "spr_4he6k1h_rpbt",
+      "name": "whitey 2.png_auto_3",
+      "width": 148,
+      "height": 151,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 1055,
+        "y": 40,
+        "w": 150,
+        "h": 153
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 148,
+        "h": 151
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_4.png",
+      "id": "spr_v1wlyz0_rpc4",
+      "name": "whitey 2.png_auto_4",
+      "width": 145,
+      "height": 151,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 247,
+        "y": 41,
+        "w": 147,
+        "h": 153
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 145,
+        "h": 151
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_5.png",
+      "id": "spr_1gqyl5s_rpca",
+      "name": "whitey 2.png_auto_5",
+      "width": 144,
+      "height": 150,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 652,
+        "y": 41,
+        "w": 146,
+        "h": 152
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 144,
+        "h": 150
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_6.png",
+      "id": "spr_pzzvgtp_rpce",
+      "name": "whitey 2.png_auto_6",
+      "width": 143,
+      "height": 148,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 49,
+        "y": 44,
+        "w": 145,
+        "h": 150
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 143,
+        "h": 148
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_7.png",
+      "id": "spr_28x50kg_rpco",
+      "name": "whitey 2.png_auto_7",
+      "width": 153,
+      "height": 158,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 647,
+        "y": 227,
+        "w": 155,
+        "h": 160
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 153,
+        "h": 158
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_8.png",
+      "id": "spr_v74m0wf_rpcu",
+      "name": "whitey 2.png_auto_8",
+      "width": 150,
+      "height": 157,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 45,
+        "y": 228,
+        "w": 152,
+        "h": 159
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 150,
+        "h": 157
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_9.png",
+      "id": "spr_n5r8gky_rpd0",
+      "name": "whitey 2.png_auto_9",
+      "width": 150,
+      "height": 156,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 244,
+        "y": 228,
+        "w": 152,
+        "h": 158
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 150,
+        "h": 156
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_10.png",
+      "id": "spr_czdcleb_rpd6",
+      "name": "whitey 2.png_auto_10",
+      "width": 150,
+      "height": 157,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 852,
+        "y": 228,
+        "w": 152,
+        "h": 159
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 150,
+        "h": 157
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_11.png",
+      "id": "spr_9p48okc_rpda",
+      "name": "whitey 2.png_auto_11",
+      "width": 151,
+      "height": 157,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 1056,
+        "y": 228,
+        "w": 153,
+        "h": 159
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 151,
+        "h": 157
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_12.png",
+      "id": "spr_1685jr4_rpde",
+      "name": "whitey 2.png_auto_12",
+      "width": 147,
+      "height": 155,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 447,
+        "y": 229,
+        "w": 149,
+        "h": 157
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 147,
+        "h": 155
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_13.png",
+      "id": "spr_43nnqcb_rpdi",
+      "name": "whitey 2.png_auto_13",
+      "width": 154,
+      "height": 162,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 852,
+        "y": 420,
+        "w": 156,
+        "h": 164
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 154,
+        "h": 162
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_14.png",
+      "id": "spr_7f9zsoc_rpdm",
+      "name": "whitey 2.png_auto_14",
+      "width": 152,
+      "height": 159,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 42,
+        "y": 421,
+        "w": 154,
+        "h": 161
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 152,
+        "h": 159
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_15.png",
+      "id": "spr_ikmg2mq_rpdp",
+      "name": "whitey 2.png_auto_15",
+      "width": 153,
+      "height": 161,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 242,
+        "y": 421,
+        "w": 155,
+        "h": 163
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 153,
+        "h": 161
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_16.png",
+      "id": "spr_slp88f4_rpdt",
+      "name": "whitey 2.png_auto_16",
+      "width": 151,
+      "height": 160,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 444,
+        "y": 421,
+        "w": 153,
+        "h": 162
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 151,
+        "h": 160
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_17.png",
+      "id": "spr_xhcq135_rpdx",
+      "name": "whitey 2.png_auto_17",
+      "width": 153,
+      "height": 160,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 647,
+        "y": 421,
+        "w": 155,
+        "h": 162
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 153,
+        "h": 160
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_18.png",
+      "id": "spr_l4gdpe5_rpe1",
+      "name": "whitey 2.png_auto_18",
+      "width": 199,
+      "height": 141,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 1032,
+        "y": 432,
+        "w": 201,
+        "h": 143
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 199,
+        "h": 141
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_19.png",
+      "id": "spr_qxrswq1_rpe5",
+      "name": "whitey 2.png_auto_19",
+      "width": 154,
+      "height": 161,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 1055,
+        "y": 612,
+        "w": 156,
+        "h": 163
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 154,
+        "h": 161
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_20.png",
+      "id": "spr_11pmlf9_rpe9",
+      "name": "whitey 2.png_auto_20",
+      "width": 153,
+      "height": 161,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 241,
+        "y": 613,
+        "w": 155,
+        "h": 163
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 153,
+        "h": 161
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_21.png",
+      "id": "spr_e88rmik_rped",
+      "name": "whitey 2.png_auto_21",
+      "width": 152,
+      "height": 159,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 443,
+        "y": 614,
+        "w": 154,
+        "h": 161
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 152,
+        "h": 159
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_22.png",
+      "id": "spr_pptz7lq_rpeg",
+      "name": "whitey 2.png_auto_22",
+      "width": 153,
+      "height": 159,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 647,
+        "y": 614,
+        "w": 155,
+        "h": 161
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 153,
+        "h": 159
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_23.png",
+      "id": "spr_xmi6kdz_rpek",
+      "name": "whitey 2.png_auto_23",
+      "width": 218,
+      "height": 153,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 822,
+        "y": 615,
+        "w": 220,
+        "h": 155
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 218,
+        "h": 153
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_24.png",
+      "id": "spr_qq9nm5j_rpeo",
+      "name": "whitey 2.png_auto_24",
+      "width": 201,
+      "height": 147,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 17,
+        "y": 618,
+        "w": 203,
+        "h": 149
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 201,
+        "h": 147
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_25.png",
+      "id": "spr_47qatyt_rpes",
+      "name": "whitey 2.png_auto_25",
+      "width": 154,
+      "height": 164,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 851,
+        "y": 802,
+        "w": 156,
+        "h": 166
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 154,
+        "h": 164
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_26.png",
+      "id": "spr_gahwmht_rpew",
+      "name": "whitey 2.png_auto_26",
+      "width": 153,
+      "height": 161,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 36,
+        "y": 804,
+        "w": 155,
+        "h": 163
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 153,
+        "h": 161
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_27.png",
+      "id": "spr_8nv9tp6_rpf0",
+      "name": "whitey 2.png_auto_27",
+      "width": 154,
+      "height": 161,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 239,
+        "y": 804,
+        "w": 156,
+        "h": 163
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 154,
+        "h": 161
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_28.png",
+      "id": "spr_5vae8h3_rpf4",
+      "name": "whitey 2.png_auto_28",
+      "width": 151,
+      "height": 160,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 442,
+        "y": 804,
+        "w": 153,
+        "h": 162
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 151,
+        "h": 160
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_29.png",
+      "id": "spr_rw0mz0i_rpf8",
+      "name": "whitey 2.png_auto_29",
+      "width": 158,
+      "height": 162,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 645,
+        "y": 804,
+        "w": 160,
+        "h": 164
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 158,
+        "h": 162
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_30.png",
+      "id": "spr_ncmbl6f_rpfe",
+      "name": "whitey 2.png_auto_30",
+      "width": 156,
+      "height": 159,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 1051,
+        "y": 806,
+        "w": 158,
+        "h": 161
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 156,
+        "h": 159
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_31.png",
+      "id": "spr_tv1owin_rpfm",
+      "name": "whitey 2.png_auto_31",
+      "width": 154,
+      "height": 162,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 1053,
+        "y": 1000,
+        "w": 156,
+        "h": 164
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 154,
+        "h": 162
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_32.png",
+      "id": "spr_l7mpfdx_rpfv",
+      "name": "whitey 2.png_auto_32",
+      "width": 153,
+      "height": 161,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 239,
+        "y": 1001,
+        "w": 155,
+        "h": 163
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 153,
+        "h": 161
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_33.png",
+      "id": "spr_e4yn7yd_rpg2",
+      "name": "whitey 2.png_auto_33",
+      "width": 152,
+      "height": 160,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 36,
+        "y": 1002,
+        "w": 154,
+        "h": 162
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 152,
+        "h": 160
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_34.png",
+      "id": "spr_u47zagx_rpg7",
+      "name": "whitey 2.png_auto_34",
+      "width": 149,
+      "height": 159,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 445,
+        "y": 1002,
+        "w": 151,
+        "h": 161
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 149,
+        "h": 159
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_35.png",
+      "id": "spr_q3ngmpo_rpgb",
+      "name": "whitey 2.png_auto_35",
+      "width": 150,
+      "height": 158,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 851,
+        "y": 1003,
+        "w": 152,
+        "h": 160
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 150,
+        "h": 158
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "whitey 2/whitey 2.png_auto_36.png",
+      "id": "spr_5izjb6r_rpgf",
+      "name": "whitey 2.png_auto_36",
+      "width": 148,
+      "height": 157,
+      "sourceImageId": "img_4p7fuau_rm4u",
+      "sourceImageName": "whitey 2.png",
+      "original": {
+        "x": 648,
+        "y": 1004,
+        "w": 150,
+        "h": 159
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 148,
+        "h": 157
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    }
+  ]
+}

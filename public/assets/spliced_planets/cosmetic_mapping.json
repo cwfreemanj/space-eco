@@ -1,0 +1,470 @@
+[
+  {
+    "index": 1,
+    "file": "whitey 2.png_auto_1.png",
+    "key": "planet_sprite_01",
+    "name": "Ashen Iron Moon",
+    "planetType": "metallic",
+    "resources": [
+      "iron",
+      "titanium",
+      "stone"
+    ],
+    "color": "#b7844b"
+  },
+  {
+    "index": 2,
+    "file": "whitey 2.png_auto_2.png",
+    "key": "planet_sprite_02",
+    "name": "Copper Crag World",
+    "planetType": "charcoal",
+    "resources": [
+      "copper",
+      "charcoal_block",
+      "dirt"
+    ],
+    "color": "#428bba"
+  },
+  {
+    "index": 3,
+    "file": "whitey 2.png_auto_3.png",
+    "key": "planet_sprite_03",
+    "name": "Astral Sand Moon",
+    "planetType": "desert",
+    "resources": [
+      "sand",
+      "astral_salt",
+      "gold"
+    ],
+    "color": "#8ab4d6"
+  },
+  {
+    "index": 4,
+    "file": "whitey 2.png_auto_4.png",
+    "key": "planet_sprite_04",
+    "name": "Living Terra World",
+    "planetType": "lush",
+    "resources": [
+      "dirt",
+      "grass_tuft",
+      "crystal"
+    ],
+    "color": "#6c4a2b"
+  },
+  {
+    "index": 5,
+    "file": "whitey 2.png_auto_5.png",
+    "key": "planet_sprite_05",
+    "name": "Storm Ocean World",
+    "planetType": "storm",
+    "resources": [
+      "cobalt",
+      "ether_glass",
+      "ice_block"
+    ],
+    "color": "#477055"
+  },
+  {
+    "index": 6,
+    "file": "whitey 2.png_auto_6.png",
+    "key": "planet_sprite_06",
+    "name": "Hex Ice World",
+    "planetType": "ice",
+    "resources": [
+      "ice_block",
+      "black_ice",
+      "crystal"
+    ],
+    "color": "#656566"
+  },
+  {
+    "index": 7,
+    "file": "whitey 2.png_auto_7.png",
+    "key": "planet_sprite_07",
+    "name": "Magma Crust World",
+    "planetType": "volcanic",
+    "resources": [
+      "lava_rock",
+      "magma_core",
+      "ember_quartz"
+    ],
+    "color": "#16756f"
+  },
+  {
+    "index": 8,
+    "file": "whitey 2.png_auto_8.png",
+    "key": "planet_sprite_08",
+    "name": "Charcoal Rock World",
+    "planetType": "obsidian",
+    "resources": [
+      "dark_obsidian",
+      "gloom_steel",
+      "charcoal_block"
+    ],
+    "color": "#762f1e"
+  },
+  {
+    "index": 9,
+    "file": "whitey 2.png_auto_9.png",
+    "key": "planet_sprite_09",
+    "name": "Ember Mars World",
+    "planetType": "ember_quartz_world",
+    "resources": [
+      "ember_quartz",
+      "copper",
+      "magma_core"
+    ],
+    "color": "#474747"
+  },
+  {
+    "index": 10,
+    "file": "whitey 2.png_auto_10.png",
+    "key": "planet_sprite_10",
+    "name": "Teal Miasma World",
+    "planetType": "miasma",
+    "resources": [
+      "purple_miasma",
+      "miasma_core",
+      "toxic_sludge"
+    ],
+    "color": "#603c8e"
+  },
+  {
+    "index": 11,
+    "file": "whitey 2.png_auto_11.png",
+    "key": "planet_sprite_11",
+    "name": "Violet Void World",
+    "planetType": "void_spawn",
+    "resources": [
+      "void_ore",
+      "dark_matter_shard",
+      "purple_miasma"
+    ],
+    "color": "#936d26"
+  },
+  {
+    "index": 12,
+    "file": "whitey 2.png_auto_12.png",
+    "key": "planet_sprite_12",
+    "name": "Amber Gold World",
+    "planetType": "desert",
+    "resources": [
+      "gold",
+      "astral_salt",
+      "sand"
+    ],
+    "color": "#ac541b"
+  },
+  {
+    "index": 13,
+    "file": "whitey 2.png_auto_13.png",
+    "key": "planet_sprite_13",
+    "name": "Cobalt Ocean World",
+    "planetType": "storm",
+    "resources": [
+      "cobalt",
+      "plasma_cell",
+      "ether_glass"
+    ],
+    "color": "#b28a5b"
+  },
+  {
+    "index": 14,
+    "file": "whitey 2.png_auto_14.png",
+    "key": "planet_sprite_14",
+    "name": "Toxic Crater World",
+    "planetType": "toxic",
+    "resources": [
+      "toxic_sludge",
+      "miasma_core",
+      "copper"
+    ],
+    "color": "#0b516f"
+  },
+  {
+    "index": 15,
+    "file": "whitey 2.png_auto_15.png",
+    "key": "planet_sprite_15",
+    "name": "Crystal Aqua World",
+    "planetType": "crystal_forest",
+    "resources": [
+      "crystal",
+      "prism_ore",
+      "ether_glass"
+    ],
+    "color": "#54651b"
+  },
+  {
+    "index": 16,
+    "file": "whitey 2.png_auto_16.png",
+    "key": "planet_sprite_16",
+    "name": "Codex Circuit World",
+    "planetType": "codex_neon",
+    "resources": [
+      "neon_ore",
+      "codex_shard",
+      "circuit_board"
+    ],
+    "color": "#28779b"
+  },
+  {
+    "index": 17,
+    "file": "whitey 2.png_auto_17.png",
+    "key": "planet_sprite_17",
+    "name": "Fuel-Banded Giant",
+    "planetType": "metallic",
+    "resources": [
+      "fuel",
+      "gas_canister",
+      "titanium"
+    ],
+    "color": "#694828"
+  },
+  {
+    "index": 18,
+    "file": "whitey 2.png_auto_18.png",
+    "key": "planet_sprite_18",
+    "name": "Ringed Desert World",
+    "planetType": "desert",
+    "resources": [
+      "sand",
+      "astral_salt",
+      "gold"
+    ],
+    "color": "#a98b62"
+  },
+  {
+    "index": 19,
+    "file": "whitey 2.png_auto_19.png",
+    "key": "planet_sprite_19",
+    "name": "Ringed Void World",
+    "planetType": "void_spawn",
+    "resources": [
+      "void_ore",
+      "purple_miasma",
+      "dark_matter_shard"
+    ],
+    "color": "#186da7"
+  },
+  {
+    "index": 20,
+    "file": "whitey 2.png_auto_20.png",
+    "key": "planet_sprite_20",
+    "name": "Blue Gas World",
+    "planetType": "storm",
+    "resources": [
+      "cobalt",
+      "silicon",
+      "crystal"
+    ],
+    "color": "#26529b"
+  },
+  {
+    "index": 21,
+    "file": "whitey 2.png_auto_21.png",
+    "key": "planet_sprite_21",
+    "name": "Ember Stripe Giant",
+    "planetType": "volcanic",
+    "resources": [
+      "magma_core",
+      "ember_quartz",
+      "lava_rock"
+    ],
+    "color": "#b45437"
+  },
+  {
+    "index": 22,
+    "file": "whitey 2.png_auto_22.png",
+    "key": "planet_sprite_22",
+    "name": "Mint Ether World",
+    "planetType": "neon_reef",
+    "resources": [
+      "neon_ore",
+      "ether_glass",
+      "prism_ore"
+    ],
+    "color": "#5d957c"
+  },
+  {
+    "index": 23,
+    "file": "whitey 2.png_auto_23.png",
+    "key": "planet_sprite_23",
+    "name": "Golden Ring Core",
+    "planetType": "codex_neon",
+    "resources": [
+      "gold",
+      "plasma_cell",
+      "quantum_core"
+    ],
+    "color": "#c48626"
+  },
+  {
+    "index": 24,
+    "file": "whitey 2.png_auto_24.png",
+    "key": "planet_sprite_24",
+    "name": "Glowing Blue World",
+    "planetType": "black_ice_world",
+    "resources": [
+      "black_ice",
+      "crystal",
+      "cobalt"
+    ],
+    "color": "#653e91"
+  },
+  {
+    "index": 25,
+    "file": "whitey 2.png_auto_25.png",
+    "key": "planet_sprite_25",
+    "name": "Lime Bloom World",
+    "planetType": "lush",
+    "resources": [
+      "grass_tuft",
+      "dirt",
+      "nano_fiber"
+    ],
+    "color": "#3d7896"
+  },
+  {
+    "index": 26,
+    "file": "whitey 2.png_auto_26.png",
+    "key": "planet_sprite_26",
+    "name": "Rose Miasma World",
+    "planetType": "miasma",
+    "resources": [
+      "purple_miasma",
+      "miasma_core",
+      "prism_ore"
+    ],
+    "color": "#688f3f"
+  },
+  {
+    "index": 27,
+    "file": "whitey 2.png_auto_27.png",
+    "key": "planet_sprite_27",
+    "name": "Violet Crack World",
+    "planetType": "void_spawn",
+    "resources": [
+      "void_ore",
+      "dark_obsidian",
+      "dark_matter_shard"
+    ],
+    "color": "#994468"
+  },
+  {
+    "index": 28,
+    "file": "whitey 2.png_auto_28.png",
+    "key": "planet_sprite_28",
+    "name": "Shadow Moon",
+    "planetType": "charcoal",
+    "resources": [
+      "charcoal_block",
+      "dark_obsidian",
+      "black_ice"
+    ],
+    "color": "#502f79"
+  },
+  {
+    "index": 29,
+    "file": "whitey 2.png_auto_29.png",
+    "key": "planet_sprite_29",
+    "name": "Ice Spike World",
+    "planetType": "crystal_forest",
+    "resources": [
+      "crystal",
+      "black_ice",
+      "prism_ore"
+    ],
+    "color": "#39456b"
+  },
+  {
+    "index": 30,
+    "file": "whitey 2.png_auto_30.png",
+    "key": "planet_sprite_30",
+    "name": "Obsidian Spike World",
+    "planetType": "obsidian",
+    "resources": [
+      "dark_obsidian",
+      "gloom_steel",
+      "void_ore"
+    ],
+    "color": "#433635"
+  },
+  {
+    "index": 31,
+    "file": "whitey 2.png_auto_31.png",
+    "key": "planet_sprite_31",
+    "name": "Silver Titanium Moon",
+    "planetType": "metallic",
+    "resources": [
+      "stone",
+      "iron",
+      "titanium"
+    ],
+    "color": "#2f5b6f"
+  },
+  {
+    "index": 32,
+    "file": "whitey 2.png_auto_32.png",
+    "key": "planet_sprite_32",
+    "name": "Plasma Cobalt World",
+    "planetType": "storm",
+    "resources": [
+      "plasma_cell",
+      "cobalt",
+      "ether_glass"
+    ],
+    "color": "#0c577b"
+  },
+  {
+    "index": 33,
+    "file": "whitey 2.png_auto_33.png",
+    "key": "planet_sprite_33",
+    "name": "Green Reef World",
+    "planetType": "neon_reef",
+    "resources": [
+      "neon_ore",
+      "grass_tuft",
+      "nano_fiber"
+    ],
+    "color": "#64738e"
+  },
+  {
+    "index": 34,
+    "file": "whitey 2.png_auto_34.png",
+    "key": "planet_sprite_34",
+    "name": "Magenta Pulse World",
+    "planetType": "miasma",
+    "resources": [
+      "purple_miasma",
+      "miasma_core",
+      "dark_matter_shard"
+    ],
+    "color": "#537735"
+  },
+  {
+    "index": 35,
+    "file": "whitey 2.png_auto_35.png",
+    "key": "planet_sprite_35",
+    "name": "Solar Core World",
+    "planetType": "ember_quartz_world",
+    "resources": [
+      "ember_quartz",
+      "gold",
+      "magma_core"
+    ],
+    "color": "#bf6912"
+  },
+  {
+    "index": 36,
+    "file": "whitey 2.png_auto_36.png",
+    "key": "planet_sprite_36",
+    "name": "Tech Shell World",
+    "planetType": "gloom_steel_world",
+    "resources": [
+      "gloom_steel",
+      "alloy_frame",
+      "circuit_board"
+    ],
+    "color": "#7f2a61"
+  }
+]
