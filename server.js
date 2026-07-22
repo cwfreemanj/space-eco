@@ -2319,51 +2319,53 @@ io.on("connection",socket=>{
     }
   });
 
-  socket.on("minePlanetTile",({planetId,tx,ty,power,clientX,clientY})=>{
-    const p=players.get(socket.id);if(!p)return;planetId=String(planetId||"");
-    let map=planetMaps.get(planetId);if(!map&&p.currentPlanetInfo?.id===planetId)map=getPlanetMap(p.currentPlanetInfo);if(!map){socket.emit("planetMineDenied",{planetId,reason:"Planet map was not ready. Reloading the planet map."});return;}
+  socket.on("minePlanetTile",({planetId,tx,ty,power,oneClick,requestId,clientX,clientY},ack)=>{
+    const p=players.get(socket.id);if(!p){if(typeof ack==="function")ack({ok:false,requestId,reason:"Player session unavailable."});return;}const mineReply=payload=>{if(typeof ack==="function")try{ack({requestId,...payload});}catch(_){}};planetId=String(planetId||"");
+    let map=planetMaps.get(planetId);if(!map&&p.currentPlanetInfo?.id===planetId)map=getPlanetMap(p.currentPlanetInfo);if(!map){const reason="Planet map was not ready. Reloading the planet map.";socket.emit("planetMineDenied",{planetId,requestId,reason});mineReply({ok:false,reason});return;}
     if(p.mode!=="planet"||p.planetId!==planetId){if(p.planetId)socket.leave(`planet:${p.planetId}`);p.mode="planet";p.planetId=planetId;socket.join(`planet:${planetId}`);}
     tx=Math.floor(Number(tx));ty=Math.floor(Number(ty));
-    if(!Number.isFinite(tx)||!Number.isFinite(ty)||tx<0||ty<0||tx>=map.W||ty>=map.H-3){socket.emit("planetMineDenied",{planetId,reason:"Mining target is outside this planet."});return;}
+    if(!Number.isFinite(tx)||!Number.isFinite(ty)||tx<0||ty<0||tx>=map.W||ty>=map.H-3){const reason="Mining target is outside this planet.";socket.emit("planetMineDenied",{planetId,requestId,reason});mineReply({ok:false,reason});return;}
     if(Number.isFinite(Number(clientX))&&Number.isFinite(Number(clientY))){p.planetX=Number(clientX);p.planetY=Number(clientY);}
     const id=ty*map.W+tx,t=map.tiles[id],dropX=tx*16+8,dropY=ty*16+8;
-    if(!t){socket.emit("planetMineDenied",{planetId,reason:"Empty tile — moving to the next nearby block.",x:dropX,y:dropY});return;}
-    if(t===PLANET_TILE.BEDROCK){socket.emit("planetMineDenied",{planetId,reason:"Bedrock cannot be mined.",x:dropX,y:dropY});return;}
-    const dmg=Math.max(1,Math.min(40,Number(power)||18));
+    const px=Number.isFinite(Number(clientX))?Number(clientX):Number(p.planetX)||0,py=Number.isFinite(Number(clientY))?Number(clientY):Number(p.planetY)||0;
+    if(Math.hypot(dropX-px,dropY-py)>165){const reason="That tile is out of mining range.";socket.emit("planetMineDenied",{planetId,requestId,reason,x:dropX,y:dropY});mineReply({ok:false,reason});return;}
+    if(!t){const reason="Empty tile — click another block.";socket.emit("planetMineDenied",{planetId,requestId,reason,x:dropX,y:dropY});mineReply({ok:false,reason});return;}
+    if(ty>=map.H-3){const reason="Bedrock cannot be mined.";socket.emit("planetMineDenied",{planetId,requestId,reason,x:dropX,y:dropY});mineReply({ok:false,reason});return;}
     const oldHp=Math.max(1,Math.floor(Number(map.hp[id])||1));
+    const dmg=oneClick?oldHp:Math.max(1,Math.min(80,Number(power)||18));
     const nextHp=Math.max(0,oldHp-dmg);
 
     if(nextHp<=0){
-      const kind=planetResForTile(map.planet,t,tx,ty,map.H),rar=RES_RARITY[kind]||1;
+      let kind=planetResForTile(map.planet,t,tx,ty,map.H);if(!RES_KEYS.includes(kind))kind="stone";const rar=RES_RARITY[kind]||1;
       const qty=(t===3||t===4)?(Math.random()<0.35?2:1):(t===5?(Math.random()<0.55?2:1):1);
 
       // Do not destroy the tile or show a collectible if the player cannot carry it.
       // This prevents mined resources from visually dropping but never entering inventory.
       if(!canFitInventory(p,kind,qty)){
         map.hp[id]=oldHp;
-        socket.emit("planetMineDenied",{planetId,reason:"Inventory full — empty a slot before mining more.",x:dropX,y:dropY});
-        socket.emit("planetTileUpdate",{planetId,tx,ty,tile:t,hp:map.hp[id]});
+        const reason="Inventory full — empty a slot before mining more.";socket.emit("planetMineDenied",{planetId,requestId,reason,x:dropX,y:dropY});
+        socket.emit("planetTileUpdate",{planetId,requestId,tx,ty,tile:t,hp:map.hp[id]});mineReply({ok:false,reason});
         return;
       }
 
       map.tiles[id]=0;map.hp[id]=0;
-      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile:0,hp:0});
+      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,requestId,tx,ty,tile:0,hp:0});
       if(!addInventory(p,kind,qty)){
         // Failsafe: if inventory changed between canFitInventory and addInventory,
         // give a clear denial instead of silently losing the mined resource.
-        socket.emit("planetMineDenied",{planetId,reason:"Inventory full — resource was not collected.",x:dropX,y:dropY});
+        const reason="Inventory full — resource was not collected.";socket.emit("planetMineDenied",{planetId,requestId,reason,x:dropX,y:dropY});mineReply({ok:false,reason});
         syncAndPersist(p,"planet_mine_denied");
         return;
       }
       // Broadcast a visible, shared loot pop to everyone on this planet.
       // Inventory remains server-authoritative and is granted immediately.
-      io.to(`planet:${planetId}`).emit("planetMineDrop",{planetId,kind,x:dropX,y:dropY,qty,ownerId:p.id});
-      socket.emit("planetMineReward",{planetId,kind,x:dropX,y:dropY,qty,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24)});
+      io.to(`planet:${planetId}`).emit("planetMineDrop",{planetId,requestId,kind,x:dropX,y:dropY,qty,ownerId:p.id});
+      socket.emit("planetMineReward",{planetId,requestId,kind,x:dropX,y:dropY,qty,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24)});mineReply({ok:true,kind,qty,tx,ty});
       syncAndPersist(p,"planet_mine");
       grantXp(p,rar*2,"Mining");
     }else{
       map.hp[id]=nextHp;
-      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,tx,ty,tile:t,hp:map.hp[id]});
+      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,requestId,tx,ty,tile:t,hp:map.hp[id]});mineReply({ok:true,partial:true,hp:map.hp[id],tx,ty});
     }
   });
 
