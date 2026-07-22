@@ -2306,13 +2306,13 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);if(!p)return;
     const map=getPlanetMap(planet);
     if(p.planetId)socket.leave(`planet:${p.planetId}`);
-    p.mode="planet";p.planetId=map.planet.id;socket.join(`planet:${map.planet.id}`);
+    p.mode="planet";p.planetId=map.planet.id;p.currentPlanetInfo=map.planet;socket.join(`planet:${map.planet.id}`);
     socket.emit("planetMapState",{planetId:map.planet.id,W:map.W,H:map.H,tiles:Array.from(map.tiles),hp:Array.from(map.hp),heights:map.heights});
   });
 
   socket.on("minePlanetTile",({planetId,tx,ty,power,clientX,clientY})=>{
     const p=players.get(socket.id);if(!p)return;planetId=String(planetId||"");
-    const map=planetMaps.get(planetId);if(!map){socket.emit("planetMineDenied",{planetId,reason:"Planet map was not ready. Please reland or reload the planet."});return;}
+    let map=planetMaps.get(planetId);if(!map&&p.currentPlanetInfo?.id===planetId)map=getPlanetMap(p.currentPlanetInfo);if(!map){socket.emit("planetMineDenied",{planetId,reason:"Planet map was not ready. Reloading the planet map."});return;}
     if(p.mode!=="planet"||p.planetId!==planetId){if(p.planetId)socket.leave(`planet:${p.planetId}`);p.mode="planet";p.planetId=planetId;socket.join(`planet:${planetId}`);}
     tx=Math.floor(Number(tx));ty=Math.floor(Number(ty));
     if(!Number.isFinite(tx)||!Number.isFinite(ty)||tx<0||ty<0||tx>=map.W||ty>=map.H-3){socket.emit("planetMineDenied",{planetId,reason:"Mining target is outside this planet."});return;}
