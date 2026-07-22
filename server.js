@@ -688,6 +688,10 @@ function applySharedWorldCosmeticSlot(slot,key){
   return true;
 }
 let GLOBAL_WORLD_COSMETICS={npcship:null,enemy:null,station:null,planet:null};
+const PLANET_VISUAL_TYPES=["lush","desert","ice","toxic","volcanic","void_spawn","codex_neon","crystal_forest","storm","metallic","obsidian","miasma","charcoal","neon_reef","black_ice_world","ember_quartz_world","prism_moon","gloom_steel_world"];
+function normalizePlanetTypeCosmetics(raw){const out={};for(const type of PLANET_VISUAL_TYPES)out[type]=null;if(raw&&typeof raw==="object")for(const type of PLANET_VISUAL_TYPES){const key=String(raw[type]||"");const def=COSMETIC_DEFS[key];if(key&&def?.slot==="planet"&&(!Array.isArray(def.planetTypes)||!def.planetTypes.length||def.planetTypes.includes(type)))out[type]=key;}return out;}
+let GLOBAL_PLANET_TYPE_COSMETICS=normalizePlanetTypeCosmetics({});
+function planetTypeForCosmetic(def){const type=String(def?.planetTypes?.[0]||"lush");return PLANET_VISUAL_TYPES.includes(type)?type:"lush";}
 function normalizeCosmeticInventory(raw){
   const out={};
   if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){if(COSMETIC_DEFS[k]&&v===true)out[k]=true;}
@@ -709,7 +713,7 @@ function normalizeRedeemedCoupons(raw){
   return out;
 }
 function publicCosmeticState(p){
-  return {defs:COSMETIC_DEFS,owned:normalizeCosmeticInventory(p?.cosmeticInventory||{}),equipped:normalizeEquippedCosmetics(p?.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p?.stationTierCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p?.redeemedCoupons||{}),spriteCosmeticRegistryVersion:1};
+  return {defs:COSMETIC_DEFS,owned:normalizeCosmeticInventory(p?.cosmeticInventory||{}),equipped:normalizeEquippedCosmetics(p?.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p?.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p?.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p?.redeemedCoupons||{}),spriteCosmeticRegistryVersion:1};
 }
 function sendCosmeticState(socket,p,reason="sync"){
   socket.emit("cosmeticState",{...publicCosmeticState(p),credits:p?.credits||0,reason});
@@ -734,7 +738,7 @@ function defaultPlayer(id, name, x, y) {
     planetX:0, planetY:0, planetVx:0, planetVy:0, planetTool:"mining",
     cosmeticColor:"#ffd27a", suitColor:"#ffffff", weaponLevel:1, miningLevel:1, oxygenLevel:1,
     badgeRewards:{},
-    cosmeticInventory:{}, equippedCosmetics:{ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null}, stationTierCosmetics:normalizeStationTierCosmetics({}), redeemedCoupons:{},
+    cosmeticInventory:{}, equippedCosmetics:{ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null}, stationTierCosmetics:normalizeStationTierCosmetics({}), planetTypeCosmetics:normalizePlanetTypeCosmetics({}), redeemedCoupons:{},
     equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
     equippedAttachments:defaultAttachmentSlots(),
   };
@@ -1052,7 +1056,7 @@ function playerHasSaveWorthyProgress(p){
 }
 function trustedSnapshotForPlayer(p,reason="cache"){
   if(!p?.memberId)return null;
-  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
+  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
 }
 function rememberTrustedSnapshot(p,reason="update"){
   if(!p?.memberId||!p.persistenceLoaded)return;
@@ -1110,6 +1114,7 @@ function cleanClientWixSnapshot(snapshot,memberId){
   if(snapshot.cosmeticInventory&&typeof snapshot.cosmeticInventory==="object")out.cosmeticInventory=normalizeCosmeticInventory(snapshot.cosmeticInventory);
   if(snapshot.equippedCosmetics&&typeof snapshot.equippedCosmetics==="object")out.equippedCosmetics=normalizeEquippedCosmetics(snapshot.equippedCosmetics);
   if(snapshot.stationTierCosmetics&&typeof snapshot.stationTierCosmetics==="object")out.stationTierCosmetics=normalizeStationTierCosmetics(snapshot.stationTierCosmetics);
+  if(snapshot.planetTypeCosmetics&&typeof snapshot.planetTypeCosmetics==="object")out.planetTypeCosmetics=normalizePlanetTypeCosmetics(snapshot.planetTypeCosmetics);
   if(snapshot.redeemedCoupons&&typeof snapshot.redeemedCoupons==="object")out.redeemedCoupons=normalizeRedeemedCoupons(snapshot.redeemedCoupons);
   if(snapshot.signupCreditBonusGranted===true||snapshot.accountCreationBonusGranted===true)out.signupCreditBonusGranted=true;
   if(snapshot.signupCreditBonusEligible===true||snapshot.isNewMember===true||snapshot.newMember===true)out.signupCreditBonusEligible=true;
@@ -1133,7 +1138,7 @@ function combineAuthWithClientSnapshot(auth,snapshot){
   const out={...auth};
   // Signed token data wins when it contains a value. The snapshot fills gaps when
   // Wix sends member auth separately from the persisted inventory payload.
-  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","equippedAttachments","activeMercs","buildings","cosmeticInventory","equippedCosmetics","stationTierCosmetics","redeemedCoupons","signupCreditBonusGranted","signupCreditBonusEligible","isNewMember","newMember","noSavedGame","savedGameMissing","freshAccount","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
+  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","equippedAttachments","activeMercs","buildings","cosmeticInventory","equippedCosmetics","stationTierCosmetics","planetTypeCosmetics","redeemedCoupons","signupCreditBonusGranted","signupCreditBonusEligible","isNewMember","newMember","noSavedGame","savedGameMissing","freshAccount","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
     if(out[k]===undefined&&snap[k]!==undefined)out[k]=snap[k];
   }
   if(!authHasInventoryPayload(out)&&authHasInventoryPayload(snap)){
@@ -1244,7 +1249,7 @@ async function persistPlayerNow(p,reason="update"){
   if(!p.persistenceLoaded){console.warn("Wix persistence skipped: account inventory snapshot not loaded yet", p?.id, p?.memberId, reason);return;}
   if(!playerHasSaveWorthyProgress(p)&&!p.signupCreditBonusGranted){console.warn("Wix persistence skipped: refusing to save empty/default account snapshot", p?.id, p?.memberId, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
-  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,reason,updatedAt:Date.now()};
+  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,reason,updatedAt:Date.now()};
   try{
     const res = await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
     if(!res.ok){
@@ -1330,6 +1335,7 @@ function applyAuthAccountToPlayer(p,auth){
   if(auth.cosmeticInventory&&typeof auth.cosmeticInventory==="object")p.cosmeticInventory=normalizeCosmeticInventory(auth.cosmeticInventory);
   if(auth.equippedCosmetics&&typeof auth.equippedCosmetics==="object")p.equippedCosmetics=normalizeEquippedCosmetics(auth.equippedCosmetics);
   if(auth.stationTierCosmetics&&typeof auth.stationTierCosmetics==="object")p.stationTierCosmetics=normalizeStationTierCosmetics(auth.stationTierCosmetics);
+  if(auth.planetTypeCosmetics&&typeof auth.planetTypeCosmetics==="object")p.planetTypeCosmetics=normalizePlanetTypeCosmetics(auth.planetTypeCosmetics);
   if(auth.redeemedCoupons&&typeof auth.redeemedCoupons==="object")p.redeemedCoupons=normalizeRedeemedCoupons(auth.redeemedCoupons);
 }
 function applyPersistedSnapshotPreservingSession(p,auth){
@@ -1559,7 +1565,7 @@ const planetMaps=new Map();
 function safePlanetInfo(raw){
   raw=raw||{};
   const type=(raw.type==="asteroid")?"asteroid":(["lush","desert","ice","toxic","volcanic","void_spawn","codex_neon","crystal_forest","storm","metallic","obsidian","miasma","charcoal","neon_reef","black_ice_world","ember_quartz_world","prism_moon","gloom_steel_world"].includes(raw.type)?raw.type:"lush");
-  const resList=Array.isArray(raw.resList)?raw.resList.filter(k=>RES_KEYS.includes(k)).slice(0,8):["dirt","stone","copper","iron"];
+  const resList=Array.isArray(raw.resList)?raw.resList.filter(k=>RES_KEYS.includes(k)).slice(0,12):["dirt","stone","copper","iron"];
   return {id:safeText(raw.id,80)||"planet",seed:safeText(raw.seed,100)||GALAXY_SEED,type,isAsteroid:!!raw.isAsteroid||type==="asteroid",resList,x:Math.round(Number(raw.x)||0),y:Math.round(Number(raw.y)||0),radius:Math.max(25,Math.min(280,Math.round(Number(raw.radius)||60)))};
 }
 function genPlanetMapServer(planet){
@@ -1590,10 +1596,12 @@ function getPlanetMap(info){
   if(!map){map=genPlanetMapServer(planet);planetMaps.set(planet.id,map);}
   return map;
 }
-function planetResForTile(planet,t,y,H){
-  const d=y/H,l=planet.resList&&planet.resList.length?planet.resList:["dirt","stone","copper","iron"];
-  if(planet?.isAsteroid||planet?.type==="asteroid"){if(t===5)return Math.random()<0.85?"crystal":"gold";if(t===4)return Math.random()<0.62?"crystal":"gold";if(t===3)return Math.random()<0.5?"iron":"copper";return Math.random()<0.18?"crystal":"stone";}
-  if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>["copper","iron","titanium","cobalt","silicon"].includes(k));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){if(l.includes("gold")&&Math.random()<0.55)return"gold";if(l.includes("crystal")&&Math.random()<0.65)return"crystal";return l[Math.floor(Math.random()*l.length)];}if(t===5){if(l.includes("crystal")&&Math.random()<0.6+d*0.3)return"crystal";if(l.includes("gold")&&Math.random()<0.4+d*0.3)return"gold";return l[l.length-1];}return"stone";
+function planetTileHash(planet,t,x,y){let h=2166136261;const seed=`${planet?.id||planet?.seed||"planet"}|${x}|${y}|${t}`;for(let i=0;i<seed.length;i++){h^=seed.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function planetResForTile(planet,t,x,y,H){
+  const l=planet.resList&&planet.resList.length?planet.resList:["dirt","stone","copper","iron"];
+  if(planet?.isAsteroid||planet?.type==="asteroid"){const pools={3:["iron","copper"],4:["crystal","gold"],5:["crystal","gold"]},pool=pools[t]||["stone"];return pool[planetTileHash(planet,t,x,y)%pool.length];}
+  if(t===1)return"dirt";if(t===13)return"grass_tuft";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return"black_ice";if(t===8)return"lava_rock";if(t===9)return"magma_core";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===14)return"dark_obsidian";
+  if([3,4,5].includes(t)){const min=t===5?5:t===4?4:3,candidates=l.filter(k=>(RES_RARITY[k]||1)>=min),pool=candidates.length?candidates:l;return pool[planetTileHash(planet,t,x,y)%pool.length]||"stone";}return"stone";
 }
 function hpForPlacedTile(tile){return ({1:22,2:55,6:30,8:45,10:28,11:18,13:20})[tile]||25;}
 
@@ -1604,7 +1612,7 @@ async function persistOfflineCreditGrant(memberId,pack,grantBase){
   if(!memberId||!WIX_PERSIST_URL||!WIX_PERSIST_SECRET)return {ok:false,error:"Player is offline and Wix persistence is not configured."};
   const loaded=await loadPersistedAccountSnapshot(memberId).catch(()=>null);
   const cached=accountLastGoodSnapshots.get(memberId);
-  const base=loaded||cached||{memberId,displayName:"Space Eco Pilot",credits:300,maxSlots:24,invSlots:emptySlots(24),level:1,xp:0,shipType:"scout",attrs:{},badgeRewards:{},equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},equippedAttachments:{},activeMercs:[],buildings:{},cosmeticInventory:{},equippedCosmetics:{},stationTierCosmetics:{},redeemedCoupons:{},signupCreditBonusGranted:false};
+  const base=loaded||cached||{memberId,displayName:"Space Eco Pilot",credits:300,maxSlots:24,invSlots:emptySlots(24),level:1,xp:0,shipType:"scout",attrs:{},badgeRewards:{},equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},equippedAttachments:{},activeMercs:[],buildings:{},cosmeticInventory:{},equippedCosmetics:{},stationTierCosmetics:{},planetTypeCosmetics:{},redeemedCoupons:{},signupCreditBonusGranted:false};
   const payload={...base,memberId,credits:Math.max(0,Math.floor(Number(base.credits)||0))+pack.credits,reason:"offline_credit_purchase",updatedAt:Date.now()};
   const res=await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
   if(!res.ok){const text=await res.text().catch(()=>"");return {ok:false,error:`Wix persistence failed: ${res.status} ${text.slice(0,160)}`};}
@@ -2117,7 +2125,7 @@ io.on("connection",socket=>{
     restorePersistentBuildingsForPlayer(p);
     if(auth)maybeGrantAccountCreationBonus(p,auth,"join");
     applyShipStats(p,false);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),worldCosmetics:GLOBAL_WORLD_COSMETICS,spriteCosmeticRegistryVersion:1,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),worldCosmetics:GLOBAL_WORLD_COSMETICS,worldPlanetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS,spriteCosmeticRegistryVersion:1,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
     emitInventorySync(p,"login");
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
@@ -2302,21 +2310,23 @@ io.on("connection",socket=>{
     socket.emit("planetMapState",{planetId:map.planet.id,W:map.W,H:map.H,tiles:Array.from(map.tiles),hp:Array.from(map.hp),heights:map.heights});
   });
 
-  socket.on("minePlanetTile",({planetId,tx,ty,power})=>{
-    const p=players.get(socket.id);if(!p||p.mode!=="planet"||p.planetId!==planetId)return;
-    const map=planetMaps.get(planetId);if(!map)return;
+  socket.on("minePlanetTile",({planetId,tx,ty,power,clientX,clientY})=>{
+    const p=players.get(socket.id);if(!p)return;planetId=String(planetId||"");
+    const map=planetMaps.get(planetId);if(!map){socket.emit("planetMineDenied",{planetId,reason:"Planet map was not ready. Please reland or reload the planet."});return;}
+    if(p.mode!=="planet"||p.planetId!==planetId){if(p.planetId)socket.leave(`planet:${p.planetId}`);p.mode="planet";p.planetId=planetId;socket.join(`planet:${planetId}`);}
     tx=Math.floor(Number(tx));ty=Math.floor(Number(ty));
-    if(tx<0||ty<0||tx>=map.W||ty>=map.H-3)return;
-    const id=ty*map.W+tx,t=map.tiles[id];
-    if(!t||t===PLANET_TILE.BEDROCK)return;
+    if(!Number.isFinite(tx)||!Number.isFinite(ty)||tx<0||ty<0||tx>=map.W||ty>=map.H-3){socket.emit("planetMineDenied",{planetId,reason:"Mining target is outside this planet."});return;}
+    if(Number.isFinite(Number(clientX))&&Number.isFinite(Number(clientY))){p.planetX=Number(clientX);p.planetY=Number(clientY);}
+    const id=ty*map.W+tx,t=map.tiles[id],dropX=tx*16+8,dropY=ty*16+8;
+    if(!t){socket.emit("planetMineDenied",{planetId,reason:"Empty tile — moving to the next nearby block.",x:dropX,y:dropY});return;}
+    if(t===PLANET_TILE.BEDROCK){socket.emit("planetMineDenied",{planetId,reason:"Bedrock cannot be mined.",x:dropX,y:dropY});return;}
     const dmg=Math.max(1,Math.min(40,Number(power)||18));
     const oldHp=Math.max(1,Math.floor(Number(map.hp[id])||1));
     const nextHp=Math.max(0,oldHp-dmg);
 
     if(nextHp<=0){
-      const kind=planetResForTile(map.planet,t,ty,map.H),rar=RES_RARITY[kind]||1;
+      const kind=planetResForTile(map.planet,t,tx,ty,map.H),rar=RES_RARITY[kind]||1;
       const qty=(t===3||t===4)?(Math.random()<0.35?2:1):(t===5?(Math.random()<0.55?2:1):1);
-      const dropX=tx*16+8,dropY=ty*16+8;
 
       // Do not destroy the tile or show a collectible if the player cannot carry it.
       // This prevents mined resources from visually dropping but never entering inventory.
@@ -2414,9 +2424,9 @@ io.on("connection",socket=>{
     if(p.cosmeticInventory[key]){socket.emit("cosmeticDenied",{reason:"You already own that cosmetic."});sendCosmeticState(socket,p,"already_owned");return;}
     const cost=Math.max(0,Math.floor(Number(def.price)||0));
     if((p.credits||0)<cost){socket.emit("cosmeticDenied",{reason:`Need ${cost.toLocaleString()} credits.`});return;}
-    p.credits=(p.credits||0)-cost;p.cosmeticInventory[key]=true;
-    p.equippedCosmetics[def.slot]=key;applySharedWorldCosmeticSlot(def.slot,key);const zonesChanged=syncOwnedZoneCosmeticsForPlayer(p);
-    socket.emit("creditUpdate",{credits:p.credits});sendCosmeticState(socket,p,"bought");socket.broadcast.emit("cosmeticPeerUpdate",{id:p.id,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})});io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS});if(zonesChanged)broadcastCivilizationZonesList();persistPlayerSoon(p,"cosmetic_bought");
+    p.credits=(p.credits||0)-cost;p.cosmeticInventory[key]=true;p.planetTypeCosmetics=normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{});
+    if(def.slot==="planet"){const type=planetTypeForCosmetic(def);p.planetTypeCosmetics[type]=key;GLOBAL_PLANET_TYPE_COSMETICS[type]=key;}else{p.equippedCosmetics[def.slot]=key;applySharedWorldCosmeticSlot(def.slot,key);}const zonesChanged=syncOwnedZoneCosmeticsForPlayer(p);
+    socket.emit("creditUpdate",{credits:p.credits});sendCosmeticState(socket,p,"bought");socket.broadcast.emit("cosmeticPeerUpdate",{id:p.id,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})});io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS,planetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS});if(zonesChanged)broadcastCivilizationZonesList();persistPlayerSoon(p,"cosmetic_bought");
   });
 
   socket.on("equipCosmetic",({key,slot})=>{
@@ -2428,20 +2438,28 @@ io.on("connection",socket=>{
       const def=COSMETIC_DEFS[key];
       if(!def||def.slot!==slot){socket.emit("cosmeticDenied",{reason:"That cosmetic does not fit this slot."});return;}
       if(!p.cosmeticInventory[key]){socket.emit("cosmeticDenied",{reason:"Buy that cosmetic first."});return;}
-      p.equippedCosmetics[slot]=key;applySharedWorldCosmeticSlot(slot,key);
+      if(slot==="planet"){p.planetTypeCosmetics=normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{});const type=planetTypeForCosmetic(def);p.planetTypeCosmetics[type]=key;GLOBAL_PLANET_TYPE_COSMETICS[type]=key;}else{p.equippedCosmetics[slot]=key;applySharedWorldCosmeticSlot(slot,key);}
     }
     else if(COSMETIC_SLOTS.includes(slot)){
-      p.equippedCosmetics[slot]=null;applySharedWorldCosmeticSlot(slot,null);
+      if(slot==="planet"){p.planetTypeCosmetics=normalizePlanetTypeCosmetics({});GLOBAL_PLANET_TYPE_COSMETICS=normalizePlanetTypeCosmetics({});}else{p.equippedCosmetics[slot]=null;applySharedWorldCosmeticSlot(slot,null);}
     }
     else {socket.emit("cosmeticDenied",{reason:"Unknown cosmetic slot."});return;}
     const zonesChanged=syncOwnedZoneCosmeticsForPlayer(p);
     sendCosmeticState(socket,p,"equipped");
     socket.broadcast.emit("cosmeticPeerUpdate",{id:p.id,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})});
-    io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS});
+    io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS,planetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS});
     if(zonesChanged)broadcastCivilizationZonesList();
     persistPlayerSoon(p,"cosmetic_equipped");
   });
 
+
+  socket.on("assignPlanetTypeCosmetic",({type,key})=>{
+    const p=players.get(socket.id);if(!p)return;type=String(type||"");key=String(key||"");
+    if(!PLANET_VISUAL_TYPES.includes(type)){socket.emit("cosmeticDenied",{reason:"Unknown planet resource type."});return;}
+    p.planetTypeCosmetics=normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{});
+    if(key){const def=COSMETIC_DEFS[key];if(!def||def.slot!=="planet"){socket.emit("cosmeticDenied",{reason:"That cosmetic is not a planet design."});return;}if(!p.cosmeticInventory?.[key]){socket.emit("cosmeticDenied",{reason:"Buy that planet cosmetic first."});return;}const allowed=Array.isArray(def.planetTypes)&&def.planetTypes.length?def.planetTypes:[type];if(!allowed.includes(type)){socket.emit("cosmeticDenied",{reason:"That planet design is mapped to a different resource-world type."});return;}p.planetTypeCosmetics[type]=key;GLOBAL_PLANET_TYPE_COSMETICS[type]=key;}else{p.planetTypeCosmetics[type]=null;GLOBAL_PLANET_TYPE_COSMETICS[type]=null;}
+    socket.emit("planetTypeCosmeticsUpdated",{planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics),worldPlanetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS});sendCosmeticState(socket,p,"planet_type_assigned");io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS,planetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS});persistPlayerSoon(p,"planet_type_cosmetic");
+  });
 
   socket.on("assignStationTierCosmetic",({tier,key})=>{
     const p=players.get(socket.id);if(!p)return;tier=String(tier||"");key=String(key||"");
