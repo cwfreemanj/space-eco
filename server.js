@@ -2302,12 +2302,21 @@ io.on("connection",socket=>{
 
 
 
-  socket.on("requestPlanetMap",({planet})=>{
+  socket.on("requestPlanetMap",({planet,requestId}={})=>{
     const p=players.get(socket.id);if(!p)return;
-    const map=getPlanetMap(planet);
-    if(p.planetId)socket.leave(`planet:${p.planetId}`);
-    p.mode="planet";p.planetId=map.planet.id;p.currentPlanetInfo=map.planet;socket.join(`planet:${map.planet.id}`);
-    socket.emit("planetMapState",{planetId:map.planet.id,W:map.W,H:map.H,tiles:Array.from(map.tiles),hp:Array.from(map.hp),heights:map.heights});
+    let safePlanet=null;
+    try{
+      safePlanet=safePlanetInfo(planet);
+      if(!safePlanet.id)throw new Error("Missing planet identifier.");
+      const map=getPlanetMap(safePlanet);
+      if(!map||!map.planet||!map.W||!map.H||!map.tiles)throw new Error("Planet map generation returned incomplete data.");
+      if(p.planetId)socket.leave(`planet:${p.planetId}`);
+      p.mode="planet";p.planetId=map.planet.id;p.currentPlanetInfo=map.planet;socket.join(`planet:${map.planet.id}`);
+      socket.emit("planetMapState",{requestId:requestId||null,planetId:map.planet.id,W:map.W,H:map.H,tiles:Array.from(map.tiles),hp:Array.from(map.hp),heights:map.heights});
+    }catch(error){
+      console.error("Planet map request failed",{socketId:socket.id,planetId:safePlanet?.id||planet?.id,error});
+      socket.emit("planetMapError",{requestId:requestId||null,planetId:safePlanet?.id||String(planet?.id||""),reason:"Planet map generation failed. The client will retry automatically."});
+    }
   });
 
   socket.on("minePlanetTile",({planetId,tx,ty,power,clientX,clientY})=>{
