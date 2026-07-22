@@ -2657,18 +2657,97 @@ function cosmeticAccent(slot,source=equippedCosmetics,fb="#ff7744"){return safeC
 const cosmeticSpriteCache=new Map();
 function getCosmeticSprite(path){path=String(path||"");if(!path)return null;let img=cosmeticSpriteCache.get(path);if(!img){img=new Image();img.decoding="async";img.src=path;cosmeticSpriteCache.set(path,img);}return img;}
 function drawCosmeticSprite(def){if(!def?.spritePath)return false;const img=getCosmeticSprite(def.spritePath);if(!img||!img.complete||!img.naturalWidth)return false;const scale=Math.max(0.08,Number(def.spriteScale)||0.2),w=img.naturalWidth*scale,h=img.naturalHeight*scale;ctx.save();ctx.rotate(Math.PI/2);ctx.shadowColor=def.slot==="enemy"?"rgba(255,60,60,.55)":"rgba(90,220,255,.42)";ctx.shadowBlur=5;ctx.drawImage(img,-w/2,-h/2,w,h);ctx.restore();return true;}
-const RESOURCE_TILE_ART={"grass_tuft":"assets/resource_tiles/transparent tiles.png_auto_1.png","dirt":"assets/resource_tiles/transparent tiles.png_auto_2.png","stone":"assets/resource_tiles/transparent tiles.png_auto_3.png","charcoal_block":"assets/resource_tiles/transparent tiles.png_auto_4.png","sand":"assets/resource_tiles/transparent tiles.png_auto_5.png","ember_quartz":"assets/resource_tiles/transparent tiles.png_auto_6.png","ice_block":"assets/resource_tiles/transparent tiles.png_auto_8.png","dark_obsidian":"assets/resource_tiles/transparent tiles.png_auto_29.png","lava_rock":"assets/resource_tiles/transparent tiles.png_auto_10.png","purple_miasma":"assets/resource_tiles/transparent tiles.png_auto_25.png","crystal":"assets/resource_tiles/transparent tiles.png_auto_11.png","toxic_sludge":"assets/resource_tiles/transparent tiles.png_auto_13.png","copper":"assets/resource_tiles/transparent tiles.png_auto_6.png","iron":"assets/resource_tiles/transparent tiles.png_auto_51.png","gold":"assets/resource_tiles/transparent tiles.png_auto_31.png","black_ice":"assets/resource_tiles/transparent tiles.png_auto_8.png","magma_core":"assets/resource_tiles/transparent tiles.png_auto_64.png","miasma_core":"assets/resource_tiles/transparent tiles.png_auto_26.png","void_ore":"assets/resource_tiles/transparent tiles.png_auto_29.png","dark_matter_shard":"assets/resource_tiles/transparent tiles.png_auto_62.png","stardust":"assets/resource_tiles/transparent tiles.png_auto_24.png","obelisk_core":"assets/resource_tiles/transparent tiles.png_auto_64.png","neon_ore":"assets/resource_tiles/transparent tiles.png_auto_60.png","codex_shard":"assets/resource_tiles/transparent tiles.png_auto_28.png","silicon":"assets/resource_tiles/transparent tiles.png_auto_61.png","circuit_board":"assets/resource_tiles/transparent tiles.png_auto_28.png","quantum_core":"assets/resource_tiles/transparent tiles.png_auto_44.png","prism_ore":"assets/resource_tiles/transparent tiles.png_auto_32.png","ether_glass":"assets/resource_tiles/transparent tiles.png_auto_32.png","nano_fiber":"assets/resource_tiles/transparent tiles.png_auto_60.png","cobalt":"assets/resource_tiles/transparent tiles.png_auto_50.png","titanium":"assets/resource_tiles/transparent tiles.png_auto_16.png","plasma_cell":"assets/resource_tiles/transparent tiles.png_auto_44.png","alloy_frame":"assets/resource_tiles/transparent tiles.png_auto_41.png","gloom_steel":"assets/resource_tiles/transparent tiles.png_auto_62.png","astral_salt":"assets/resource_tiles/transparent tiles.png_auto_33.png","fuel":"assets/resource_tiles/transparent tiles.png_auto_43.png","gas_canister":"assets/resource_tiles/transparent tiles.png_auto_43.png","hull_plate":"assets/resource_tiles/transparent tiles.png_auto_45.png","engine_core":"assets/resource_tiles/transparent tiles.png_auto_44.png","shield_matrix":"assets/resource_tiles/transparent tiles.png_auto_45.png","weapon_array":"assets/resource_tiles/transparent tiles.png_auto_46.png","cargo_pod":"assets/resource_tiles/transparent tiles.png_auto_42.png","nav_chip":"assets/resource_tiles/transparent tiles.png_auto_60.png","oxygen_tank":"assets/resource_tiles/transparent tiles.png_auto_44.png"};
+const RESOURCE_TILE_ART={
+  grass_tuft:"assets/resource_tiles/transparent tiles.png_auto_1.png",
+  dirt:"assets/resource_tiles/transparent tiles.png_auto_3.png",
+  stone:"assets/resource_tiles/transparent tiles.png_auto_4.png",
+  charcoal_block:"assets/resource_tiles/transparent tiles.png_auto_2.png",
+  sand:"assets/resource_tiles/transparent tiles.png_auto_5.png",
+  ember_quartz:"assets/resource_tiles/transparent tiles.png_auto_6.png",
+  ice_block:"assets/resource_tiles/transparent tiles.png_auto_8.png",
+  black_ice:"assets/resource_tiles/transparent tiles.png_auto_7.png",
+  dark_obsidian:"assets/resource_tiles/transparent tiles.png_auto_29.png",
+  lava_rock:"assets/resource_tiles/transparent tiles.png_auto_12.png",
+  magma_core:"assets/resource_tiles/transparent tiles.png_auto_13.png",
+  purple_miasma:"assets/resource_tiles/transparent tiles.png_auto_25.png",
+  miasma_core:"assets/resource_tiles/transparent tiles.png_auto_26.png",
+  crystal:"assets/resource_tiles/transparent tiles.png_auto_50.png",
+  toxic_sludge:"assets/resource_tiles/transparent tiles.png_auto_10.png",
+  copper:"assets/resource_tiles/transparent tiles.png_auto_58.png",
+  iron:"assets/resource_tiles/transparent tiles.png_auto_51.png",
+  gold:"assets/resource_tiles/transparent tiles.png_auto_31.png",
+  void_ore:"assets/resource_tiles/transparent tiles.png_auto_29.png",
+  dark_matter_shard:"assets/resource_tiles/transparent tiles.png_auto_62.png",
+  stardust:"assets/resource_tiles/transparent tiles.png_auto_23.png",
+  obelisk_core:"assets/resource_tiles/transparent tiles.png_auto_27.png",
+  neon_ore:"assets/resource_tiles/transparent tiles.png_auto_59.png",
+  codex_shard:"assets/resource_tiles/transparent tiles.png_auto_28.png",
+  silicon:"assets/resource_tiles/transparent tiles.png_auto_61.png",
+  circuit_board:"assets/resource_tiles/transparent tiles.png_auto_28.png",
+  quantum_core:"assets/resource_tiles/transparent tiles.png_auto_43.png",
+  prism_ore:"assets/resource_tiles/transparent tiles.png_auto_32.png",
+  ether_glass:"assets/resource_tiles/transparent tiles.png_auto_55.png",
+  nano_fiber:"assets/resource_tiles/transparent tiles.png_auto_37.png",
+  cobalt:"assets/resource_tiles/transparent tiles.png_auto_30.png",
+  titanium:"assets/resource_tiles/transparent tiles.png_auto_60.png",
+  plasma_cell:"assets/resource_tiles/transparent tiles.png_auto_53.png",
+  alloy_frame:"assets/resource_tiles/transparent tiles.png_auto_42.png",
+  gloom_steel:"assets/resource_tiles/transparent tiles.png_auto_48.png",
+  astral_salt:"assets/resource_tiles/transparent tiles.png_auto_33.png",
+  fuel:"assets/resource_tiles/transparent tiles.png_auto_47.png",
+  gas_canister:"assets/resource_tiles/transparent tiles.png_auto_47.png",
+  hull_plate:"assets/resource_tiles/transparent tiles.png_auto_41.png",
+  engine_core:"assets/resource_tiles/transparent tiles.png_auto_43.png",
+  shield_matrix:"assets/resource_tiles/transparent tiles.png_auto_46.png",
+  weapon_array:"assets/resource_tiles/transparent tiles.png_auto_45.png",
+  cargo_pod:"assets/resource_tiles/transparent tiles.png_auto_16.png",
+  nav_chip:"assets/resource_tiles/transparent tiles.png_auto_59.png",
+  oxygen_tank:"assets/resource_tiles/transparent tiles.png_auto_55.png"
+};
+const RESOURCE_TILE_COLOR_PALETTE=[
+  {path:"assets/resource_tiles/transparent tiles.png_auto_2.png",rgb:[59,52,46]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_6.png",rgb:[158,73,29]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_7.png",rgb:[130,127,124]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_8.png",rgb:[76,146,181]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_10.png",rgb:[83,127,18]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_12.png",rgb:[67,51,42]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_13.png",rgb:[160,46,8]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_14.png",rgb:[92,39,161]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_25.png",rgb:[107,34,92]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_26.png",rgb:[77,104,20]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_27.png",rgb:[130,108,76]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_29.png",rgb:[54,41,65]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_30.png",rgb:[16,62,104]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_31.png",rgb:[175,119,22]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_32.png",rgb:[107,119,198]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_33.png",rgb:[206,156,81]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_35.png",rgb:[198,158,95]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_36.png",rgb:[80,53,27]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_43.png",rgb:[53,91,111]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_48.png",rgb:[53,61,68]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_49.png",rgb:[93,90,88]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_50.png",rgb:[42,71,88]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_51.png",rgb:[108,100,88]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_52.png",rgb:[109,78,115]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_53.png",rgb:[135,39,49]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_54.png",rgb:[177,71,106]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_55.png",rgb:[47,116,118]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_58.png",rgb:[95,49,25]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_59.png",rgb:[31,95,105]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_61.png",rgb:[148,154,156]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_62.png",rgb:[58,67,64]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_63.png",rgb:[77,47,113]},
+  {path:"assets/resource_tiles/transparent tiles.png_auto_64.png",rgb:[115,93,55]}
+];
 const GENERIC_TILE_ART={1:RESOURCE_TILE_ART.dirt,2:RESOURCE_TILE_ART.stone,3:RESOURCE_TILE_ART.copper,4:RESOURCE_TILE_ART.iron,5:RESOURCE_TILE_ART.crystal,6:RESOURCE_TILE_ART.ice_block,7:RESOURCE_TILE_ART.black_ice,8:RESOURCE_TILE_ART.lava_rock,9:RESOURCE_TILE_ART.magma_core,10:RESOURCE_TILE_ART.toxic_sludge,11:RESOURCE_TILE_ART.sand,12:RESOURCE_TILE_ART.stone,13:RESOURCE_TILE_ART.grass_tuft,14:RESOURCE_TILE_ART.dark_obsidian};
-function cosmeticDefByKey(key){return key?COSMETIC_DEFS[key]||null:null;}
-function stationCosmeticDefForStation(st){const tier=stationVisualTierFor(st),zoneMap=st?.zoneStationTierCosmetics||st?.stationTierCosmetics||null,key=zoneMap?.[tier]||stationTierCosmetics[tier]||null;return cosmeticDefByKey(key)||worldCosmeticDef("station");}
-function npcShipCosmeticDefForStation(st){return cosmeticDefByKey(st?.zoneNpcshipCosmeticKey||st?.npcshipCosmeticKey)||worldCosmeticDef("npcship");}
-function stationTierStarCount(st){const tier=stationVisualTierFor(st);return {outpost:1,standard:2,advanced:3,capital:4,super:5,wandering_exchange:6}[tier]||2;}
-function drawStationStars(cx,cy,count,color="#ffdd44"){count=Math.max(0,Math.min(6,Number(count)||0));if(!count)return;ctx.save();ctx.textAlign="center";ctx.font="bold 8px monospace";ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=4;ctx.fillText("★".repeat(count),cx,cy);ctx.restore();ctx.textAlign="left";}
-function drawSpriteImageFit(path,dx,dy,w,h){const img=getCosmeticSprite(path);if(!img||!img.complete||!img.naturalWidth)return false;ctx.drawImage(img,dx,dy,w,h);return true;}
-function resourceTileSpritePath(resourceType,tileType=0){resourceType=String(resourceType||"");if(resourceType&&RESOURCE_TILE_ART[resourceType])return RESOURCE_TILE_ART[resourceType];return GENERIC_TILE_ART[tileType]||null;}
+const RESOURCE_TILE_CLOSEST_CACHE=new Map();
+function cssResourceColorRgb(color){color=String(color||"").trim();let m;if((m=/^#([0-9a-f]{3})$/i.exec(color)))return m[1].split("").map(c=>parseInt(c+c,16));if((m=/^#([0-9a-f]{6})$/i.exec(color)))return [parseInt(m[1].slice(0,2),16),parseInt(m[1].slice(2,4),16),parseInt(m[1].slice(4,6),16)];if((m=/^hsl\(\s*([\d.]+)[^,]*,\s*([\d.]+)%\s*,\s*([\d.]+)%/i.exec(color))){let h=((Number(m[1])%360)+360)%360/360,s=Number(m[2])/100,l=Number(m[3])/100;const q=l<.5?l*(1+s):l+s-l*s,p=2*l-q,cv=t=>{t=(t+1)%1;return t<1/6?p+(q-p)*6*t:t<1/2?q:t<2/3?p+(q-p)*(2/3-t)*6:p;};return [Math.round(cv(h+1/3)*255),Math.round(cv(h)*255),Math.round(cv(h-1/3)*255)];}if((m=/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(color)))return [Number(m[1]),Number(m[2]),Number(m[3])];return [127,127,127];}
+function closestResourceTilePath(resourceType){resourceType=String(resourceType||"");if(RESOURCE_TILE_CLOSEST_CACHE.has(resourceType))return RESOURCE_TILE_CLOSEST_CACHE.get(resourceType);const rgb=cssResourceColorRgb(RES[resourceType]?.color||"#808080");let best=RESOURCE_TILE_COLOR_PALETTE[0],bestScore=Infinity;for(const candidate of RESOURCE_TILE_COLOR_PALETTE){const dr=rgb[0]-candidate.rgb[0],dg=rgb[1]-candidate.rgb[1],db=rgb[2]-candidate.rgb[2],score=dr*dr+dg*dg+db*db;if(score<bestScore){bestScore=score;best=candidate;}}const path=best?.path||GENERIC_TILE_ART[2];RESOURCE_TILE_CLOSEST_CACHE.set(resourceType,path);return path;}
+function resourceTileSpritePath(resourceType,tileType=0){resourceType=String(resourceType||"");if(resourceType&&RESOURCE_TILE_ART[resourceType])return RESOURCE_TILE_ART[resourceType];if(resourceType&&RES[resourceType])return closestResourceTilePath(resourceType);return GENERIC_TILE_ART[tileType]||null;}
 function tileBaseResource(t){return({1:"dirt",2:"stone",6:"ice_block",7:"black_ice",8:"lava_rock",9:"magma_core",10:"toxic_sludge",11:"sand",12:"stone",13:"grass_tuft",14:"dark_obsidian"})[t]||null;}
 function deterministicResourceForTile(planet,t,x,y){if(!planet)return tileBaseResource(t);if(![3,4,5].includes(t))return tileBaseResource(t);const list=(planet.resList||[]).filter(k=>RES[k]);if(!list.length)return t===5?"crystal":t===4?"iron":"copper";const min=t===5?5:t===4?4:3;const candidates=list.filter(k=>(RES[k]?.rarity||1)>=min);const pool=candidates.length?candidates:list;let h=2166136261;const seed=`${planet.id||planet.seed||"planet"}|${x}|${y}|${t}`;for(let i=0;i<seed.length;i++){h^=seed.charCodeAt(i);h=Math.imul(h,16777619);}return pool[(h>>>0)%pool.length];}
-function drawResourceTile(t,planet,gridX,gridY,dx,dy,size=16){const resource=deterministicResourceForTile(planet,t,gridX,gridY),def=resource?RES[resource]:null,base=def?.color||tileColorForActivePlanet(t)||TILECOLORS[t]||"#6b7075";ctx.fillStyle=base;ctx.fillRect(dx,dy,size,size);ctx.globalAlpha=.22;ctx.fillStyle="#ffffff";ctx.fillRect(dx+2,dy+2,size-4,2);ctx.globalAlpha=.28;ctx.fillStyle="#000000";ctx.fillRect(dx+2,dy+size-4,size-4,2);ctx.globalAlpha=1;ctx.strokeStyle="rgba(0,0,0,.48)";ctx.strokeRect(dx+.5,dy+.5,size-1,size-1);if([3,4,5].includes(t)){ctx.fillStyle=def?.color||"#ffffff";ctx.beginPath();ctx.moveTo(dx+size*.5,dy+3);ctx.lineTo(dx+size-3,dy+size*.52);ctx.lineTo(dx+size*.5,dy+size-3);ctx.lineTo(dx+3,dy+size*.52);ctx.closePath();ctx.fill();ctx.globalAlpha=.65;ctx.fillStyle="#ffffff";ctx.fillRect(dx+size*.48,dy+5,2,3);ctx.globalAlpha=1;}else if(t===13){ctx.fillStyle="#78c850";ctx.fillRect(dx,dy,size,3);}else if(t===8||t===9){ctx.strokeStyle="#ffdd44";ctx.beginPath();ctx.moveTo(dx+2,dy+size-3);ctx.lineTo(dx+size*.42,dy+size*.45);ctx.lineTo(dx+size-2,dy+3);ctx.stroke();}return true;}
+function drawResourceTile(t,planet,gridX,gridY,dx,dy,size=16){const resource=deterministicResourceForTile(planet,t,gridX,gridY),def=resource?RES[resource]:null,path=resourceTileSpritePath(resource,t),base=def?.color||tileColorForActivePlanet(t)||TILECOLORS[t]||"#6b7075";let drew=false;if(path){ctx.save();ctx.imageSmoothingEnabled=false;drew=drawSpriteImageFit(path,dx,dy,size,size);ctx.restore();}if(!drew){ctx.fillStyle=base;ctx.fillRect(dx,dy,size,size);ctx.globalAlpha=.2;ctx.fillStyle="#fff";ctx.fillRect(dx+2,dy+2,size-4,2);ctx.globalAlpha=1;}ctx.save();ctx.globalAlpha=[3,4,5].includes(t)?.16:.07;ctx.fillStyle=base;ctx.fillRect(dx,dy,size,size);ctx.globalAlpha=1;ctx.strokeStyle=[3,4,5].includes(t)?base:"rgba(0,0,0,.42)";ctx.lineWidth=[3,4,5].includes(t)?1.25:1;ctx.strokeRect(dx+.5,dy+.5,size-1,size-1);if([3,4,5].includes(t)){ctx.globalAlpha=.75;ctx.fillStyle="#fff";ctx.fillRect(dx+size*.47,dy+3,2,2);ctx.globalAlpha=1;}ctx.restore();return true;}
+
 function planetCosmeticDefForPlanet(p){const type=String(p?.type||"lush"),key=globalPlanetTypeCosmetics[type]||planetTypeCosmetics[type]||null;if(!key)return null;const def=COSMETIC_DEFS[key];return def?.slot==="planet"?def:null;}
 
 function drawShipBody(stype,color="#7be6ff",accent="#ff7744",cosDef=null,thrusting=false){
@@ -2996,7 +3075,7 @@ function drawStationBars(x,y,w,hp,maxHp,shield,maxShield){
 }
 
 /* ── Chunk / procedural world ── */
-const CHUNK_SIZE=900,PLANETS_PER_CHUNK=4,CHUNK_RADIUS=3;
+const CHUNK_SIZE=1250,PLANETS_PER_CHUNK=2,CHUNK_RADIUS=2;
 const generatedPlanets=new Map(),generatedStations=new Map();
 let visiblePlanets=[],visibleStations=[];
 GALAXY_SEED=GALAXY_SEED||"GALAXY-01";
@@ -3156,7 +3235,7 @@ function civZonePayloadFromZone(z){
 function civilizationZoneForChunk(cx,cy){
   const key=chunkKey(cx,cy);if(generatedCivZones.has(key))return generatedCivZones.get(key);
   const skip=(cx===0&&cy===0),rng=makeRng(GALAXY_SEED+"|civzone|"+key);
-  if(skip||rng()>0.18){generatedCivZones.set(key,null);return null;}
+  if(skip||rng()>0.11){generatedCivZones.set(key,null);return null;}
   const bx=cx*CHUNK_SIZE,by=cy*CHUNK_SIZE;
   const color=["#7be6ff","#78ff8a","#ffdd44","#cc88ff","#ff8844"][Math.floor(rng()*5)];
   const zone=decorateCivilizationZone({id:`civ_${key}`,x:bx+(rng()-.5)*CHUNK_SIZE*.45,y:by+(rng()-.5)*CHUNK_SIZE*.45,radius:360+rng()*190,name:randomFactionName(rng),color,turrets:[]});
@@ -3196,8 +3275,8 @@ function generateChunk(cx,cy){
     const bx=cx*CHUNK_SIZE,by=cy*CHUNK_SIZE,skip=(cx===0&&cy===0);
     for(let i=0;i<PLANETS_PER_CHUNK;i++){
       let px=bx+(rng()-0.5)*CHUNK_SIZE*0.85,py=by+(rng()-0.5)*CHUNK_SIZE*0.85;
-      if(skip&&Math.hypot(px,py)<300)continue;
-      let tooClose=false;for(const ep of planets){if(dist(px,py,ep.x,ep.y)<110){tooClose=true;break;}}if(tooClose)continue;
+      if(skip&&Math.hypot(px,py)<520)continue;
+      let tooClose=false;for(const ep of planets){if(dist(px,py,ep.x,ep.y)<340){tooClose=true;break;}}if(tooClose)continue;
       const id=key+"|"+i,prng=makeRng(GALAXY_SEED+"|planet|"+id);
       const radius=randInt(prng,52,130);
       const type=pickWeighted(prng,planetWeights());
@@ -3214,9 +3293,9 @@ function generateChunk(cx,cy){
     const stations=[];
     for(const tk of TIER_ORDER){
       const tier=STATION_TIERS[tk];
-      if(srng()<tier.spawnChance){
+      if(srng()<tier.spawnChance*.62){
         let sx=bx+(srng()-0.5)*CHUNK_SIZE*0.7,sy=by+(srng()-0.5)*CHUNK_SIZE*0.7;
-        if(skip&&Math.hypot(sx,sy)<350)continue;
+        if(skip&&Math.hypot(sx,sy)<560)continue;
         const np=planets.filter(p=>dist(sx,sy,p.x,p.y)<600).length;
         const dm=0.9+np*0.04;
         const st={id:key+"|st|"+tk,x:sx,y:sy,tier:tk,tierDef:tier,r:tier.size+6,faction:tier.factionName,factionColor:tier.factionColor,nearbyPlanets:np,densityMult:dm,playerRep:"neutral",tradeShips:[],buyStock:[],buyStockTimer:300,...createNpcStationState(tk)};
@@ -3227,7 +3306,7 @@ function generateChunk(cx,cy){
     if(zone){
       const crng=makeRng(GALAXY_SEED+"|civstations|"+key);
       const tiers=["standard","standard","advanced","outpost","capital"];
-      const count=3+Math.floor(crng()*3);
+      const count=2+Math.floor(crng()*3);
       zone.baseStationCount=count+1;
       const superStation=makeCivilizationSuperStation(zone,count+1);stations.push(superStation);
       for(let ci=0;ci<count;ci++){const st=makeCivilizationStation(zone,ci,tiers[Math.floor(crng()*tiers.length)],crng);stations.push(st);initTradeShips(st,planets);refreshBuyStock(st);}
@@ -4464,9 +4543,11 @@ function spawnPlanetLootVisual({planetId,kind,x,y,qty=1,ownerId=null,serverGrant
     });
   }
 }
-let mineCooldown=0,lastMiningTargetKey="";
-function findMineableTargetTile(wx,wy,maxRing=3){if(!planetMap)return null;const TP=16,bx=Math.floor(wx/TP),by=Math.floor(wy/TP),candidates=[];for(let ring=0;ring<=maxRing;ring++)for(let oy=-ring;oy<=ring;oy++)for(let ox=-ring;ox<=ring;ox++){if(ring>0&&Math.max(Math.abs(ox),Math.abs(oy))!==ring)continue;const tx=bx+ox,ty=by+oy,t=tileAt(tx,ty);if(!t||t===TILE.BEDROCK||ty>=planetMap.H-3)continue;const cx=tx*TP+TP/2,cy=ty*TP+TP/2,playerD=dist(cx,cy,astronaut.x,astronaut.y-astronaut.h/2);if(playerD>104)continue;const cursorD=dist(cx,cy,wx,wy);candidates.push({tx,ty,t,cx,cy,score:cursorD+ring*4+playerD*.05});}candidates.sort((a,b)=>a.score-b.score);return candidates[0]||null;}
-function doMining(dt){mineCooldown=Math.max(0,mineCooldown-dt);if(mineCooldown>0||!planetMap||!activePlanet)return;const cam=planetCamera(),wx=mouse.x+cam.x,wy=mouse.y+cam.y,target=findMineableTargetTile(wx,wy,4);if(!target){lastMiningTargetKey="";return;}const key=`${target.tx},${target.ty}`;lastMiningTargetKey=key;mineCooldown=0.085;socket.emit("minePlanetTile",{planetId:activePlanet.id,tx:target.tx,ty:target.ty,power:planetMiningPower(),clientX:astronaut.x,clientY:astronaut.y});}
+let mineCooldown=0,lastMiningTargetKey="",miningRequestPending=false,miningRequestSentAt=0,miningMapRefreshAt=0;
+function mineableTileAt(tx,ty){if(!planetMap||tx<0||ty<0||tx>=planetMap.W||ty>=planetMap.H-3)return 0;const t=tileAt(tx,ty);return t&&t!==TILE.BEDROCK?t:0;}
+function findMineableTargetTile(wx,wy,maxRing=5){if(!planetMap)return null;const TP=16,ox=astronaut.x,oy=astronaut.y-astronaut.h*.5,dx=wx-ox,dy=wy-oy,len=Math.hypot(dx,dy)||1,maxReach=118,endScale=Math.min(1,maxReach/len),ex=ox+dx*endScale,ey=oy+dy*endScale,seen=new Set(),candidates=[];const add=(tx,ty,rayBias=0)=>{const key=`${tx},${ty}`;if(seen.has(key))return;seen.add(key);const t=mineableTileAt(tx,ty);if(!t)return;const cx=tx*TP+TP/2,cy=ty*TP+TP/2,playerD=dist(cx,cy,ox,oy);if(playerD>maxReach+10)return;const aimD=dist(cx,cy,ex,ey);candidates.push({tx,ty,t,cx,cy,score:aimD+playerD*.04+rayBias});};const steps=Math.max(2,Math.ceil(Math.hypot(ex-ox,ey-oy)/5));for(let i=1;i<=steps;i++){const q=i/steps,px=ox+(ex-ox)*q,py=oy+(ey-oy)*q,tx=Math.floor(px/TP),ty=Math.floor(py/TP);add(tx,ty,-18+(steps-i)*.12);if(candidates.length&&i>2)break;}const bx=Math.floor(ex/TP),by=Math.floor(ey/TP);for(let ring=0;ring<=maxRing;ring++)for(let yy=-ring;yy<=ring;yy++)for(let xx=-ring;xx<=ring;xx++){if(ring>0&&Math.max(Math.abs(xx),Math.abs(yy))!==ring)continue;add(bx+xx,by+yy,ring*5);}candidates.sort((a,b)=>a.score-b.score);return candidates[0]||null;}
+function resetMiningRequestState(){miningRequestPending=false;miningRequestSentAt=0;}
+function doMining(dt){mineCooldown=Math.max(0,mineCooldown-dt);if(!planetMap||!activePlanet)return;const now=performance.now();if(miningRequestPending){const age=now-miningRequestSentAt;if(age<320)return;resetMiningRequestState();if(age>1100&&now-miningMapRefreshAt>1800){miningMapRefreshAt=now;socket.emit("requestPlanetMap",{planet:activePlanet});return;}}if(mineCooldown>0)return;const cam=planetCamera(),wx=mouse.x+cam.x,wy=mouse.y+cam.y,target=findMineableTargetTile(wx,wy,6);if(!target){lastMiningTargetKey="";mineCooldown=.06;return;}lastMiningTargetKey=`${target.tx},${target.ty}`;mineCooldown=.075;miningRequestPending=true;miningRequestSentAt=now;socket.emit("minePlanetTile",{planetId:activePlanet.id,tx:target.tx,ty:target.ty,power:planetMiningPower(),clientX:astronaut.x,clientY:astronaut.y});}
 function planetCamera(){return{x:clamp(astronaut.x-canvas.width/2,0,planetMap.W*16-canvas.width),y:clamp(astronaut.y-canvas.height/2,0,planetMap.H*16-canvas.height)};}
 
 function initPlanetNPCs(planet){
@@ -5744,14 +5825,14 @@ socket.on("serverPong",()=>{}); // ping handled server-side
 
 socket.on("planetMapState",({planetId,W,H,tiles,hp,heights})=>{
   if(!activePlanet||activePlanet.id!==planetId)return;
-  planetMap={W,H,tiles:Uint8Array.from(tiles||[]),hp:Uint8Array.from(hp||[]),heights:heights||[],planet:activePlanet};mineCooldown=0;lastMiningTargetKey="";
+  planetMap={W,H,tiles:Uint8Array.from(tiles||[]),hp:Uint8Array.from(hp||[]),heights:heights||[],planet:activePlanet};mineCooldown=0;lastMiningTargetKey="";resetMiningRequestState();
   enterPlanetWithLoadedMap();
 });
 socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
   if(!activePlanet||activePlanet.id!==planetId||!planetMap)return;
-  setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
+  resetMiningRequestState();setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
 });
-socket.on("planetMineReward",({planetId,kind,x,y,qty,invSlots,maxSlots,credits})=>{noteCollectedResource(kind,qty,true);
+socket.on("planetMineReward",({planetId,kind,x,y,qty,invSlots,maxSlots,credits})=>{resetMiningRequestState();noteCollectedResource(kind,qty,true);
   if(!activePlanet||activePlanet.id!==planetId)return;
   const amount=Math.max(1,Math.floor(Number(qty)||1));
 
@@ -5797,8 +5878,8 @@ socket.on("planetMineDrop",({planetId,kind,x,y,qty,ownerId})=>{
 });
 socket.on("planetMineDenied",({planetId,reason,x,y})=>{
   if(planetId&&activePlanet&&activePlanet.id!==planetId)return;
-  mineCooldown=0.12;showFT(reason||"Unable to mine resource",Number(x)||astronaut.x,(Number(y)||astronaut.y)-12,"#ffcc44",9);
-  if(!/empty tile/i.test(String(reason||"")))socket.emit("requestInventorySync");
+  resetMiningRequestState();mineCooldown=0.08;showFT(reason||"Unable to mine resource",Number(x)||astronaut.x,(Number(y)||astronaut.y)-12,"#ffcc44",9);
+  if(/map was not ready|reland|reload/i.test(String(reason||""))&&activePlanet)socket.emit("requestPlanetMap",{planet:activePlanet});else if(!/empty tile|bedrock/i.test(String(reason||"")))socket.emit("requestInventorySync");
 });
 socket.on("planetBuildDenied",({reason,resourceType})=>{
   showFT(reason||"Build denied",astronaut.x,astronaut.y-25,"#ff5544",9);
