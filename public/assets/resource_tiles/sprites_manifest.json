@@ -1,0 +1,1479 @@
+{
+  "exportedAt": "2026-07-22T17:56:46.446Z",
+  "transparentPng": true,
+  "count": 64,
+  "sprites": [
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_1.png",
+      "id": "spr_z0102sd_wep0",
+      "name": "transparent tiles.png_auto_1",
+      "width": 136,
+      "height": 134,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 30,
+        "y": 55,
+        "w": 138,
+        "h": 136
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 136,
+        "h": 134
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_2.png",
+      "id": "spr_8ztijw9_wep3",
+      "name": "transparent tiles.png_auto_2",
+      "width": 134,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 482,
+        "y": 55,
+        "w": 136,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 134,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_3.png",
+      "id": "spr_hdidkhc_wep7",
+      "name": "transparent tiles.png_auto_3",
+      "width": 132,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 182,
+        "y": 56,
+        "w": 134,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_4.png",
+      "id": "spr_6r3noyy_wepb",
+      "name": "transparent tiles.png_auto_4",
+      "width": 133,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 332,
+        "y": 56,
+        "w": 135,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_5.png",
+      "id": "spr_v7ca3xg_wepe",
+      "name": "transparent tiles.png_auto_5",
+      "width": 133,
+      "height": 132,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 634,
+        "y": 56,
+        "w": 135,
+        "h": 134
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 132
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_6.png",
+      "id": "spr_yw1jo2r_wepi",
+      "name": "transparent tiles.png_auto_6",
+      "width": 131,
+      "height": 132,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 784,
+        "y": 56,
+        "w": 133,
+        "h": 134
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 132
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_7.png",
+      "id": "spr_lbj7kqn_wepl",
+      "name": "transparent tiles.png_auto_7",
+      "width": 135,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 932,
+        "y": 56,
+        "w": 137,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 135,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_8.png",
+      "id": "spr_zxtgtbi_wepp",
+      "name": "transparent tiles.png_auto_8",
+      "width": 135,
+      "height": 132,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 1083,
+        "y": 56,
+        "w": 137,
+        "h": 134
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 135,
+        "h": 132
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_9.png",
+      "id": "spr_5p9o3gn_weps",
+      "name": "transparent tiles.png_auto_9",
+      "width": 133,
+      "height": 138,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 783,
+        "y": 203,
+        "w": 135,
+        "h": 140
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 138
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_10.png",
+      "id": "spr_7fsys0s_wepw",
+      "name": "transparent tiles.png_auto_10",
+      "width": 135,
+      "height": 137,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 632,
+        "y": 204,
+        "w": 137,
+        "h": 139
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 135,
+        "h": 137
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_11.png",
+      "id": "spr_bpx3h6e_weq0",
+      "name": "transparent tiles.png_auto_11",
+      "width": 133,
+      "height": 136,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 1084,
+        "y": 205,
+        "w": 135,
+        "h": 138
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 136
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_12.png",
+      "id": "spr_n59mfkb_weq4",
+      "name": "transparent tiles.png_auto_12",
+      "width": 132,
+      "height": 134,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 32,
+        "y": 206,
+        "w": 134,
+        "h": 136
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 134
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_13.png",
+      "id": "spr_u749025_weq8",
+      "name": "transparent tiles.png_auto_13",
+      "width": 132,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 182,
+        "y": 206,
+        "w": 134,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_14.png",
+      "id": "spr_c47lfua_weqb",
+      "name": "transparent tiles.png_auto_14",
+      "width": 132,
+      "height": 134,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 332,
+        "y": 206,
+        "w": 134,
+        "h": 136
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 134
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_15.png",
+      "id": "spr_a5s0xe8_weqe",
+      "name": "transparent tiles.png_auto_15",
+      "width": 133,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 482,
+        "y": 206,
+        "w": 135,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_16.png",
+      "id": "spr_agzwldk_weqi",
+      "name": "transparent tiles.png_auto_16",
+      "width": 133,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 933,
+        "y": 206,
+        "w": 135,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_17.png",
+      "id": "spr_c3hpqhb_weql",
+      "name": "transparent tiles.png_auto_17",
+      "width": 132,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 32,
+        "y": 357,
+        "w": 134,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_18.png",
+      "id": "spr_fi0xj2q_weqp",
+      "name": "transparent tiles.png_auto_18",
+      "width": 130,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 183,
+        "y": 357,
+        "w": 132,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 130,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_19.png",
+      "id": "spr_jddvgtk_wequ",
+      "name": "transparent tiles.png_auto_19",
+      "width": 132,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 332,
+        "y": 357,
+        "w": 134,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_20.png",
+      "id": "spr_varvtfw_weqx",
+      "name": "transparent tiles.png_auto_20",
+      "width": 134,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 633,
+        "y": 357,
+        "w": 136,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 134,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_21.png",
+      "id": "spr_oizctky_wer1",
+      "name": "transparent tiles.png_auto_21",
+      "width": 132,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 784,
+        "y": 357,
+        "w": 134,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_22.png",
+      "id": "spr_1cgtlo5_wer4",
+      "name": "transparent tiles.png_auto_22",
+      "width": 132,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 933,
+        "y": 357,
+        "w": 134,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_23.png",
+      "id": "spr_l2zhid2_wer8",
+      "name": "transparent tiles.png_auto_23",
+      "width": 133,
+      "height": 135,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 1084,
+        "y": 357,
+        "w": 135,
+        "h": 137
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 135
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_24.png",
+      "id": "spr_mn11myx_werb",
+      "name": "transparent tiles.png_auto_24",
+      "width": 133,
+      "height": 134,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 482,
+        "y": 358,
+        "w": 135,
+        "h": 136
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 134
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_25.png",
+      "id": "spr_nlrez6z_werf",
+      "name": "transparent tiles.png_auto_25",
+      "width": 132,
+      "height": 132,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 32,
+        "y": 509,
+        "w": 134,
+        "h": 134
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 132
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_26.png",
+      "id": "spr_legc8in_werl",
+      "name": "transparent tiles.png_auto_26",
+      "width": 132,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 182,
+        "y": 510,
+        "w": 134,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_27.png",
+      "id": "spr_ps6oa1p_wero",
+      "name": "transparent tiles.png_auto_27",
+      "width": 131,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 332,
+        "y": 510,
+        "w": 133,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_28.png",
+      "id": "spr_uk0durz_wers",
+      "name": "transparent tiles.png_auto_28",
+      "width": 131,
+      "height": 130,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 483,
+        "y": 510,
+        "w": 133,
+        "h": 132
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 130
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_29.png",
+      "id": "spr_02s8pb5_werv",
+      "name": "transparent tiles.png_auto_29",
+      "width": 133,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 634,
+        "y": 510,
+        "w": 135,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_30.png",
+      "id": "spr_gtsuh7g_werz",
+      "name": "transparent tiles.png_auto_30",
+      "width": 131,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 784,
+        "y": 510,
+        "w": 133,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_31.png",
+      "id": "spr_dnpuevo_wes7",
+      "name": "transparent tiles.png_auto_31",
+      "width": 132,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 933,
+        "y": 510,
+        "w": 134,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_32.png",
+      "id": "spr_3vl64qg_wese",
+      "name": "transparent tiles.png_auto_32",
+      "width": 133,
+      "height": 129,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 1084,
+        "y": 511,
+        "w": 135,
+        "h": 131
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 133,
+        "h": 129
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_33.png",
+      "id": "spr_0gz3m05_wesk",
+      "name": "transparent tiles.png_auto_33",
+      "width": 130,
+      "height": 132,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 33,
+        "y": 659,
+        "w": 132,
+        "h": 134
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 130,
+        "h": 132
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_34.png",
+      "id": "spr_h1b0bdj_wesq",
+      "name": "transparent tiles.png_auto_34",
+      "width": 130,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 183,
+        "y": 659,
+        "w": 132,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 130,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_35.png",
+      "id": "spr_kr5nq3n_wesv",
+      "name": "transparent tiles.png_auto_35",
+      "width": 131,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 332,
+        "y": 659,
+        "w": 133,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_36.png",
+      "id": "spr_8gznghs_wet2",
+      "name": "transparent tiles.png_auto_36",
+      "width": 132,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 482,
+        "y": 659,
+        "w": 134,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_37.png",
+      "id": "spr_kvj9tgu_wet5",
+      "name": "transparent tiles.png_auto_37",
+      "width": 134,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 633,
+        "y": 659,
+        "w": 136,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 134,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_38.png",
+      "id": "spr_5cebz1q_wet9",
+      "name": "transparent tiles.png_auto_38",
+      "width": 130,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 784,
+        "y": 659,
+        "w": 132,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 130,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_39.png",
+      "id": "spr_gjwpj29_wetc",
+      "name": "transparent tiles.png_auto_39",
+      "width": 132,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 933,
+        "y": 659,
+        "w": 134,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_40.png",
+      "id": "spr_0ojw6my_wetg",
+      "name": "transparent tiles.png_auto_40",
+      "width": 134,
+      "height": 133,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 1083,
+        "y": 659,
+        "w": 136,
+        "h": 135
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 134,
+        "h": 133
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_41.png",
+      "id": "spr_6t9yf7k_wetj",
+      "name": "transparent tiles.png_auto_41",
+      "width": 131,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 32,
+        "y": 810,
+        "w": 133,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_42.png",
+      "id": "spr_p0bkhb4_wetn",
+      "name": "transparent tiles.png_auto_42",
+      "width": 130,
+      "height": 130,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 183,
+        "y": 810,
+        "w": 132,
+        "h": 132
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 130,
+        "h": 130
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_43.png",
+      "id": "spr_0lf8gb1_wetq",
+      "name": "transparent tiles.png_auto_43",
+      "width": 132,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 482,
+        "y": 810,
+        "w": 134,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_44.png",
+      "id": "spr_1kqef8a_wetu",
+      "name": "transparent tiles.png_auto_44",
+      "width": 132,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 634,
+        "y": 810,
+        "w": 134,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_45.png",
+      "id": "spr_7ycjade_wetx",
+      "name": "transparent tiles.png_auto_45",
+      "width": 131,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 784,
+        "y": 810,
+        "w": 133,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_46.png",
+      "id": "spr_n2xzqpp_weu1",
+      "name": "transparent tiles.png_auto_46",
+      "width": 132,
+      "height": 131,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 1084,
+        "y": 810,
+        "w": 134,
+        "h": 133
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 131
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_47.png",
+      "id": "spr_sqb2yzp_weu4",
+      "name": "transparent tiles.png_auto_47",
+      "width": 131,
+      "height": 129,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 332,
+        "y": 811,
+        "w": 133,
+        "h": 131
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 129
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_48.png",
+      "id": "spr_qore4zy_weu7",
+      "name": "transparent tiles.png_auto_48",
+      "width": 131,
+      "height": 130,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 934,
+        "y": 811,
+        "w": 133,
+        "h": 132
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 130
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_49.png",
+      "id": "spr_z8rmcsi_weub",
+      "name": "transparent tiles.png_auto_49",
+      "width": 131,
+      "height": 127,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 33,
+        "y": 961,
+        "w": 133,
+        "h": 129
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 127
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_50.png",
+      "id": "spr_f2aia8x_weui",
+      "name": "transparent tiles.png_auto_50",
+      "width": 131,
+      "height": 127,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 182,
+        "y": 961,
+        "w": 133,
+        "h": 129
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 127
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_51.png",
+      "id": "spr_r5ir0wc_weuo",
+      "name": "transparent tiles.png_auto_51",
+      "width": 131,
+      "height": 127,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 332,
+        "y": 961,
+        "w": 133,
+        "h": 129
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 127
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_52.png",
+      "id": "spr_bve1rqp_weut",
+      "name": "transparent tiles.png_auto_52",
+      "width": 132,
+      "height": 127,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 482,
+        "y": 961,
+        "w": 134,
+        "h": 129
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 127
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_53.png",
+      "id": "spr_aog8kk3_weuy",
+      "name": "transparent tiles.png_auto_53",
+      "width": 132,
+      "height": 128,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 1084,
+        "y": 961,
+        "w": 134,
+        "h": 130
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 128
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_54.png",
+      "id": "spr_wtvmepv_wev1",
+      "name": "transparent tiles.png_auto_54",
+      "width": 134,
+      "height": 126,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 633,
+        "y": 962,
+        "w": 136,
+        "h": 128
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 134,
+        "h": 126
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_55.png",
+      "id": "spr_nmpp88w_wev5",
+      "name": "transparent tiles.png_auto_55",
+      "width": 130,
+      "height": 126,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 784,
+        "y": 962,
+        "w": 132,
+        "h": 128
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 130,
+        "h": 126
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_56.png",
+      "id": "spr_vhm7g1e_wev8",
+      "name": "transparent tiles.png_auto_56",
+      "width": 132,
+      "height": 126,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 933,
+        "y": 962,
+        "w": 134,
+        "h": 128
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 126
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_57.png",
+      "id": "spr_dvp4xq7_wevc",
+      "name": "transparent tiles.png_auto_57",
+      "width": 131,
+      "height": 121,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 32,
+        "y": 1106,
+        "w": 133,
+        "h": 123
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 121
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_58.png",
+      "id": "spr_hpgfdgl_wevf",
+      "name": "transparent tiles.png_auto_58",
+      "width": 131,
+      "height": 121,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 182,
+        "y": 1106,
+        "w": 133,
+        "h": 123
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 121
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_59.png",
+      "id": "spr_jcleqjw_wevi",
+      "name": "transparent tiles.png_auto_59",
+      "width": 131,
+      "height": 121,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 332,
+        "y": 1106,
+        "w": 133,
+        "h": 123
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 121
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_60.png",
+      "id": "spr_07na5mb_wevm",
+      "name": "transparent tiles.png_auto_60",
+      "width": 132,
+      "height": 121,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 482,
+        "y": 1106,
+        "w": 134,
+        "h": 123
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 121
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_61.png",
+      "id": "spr_xwj3mbw_wevp",
+      "name": "transparent tiles.png_auto_61",
+      "width": 132,
+      "height": 121,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 634,
+        "y": 1106,
+        "w": 134,
+        "h": 123
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 121
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_62.png",
+      "id": "spr_a8o93wl_wevt",
+      "name": "transparent tiles.png_auto_62",
+      "width": 130,
+      "height": 121,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 784,
+        "y": 1106,
+        "w": 132,
+        "h": 123
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 130,
+        "h": 121
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_63.png",
+      "id": "spr_s4iqmtc_wew1",
+      "name": "transparent tiles.png_auto_63",
+      "width": 131,
+      "height": 120,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 934,
+        "y": 1107,
+        "w": 133,
+        "h": 122
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 131,
+        "h": 120
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    },
+    {
+      "file": "transparent tiles/transparent tiles.png_auto_64.png",
+      "id": "spr_ir3avin_wew6",
+      "name": "transparent tiles.png_auto_64",
+      "width": 132,
+      "height": 120,
+      "sourceImageId": "img_y80xu91_w6fy",
+      "sourceImageName": "transparent tiles.png",
+      "original": {
+        "x": 1084,
+        "y": 1107,
+        "w": 134,
+        "h": 122
+      },
+      "trim": {
+        "x": 1,
+        "y": 1,
+        "w": 132,
+        "h": 120
+      },
+      "pivotX": 0.5,
+      "pivotY": 0.5
+    }
+  ]
+}
