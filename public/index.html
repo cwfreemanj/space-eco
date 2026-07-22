@@ -2747,7 +2747,16 @@ function cosmeticProjectileSize(base=2.8){return base+(Number(activeCosmeticDef(
 
 function cosmeticAccent(slot,source=equippedCosmetics,fb="#ff7744"){return safeColor(activeCosmeticDef(slot,source)?.accent||fb,fb);}
 const cosmeticSpriteCache=new Map();
+let spriteAssetRenderingPausedUntil=0;
 function getCosmeticSprite(path){path=String(path||"");if(!path)return null;let img=cosmeticSpriteCache.get(path);if(!img){img=new Image();img.decoding="async";img.src=path;cosmeticSpriteCache.set(path,img);}return img;}
+function drawSpriteImageFit(path,x,y,w,h){
+  if(Date.now()<spriteAssetRenderingPausedUntil)return false;
+  path=String(path||"");x=Number(x);y=Number(y);w=Number(w);h=Number(h);
+  if(!path||![x,y,w,h].every(Number.isFinite)||w<=0||h<=0)return false;
+  const img=getCosmeticSprite(path);
+  if(!img||!img.complete||!img.naturalWidth||!img.naturalHeight)return false;
+  try{ctx.drawImage(img,x,y,w,h);return true;}catch(error){console.warn("Sprite draw skipped:",path,error);spriteAssetRenderingPausedUntil=Date.now()+800;return false;}
+}
 function drawCosmeticSprite(def){if(!def?.spritePath)return false;const img=getCosmeticSprite(def.spritePath);if(!img||!img.complete||!img.naturalWidth)return false;const scale=Math.max(0.08,Number(def.spriteScale)||0.2),w=img.naturalWidth*scale,h=img.naturalHeight*scale;ctx.save();ctx.rotate(Math.PI/2);ctx.shadowColor=def.slot==="enemy"?"rgba(255,60,60,.55)":"rgba(90,220,255,.42)";ctx.shadowBlur=5;ctx.drawImage(img,-w/2,-h/2,w,h);ctx.restore();return true;}
 const RESOURCE_TILE_ART={
   grass_tuft:"assets/resource_tiles/transparent tiles.png_auto_1.png",
@@ -2880,7 +2889,7 @@ function drawEnemyShipBody(color="#ff3344",accent="#ffcc44",shape="raider",cosDe
 }
 function drawStationDesign(cx,cy,size,tier="standard",destroyed=false,baseColor="#66ccaa",strokeColor="#ffffff55",cosOverride=null){
   const d=cosOverride||worldCosmeticDef("station"),shape=d?.shape||tier,color=destroyed?"#3a1c1c":safeColor(d?.color||baseColor,baseColor),accent=destroyed?"#ff4422":safeColor(d?.accent||strokeColor,strokeColor);
-  if(d?.spritePath){const scale=Math.max(.55,Number(d.spriteScale)||1),wh=size*4*scale;ctx.save();ctx.globalAlpha=destroyed?.65:1;ctx.shadowColor=destroyed?"#ff5544":color;ctx.shadowBlur=destroyed?4:7;drawSpriteImageFit(d.spritePath,cx-wh/2,cy-wh/2,wh,wh);ctx.restore();return;}
+  if(d?.spritePath){const scale=Math.max(.55,Number(d.spriteScale)||1),wh=size*4*scale;ctx.save();ctx.globalAlpha=destroyed?.65:1;ctx.shadowColor=destroyed?"#ff5544":color;ctx.shadowBlur=destroyed?4:7;const drewSprite=drawSpriteImageFit(d.spritePath,cx-wh/2,cy-wh/2,wh,wh);ctx.restore();if(drewSprite)return;}
   ctx.fillStyle=color;ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.beginPath();
   if(shape==="ring"){ctx.arc(cx,cy,size,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.arc(cx,cy,size*1.55,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(cx-size*1.9,cy);ctx.lineTo(cx+size*1.9,cy);ctx.stroke();}
   else if(shape==="crystal"){for(let k=0;k<6;k++){const a=k*Math.PI/3-Math.PI/2,r=k%2?size*.72:size*1.25;k?ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle=accent;ctx.globalAlpha=.45;ctx.fillRect(cx-3,cy-size*.8,6,size*1.6);ctx.globalAlpha=1;}
@@ -2892,9 +2901,18 @@ function drawStationDesign(cx,cy,size,tier="standard",destroyed=false,baseColor=
   else{for(let k=0;k<10;k++){const a=k*Math.PI/5-Math.PI/2,r2=k%2===0?size:size*.5;k?ctx.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2):ctx.moveTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2);}ctx.closePath();ctx.fill();ctx.stroke();}
 }
 function drawPlanetVisual(p,px,py){
-  const d=planetCosmeticDefForPlanet(p),baseR=clamp((p.radius||32)/2,18,68);if(!d){ctx.save();ctx.shadowColor=p.pal?.a||"#7be6ff";ctx.shadowBlur=9;ctx.drawImage(p.preview,px-baseR,py-baseR,baseR*2,baseR*2);ctx.restore();return;}
-  const color=safeColor(d.color||p.pal?.a||"#7be6ff"),accent=safeColor(d.accent||p.pal?.b||"#fff"),r=clamp((p.radius||32)/2,22,72);
-  if(d.spritePath){const wh=r*2*Math.max(.7,Number(d.spriteScale)||1.1);ctx.save();ctx.shadowColor=color;ctx.shadowBlur=10;drawSpriteImageFit(d.spritePath,px-wh/2,py-wh/2,wh,wh);ctx.restore();return;}
+  if(!p||!Number.isFinite(Number(px))||!Number.isFinite(Number(py)))return;
+  const d=planetCosmeticDefForPlanet(p),baseR=clamp((Number(p.radius)||32)/2,18,68),palA=safeColor(p.pal?.a||"#7be6ff","#7be6ff"),palB=safeColor(p.pal?.b||"#315b86","#315b86");
+  if(!d){
+    let drewPreview=false;
+    if(p.preview&&typeof p.preview==="object"){
+      try{ctx.save();ctx.shadowColor=palA;ctx.shadowBlur=9;ctx.drawImage(p.preview,px-baseR,py-baseR,baseR*2,baseR*2);ctx.restore();drewPreview=true;}catch(_){try{ctx.restore();}catch(__){}}
+    }
+    if(!drewPreview){ctx.save();ctx.translate(px,py);ctx.shadowColor=palA;ctx.shadowBlur=8;ctx.fillStyle=palA;ctx.beginPath();ctx.arc(0,0,baseR,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=palB;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,-baseR*.18,baseR*.78,baseR*.22,0,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.ellipse(0,baseR*.28,baseR*.86,baseR*.2,0,0,Math.PI*2);ctx.stroke();ctx.restore();}
+    return;
+  }
+  const color=safeColor(d.color||palA,palA),accent=safeColor(d.accent||palB,palB),r=clamp((Number(p.radius)||32)/2,22,72);
+  if(d.spritePath){const wh=r*2*Math.max(.7,Number(d.spriteScale)||1.1);ctx.save();ctx.shadowColor=color;ctx.shadowBlur=10;const drewSprite=drawSpriteImageFit(d.spritePath,px-wh/2,py-wh/2,wh,wh);ctx.restore();if(drewSprite)return;}
   ctx.save();ctx.translate(px,py);ctx.shadowColor=color;ctx.shadowBlur=10;ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=accent;ctx.lineWidth=2;
   if(d.shape==="crystal"){for(let k=0;k<7;k++){ctx.beginPath();ctx.moveTo(0,0);const a=k*Math.PI*2/7;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);ctx.stroke();}ctx.strokeRect(-r*.55,-r*.55,r*1.1,r*1.1);}else if(d.shape==="lava"){for(let k=-1;k<=1;k++){ctx.beginPath();ctx.moveTo(-r*.75,k*r*.28);ctx.bezierCurveTo(-r*.2,k*r*.45,r*.1,k*r*.05,r*.75,k*r*.3);ctx.stroke();}}else if(d.shape==="void"){ctx.beginPath();ctx.ellipse(0,0,r*1.45,r*.38,0,0,Math.PI*2);ctx.stroke();}else{ctx.beginPath();ctx.ellipse(0,-r*.22,r*.8,r*.22,0,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.ellipse(0,r*.25,r*.9,r*.25,0,0,Math.PI*2);ctx.stroke();}ctx.restore();
 }
@@ -3028,7 +3046,7 @@ let gameOverStartedAt=0,lastRespawnRequestAt=0;
 let questLogScroll=0,badgeLogScroll=0;
 const QUEST_LOG_VISIBLE_ROWS=6,BADGE_LOG_VISIBLE_ROWS=7;
 let shopTab="sell",shopSelectedSlot=null,shopSellQty=1,shopBuyItem=null,shopBuyQty=1,pendingShopBuy=null;
-let selectedSlot=null,nearStation=null,buildSlotIndex=null,planetLoading=false,oxygenDamageTimer=0;
+let selectedSlot=null,nearStation=null,buildSlotIndex=null,planetLoading=false,planetLoadStartedAt=0,planetLoadLastRequestAt=0,planetLoadAttempts=0,planetLoadFallbackUsed=false,oxygenDamageTimer=0;
 let oxygenAutoUsePending=false,oxygenAutoUseCooldown=0,oxygenNoTankFlashTimer=0,oxygenNoTankWarnCooldown=0;
 function localOxygenTankCount(){
   ensureClientInventorySlots();
@@ -5915,11 +5933,17 @@ socket.on("oxygenTankUsed",({credits,maxSlots,invSlots}={})=>{
 });
 socket.on("serverPong",()=>{}); // ping handled server-side
 
-socket.on("planetMapState",({planetId,W,H,tiles,hp,heights})=>{
-  if(!activePlanet||activePlanet.id!==planetId)return;
-  planetMap={W,H,tiles:Uint8Array.from(tiles||[]),hp:Uint8Array.from(hp||[]),heights:heights||[],planet:activePlanet};mineCooldown=0;lastMiningTargetKey="";resetMiningRequestState();
-  enterPlanetWithLoadedMap();
+socket.on("planetMapState",({planetId,W,H,tiles,hp,heights,error}={})=>{
+  if(error){console.warn("Planet map server warning:",error);return;}
+  if(!activePlanet||String(activePlanet.id)!==String(planetId))return;
+  W=Math.floor(Number(W));H=Math.floor(Number(H));const expected=W*H;
+  if(!Number.isFinite(W)||!Number.isFinite(H)||W<16||H<16||!Array.isArray(tiles)||tiles.length<expected){console.warn("Ignored incomplete planet map",{planetId,W,H,tileCount:tiles?.length});return;}
+  const incomingHp=new Uint8Array(expected),hpSource=Array.isArray(hp)?hp:[];incomingHp.set(Uint8Array.from(hpSource.slice(0,expected)));
+  const incomingMap={W,H,tiles:Uint8Array.from(tiles.slice(0,expected)),hp:incomingHp,heights:Array.isArray(heights)?heights:[],planet:activePlanet};
+  if(mode===MODE.PLANET&&planetMap&&!planetLoading){planetMap=incomingMap;mineCooldown=0;lastMiningTargetKey="";resetMiningRequestState();return;}
+  planetMap=incomingMap;mineCooldown=0;lastMiningTargetKey="";resetMiningRequestState();enterPlanetWithLoadedMap();
 });
+socket.on("planetMapError",({planetId,reason}={})=>{if(activePlanet&&String(activePlanet.id)===String(planetId)){console.warn("Planet map request failed:",reason);if(planetLoading&&performance.now()-planetLoadStartedAt>1800)useLocalPlanetMapFallback();}});
 socket.on("planetTileUpdate",({planetId,tx,ty,tile,hp})=>{
   if(!activePlanet||activePlanet.id!==planetId||!planetMap)return;
   resetMiningRequestState();setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
@@ -6438,7 +6462,7 @@ function placeLandedShipNear(col){
 }
 function enterPlanetWithLoadedMap(){
   if(!activePlanet||!planetMap)return;
-  mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;oxygenAutoUsePending=false;oxygenAutoUseCooldown=0;oxygenNoTankFlashTimer=0;oxygenNoTankWarnCooldown=0;planetPlayers.clear();
+  mode=MODE.PLANET;planetLoading=false;planetLoadStartedAt=0;planetLoadLastRequestAt=0;planetLoadAttempts=0;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;oxygenAutoUsePending=false;oxygenAutoUseCooldown=0;oxygenNoTankFlashTimer=0;oxygenNoTankWarnCooldown=0;planetPlayers.clear();
   const col=findLandingColumn(), surfaceY=surfaceYAtColumn(col);
   astronaut.x=col*16+8;astronaut.y=surfaceY*16-10;astronaut.vx=0;astronaut.vy=0;astronaut.onGround=false;
   placeLandedShipNear(col);
@@ -6495,6 +6519,27 @@ function genAsteroidMap(field){
   return {W,H,tiles,hp,heights,planet};
 }
 
+function activePlanetMapPayload(){if(!activePlanet)return null;return{id:String(activePlanet.id||"planet"),seed:String(activePlanet.seed||activePlanet.id||GALAXY_SEED),type:String(activePlanet.type||"lush"),isAsteroid:!!activePlanet.isAsteroid,resList:Array.isArray(activePlanet.resList)?activePlanet.resList.slice(0,12):[],x:Number(activePlanet.x)||0,y:Number(activePlanet.y)||0,radius:Number(activePlanet.radius)||60};}
+function requestActivePlanetMap(reason="landing"){
+  const payload=activePlanetMapPayload();if(!payload||!socket?.connected)return false;
+  const now=performance.now();planetLoadLastRequestAt=now;planetLoadAttempts++;socket.emit("requestPlanetMap",{planet:payload,requestId:`${payload.id}:${Math.floor(now)}`,reason});return true;
+}
+function cancelPlanetLoading(reason="cancelled"){
+  planetLoading=false;planetLoadStartedAt=0;planetLoadLastRequestAt=0;planetLoadAttempts=0;planetLoadFallbackUsed=false;
+  if(reason&&activePlanet)showFT(reason,ship.x,ship.y-20,"#ffcc44",9);
+}
+function useLocalPlanetMapFallback(){
+  if(!activePlanet||planetMap)return false;
+  try{planetMap=activePlanet.isAsteroid||activePlanet.type==="asteroid"?genAsteroidMap(activePlanet):genPlanetMap(activePlanet);planetLoadFallbackUsed=true;mineCooldown=0;lastMiningTargetKey="";resetMiningRequestState();enterPlanetWithLoadedMap();addChat("Landing","Planet map loaded through local recovery while the server catches up.","#ffcc44");requestActivePlanetMap("late_server_sync");return true;}catch(error){console.error("Local planet-map recovery failed:",error);return false;}
+}
+function updatePlanetLoadingRecovery(now=performance.now()){
+  if(!planetLoading)return;
+  if(!activePlanet){cancelPlanetLoading("");return;}
+  if(!planetLoadStartedAt)planetLoadStartedAt=now;
+  const age=now-planetLoadStartedAt,sinceRequest=now-planetLoadLastRequestAt;
+  if(age>1200&&planetLoadAttempts<3&&sinceRequest>900){requestActivePlanetMap("retry");showFT(`Loading planet map… retry ${planetLoadAttempts}`,ship.x,ship.y-20,"#7be6ff",9);}
+  if(age>4200&&!planetLoadFallbackUsed){if(!useLocalPlanetMapFallback()&&age>7000){cancelPlanetLoading("Planet landing reset — press L to retry");activePlanet=null;planetMap=null;}}
+}
 function landOnNearestPlanet(){
   if(planetLoading){showFT("Landing sequence already started...",ship.x,ship.y-18,"#7be6ff",9);return;}
   const nearestRuin=eventShipRuins.filter(r=>!r.expireAt||Date.now()<r.expireAt).map(r=>({r,d:dist(ship.x,ship.y,r.x,r.y)})).sort((a,b)=>a.d-b.d)[0];
@@ -6508,13 +6553,13 @@ function landOnNearestPlanet(){
   }
   const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];
   if(!nearest||nearest.d>=nearest.p.radius+60)return;
-  activePlanet=nearest.p;planetLoading=true;
-  socket.emit("requestPlanetMap",{planet:{id:activePlanet.id,seed:activePlanet.seed,type:activePlanet.type,resList:activePlanet.resList,x:activePlanet.x,y:activePlanet.y,radius:activePlanet.radius}});
+  activePlanet=nearest.p;planetMap=null;planetLoading=true;planetLoadStartedAt=performance.now();planetLoadLastRequestAt=0;planetLoadAttempts=0;planetLoadFallbackUsed=false;
+  requestActivePlanetMap("landing");
   showFT("Loading planet map...",ship.x,ship.y-18,"#7be6ff",10);
 }
 function leavePlanet(){
   if(activePlanet){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;}ship.vx*=0.2;ship.vy*=0.2;
-  mode=MODE.SPACE;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;
+  mode=MODE.SPACE;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;planetLoading=false;planetLoadStartedAt=0;planetLoadLastRequestAt=0;planetLoadAttempts=0;planetLoadFallbackUsed=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;
   socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});
   updateChunks();
   showFT("Takeoff!",ship.x,ship.y-20,"#7be6ff",11);
@@ -7647,6 +7692,9 @@ function drawGameOver(){
 
 
 let lastGoodShipFrame={x:0,y:0,vx:0,vy:0,angle:0},lastFrameRecoveryMessage="",lastFrameRecoveryAt=0;
+const lastStableWorldFrame=document.createElement("canvas"),lastStableWorldFrameCtx=lastStableWorldFrame.getContext("2d");let hasStableWorldFrame=false;
+function captureStableWorldFrame(){try{if(lastStableWorldFrame.width!==canvas.width||lastStableWorldFrame.height!==canvas.height){lastStableWorldFrame.width=canvas.width;lastStableWorldFrame.height=canvas.height;}lastStableWorldFrameCtx.setTransform(1,0,0,1,0,0);lastStableWorldFrameCtx.clearRect(0,0,lastStableWorldFrame.width,lastStableWorldFrame.height);lastStableWorldFrameCtx.drawImage(canvas,0,0);hasStableWorldFrame=true;}catch(_){}}
+function restoreStableWorldFrame(){if(!hasStableWorldFrame)return false;try{ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.drawImage(lastStableWorldFrame,0,0,canvas.width,canvas.height);return true;}catch(_){return false;}}
 function finiteOr(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
 function normalizeStationForRender(st){
   if(!st||!Number.isFinite(Number(st.x))||!Number.isFinite(Number(st.y)))return null;
@@ -7671,7 +7719,10 @@ function drawEmergencySpaceFrame(error){
   ctx.fillStyle="rgba(40,10,10,.82)";ctx.fillRect(8,canvas.height-31,Math.min(canvas.width-16,520),23);ctx.fillStyle="#ffb0a0";ctx.font="9px monospace";ctx.fillText("World renderer recovered automatically — refreshing nearby objects…",15,canvas.height-16);
 }
 function handleFrameRuntimeError(error){
-  sanitizeWorldRenderState();chunkTimer=0;const msg=String(error?.message||error||"Unknown frame error");const now=Date.now();if(msg!==lastFrameRecoveryMessage||now-lastFrameRecoveryAt>5000){lastFrameRecoveryMessage=msg;lastFrameRecoveryAt=now;console.error("Space Eco frame recovered:",error);}try{updateChunks();sanitizeWorldRenderState();drawSpace();}catch(second){drawEmergencySpaceFrame(second);}
+  sanitizeWorldRenderState();spriteAssetRenderingPausedUntil=Date.now()+1200;const msg=String(error?.message||error||"Unknown frame error"),now=Date.now();
+  if(msg!==lastFrameRecoveryMessage||now-lastFrameRecoveryAt>5000){lastFrameRecoveryMessage=msg;lastFrameRecoveryAt=now;console.error("Space Eco frame recovered without replacing the live world:",error);}
+  try{if(mode===MODE.PLANET&&planetMap)drawPlanet();else drawSpace();if(galaxyMapIsOpen())drawGalaxyMapOverlay();captureStableWorldFrame();return;}catch(second){console.warn("Secondary frame recovery:",second);}
+  if(!restoreStableWorldFrame())drawEmergencySpaceFrame(error);
 }
 
 /* ══════════════════════════════════════
@@ -7682,11 +7733,11 @@ function tick(now){
   if(!joined){requestAnimationFrame(tick);return;}
   try{
     resizeGameCanvasToDisplay();syncMobileTouchUI();syncDesktopPanelState();
-    const dt=Math.min(0.033,Math.max(0,(now-last)/1000));last=now;sanitizeWorldRenderState();updatePersistentStats(dt);sendInput();
+    const dt=Math.min(0.033,Math.max(0,(now-last)/1000));last=now;sanitizeWorldRenderState();updatePersistentStats(dt);updatePlanetLoadingRecovery(now);sendInput();
     if(gameOver){maintainRespawnFlow(now);drawSpace();}
     else if(mode===MODE.SPACE){if(!planetLoading&&(activePlanet||planetMap)){activeRuin=null;activePlanet=null;planetMap=null;}updateSpace(dt);sanitizeWorldRenderState();drawSpace();if(characterOpen)drawCharacterPanel();}
     else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;planetPlayers.clear();updateSpace(dt);sanitizeWorldRenderState();drawSpace();if(characterOpen)drawCharacterPanel();}else drawPlanet();}
-    if(galaxyMapIsOpen())drawGalaxyMapOverlay();
+    if(galaxyMapIsOpen())drawGalaxyMapOverlay();captureStableWorldFrame();
   }catch(error){handleFrameRuntimeError(error);}
   try{updateHud();}catch(error){console.warn("HUD recovery:",error);}
   requestAnimationFrame(tick);
