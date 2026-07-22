@@ -1682,7 +1682,7 @@ function canvasPanelOpen(){return !!(inventoryOpen||shopOpen||attrOpen||characte
 function domInputLocked(target=document.activeElement){return chatFocused||joinScreenOpen()||isTextControl(target)||blockingDomPanelOpen();}
 function gameplayInputLocked(target=document.activeElement){return domInputLocked(target)||canvasPanelOpen();}
 function clearMovementInput(){["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift"].forEach(k=>keys.delete(k));mouse.down=false;mouse.clicked=false;}
-function clearLiveInput(){keys.clear();mouse.down=false;mouse.clicked=false;}
+function clearLiveInput(){keys.clear();mouse.down=false;mouse.clicked=false;try{cancelMiningHold(true);}catch(_){}}
 function hidePanel(id){const el=document.getElementById(id);if(el)el.style.display="none";}
 function closeTopDomPanel(){
   if(isShown(document.getElementById("master-menu-panel"))){hidePanel("master-menu-panel");document.body.classList.remove("master-menu-open");return true;}
@@ -1756,7 +1756,7 @@ canvas.addEventListener("mousedown",e=>{
   if(e.button===0&&pointInsideMinimap(mx,my)){toggleGalaxyMap();mouse.down=false;mouse.clicked=false;e.preventDefault();e.stopPropagation();return;}
   if(mode===MODE.PLANET&&e.button===2){placeBuildTileAt(mx,my);e.preventDefault();return;}
   mouse.down=true;mouse.clicked=true;
-  if(mode===MODE.PLANET&&e.button===0&&planetTool==="mining"&&!activeRuin&&!canvasPanelOpen()){queueMiningClick(mx,my);mouse.clicked=false;doMining(0);}
+  if(mode===MODE.PLANET&&e.button===0&&planetTool==="mining"&&!activeRuin&&!canvasPanelOpen()){beginMiningHold(mx,my);mouse.clicked=false;e.preventDefault();}
   if(shipStatusOpen)handleShipStatusClick(mx,my);
   else if(characterOpen)handleCharacterClick(mx,my);
   else if(shopOpen)handleShopClick(mx,my);
@@ -1764,7 +1764,7 @@ canvas.addEventListener("mousedown",e=>{
   else if(attrOpen)handleAttrClick(mx,my);
   else if(gameOver)requestRespawn();
 });
-window.addEventListener("mouseup",()=>{mouse.down=false;endInventoryScrollDrag();});
+window.addEventListener("mouseup",()=>{if(miningHoldState&&!miningHoldState.completing&&miningHoldProgress()>=.98)doMining(0);mouse.down=false;cancelMiningHold(true);endInventoryScrollDrag();});
 canvas.addEventListener("wheel",e=>{
   if(domInputLocked(e.target)){clearLiveInput();return;}
   if(questLogOpen){
@@ -4691,44 +4691,70 @@ function spawnPlanetLootVisual({planetId,kind,x,y,qty=1,ownerId=null,serverGrant
   }
 }
 
-let mineCooldown=0,lastMiningTargetKey="",miningRequestPending=false,miningRequestSentAt=0,miningMapRefreshAt=0,miningClickQueue=null,miningBeamTarget=null,miningBeamLife=0,miningRequestSeq=0;const pendingMineTransactions=new Map();let activeMineRequestId=null;
+let mineCooldown=0,lastMiningTargetKey="",miningRequestPending=false,miningRequestSentAt=0,miningMapRefreshAt=0,miningClickQueue=null,miningBeamTarget=null,miningBeamLife=0,miningRequestSeq=0;const pendingMineTransactions=new Map();let activeMineRequestId=null,miningHoldState=null;
 function mineableTileAt(tx,ty){if(!planetMap||tx<0||ty<0||tx>=planetMap.W||ty>=planetMap.H-3)return 0;const t=tileAt(tx,ty);return t||0;}
 function findMineableTargetTile(wx,wy,maxRing=2){
-  if(!planetMap)return null;const TP=16,ox=astronaut.x,oy=astronaut.y-astronaut.h*.5,maxReach=132;
+  if(!planetMap)return null;const TP=16,ox=astronaut.x,oy=astronaut.y-astronaut.h*.5,maxReach=140;
   const directX=Math.floor(wx/TP),directY=Math.floor(wy/TP);
   const candidates=[],seen=new Set();
   const add=(tx,ty,bias=0)=>{const key=`${tx},${ty}`;if(seen.has(key))return;seen.add(key);const t=mineableTileAt(tx,ty);if(!t)return;const cx=tx*TP+8,cy=ty*TP+8,pd=dist(cx,cy,ox,oy);if(pd>maxReach)return;candidates.push({tx,ty,t,cx,cy,score:dist(cx,cy,wx,wy)+pd*.025+bias});};
-  add(directX,directY,-40);
-  for(let ring=1;ring<=maxRing;ring++)for(let yy=-ring;yy<=ring;yy++)for(let xx=-ring;xx<=ring;xx++){if(Math.max(Math.abs(xx),Math.abs(yy))!==ring)continue;add(directX+xx,directY+yy,ring*8);}
-  if(!candidates.length){const dx=wx-ox,dy=wy-oy,len=Math.hypot(dx,dy)||1,reach=Math.min(maxReach,len),steps=Math.ceil(reach/4);for(let i=1;i<=steps;i++){const px=ox+dx/len*(i*4),py=oy+dy/len*(i*4),tx=Math.floor(px/TP),ty=Math.floor(py/TP);add(tx,ty,-18);if(candidates.length)break;}}
+  add(directX,directY,-48);
+  for(let ring=1;ring<=maxRing;ring++)for(let yy=-ring;yy<=ring;yy++)for(let xx=-ring;xx<=ring;xx++){if(Math.max(Math.abs(xx),Math.abs(yy))!==ring)continue;add(directX+xx,directY+yy,ring*9);}
+  if(!candidates.length){const dx=wx-ox,dy=wy-oy,len=Math.hypot(dx,dy)||1,reach=Math.min(maxReach,len),steps=Math.ceil(reach/4);for(let i=1;i<=steps;i++){const px=ox+dx/len*(i*4),py=oy+dy/len*(i*4),tx=Math.floor(px/TP),ty=Math.floor(py/TP);add(tx,ty,-20);if(candidates.length)break;}}
   candidates.sort((a,b)=>a.score-b.score);return candidates[0]||null;
 }
-function restorePendingMineTransaction(requestId,reason=""){const tr=pendingMineTransactions.get(requestId);if(!tr)return false;pendingMineTransactions.delete(requestId);if(activeMineRequestId===requestId)activeMineRequestId=null;if(activePlanet&&String(activePlanet.id)===String(tr.planetId)&&planetMap&&tileAt(tr.tx,tr.ty)===0){setTile(tr.tx,tr.ty,tr.tile);setTileHP(tr.tx,tr.ty,tr.hp);}if(reason)showFT(reason,astronaut.x,astronaut.y-28,"#ffcc44",9);return true;}
-function confirmPendingMineTransaction(requestId){if(!requestId)return;pendingMineTransactions.delete(requestId);if(activeMineRequestId===requestId)activeMineRequestId=null;}
-function resetMiningRequestState({restore=false,reason=""}={}){if(restore&&activeMineRequestId)restorePendingMineTransaction(activeMineRequestId,reason);miningRequestPending=false;miningRequestSentAt=0;activeMineRequestId=null;}
-function queueMiningClick(screenX,screenY){
-  if(mode!==MODE.PLANET||planetTool!=="mining"||activeRuin||!planetMap||!activePlanet)return false;
-  miningClickQueue={screenX:Number(screenX)||0,screenY:Number(screenY)||0,queuedAt:performance.now()};
+function miningResourceForTarget(target){if(!target||!activePlanet||!planetMap)return"stone";return resForTile(activePlanet,target.t,target.ty,planetMap.H,target.tx)||"stone";}
+function miningHoldDurationMs(target){
+  const kind=miningResourceForTarget(target),rarity=Math.max(1,Number(RES[kind]?.rarity)||1),hp=Math.max(1,Number(tileHP(target.tx,target.ty))||1),level=Math.max(1,Number(character.miningLevel)||1);
+  const raw=700+rarity*140+Math.min(650,hp*4),speed=1+(level-1)*.08;
+  return clamp(Math.round(raw/speed),650,2400);
+}
+function miningHoldProgress(){if(!miningHoldState)return 0;return clamp((performance.now()-miningHoldState.startedAt)/Math.max(1,miningHoldState.requiredMs),0,1);}
+function clearMiningHold({silent=true,notifyServer=false,reason=""}={}){
+  const state=miningHoldState;
+  if(state&&notifyServer&&state.serverReady&&!state.completing&&socket?.connected)socket.emit("minePlanetTile",{phase:"cancel",planetId:state.planetId,tx:state.target.tx,ty:state.target.ty,requestId:state.requestId});
+  miningHoldState=null;miningClickQueue=null;miningRequestPending=false;miningRequestSentAt=0;activeMineRequestId=null;lastMiningTargetKey="";miningBeamLife=0;miningBeamTarget=null;
+  if(!silent&&reason)showFT(reason,astronaut.x,astronaut.y-28,"#ffcc44",9);
+}
+function resetMiningRequestState({restore=false,reason=""}={}){clearMiningHold({silent:!reason,notifyServer:false,reason});}
+function restorePendingMineTransaction(){return false;}
+function confirmPendingMineTransaction(requestId){if(miningHoldState&&(!requestId||miningHoldState.requestId===requestId))clearMiningHold({silent:true});}
+function beginMiningHold(screenX,screenY){
+  if(mode!==MODE.PLANET||planetTool!=="mining"||activeRuin||!planetMap||!activePlanet||canvasPanelOpen()||blockingDomPanelOpen())return false;
+  if(miningHoldState){if(miningHoldState.completing)return false;clearMiningHold({silent:true,notifyServer:true});}
+  const cam=planetCamera(),wx=(Number(screenX)||0)+cam.x,wy=(Number(screenY)||0)+cam.y,target=findMineableTargetTile(wx,wy,2);
+  if(!target){showFT("No mineable tile in reach",astronaut.x,astronaut.y-26,"#ffcc44",9);return false;}
+  const now=performance.now(),requestId=`mine_hold_${++miningRequestSeq}_${Math.floor(now)}`,kind=miningResourceForTarget(target),requiredMs=miningHoldDurationMs(target);
+  miningHoldState={requestId,planetId:String(activePlanet.id),target:{...target},kind,startedAt:now,requiredMs,serverReady:false,completing:false,startSentAt:now,completeSentAt:0};
+  activeMineRequestId=requestId;miningRequestPending=true;miningRequestSentAt=now;lastMiningTargetKey=`${target.tx},${target.ty}`;miningBeamTarget={x:target.cx,y:target.cy,tx:target.tx,ty:target.ty};miningBeamLife=999;
+  socket.emit("minePlanetTile",{phase:"start",planetId:activePlanet.id,tx:target.tx,ty:target.ty,requestId,clientX:astronaut.x,clientY:astronaut.y},ack=>{
+    const state=miningHoldState;if(!state||state.requestId!==requestId)return;
+    if(!ack||ack.ok===false){clearMiningHold({silent:false,reason:ack?.reason||"Mining could not start"});return;}
+    state.serverReady=true;if(Number.isFinite(Number(ack.requiredMs)))state.requiredMs=clamp(Number(ack.requiredMs),550,2800);if(ack.kind)state.kind=String(ack.kind);
+  });
   return true;
 }
+function queueMiningClick(screenX,screenY){return beginMiningHold(screenX,screenY);}
+function cancelMiningHold(silent=true){if(!miningHoldState||miningHoldState.completing)return;clearMiningHold({silent,notifyServer:true,reason:silent?"":"Mining cancelled"});}
 function doMining(dt){
-  mineCooldown=Math.max(0,mineCooldown-dt);miningBeamLife=Math.max(0,miningBeamLife-dt);
-  if(!planetMap||!activePlanet||!miningClickQueue)return;
-  const now=performance.now();
-  if(miningRequestPending){
-    const age=now-miningRequestSentAt;if(age<1350)return;
-    resetMiningRequestState({restore:true,reason:"Mining request timed out — tile restored"});
-    if(now-miningMapRefreshAt>1800){miningMapRefreshAt=now;socket.emit("requestPlanetMap",{planet:activePlanet});}
+  mineCooldown=Math.max(0,mineCooldown-dt);if(!miningHoldState)return;
+  const state=miningHoldState,now=performance.now(),target=state.target;
+  miningBeamLife=999;miningBeamTarget={x:target.cx,y:target.cy,tx:target.tx,ty:target.ty};
+  if(mode!==MODE.PLANET||planetTool!=="mining"||!planetMap||!activePlanet||String(activePlanet.id)!==state.planetId){clearMiningHold({silent:true,notifyServer:true});return;}
+  if(!state.completing&&!mouse.down){cancelMiningHold(true);return;}
+  if(tileAt(target.tx,target.ty)!==target.t){clearMiningHold({silent:true});return;}
+  const px=astronaut.x,py=astronaut.y-astronaut.h*.5;if(dist(target.cx,target.cy,px,py)>150){clearMiningHold({silent:false,notifyServer:true,reason:"Moved out of mining range"});return;}
+  if(!state.serverReady&&now-state.startSentAt>1500){clearMiningHold({silent:false,reason:"Mining link timed out — try again"});if(now-miningMapRefreshAt>1800){miningMapRefreshAt=now;socket.emit("requestPlanetMap",{planet:activePlanet});}return;}
+  if(state.completing){if(now-state.completeSentAt>2600){clearMiningHold({silent:false,reason:"Mining confirmation timed out — try again"});socket.emit("requestPlanetMap",{planet:activePlanet});socket.emit("requestInventorySync");}return;}
+  if(state.serverReady&&miningHoldProgress()>=1){
+    state.completing=true;state.completeSentAt=now;miningRequestSentAt=now;
+    socket.emit("minePlanetTile",{phase:"complete",planetId:state.planetId,tx:target.tx,ty:target.ty,requestId:state.requestId,clientX:astronaut.x,clientY:astronaut.y},ack=>{
+      const current=miningHoldState;if(!current||current.requestId!==state.requestId)return;
+      if(!ack||ack.ok===false){clearMiningHold({silent:false,reason:ack?.reason||"Mining was rejected"});return;}
+      // Tile update/reward normally clears the state. This fallback prevents a lost event from locking mining.
+      setTimeout(()=>{if(miningHoldState?.requestId===state.requestId){clearMiningHold({silent:true});socket.emit("requestPlanetMap",{planet:activePlanet});socket.emit("requestInventorySync");}},900);
+    });
   }
-  if(mineCooldown>0)return;
-  const click=miningClickQueue;miningClickQueue=null;
-  const cam=planetCamera(),wx=click.screenX+cam.x,wy=click.screenY+cam.y,target=findMineableTargetTile(wx,wy,2);
-  if(!target){lastMiningTargetKey="";showFT("No mineable tile in reach",astronaut.x,astronaut.y-26,"#ffcc44",9);mineCooldown=.12;return;}
-  const requestId=`mine_${++miningRequestSeq}_${Math.floor(now)}`,originalTile=target.t,originalHp=Math.max(1,tileHP(target.tx,target.ty)||1);
-  lastMiningTargetKey=`${target.tx},${target.ty}`;miningBeamTarget={x:target.cx,y:target.cy,tx:target.tx,ty:target.ty};miningBeamLife=.32;mineCooldown=.12;miningRequestPending=true;miningRequestSentAt=now;activeMineRequestId=requestId;
-  pendingMineTransactions.set(requestId,{requestId,planetId:activePlanet.id,tx:target.tx,ty:target.ty,tile:originalTile,hp:originalHp,createdAt:now});
-  setTile(target.tx,target.ty,0);setTileHP(target.tx,target.ty,0);
-  socket.emit("minePlanetTile",{planetId:activePlanet.id,tx:target.tx,ty:target.ty,power:planetMiningPower(),oneClick:true,requestId,clientX:astronaut.x,clientY:astronaut.y},ack=>{if(!ack||ack.ok!==false)return;if(ack.requestId&&ack.requestId!==requestId)return;restorePendingMineTransaction(requestId,ack.reason||"Mining was rejected");resetMiningRequestState();});
 }
 function showResourcePickupPopup(kind,qty=1){const def=RES[kind],name=def?.name||String(kind||"Resource"),amount=Math.max(1,Math.floor(Number(qty)||1));showFT(`+${amount} ${name}`,astronaut.x,astronaut.y-32,def?.color||"#78ff8a",12);}
 
@@ -6020,7 +6046,9 @@ socket.on("planetMapState",({planetId,W,H,tiles,hp,heights,error}={})=>{
 socket.on("planetMapError",({planetId,reason}={})=>{if(activePlanet&&String(activePlanet.id)===String(planetId)){console.warn("Planet map request failed:",reason);if(planetLoading&&performance.now()-planetLoadStartedAt>1800)useLocalPlanetMapFallback();}});
 socket.on("planetTileUpdate",({planetId,requestId,tx,ty,tile,hp})=>{
   if(!activePlanet||String(activePlanet.id)!==String(planetId)||!planetMap)return;
-  if(requestId)confirmPendingMineTransaction(requestId);resetMiningRequestState();setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
+  const ownMiningUpdate=!!requestId&&!!miningHoldState&&miningHoldState.requestId===requestId;
+  setTile(tx,ty,tile||0);setTileHP(tx,ty,hp||0);
+  if(ownMiningUpdate)confirmPendingMineTransaction(requestId);
 });
 socket.on("planetMineReward",({planetId,requestId,kind,x,y,qty,invSlots,maxSlots,credits})=>{if(requestId)confirmPendingMineTransaction(requestId);resetMiningRequestState();noteCollectedResource(kind,qty,true);
   if(!activePlanet||String(activePlanet.id)!==String(planetId))return;
@@ -7516,7 +7544,7 @@ function updatePlanet(dt){
   if(!controlsLocked&&keys.has("x")){keys.delete("x");useOxygenTank();}
   if(!controlsLocked&&keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
   if(!controlsLocked&&!inventoryOpen&&!characterOpen&&planetTool==="weapon"&&mouse.down)planetWeaponAttack();
-  if(!activeRuin&&planetTool==="mining"&&!canvasPanelOpen()&&!blockingDomPanelOpen()){if(mouse.clicked)queueMiningClick(mouse.x,mouse.y);doMining(dt);}
+  if(!activeRuin&&planetTool==="mining"&&!canvasPanelOpen()&&!blockingDomPanelOpen())doMining(dt);
   mouse.clicked=false;
   if(activeRuin)updateRuinContents(dt);
   else updatePlanetNPCs(dt);
@@ -7582,14 +7610,14 @@ function drawPlanet(){
     ctx.globalAlpha=0.9;ctx.fillStyle="#ffffff";ctx.fillRect(dx-1,dy-4,1,1);
     ctx.restore();
   }
-  if(planetTool==="mining"&&miningBeamLife>0&&miningBeamTarget){const bx=miningBeamTarget.x-cam.x,by=miningBeamTarget.y-cam.y,beamCos=activeCosmeticDef("laser");ctx.strokeStyle=beamCos?.rainbow?`hsl(${Math.floor(((performance.now()/1000)%6)*60)},100%,70%)`:safeColor(beamCos?.color||"#ff4dff","#ff4dff");ctx.globalAlpha=Math.min(1,miningBeamLife/.18);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(bx,by);ctx.stroke();ctx.strokeStyle="#ffdd44";ctx.lineWidth=1;ctx.strokeRect(miningBeamTarget.tx*TP-cam.x+.5,miningBeamTarget.ty*TP-cam.y+.5,TP-1,TP-1);ctx.globalAlpha=1;}
+  if(planetTool==="mining"&&miningBeamTarget&&(miningHoldState||miningBeamLife>0)){const bx=miningBeamTarget.x-cam.x,by=miningBeamTarget.y-cam.y,beamCos=activeCosmeticDef("laser"),prog=miningHoldState?miningHoldProgress():0;ctx.strokeStyle=beamCos?.rainbow?`hsl(${Math.floor(((performance.now()/1000)%6)*60)},100%,70%)`:safeColor(beamCos?.color||"#ff4dff","#ff4dff");ctx.globalAlpha=miningHoldState?.serverReady===false?.55:1;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(bx,by);ctx.stroke();ctx.strokeStyle="#ffdd44";ctx.lineWidth=1;ctx.strokeRect(miningBeamTarget.tx*TP-cam.x+.5,miningBeamTarget.ty*TP-cam.y+.5,TP-1,TP-1);if(miningHoldState){const bw=46,bh=5,px=bx-bw/2,py=by-17;ctx.globalAlpha=.95;ctx.fillStyle="#07101b";ctx.fillRect(px,py,bw,bh);ctx.fillStyle=prog>=1?"#78ff8a":"#ffdd44";ctx.fillRect(px,py,bw*prog,bh);ctx.strokeStyle="#cfe2ff";ctx.strokeRect(px+.5,py+.5,bw-1,bh-1);ctx.fillStyle="#ffffff";ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(miningHoldState.completing?"COLLECTING":`${Math.round(prog*100)}%`,bx,py-3);ctx.textAlign="left";}ctx.globalAlpha=1;}
   const bp=buildableSlot();
   if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
   const ox=8,oy=24,ow=90,oh=7,op=clamp(oxygen.current/oxygen.max,0,1);ctx.fillStyle="#07101b";ctx.fillRect(ox,oy,ow,oh);ctx.fillStyle=op>0.5?"#7be6ff":op>0.25?"#ffcc44":"#ff5544";ctx.fillRect(ox,oy,ow*op,oh);ctx.strokeStyle="#2a4a7a";ctx.strokeRect(ox,oy,ow,oh);ctx.fillStyle="#cfe2ff";ctx.font="8px monospace";ctx.fillText(`O2 ${Math.ceil(op*100)}%`,ox,oy+17);
   const jp=clamp(jetpack.current/jetpack.max,0,1),jy=oy+24;ctx.fillStyle="#07101b";ctx.fillRect(ox,jy,ow,oh);ctx.fillStyle=jp>0.45?"#ffdd66":jp>0.18?"#ff9b42":"#ff5544";ctx.fillRect(ox,jy,ow*jp,oh);ctx.strokeStyle="#6a4a1a";ctx.strokeRect(ox,jy,ow,oh);ctx.fillStyle="#ffe2a0";ctx.font="8px monospace";ctx.fillText(`JET ${Math.ceil(jp*100)}%`,ox,jy+17);
   // Show planet coordinates
   ctx.fillStyle="#7be6ff";ctx.globalAlpha=0.7;ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(`${activeRuin?"Ruin":"Planet"}: (${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)})`,canvas.width/2,16);ctx.textAlign="left";
-  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(activeRuin?`Derelict: E:interact  Q:tool  I:inv  L:exit  W/Shift:jetpack  Click:shoot`:`Tool:${planetTool.toUpperCase()} | W/Shift:jetpack  Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"shoot":"mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
+  ctx.fillStyle="#cfe2ff";ctx.globalAlpha=0.75;ctx.font="9px monospace";ctx.fillText(activeRuin?`Derelict: E:interact  Q:tool  I:inv  L:exit  W/Shift:jetpack  Click:shoot`:`Tool:${planetTool.toUpperCase()} | W/Shift:jetpack  Q:switch  C:character  R:trade  I:inv  L:takeoff  X:O2  Click:${planetTool==="weapon"?"shoot":"hold to mine"}  Right-click:build`,6,canvas.height-8);ctx.globalAlpha=1;
   if(oxygenNoTankFlashTimer>0||(oxygen.current<=oxygen.max*0.12&&localOxygenTankCount()<=0)){
     const pulse=0.18+0.10*Math.abs(Math.sin(Date.now()/95));
     ctx.save();
