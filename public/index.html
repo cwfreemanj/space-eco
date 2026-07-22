@@ -1755,6 +1755,7 @@ canvas.addEventListener("mousedown",e=>{
   if(e.button===0&&pointInsideMinimap(mx,my)){toggleGalaxyMap();mouse.down=false;mouse.clicked=false;e.preventDefault();e.stopPropagation();return;}
   if(mode===MODE.PLANET&&e.button===2){placeBuildTileAt(mx,my);e.preventDefault();return;}
   mouse.down=true;mouse.clicked=true;
+  if(mode===MODE.PLANET&&e.button===0&&planetTool==="mining"&&!activeRuin&&!canvasPanelOpen()){queueMiningClick(mx,my);mouse.clicked=false;}
   if(shipStatusOpen)handleShipStatusClick(mx,my);
   else if(characterOpen)handleCharacterClick(mx,my);
   else if(shopOpen)handleShopClick(mx,my);
@@ -2747,15 +2748,15 @@ function cosmeticProjectileSize(base=2.8){return base+(Number(activeCosmeticDef(
 
 function cosmeticAccent(slot,source=equippedCosmetics,fb="#ff7744"){return safeColor(activeCosmeticDef(slot,source)?.accent||fb,fb);}
 const cosmeticSpriteCache=new Map();
-let spriteAssetRenderingPausedUntil=0;
-function getCosmeticSprite(path){path=String(path||"");if(!path)return null;let img=cosmeticSpriteCache.get(path);if(!img){img=new Image();img.decoding="async";img.src=path;cosmeticSpriteCache.set(path,img);}return img;}
-function drawSpriteImageFit(path,x,y,w,h){
+let spriteAssetRenderingPausedUntil=0,resourceTileAssetRevision=0;
+function getCosmeticSprite(path){path=String(path||"");if(!path)return null;let img=cosmeticSpriteCache.get(path);if(!img){img=new Image();img.decoding="async";img.onload=()=>{if(path.includes("assets/resource_tiles/")){resourceTileAssetRevision++;invalidatePlanetTileRenderCache();}};img.src=path;cosmeticSpriteCache.set(path,img);}return img;}
+function drawSpriteImageFit(path,x,y,w,h,targetCtx=ctx){
   if(Date.now()<spriteAssetRenderingPausedUntil)return false;
   path=String(path||"");x=Number(x);y=Number(y);w=Number(w);h=Number(h);
   if(!path||![x,y,w,h].every(Number.isFinite)||w<=0||h<=0)return false;
   const img=getCosmeticSprite(path);
   if(!img||!img.complete||!img.naturalWidth||!img.naturalHeight)return false;
-  try{ctx.drawImage(img,x,y,w,h);return true;}catch(error){console.warn("Sprite draw skipped:",path,error);spriteAssetRenderingPausedUntil=Date.now()+800;return false;}
+  try{targetCtx.drawImage(img,x,y,w,h);return true;}catch(error){console.warn("Sprite draw skipped:",path,error);spriteAssetRenderingPausedUntil=Date.now()+800;return false;}
 }
 function drawCosmeticSprite(def){if(!def?.spritePath)return false;const img=getCosmeticSprite(def.spritePath);if(!img||!img.complete||!img.naturalWidth)return false;const scale=Math.max(0.08,Number(def.spriteScale)||0.2),w=img.naturalWidth*scale,h=img.naturalHeight*scale;ctx.save();ctx.rotate(Math.PI/2);ctx.shadowColor=def.slot==="enemy"?"rgba(255,60,60,.55)":"rgba(90,220,255,.42)";ctx.shadowBlur=5;ctx.drawImage(img,-w/2,-h/2,w,h);ctx.restore();return true;}
 const RESOURCE_TILE_ART={
@@ -2766,15 +2767,15 @@ const RESOURCE_TILE_ART={
   sand:"assets/resource_tiles/transparent tiles.png_auto_5.png",
   ember_quartz:"assets/resource_tiles/transparent tiles.png_auto_6.png",
   ice_block:"assets/resource_tiles/transparent tiles.png_auto_8.png",
-  black_ice:"assets/resource_tiles/transparent tiles.png_auto_7.png",
+  black_ice:"assets/resource_tiles/transparent tiles.png_auto_50.png",
   dark_obsidian:"assets/resource_tiles/transparent tiles.png_auto_29.png",
   lava_rock:"assets/resource_tiles/transparent tiles.png_auto_12.png",
   magma_core:"assets/resource_tiles/transparent tiles.png_auto_13.png",
   purple_miasma:"assets/resource_tiles/transparent tiles.png_auto_25.png",
   miasma_core:"assets/resource_tiles/transparent tiles.png_auto_26.png",
-  crystal:"assets/resource_tiles/transparent tiles.png_auto_50.png",
+  crystal:"assets/resource_tiles/transparent tiles.png_auto_32.png",
   toxic_sludge:"assets/resource_tiles/transparent tiles.png_auto_10.png",
-  copper:"assets/resource_tiles/transparent tiles.png_auto_58.png",
+  copper:"assets/resource_tiles/transparent tiles.png_auto_6.png",
   iron:"assets/resource_tiles/transparent tiles.png_auto_51.png",
   gold:"assets/resource_tiles/transparent tiles.png_auto_31.png",
   void_ore:"assets/resource_tiles/transparent tiles.png_auto_29.png",
@@ -2782,26 +2783,26 @@ const RESOURCE_TILE_ART={
   stardust:"assets/resource_tiles/transparent tiles.png_auto_23.png",
   obelisk_core:"assets/resource_tiles/transparent tiles.png_auto_27.png",
   neon_ore:"assets/resource_tiles/transparent tiles.png_auto_59.png",
-  codex_shard:"assets/resource_tiles/transparent tiles.png_auto_28.png",
-  silicon:"assets/resource_tiles/transparent tiles.png_auto_61.png",
+  codex_shard:"assets/resource_tiles/transparent tiles.png_auto_64.png",
+  silicon:"assets/resource_tiles/transparent tiles.png_auto_48.png",
   circuit_board:"assets/resource_tiles/transparent tiles.png_auto_28.png",
   quantum_core:"assets/resource_tiles/transparent tiles.png_auto_43.png",
   prism_ore:"assets/resource_tiles/transparent tiles.png_auto_32.png",
   ether_glass:"assets/resource_tiles/transparent tiles.png_auto_55.png",
-  nano_fiber:"assets/resource_tiles/transparent tiles.png_auto_37.png",
+  nano_fiber:"assets/resource_tiles/transparent tiles.png_auto_59.png",
   cobalt:"assets/resource_tiles/transparent tiles.png_auto_30.png",
-  titanium:"assets/resource_tiles/transparent tiles.png_auto_60.png",
-  plasma_cell:"assets/resource_tiles/transparent tiles.png_auto_53.png",
+  titanium:"assets/resource_tiles/transparent tiles.png_auto_61.png",
+  plasma_cell:"assets/resource_tiles/transparent tiles.png_auto_54.png",
   alloy_frame:"assets/resource_tiles/transparent tiles.png_auto_42.png",
-  gloom_steel:"assets/resource_tiles/transparent tiles.png_auto_48.png",
-  astral_salt:"assets/resource_tiles/transparent tiles.png_auto_33.png",
+  gloom_steel:"assets/resource_tiles/transparent tiles.png_auto_62.png",
+  astral_salt:"assets/resource_tiles/transparent tiles.png_auto_35.png",
   fuel:"assets/resource_tiles/transparent tiles.png_auto_47.png",
-  gas_canister:"assets/resource_tiles/transparent tiles.png_auto_47.png",
-  hull_plate:"assets/resource_tiles/transparent tiles.png_auto_41.png",
+  gas_canister:"assets/resource_tiles/transparent tiles.png_auto_43.png",
+  hull_plate:"assets/resource_tiles/transparent tiles.png_auto_44.png",
   engine_core:"assets/resource_tiles/transparent tiles.png_auto_43.png",
   shield_matrix:"assets/resource_tiles/transparent tiles.png_auto_46.png",
   weapon_array:"assets/resource_tiles/transparent tiles.png_auto_45.png",
-  cargo_pod:"assets/resource_tiles/transparent tiles.png_auto_16.png",
+  cargo_pod:"assets/resource_tiles/transparent tiles.png_auto_41.png",
   nav_chip:"assets/resource_tiles/transparent tiles.png_auto_59.png",
   oxygen_tank:"assets/resource_tiles/transparent tiles.png_auto_55.png"
 };
@@ -2847,7 +2848,41 @@ function closestResourceTilePath(resourceType){resourceType=String(resourceType|
 function resourceTileSpritePath(resourceType,tileType=0){resourceType=String(resourceType||"");if(resourceType&&RESOURCE_TILE_ART[resourceType])return RESOURCE_TILE_ART[resourceType];if(resourceType&&RES[resourceType])return closestResourceTilePath(resourceType);return GENERIC_TILE_ART[tileType]||null;}
 function tileBaseResource(t){return({1:"dirt",2:"stone",6:"ice_block",7:"black_ice",8:"lava_rock",9:"magma_core",10:"toxic_sludge",11:"sand",12:"stone",13:"grass_tuft",14:"dark_obsidian"})[t]||null;}
 function deterministicResourceForTile(planet,t,x,y){if(!planet)return tileBaseResource(t);if(![3,4,5].includes(t))return tileBaseResource(t);const list=(planet.resList||[]).filter(k=>RES[k]);if(!list.length)return t===5?"crystal":t===4?"iron":"copper";const min=t===5?5:t===4?4:3;const candidates=list.filter(k=>(RES[k]?.rarity||1)>=min);const pool=candidates.length?candidates:list;let h=2166136261;const seed=`${planet.id||planet.seed||"planet"}|${x}|${y}|${t}`;for(let i=0;i<seed.length;i++){h^=seed.charCodeAt(i);h=Math.imul(h,16777619);}return pool[(h>>>0)%pool.length];}
-function drawResourceTile(t,planet,gridX,gridY,dx,dy,size=16){const resource=deterministicResourceForTile(planet,t,gridX,gridY),def=resource?RES[resource]:null,path=resourceTileSpritePath(resource,t),base=def?.color||tileColorForActivePlanet(t)||TILECOLORS[t]||"#6b7075";let drew=false;if(path){ctx.save();ctx.imageSmoothingEnabled=false;drew=drawSpriteImageFit(path,dx,dy,size,size);ctx.restore();}if(!drew){ctx.fillStyle=base;ctx.fillRect(dx,dy,size,size);ctx.globalAlpha=.2;ctx.fillStyle="#fff";ctx.fillRect(dx+2,dy+2,size-4,2);ctx.globalAlpha=1;}ctx.save();ctx.globalAlpha=[3,4,5].includes(t)?.16:.07;ctx.fillStyle=base;ctx.fillRect(dx,dy,size,size);ctx.globalAlpha=1;ctx.strokeStyle=[3,4,5].includes(t)?base:"rgba(0,0,0,.42)";ctx.lineWidth=[3,4,5].includes(t)?1.25:1;ctx.strokeRect(dx+.5,dy+.5,size-1,size-1);if([3,4,5].includes(t)){ctx.globalAlpha=.75;ctx.fillStyle="#fff";ctx.fillRect(dx+size*.47,dy+3,2,2);ctx.globalAlpha=1;}ctx.restore();return true;}
+function drawResourceTile(t,planet,gridX,gridY,dx,dy,size=16,targetCtx=ctx){const g=targetCtx,resource=deterministicResourceForTile(planet,t,gridX,gridY),def=resource?RES[resource]:null,path=resourceTileSpritePath(resource,t),base=def?.color||tileColorForActivePlanet(t)||TILECOLORS[t]||"#6b7075";let drew=false;if(path){g.save();g.imageSmoothingEnabled=false;drew=drawSpriteImageFit(path,dx,dy,size,size,g);g.restore();}if(!drew){g.fillStyle=base;g.fillRect(dx,dy,size,size);g.globalAlpha=.2;g.fillStyle="#fff";g.fillRect(dx+2,dy+2,size-4,2);g.globalAlpha=1;}g.save();g.globalAlpha=[3,4,5].includes(t)?.13:.045;g.fillStyle=base;g.fillRect(dx,dy,size,size);g.globalAlpha=1;g.strokeStyle=[3,4,5].includes(t)?base:"rgba(0,0,0,.3)";g.lineWidth=1;g.strokeRect(dx+.5,dy+.5,size-1,size-1);if([3,4,5].includes(t)){g.globalAlpha=.72;g.fillStyle="#fff";g.fillRect(dx+size*.47,dy+3,2,2);g.globalAlpha=1;}g.restore();return true;}
+
+const PLANET_TILE_CACHE_CHUNK=24;
+const planetTileChunkCache=new Map();
+let planetTileCachePlanetId=null;
+function planetTileChunkKey(cx,cy){return `${activePlanet?.id||"none"}|${cx}|${cy}|${resourceTileAssetRevision}`;}
+function invalidatePlanetTileRenderCache(tx=null,ty=null){
+  if(tx===null||ty===null){planetTileChunkCache.clear();planetTileCachePlanetId=activePlanet?.id||null;return;}
+  const cx=Math.floor(Number(tx)/PLANET_TILE_CACHE_CHUNK),cy=Math.floor(Number(ty)/PLANET_TILE_CACHE_CHUNK),prefix=`${activePlanet?.id||"none"}|${cx}|${cy}|`;
+  for(const key of [...planetTileChunkCache.keys()])if(key.startsWith(prefix))planetTileChunkCache.delete(key);
+}
+function buildPlanetTileChunk(cx,cy){
+  if(!planetMap||!activePlanet)return null;
+  if(planetTileCachePlanetId!==activePlanet.id){planetTileChunkCache.clear();planetTileCachePlanetId=activePlanet.id;}
+  const key=planetTileChunkKey(cx,cy),cached=planetTileChunkCache.get(key);if(cached)return cached;
+  const TP=16,startX=cx*PLANET_TILE_CACHE_CHUNK,startY=cy*PLANET_TILE_CACHE_CHUNK;
+  const cols=Math.max(0,Math.min(PLANET_TILE_CACHE_CHUNK,planetMap.W-startX)),rows=Math.max(0,Math.min(PLANET_TILE_CACHE_CHUNK,planetMap.H-startY));
+  if(!cols||!rows)return null;
+  const tileCanvas=document.createElement("canvas");tileCanvas.width=cols*TP;tileCanvas.height=rows*TP;
+  const g=tileCanvas.getContext("2d",{alpha:true});g.imageSmoothingEnabled=false;
+  for(let ly=0;ly<rows;ly++)for(let lx=0;lx<cols;lx++){
+    const gx=startX+lx,gy=startY+ly,t=tileAt(gx,gy);if(!t)continue;
+    drawResourceTile(t,activePlanet,gx,gy,lx*TP,ly*TP,TP,g);
+  }
+  const result={canvas:tileCanvas,x:startX*TP,y:startY*TP};planetTileChunkCache.set(key,result);
+  if(planetTileChunkCache.size>160){const first=planetTileChunkCache.keys().next().value;planetTileChunkCache.delete(first);}
+  return result;
+}
+function drawCachedPlanetTerrain(cam,x0,y0,x1,y1){
+  const c0=Math.floor(x0/PLANET_TILE_CACHE_CHUNK),c1=Math.floor(x1/PLANET_TILE_CACHE_CHUNK),r0=Math.floor(y0/PLANET_TILE_CACHE_CHUNK),r1=Math.floor(y1/PLANET_TILE_CACHE_CHUNK);
+  ctx.save();ctx.imageSmoothingEnabled=false;
+  for(let cy=r0;cy<=r1;cy++)for(let cx=c0;cx<=c1;cx++){const chunk=buildPlanetTileChunk(cx,cy);if(chunk)ctx.drawImage(chunk.canvas,Math.round(chunk.x-cam.x),Math.round(chunk.y-cam.y));}
+  ctx.restore();
+}
+
 
 function planetCosmeticDefForPlanet(p){const type=String(p?.type||"lush"),key=globalPlanetTypeCosmetics[type]||planetTypeCosmetics[type]||null;if(!key)return null;const def=COSMETIC_DEFS[key];return def?.slot==="planet"?def:null;}
 
@@ -4607,7 +4642,7 @@ function genPlanetMap(planet){
 function resForTile(planet,t,y,H){const d=y/H,l=planet.resList;if(planet?.isAsteroid||planet?.type==="asteroid"){if(t===5)return Math.random()<0.85?"crystal":"gold";if(t===4)return Math.random()<0.62?"crystal":"gold";if(t===3)return Math.random()<0.5?"iron":"copper";return Math.random()<0.18?"crystal":"stone";}if(t===1)return"dirt";if(t===13)return Math.random()<0.3?"grass_tuft":"dirt";if(t===11)return"sand";if(t===6)return"ice_block";if(t===7)return Math.random()<0.6?"ice_block":"stone";if(t===8)return"lava_rock";if(t===9)return Math.random()<0.7?"magma_core":"lava_rock";if(t===10)return"toxic_sludge";if(t===2||t===12)return"stone";if(t===3){const m=l.filter(k=>((RES[k]?.rarity||1)>=3));return m.length?m[Math.floor(Math.random()*m.length)]:"copper";}if(t===4){const m=l.filter(k=>((RES[k]?.rarity||1)>=4));return m.length?m[Math.floor(Math.random()*m.length)]:l[Math.floor(Math.random()*l.length)];}if(t===5){const m=l.filter(k=>((RES[k]?.rarity||1)>=5));return m.length?m[Math.floor(Math.random()*m.length)]:l[l.length-1];}return"stone";}
 function tileColorForActivePlanet(t){const pal=activePlanet?.pal||{};if(!activePlanet)return TILECOLORS[t];if([3,4,5].includes(t)){const list=activePlanet.resList||[];const pick=list.find(k=>(RES[k]?.rarity||1)>=5)||list.find(k=>(RES[k]?.rarity||1)>=3);return RES[pick]?.color||pal.a||TILECOLORS[t];}if(t===1||t===2||t===12||t===14)return pal.b||TILECOLORS[t];if(t===10)return RES.purple_miasma?.color||TILECOLORS[t];if(t===13)return pal.a||TILECOLORS[t];return TILECOLORS[t];}
 function tileAt(x,y){if(!planetMap||x<0||x>=planetMap.W||y<0)return 0;if(y>=planetMap.H)return TILE.BEDROCK;return planetMap.tiles[y*planetMap.W+x];}
-function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.tiles[y*planetMap.W+x]=t;}
+function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H){planetMap.tiles[y*planetMap.W+x]=t;invalidatePlanetTileRenderCache(x,y);}}
 function tileHP(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.hp[y*planetMap.W+x];}
 function setTileHP(x,y,h){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.hp[y*planetMap.W+x]=clamp(h,0,255);}
 function collidePlanet(a,horiz){const TP=16,l=Math.floor((a.x-a.w/2)/TP),ri=Math.floor((a.x+a.w/2)/TP),t=Math.floor((a.y-a.h)/TP),b=Math.floor(a.y/TP);for(let ty=t;ty<=b;ty++)for(let tx=l;tx<=ri;tx++){const ti=tileAt(tx,ty);if(!ti)continue;const tl=tx*TP,tt=ty*TP,tr=tl+TP,tb=tt+TP,ax1=a.x-a.w/2,ax2=a.x+a.w/2,ay1=a.y-a.h,ay2=a.y;if(ax2>tl&&ax1<tr&&ay2>tt&&ay1<tb){if(horiz){if(a.vx>0){a.x=tl-a.w/2;a.vx=0;}else if(a.vx<0){a.x=tr+a.w/2;a.vx=0;}}else{if(a.vy>0){a.y=tt;a.vy=0;a.onGround=true;}else if(a.vy<0){a.y=tb+a.h;a.vy=0;}}}}}
@@ -4653,11 +4688,43 @@ function spawnPlanetLootVisual({planetId,kind,x,y,qty=1,ownerId=null,serverGrant
     });
   }
 }
-let mineCooldown=0,lastMiningTargetKey="",miningRequestPending=false,miningRequestSentAt=0,miningMapRefreshAt=0;
+
+let mineCooldown=0,lastMiningTargetKey="",miningRequestPending=false,miningRequestSentAt=0,miningMapRefreshAt=0,miningClickQueue=null,miningBeamTarget=null,miningBeamLife=0,miningRequestSeq=0;
 function mineableTileAt(tx,ty){if(!planetMap||tx<0||ty<0||tx>=planetMap.W||ty>=planetMap.H-3)return 0;const t=tileAt(tx,ty);return t&&t!==TILE.BEDROCK?t:0;}
-function findMineableTargetTile(wx,wy,maxRing=5){if(!planetMap)return null;const TP=16,ox=astronaut.x,oy=astronaut.y-astronaut.h*.5,dx=wx-ox,dy=wy-oy,len=Math.hypot(dx,dy)||1,maxReach=118,endScale=Math.min(1,maxReach/len),ex=ox+dx*endScale,ey=oy+dy*endScale,seen=new Set(),candidates=[];const add=(tx,ty,rayBias=0)=>{const key=`${tx},${ty}`;if(seen.has(key))return;seen.add(key);const t=mineableTileAt(tx,ty);if(!t)return;const cx=tx*TP+TP/2,cy=ty*TP+TP/2,playerD=dist(cx,cy,ox,oy);if(playerD>maxReach+10)return;const aimD=dist(cx,cy,ex,ey);candidates.push({tx,ty,t,cx,cy,score:aimD+playerD*.04+rayBias});};const steps=Math.max(2,Math.ceil(Math.hypot(ex-ox,ey-oy)/5));for(let i=1;i<=steps;i++){const q=i/steps,px=ox+(ex-ox)*q,py=oy+(ey-oy)*q,tx=Math.floor(px/TP),ty=Math.floor(py/TP);add(tx,ty,-18+(steps-i)*.12);if(candidates.length&&i>2)break;}const bx=Math.floor(ex/TP),by=Math.floor(ey/TP);for(let ring=0;ring<=maxRing;ring++)for(let yy=-ring;yy<=ring;yy++)for(let xx=-ring;xx<=ring;xx++){if(ring>0&&Math.max(Math.abs(xx),Math.abs(yy))!==ring)continue;add(bx+xx,by+yy,ring*5);}candidates.sort((a,b)=>a.score-b.score);return candidates[0]||null;}
+function findMineableTargetTile(wx,wy,maxRing=2){
+  if(!planetMap)return null;const TP=16,ox=astronaut.x,oy=astronaut.y-astronaut.h*.5,maxReach=132;
+  const directX=Math.floor(wx/TP),directY=Math.floor(wy/TP);
+  const candidates=[],seen=new Set();
+  const add=(tx,ty,bias=0)=>{const key=`${tx},${ty}`;if(seen.has(key))return;seen.add(key);const t=mineableTileAt(tx,ty);if(!t)return;const cx=tx*TP+8,cy=ty*TP+8,pd=dist(cx,cy,ox,oy);if(pd>maxReach)return;candidates.push({tx,ty,t,cx,cy,score:dist(cx,cy,wx,wy)+pd*.025+bias});};
+  add(directX,directY,-40);
+  for(let ring=1;ring<=maxRing;ring++)for(let yy=-ring;yy<=ring;yy++)for(let xx=-ring;xx<=ring;xx++){if(Math.max(Math.abs(xx),Math.abs(yy))!==ring)continue;add(directX+xx,directY+yy,ring*8);}
+  if(!candidates.length){const dx=wx-ox,dy=wy-oy,len=Math.hypot(dx,dy)||1,reach=Math.min(maxReach,len),steps=Math.ceil(reach/4);for(let i=1;i<=steps;i++){const px=ox+dx/len*(i*4),py=oy+dy/len*(i*4),tx=Math.floor(px/TP),ty=Math.floor(py/TP);add(tx,ty,-18);if(candidates.length)break;}}
+  candidates.sort((a,b)=>a.score-b.score);return candidates[0]||null;
+}
 function resetMiningRequestState(){miningRequestPending=false;miningRequestSentAt=0;}
-function doMining(dt){mineCooldown=Math.max(0,mineCooldown-dt);if(!planetMap||!activePlanet)return;const now=performance.now();if(miningRequestPending){const age=now-miningRequestSentAt;if(age<320)return;resetMiningRequestState();if(age>1100&&now-miningMapRefreshAt>1800){miningMapRefreshAt=now;socket.emit("requestPlanetMap",{planet:activePlanet});return;}}if(mineCooldown>0)return;const cam=planetCamera(),wx=mouse.x+cam.x,wy=mouse.y+cam.y,target=findMineableTargetTile(wx,wy,6);if(!target){lastMiningTargetKey="";mineCooldown=.06;return;}lastMiningTargetKey=`${target.tx},${target.ty}`;mineCooldown=.075;miningRequestPending=true;miningRequestSentAt=now;socket.emit("minePlanetTile",{planetId:activePlanet.id,tx:target.tx,ty:target.ty,power:planetMiningPower(),clientX:astronaut.x,clientY:astronaut.y});}
+function queueMiningClick(screenX,screenY){
+  if(mode!==MODE.PLANET||planetTool!=="mining"||activeRuin||!planetMap||!activePlanet)return false;
+  miningClickQueue={screenX:Number(screenX)||0,screenY:Number(screenY)||0,queuedAt:performance.now()};
+  return true;
+}
+function doMining(dt){
+  mineCooldown=Math.max(0,mineCooldown-dt);miningBeamLife=Math.max(0,miningBeamLife-dt);
+  if(!planetMap||!activePlanet||!miningClickQueue)return;
+  const now=performance.now();
+  if(miningRequestPending){
+    const age=now-miningRequestSentAt;if(age<1350)return;
+    resetMiningRequestState();
+    if(now-miningMapRefreshAt>1800){miningMapRefreshAt=now;socket.emit("requestPlanetMap",{planet:activePlanet});}
+  }
+  if(mineCooldown>0)return;
+  const click=miningClickQueue;miningClickQueue=null;
+  const cam=planetCamera(),wx=click.screenX+cam.x,wy=click.screenY+cam.y,target=findMineableTargetTile(wx,wy,2);
+  if(!target){lastMiningTargetKey="";showFT("No mineable tile in reach",astronaut.x,astronaut.y-26,"#ffcc44",9);mineCooldown=.12;return;}
+  lastMiningTargetKey=`${target.tx},${target.ty}`;miningBeamTarget={x:target.cx,y:target.cy,tx:target.tx,ty:target.ty};miningBeamLife=.32;mineCooldown=.12;miningRequestPending=true;miningRequestSentAt=now;
+  socket.emit("minePlanetTile",{planetId:activePlanet.id,tx:target.tx,ty:target.ty,power:planetMiningPower(),oneClick:true,requestId:`mine_${++miningRequestSeq}_${Math.floor(now)}`,clientX:astronaut.x,clientY:astronaut.y});
+}
+function showResourcePickupPopup(kind,qty=1){const def=RES[kind],name=def?.name||String(kind||"Resource"),amount=Math.max(1,Math.floor(Number(qty)||1));showFT(`+${amount} ${name}`,astronaut.x,astronaut.y-32,def?.color||"#78ff8a",12);}
+
 function planetCamera(){return{x:clamp(astronaut.x-canvas.width/2,0,planetMap.W*16-canvas.width),y:clamp(astronaut.y-canvas.height/2,0,planetMap.H*16-canvas.height)};}
 
 function initPlanetNPCs(planet){
@@ -5846,9 +5913,9 @@ function maintainRespawnFlow(now=performance.now()){
   if(age>7000)localRespawnSafetyFallback();
 }
 function clearRespawnWatchdogs(){clearTimeout(respawnWatchdogA);clearTimeout(respawnWatchdogB);respawnWatchdogA=0;respawnWatchdogB=0;}
-function localRespawnSafetyFallback(){if(!gameOver)return;const spawn={x:0,y:0};ship.x=spawn.x;ship.y=spawn.y;ship.vx=0;ship.vy=0;ship.hp=ship.maxHp;ship.shield=ship.maxShield;ship.shieldRegenTimer=0;energy.current=energy.max;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;mode=MODE.SPACE;planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;exitGameOver();clearLiveInput();resetMobileControlState("local-respawn-fallback");resizeGameCanvasToDisplay();updateChunks();updateHud();showFT("Respawn recovered",ship.x,ship.y-22,"#78ff8a",10);}
+function localRespawnSafetyFallback(){if(!gameOver)return;const spawn={x:0,y:0};ship.x=spawn.x;ship.y=spawn.y;ship.vx=0;ship.vy=0;ship.hp=ship.maxHp;ship.shield=ship.maxShield;ship.shieldRegenTimer=0;energy.current=energy.max;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;mode=MODE.SPACE;planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;invalidatePlanetTileRenderCache();planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;exitGameOver();clearLiveInput();resetMobileControlState("local-respawn-fallback");resizeGameCanvasToDisplay();updateChunks();updateHud();showFT("Respawn recovered",ship.x,ship.y-22,"#78ff8a",10);}
 socket.on("youDied",({killedBy})=>{enterGameOver("death");showFT(`Destroyed by ${killedBy}!`,ship.x,ship.y,"#ff4422",14);});
-socket.on("respawn",({x,y})=>{clearRespawnWatchdogs();ship.x=x;ship.y=y;ship.vx=0;ship.vy=0;ship.hp=ship.maxHp;ship.shield=ship.maxShield;ship.shieldRegenTimer=0;energy.current=energy.max;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;mode=MODE.SPACE;exitGameOver();planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;clearLiveInput();resetMobileControlState("respawn");resizeGameCanvasToDisplay();setTimeout(resizeGameCanvasToDisplay,120);updateChunks();updateHud();});
+socket.on("respawn",({x,y})=>{clearRespawnWatchdogs();ship.x=x;ship.y=y;ship.vx=0;ship.vy=0;ship.hp=ship.maxHp;ship.shield=ship.maxShield;ship.shieldRegenTimer=0;energy.current=energy.max;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;mode=MODE.SPACE;exitGameOver();planetLoading=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;invalidatePlanetTileRenderCache();planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;clearLiveInput();resetMobileControlState("respawn");resizeGameCanvasToDisplay();setTimeout(resizeGameCanvasToDisplay,120);updateChunks();updateHud();});
 socket.on("creditUpdate",({credits})=>{player.credits=credits;applyLocalCouponBonusIfNeeded();updateHud();saveLocalGameStateSoon("credit_update");renderCreditShop&&renderCreditShop();renderCosmeticShop&&renderCosmeticShop();});
 socket.on("cosmeticState",({defs,owned,equipped,stationTierCosmetics:serverTiers,planetTypeCosmetics:serverPlanetTypes,redeemedCoupons:rc,credits,reason,spriteCosmeticRegistryVersion})=>{cosmeticBackendSupported=true;if(Number(spriteCosmeticRegistryVersion||0)>=1)serverSupportsSpriteCosmetics=true;pendingCosmeticPurchaseKey=null;pendingCosmeticEquipKey=null;clearTimeout(pendingCouponTimer);pendingCouponCode=null;if(defs&&typeof defs==="object")for(const[k,v]of Object.entries(defs))COSMETIC_DEFS[k]={...(COSMETIC_DEFS[k]||{}),...v,key:k};cosmeticInventory=normalizeCosmeticInventory(owned||{});equippedCosmetics=normalizeEquippedCosmetics(equipped||{});stationTierCosmetics=normalizeStationTierCosmetics(serverTiers||stationTierCosmetics);planetTypeCosmetics=normalizePlanetTypeCosmetics(serverPlanetTypes||planetTypeCosmetics);redeemedCoupons=normalizeRedeemedCoupons(rc||{});mergeLocalCosmeticState({preferServerEquipped:true});player.equippedCosmetics=equippedCosmetics;if(typeof credits==="number")player.credits=credits;applyLocalCouponBonusIfNeeded();saveLocalCosmeticState();saveLocalGameStateSoon("cosmetic_state");renderCosmeticShop();updateHud();if(reason==="bought"){statsInc("cosmeticsPurchased",1);if(pendingStationTierAssignment&&cosmeticInventory[pendingStationTierAssignment.key]){const pending={...pendingStationTierAssignment};pendingStationTierAssignment=null;assignStationTierCosmetic(pending.key,pending.tier);}if(pendingPlanetTypeAssignment&&cosmeticInventory[pendingPlanetTypeAssignment.key]){const pending={...pendingPlanetTypeAssignment};pendingPlanetTypeAssignment=null;assignPlanetTypeCosmetic(pending.key,pending.type);}showFT("Cosmetic unlocked!",ship.x,ship.y-28,"#ffdd44",11);}else if(reason==="equipped")showFT("Cosmetic equipped",ship.x,ship.y-28,"#78ff8a",10);});
 socket.on("cosmeticDenied",({reason})=>{const msg=String(reason||"Cosmetic action denied.");const pendingKey=pendingCosmeticPurchaseKey||pendingCosmeticEquipKey,def=pendingKey?COSMETIC_DEFS[pendingKey]:null;if(def?.spritePath&&/unknown cosmetic/i.test(msg)){if(pendingCosmeticPurchaseKey&&!cosmeticInventory[pendingCosmeticPurchaseKey])localBuyCosmetic(pendingCosmeticPurchaseKey,"legacy_server_fallback");pendingCosmeticPurchaseKey=null;pendingCosmeticEquipKey=null;serverSupportsSpriteCosmetics=false;const st=document.getElementById("coupon-status");if(st)st.textContent="Sprite cosmetic enabled locally. Replace/redeploy the included server.js to sync and persist it for all players.";showFT("Sprite cosmetic enabled",ship.x,ship.y-28,"#78ff8a",10);return;}pendingCosmeticPurchaseKey=null;pendingCosmeticEquipKey=null;const st=document.getElementById("coupon-status");if(st)st.textContent=msg;showFT(msg,ship.x,ship.y-28,"#ff5544",10);});
@@ -5939,7 +6006,7 @@ socket.on("planetMapState",({planetId,W,H,tiles,hp,heights,error}={})=>{
   W=Math.floor(Number(W));H=Math.floor(Number(H));const expected=W*H;
   if(!Number.isFinite(W)||!Number.isFinite(H)||W<16||H<16||!Array.isArray(tiles)||tiles.length<expected){console.warn("Ignored incomplete planet map",{planetId,W,H,tileCount:tiles?.length});return;}
   const incomingHp=new Uint8Array(expected),hpSource=Array.isArray(hp)?hp:[];incomingHp.set(Uint8Array.from(hpSource.slice(0,expected)));
-  const incomingMap={W,H,tiles:Uint8Array.from(tiles.slice(0,expected)),hp:incomingHp,heights:Array.isArray(heights)?heights:[],planet:activePlanet};
+  const incomingMap={W,H,tiles:Uint8Array.from(tiles.slice(0,expected)),hp:incomingHp,heights:Array.isArray(heights)?heights:[],planet:activePlanet};invalidatePlanetTileRenderCache();
   if(mode===MODE.PLANET&&planetMap&&!planetLoading){planetMap=incomingMap;mineCooldown=0;lastMiningTargetKey="";resetMiningRequestState();return;}
   planetMap=incomingMap;mineCooldown=0;lastMiningTargetKey="";resetMiningRequestState();enterPlanetWithLoadedMap();
 });
@@ -5961,13 +6028,13 @@ socket.on("planetMineReward",({planetId,kind,x,y,qty,invSlots,maxSlots,credits})
     if(addedLocal){
       clampPanelScrolls();
       updateHud();
-      showFT(`+${amount} ${RES[kind]?.name||kind}`,x,y-10,"#78ff8a",9);
+      showResourcePickupPopup(kind,amount);
     }else{
       showFT("Inventory full — unable to carry resource",x,y-10,"#ffcc44",9);
       socket.emit("requestInventorySync");
     }
   }else{
-    showFT(`+${amount} ${kind||"resource"}`,x,y-10,"#78ff8a",9);
+    showResourcePickupPopup(kind||"resource",amount);
   }
 
   // Some patched servers include the updated inventory directly on the mining
@@ -6559,7 +6626,7 @@ function landOnNearestPlanet(){
 }
 function leavePlanet(){
   if(activePlanet){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;}ship.vx*=0.2;ship.vy*=0.2;
-  mode=MODE.SPACE;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;planetLoading=false;planetLoadStartedAt=0;planetLoadLastRequestAt=0;planetLoadAttempts=0;planetLoadFallbackUsed=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;
+  mode=MODE.SPACE;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;planetLoading=false;planetLoadStartedAt=0;planetLoadLastRequestAt=0;planetLoadAttempts=0;planetLoadFallbackUsed=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;invalidatePlanetTileRenderCache();planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;
   socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});
   updateChunks();
   showFT("Takeoff!",ship.x,ship.y-20,"#7be6ff",11);
@@ -7441,7 +7508,8 @@ function updatePlanet(dt){
   if(astronaut.y>bottomY){astronaut.y=bottomY;astronaut.vy=0;astronaut.onGround=true;}
   if(!controlsLocked&&keys.has("x")){keys.delete("x");useOxygenTank();}
   if(!controlsLocked&&keys.has("l")){keys.delete("l");if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<38){leavePlanet();return;}else{showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
-  if(!controlsLocked&&mouse.down&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon")planetWeaponAttack();else if(!activeRuin)doMining(dt);}
+  if(!controlsLocked&&!inventoryOpen&&!characterOpen){if(planetTool==="weapon"&&mouse.down)planetWeaponAttack();else if(!activeRuin&&planetTool==="mining"){if(mouse.clicked)queueMiningClick(mouse.x,mouse.y);doMining(dt);}}
+  mouse.clicked=false;
   if(activeRuin)updateRuinContents(dt);
   else updatePlanetNPCs(dt);
   for(let i=drops.length-1;i>=0;i--){
@@ -7456,8 +7524,8 @@ function updatePlanet(dt){
     if(itemCollide(it)){it.vx*=0.72;it.vy=0;}
     const canPickup=(it.pickupDelay||0)<=0&&dist(astronaut.x,astronaut.y,it.x,it.y)<18;
     if(canPickup){
-      if(it.serverGranted){showFT(`${RES[it.kind]?.name||it.kind}`,it.x,it.y-8,"#78ff8a",8);drops.splice(i,1);}
-      else if(addToInventory(it.kind,1)){drops.splice(i,1);}
+      if(it.serverGranted){drops.splice(i,1);}
+      else if(addToInventory(it.kind,1)){showResourcePickupPopup(it.kind,1);drops.splice(i,1);}
     }
   }
   if(!domLocked&&keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
@@ -7467,7 +7535,7 @@ function drawPlanet(){
   syncShipStatusOverlayState();
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle=(activePlanet?.pal?.sky)||"#05060a";ctx.fillRect(0,0,canvas.width,canvas.height);
   const cam=planetCamera(),TP=16,x0=Math.floor(cam.x/TP),y0=Math.floor(cam.y/TP),x1=Math.ceil((cam.x+canvas.width)/TP),y1=Math.ceil((cam.y+canvas.height)/TP);
-  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=tileAt(x,y);if(!t)continue;const px2=x*TP-cam.x,py2=y*TP-cam.y;const drew=drawResourceTile(t,activePlanet,x,y,px2,py2,TP);if(!drew){ctx.fillStyle=tileColorForActivePlanet(t)||TILECOLORS[t]||"#6b7075";ctx.fillRect(px2,py2,TP,TP);}ctx.globalAlpha=0.22;ctx.fillStyle="#fff";ctx.fillRect(px2+3,py2+3,1,1);ctx.globalAlpha=1;}
+  drawCachedPlanetTerrain(cam,x0,y0,x1,y1);
   const sx2=landedShip.x-cam.x,sy2=landedShip.y-cam.y;ctx.fillStyle="#ccc";ctx.fillRect(sx2-6,sy2-10,12,10);ctx.fillRect(sx2-2,sy2-14,4,4);ctx.fillStyle="#78ff8a";ctx.font="9px monospace";ctx.fillText("Ship (L)",sx2-12,sy2-18);
   for(const [,pp] of planetPlayers){
     const pxp=(pp.renderX=lerp(pp.renderX??pp.x,pp.x,0.35))-cam.x,pyp=(pp.renderY=lerp(pp.renderY??pp.y,pp.y,0.35))-cam.y;
@@ -7506,7 +7574,7 @@ function drawPlanet(){
     ctx.globalAlpha=0.9;ctx.fillStyle="#ffffff";ctx.fillRect(dx-1,dy-4,1,1);
     ctx.restore();
   }
-  if(mouse.down&&planetTool==="mining"){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;if(dist(wx,wy,astronaut.x,astronaut.y-astronaut.h/2)<75){const beamCos=activeCosmeticDef("laser");ctx.strokeStyle=beamCos?.rainbow?`hsl(${Math.floor(((performance.now()/1000)%6)*60)},100%,70%)`:safeColor(beamCos?.color||"#ff4dff","#ff4dff");ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();ctx.globalAlpha=1;}}
+  if(planetTool==="mining"&&miningBeamLife>0&&miningBeamTarget){const bx=miningBeamTarget.x-cam.x,by=miningBeamTarget.y-cam.y,beamCos=activeCosmeticDef("laser");ctx.strokeStyle=beamCos?.rainbow?`hsl(${Math.floor(((performance.now()/1000)%6)*60)},100%,70%)`:safeColor(beamCos?.color||"#ff4dff","#ff4dff");ctx.globalAlpha=Math.min(1,miningBeamLife/.18);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(ax2,ay2-10);ctx.lineTo(bx,by);ctx.stroke();ctx.strokeStyle="#ffdd44";ctx.lineWidth=1;ctx.strokeRect(miningBeamTarget.tx*TP-cam.x+.5,miningBeamTarget.ty*TP-cam.y+.5,TP-1,TP-1);ctx.globalAlpha=1;}
   const bp=buildableSlot();
   if(bp){const cam2=cam,wx=mouse.x+cam2.x,wy=mouse.y+cam2.y,tx=Math.floor(wx/TP),ty=Math.floor(wy/TP);ctx.strokeStyle="#ffcc44";ctx.globalAlpha=0.75;ctx.strokeRect(tx*TP-cam2.x,ty*TP-cam2.y,TP,TP);ctx.globalAlpha=1;}
   const ox=8,oy=24,ow=90,oh=7,op=clamp(oxygen.current/oxygen.max,0,1);ctx.fillStyle="#07101b";ctx.fillRect(ox,oy,ow,oh);ctx.fillStyle=op>0.5?"#7be6ff":op>0.25?"#ffcc44":"#ff5544";ctx.fillRect(ox,oy,ow*op,oh);ctx.strokeStyle="#2a4a7a";ctx.strokeRect(ox,oy,ow,oh);ctx.fillStyle="#cfe2ff";ctx.font="8px monospace";ctx.fillText(`O2 ${Math.ceil(op*100)}%`,ox,oy+17);
@@ -7736,7 +7804,7 @@ function tick(now){
     const dt=Math.min(0.033,Math.max(0,(now-last)/1000));last=now;sanitizeWorldRenderState();updatePersistentStats(dt);updatePlanetLoadingRecovery(now);sendInput();
     if(gameOver){maintainRespawnFlow(now);drawSpace();}
     else if(mode===MODE.SPACE){if(!planetLoading&&(activePlanet||planetMap)){activeRuin=null;activePlanet=null;planetMap=null;}updateSpace(dt);sanitizeWorldRenderState();drawSpace();if(characterOpen)drawCharacterPanel();}
-    else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;planetPlayers.clear();updateSpace(dt);sanitizeWorldRenderState();drawSpace();if(characterOpen)drawCharacterPanel();}else drawPlanet();}
+    else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;invalidatePlanetTileRenderCache();planetPlayers.clear();updateSpace(dt);sanitizeWorldRenderState();drawSpace();if(characterOpen)drawCharacterPanel();}else drawPlanet();}
     if(galaxyMapIsOpen())drawGalaxyMapOverlay();captureStableWorldFrame();
   }catch(error){handleFrameRuntimeError(error);}
   try{updateHud();}catch(error){console.warn("HUD recovery:",error);}
