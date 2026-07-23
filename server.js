@@ -2321,45 +2321,52 @@ io.on("connection",socket=>{
 
   socket.on("minePlanetTile",(payload={},ack)=>{
     let {phase,planetId,tx,ty,power,oneClick,requestId,clientX,clientY}=payload||{};
-    const p=players.get(socket.id);const mineReply=payload2=>{if(typeof ack==="function")try{ack({requestId,...payload2});}catch(_){}};
+    const p=players.get(socket.id),requestKey=String(requestId||"");
+    const mineReply=payload2=>{if(typeof ack==="function")try{ack({requestId:requestKey,...payload2});}catch(_){}};
     if(!p){mineReply({ok:false,reason:"Player session unavailable."});return;}
+    const now=Date.now();if(!(p._recentPlanetMineResults instanceof Map))p._recentPlanetMineResults=new Map();for(const [id,result] of p._recentPlanetMineResults)if(now-(result?.completedAt||0)>15000)p._recentPlanetMineResults.delete(id);
     planetId=String(planetId||"");phase=String(phase||"");
-    if(phase==="cancel"){if(p.activePlanetMine?.requestId===requestId)p.activePlanetMine=null;mineReply({ok:true,cancelled:true});return;}
+    if(phase==="cancel"){if(p.activePlanetMine?.requestId===requestKey)p.activePlanetMine=null;mineReply({ok:true,cancelled:true});return;}
+    const cached=requestKey?p._recentPlanetMineResults.get(requestKey):null;if(cached&&phase==="complete"){mineReply({...cached,duplicate:true});return;}
     let map=planetMaps.get(planetId);if(!map&&p.currentPlanetInfo?.id===planetId)map=getPlanetMap(p.currentPlanetInfo);
-    const deny=(reason,x,y)=>{socket.emit("planetMineDenied",{planetId,requestId,reason,x,y});mineReply({ok:false,reason});};
+    const deny=(reason,x,y)=>{socket.emit("planetMineDenied",{planetId,requestId:requestKey,reason,x,y});mineReply({ok:false,reason});};
     if(!map){deny("Planet map was not ready. Reloading the planet map.");return;}
     if(p.mode!=="planet"||p.planetId!==planetId){if(p.planetId)socket.leave(`planet:${p.planetId}`);p.mode="planet";p.planetId=planetId;socket.join(`planet:${planetId}`);}
     tx=Math.floor(Number(tx));ty=Math.floor(Number(ty));
     if(!Number.isFinite(tx)||!Number.isFinite(ty)||tx<0||ty<0||tx>=map.W||ty>=map.H-3){deny("Mining target is outside this planet.");return;}
     if(Number.isFinite(Number(clientX))&&Number.isFinite(Number(clientY))){p.planetX=Number(clientX);p.planetY=Number(clientY);}
     const id=ty*map.W+tx,t=map.tiles[id],dropX=tx*16+8,dropY=ty*16+8,px=Number.isFinite(Number(clientX))?Number(clientX):Number(p.planetX)||0,py=Number.isFinite(Number(clientY))?Number(clientY):Number(p.planetY)||0;
-    if(Math.hypot(dropX-px,dropY-py)>175){deny("That tile is out of mining range.",dropX,dropY);return;}
-    if(!t){deny("Empty tile — hold another block.",dropX,dropY);return;}
+    if(Math.hypot(dropX-px,dropY-py)>185){deny("That tile is out of mining range.",dropX,dropY);return;}
+    if(!t){deny("Empty tile — continuing to the next block.",dropX,dropY);return;}
     if(ty>=map.H-3){deny("Bedrock cannot be mined.",dropX,dropY);return;}
     let kind=planetResForTile(map.planet,t,tx,ty,map.H);if(!RES_KEYS.includes(kind))kind="stone";
     const oldHp=Math.max(1,Math.floor(Number(map.hp[id])||1)),rarity=Math.max(1,Number(RES_RARITY[kind])||1),level=Math.max(1,Number(p.miningLevel)||1);
     const requiredMs=Math.max(650,Math.min(2400,Math.round((700+rarity*140+Math.min(650,oldHp*4))/(1+(level-1)*.08))));
 
     if(phase==="start"){
-      p.activePlanetMine={requestId:String(requestId||""),planetId,tx,ty,tile:t,kind,startedAt:Date.now(),requiredMs};
-      mineReply({ok:true,phase:"start",requiredMs,kind,tx,ty});
-      return;
+      const current=p.activePlanetMine;
+      if(current&&current.requestId===requestKey&&current.planetId===planetId&&current.tx===tx&&current.ty===ty){mineReply({ok:true,phase:"start",requiredMs:current.requiredMs,kind:current.kind,tx,ty,resumed:true});return;}
+      p.activePlanetMine={requestId:requestKey,planetId,tx,ty,tile:t,kind,startedAt:Date.now(),requiredMs};
+      mineReply({ok:true,phase:"start",requiredMs,kind,tx,ty});return;
     }
 
     if(phase==="complete"){
       const session=p.activePlanetMine;
-      if(!session||session.requestId!==String(requestId||"")||session.planetId!==planetId||session.tx!==tx||session.ty!==ty){deny("Mining hold expired — press and hold the tile again.",dropX,dropY);return;}
-      const elapsed=Date.now()-session.startedAt;
-      if(elapsed+140<session.requiredMs){p.activePlanetMine=null;deny(`Keep holding for ${Math.max(1,Math.ceil((session.requiredMs-elapsed)/100)/10).toFixed(1)}s more.`,dropX,dropY);return;}
+      if(!session||session.requestId!==requestKey||session.planetId!==planetId||session.tx!==tx||session.ty!==ty){deny("Mining hold expired — continuing from the current tile.",dropX,dropY);return;}
+      const elapsed=Date.now()-session.startedAt,remainingMs=Math.max(0,session.requiredMs-elapsed);
+      if(remainingMs>90){mineReply({ok:false,waiting:true,remainingMs,requiredMs:session.requiredMs,kind:session.kind,tx,ty});return;}
       if(map.tiles[id]!==session.tile){p.activePlanetMine=null;deny("That tile changed before mining completed.",dropX,dropY);return;}
       const qty=(t===3||t===4)?(Math.random()<0.35?2:1):(t===5?(Math.random()<0.55?2:1):1);
       if(!canFitInventory(p,kind,qty)){p.activePlanetMine=null;deny("Inventory full — empty a slot before mining more.",dropX,dropY);return;}
       map.tiles[id]=0;map.hp[id]=0;p.activePlanetMine=null;
       if(!addInventory(p,kind,qty)){map.tiles[id]=t;map.hp[id]=oldHp;deny("Inventory changed while mining — tile restored.",dropX,dropY);return;}
-      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,requestId,tx,ty,tile:0,hp:0});
-      io.to(`planet:${planetId}`).emit("planetMineDrop",{planetId,requestId,kind,x:dropX,y:dropY,qty,ownerId:p.id});
-      socket.emit("planetMineReward",{planetId,requestId,kind,x:dropX,y:dropY,qty,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24)});
-      mineReply({ok:true,phase:"complete",kind,qty,tx,ty});syncAndPersist(p,"planet_mine");grantXp(p,rarity*2,"Mining");return;
+      const result={ok:true,phase:"complete",planetId,kind,qty,tx,ty,x:dropX,y:dropY,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:(p.invSlots||emptySlots(24)).map(s=>s?{type:s.type||null,count:Number(s.count)||0}:{type:null,count:0}),completedAt:Date.now()};
+      if(requestKey)p._recentPlanetMineResults.set(requestKey,result);
+      mineReply(result);
+      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,requestId:requestKey,tx,ty,tile:0,hp:0});
+      io.to(`planet:${planetId}`).emit("planetMineDrop",{planetId,requestId:requestKey,kind,x:dropX,y:dropY,qty,ownerId:p.id});
+      socket.emit("planetMineReward",result);
+      syncAndPersist(p,"planet_mine");grantXp(p,rarity*2,"Mining");return;
     }
 
     // Legacy support for older mobile/browser clients that still send one-click or damage-tick requests.
@@ -2369,8 +2376,8 @@ io.on("connection",socket=>{
       if(!canFitInventory(p,kind,qty)){deny("Inventory full — empty a slot before mining more.",dropX,dropY);return;}
       map.tiles[id]=0;map.hp[id]=0;
       if(!addInventory(p,kind,qty)){map.tiles[id]=t;map.hp[id]=oldHp;deny("Inventory changed while mining — tile restored.",dropX,dropY);return;}
-      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,requestId,tx,ty,tile:0,hp:0});io.to(`planet:${planetId}`).emit("planetMineDrop",{planetId,requestId,kind,x:dropX,y:dropY,qty,ownerId:p.id});socket.emit("planetMineReward",{planetId,requestId,kind,x:dropX,y:dropY,qty,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24)});mineReply({ok:true,kind,qty,tx,ty});syncAndPersist(p,"planet_mine");grantXp(p,rarity*2,"Mining");
-    }else{map.hp[id]=nextHp;io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,requestId,tx,ty,tile:t,hp:map.hp[id]});mineReply({ok:true,partial:true,hp:map.hp[id],tx,ty});}
+      io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,requestId:requestKey,tx,ty,tile:0,hp:0});io.to(`planet:${planetId}`).emit("planetMineDrop",{planetId,requestId:requestKey,kind,x:dropX,y:dropY,qty,ownerId:p.id});socket.emit("planetMineReward",{planetId,requestId:requestKey,kind,x:dropX,y:dropY,qty,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24)});mineReply({ok:true,planetId,kind,qty,tx,ty,x:dropX,y:dropY});syncAndPersist(p,"planet_mine");grantXp(p,rarity*2,"Mining");
+    }else{map.hp[id]=nextHp;io.to(`planet:${planetId}`).emit("planetTileUpdate",{planetId,requestId:requestKey,tx,ty,tile:t,hp:map.hp[id]});mineReply({ok:true,partial:true,hp:map.hp[id],tx,ty});}
   });
 
   socket.on("placePlanetTile",({planetId,tx,ty,tile,resourceType})=>{
