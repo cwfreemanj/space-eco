@@ -964,16 +964,65 @@ const SERVER_EXTRA_RESOURCE_DEFS={
   dark_obsidian:{base:210,rarity:6},purple_miasma:{base:145,rarity:5},charcoal_block:{base:12,rarity:2},neon_ore:{base:160,rarity:5},void_ore:{base:310,rarity:7},prism_ore:{base:230,rarity:6},astral_salt:{base:72,rarity:4},ether_glass:{base:205,rarity:6},codex_shard:{base:360,rarity:7},miasma_core:{base:520,rarity:8},black_ice:{base:130,rarity:5},ember_quartz:{base:150,rarity:5},gloom_steel:{base:240,rarity:6}
 };
 const SERVER_PROC_RESOURCE_KEYS=[];
+const CLIENT_PROC_RESOURCE_KEYS=[];
+const SERVER_RESOURCE_PUBLIC_DEFS={};
+const SERVER_EXTRA_RESOURCE_PUBLIC_DEFS={
+  dark_obsidian:{name:"Dark Obsidian",rarity:6,color:"#07070b",base:210,description:"Glass-black volcanic stone used in heavy hulls and void quests."},
+  purple_miasma:{name:"Purple Miasma",rarity:5,color:"#9b42ff",base:145,description:"Violet vapor-block mineral used for exotic reactors and miasma contracts."},
+  charcoal_block:{name:"Charcoal Block",rarity:2,color:"#25211f",base:12,description:"Compressed carbon block for early crafting, smelting, and station orders."},
+  neon_ore:{name:"Neon Ore",rarity:5,color:"#00f0ff",base:160,description:"Bright codex-neon ore used in circuitry, signs, and energy tools."},
+  void_ore:{name:"Void Ore",rarity:7,color:"#1a0d2e",base:310,description:"Dense shadow ore used for void weapons and high-value trade."},
+  prism_ore:{name:"Prism Ore",rarity:6,color:"#ffd6ff",base:230,description:"Prismatic ore for shield crafting and luxury station work orders."},
+  astral_salt:{name:"Astral Salt",rarity:4,color:"#fff4d6",base:72,description:"Glittering salt crystal used in trade quests and refinement."},
+  ether_glass:{name:"Ether Glass",rarity:6,color:"#b8fff3",base:205,description:"Translucent glass resource for sensor optics and agile ship parts."},
+  codex_shard:{name:"Codex Shard",rarity:7,color:"#ffdd44",base:360,description:"Rare golden-cyan data crystal used in codex-neon crafting."},
+  miasma_core:{name:"Miasma Core",rarity:8,color:"#c13bff",base:520,description:"Condensed miasma heart for dangerous late-game recipes and contracts."},
+  black_ice:{name:"Black Ice",rarity:5,color:"#1b2738",base:130,description:"Frozen shadow crystal from dark ice worlds."},
+  ember_quartz:{name:"Ember Quartz",rarity:5,color:"#ff6b35",base:150,description:"Fiery quartz used in cannons, reactors, and forge quests."},
+  gloom_steel:{name:"Gloom Steel",rarity:6,color:"#384052",base:240,description:"Heavy twilight alloy for hulls, brake assemblies, and defense orders."}
+};
+function procKeyTitle(key){return String(key||"").split("_").slice(2).map(v=>v?v[0].toUpperCase()+v.slice(1):"").join(" ")||"Procedural Resource";}
 function registerServerGeneratedResources(){
+  // Preserve the original server-only procedural keys for backwards-compatible saves.
   const prefixes=["astra","void","neon","miasma","codex","prism","ember","gloom","ether","nova","quantum","obsidian"],suffixes=["ore","shard","bloom","crystal","core","salt","glass","fiber","pearl","coal","spore","alloy"];
   const rng=makeRng(GALAXY_SEED+"|finite-proc-resources-v409");
-  for(let i=0;i<28;i++){const key=`proc_${i}_${prefixes[i%prefixes.length]}_${suffixes[Math.floor(rng()*suffixes.length)]}`.replace(/[^a-z0-9_]/g,"_"); if(RES_BASE[key])continue; const rarity=3+Math.floor(rng()*6),base=28+rarity*24+Math.floor(rng()*90); RES_BASE[key]=base;RES_RARITY[key]=rarity;SERVER_PROC_RESOURCE_KEYS.push(key);}
+  for(let i=0;i<28;i++){
+    const key=`proc_${i}_${prefixes[i%prefixes.length]}_${suffixes[Math.floor(rng()*suffixes.length)]}`.replace(/[^a-z0-9_]/g,"_");
+    const rarity=3+Math.floor(rng()*6),base=28+rarity*24+Math.floor(rng()*90);
+    RES_BASE[key]=base;RES_RARITY[key]=rarity;
+    if(!SERVER_PROC_RESOURCE_KEYS.includes(key))SERVER_PROC_RESOURCE_KEYS.push(key);
+    SERVER_RESOURCE_PUBLIC_DEFS[key]={name:procKeyTitle(key),rarity,color:"#b58cff",base,generated:true,legacyServer:true,description:"Legacy procedural resource retained for saved inventories and trading compatibility."};
+  }
+}
+function registerClientGeneratedResources(){
+  // This is the exact browser generator. Previous builds used a different RNG draw
+  // sequence on the server, so most client shop keys were rejected as “Unknown item”.
+  const prefixes=["Astra","Void","Neon","Miasma","Codex","Prism","Ember","Gloom","Ether","Nova","Quantum","Obsidian"];
+  const suffixes=["Ore","Shard","Bloom","Crystal","Core","Salt","Glass","Fiber","Pearl","Coal","Spore","Alloy"];
+  const statKeys=["attack","damage","shield","regen","speed","braking","handling","craft","trade","quest","energy","armor"];
+  const rng=makeRng(GALAXY_SEED+"|finite-proc-resources-v409");
+  for(let i=0;i<28;i++){
+    const key=`proc_${i}_${prefixes[i%prefixes.length].toLowerCase()}_${suffixes[Math.floor(rng()*suffixes.length)].toLowerCase()}`.replace(/[^a-z0-9_]/g,"_");
+    const hue=Math.floor(rng()*360),rarity=3+Math.floor(rng()*6),base=28+rarity*24+Math.floor(rng()*90);
+    const stats={};stats[statKeys[Math.floor(rng()*statKeys.length)]]=1+Math.floor(rng()*4);stats[statKeys[Math.floor(rng()*statKeys.length)]]=1+Math.floor(rng()*3);
+    const name=`${prefixes[Math.floor(rng()*prefixes.length)]} ${suffixes[Math.floor(rng()*suffixes.length)]}`;
+    // Browser-generated definitions are canonical for station stock. Override the
+    // three overlapping legacy keys so display, price and rarity remain identical.
+    RES_BASE[key]=base;RES_RARITY[key]=rarity;
+    if(!CLIENT_PROC_RESOURCE_KEYS.includes(key))CLIENT_PROC_RESOURCE_KEYS.push(key);
+    SERVER_RESOURCE_PUBLIC_DEFS[key]={name,rarity,color:`hsl(${hue},88%,62%)`,base,stats,generated:true,description:`Procedural ${name.toLowerCase()} used for station contracts, trading, and advanced crafting formulas.`};
+  }
 }
 Object.assign(RES_BASE,Object.fromEntries(Object.entries(SERVER_EXTRA_RESOURCE_DEFS).map(([k,v])=>[k,v.base])));
 Object.assign(RES_RARITY,Object.fromEntries(Object.entries(SERVER_EXTRA_RESOURCE_DEFS).map(([k,v])=>[k,v.rarity])));
 RES_KEYS.push(...Object.keys(SERVER_EXTRA_RESOURCE_DEFS));
 registerServerGeneratedResources();
-RES_KEYS.push(...SERVER_PROC_RESOURCE_KEYS);
+registerClientGeneratedResources();
+for(const key of [...SERVER_PROC_RESOURCE_KEYS,...CLIENT_PROC_RESOURCE_KEYS])if(!RES_KEYS.includes(key))RES_KEYS.push(key);
+Object.assign(SERVER_RESOURCE_PUBLIC_DEFS,SERVER_EXTRA_RESOURCE_PUBLIC_DEFS);
+const SHOP_RESOURCE_KEYS=[...Object.keys(SERVER_EXTRA_RESOURCE_DEFS),...CLIENT_PROC_RESOURCE_KEYS];
+const RES_KEY_SET=new Set(RES_KEYS);
+function isKnownResourceKey(key){return RES_KEY_SET.has(String(key||""));}
 
 const econRng=makeRng(GALAXY_SEED+"|economy");
 const economy={
@@ -2187,7 +2236,7 @@ io.on("connection",socket=>{
     restorePersistentBuildingsForPlayer(p);
     if(auth)maybeGrantAccountCreationBonus(p,auth,"join");
     applyShipStats(p,false);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),worldCosmetics:GLOBAL_WORLD_COSMETICS,worldPlanetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS,storyProgress:normalizeStoryProgress(p.storyProgress||{}),spriteCosmeticRegistryVersion:1,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),worldCosmetics:GLOBAL_WORLD_COSMETICS,worldPlanetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS,storyProgress:normalizeStoryProgress(p.storyProgress||{}),resourceDefs:SERVER_RESOURCE_PUBLIC_DEFS,resourceKeys:RES_KEYS,shopResourceKeys:SHOP_RESOURCE_KEYS,resourceCatalogVersion:2,spriteCosmeticRegistryVersion:1,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
     emitInventorySync(p,"login");
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
@@ -2705,7 +2754,7 @@ io.on("connection",socket=>{
   socket.on("sell",({requestId,resourceType,quantity})=>{
     const p=players.get(socket.id);requestId=String(requestId||"").slice(0,80);resourceType=String(resourceType||"");quantity=Math.floor(Number(quantity)||0);
     const deny=reason=>socket.emit("sellDenied",{requestId,reason});
-    if(!p){return;}if(!RES_KEYS.includes(resourceType)){deny("Unknown item.");return;}if(quantity<=0||quantity>500){deny("Invalid quantity.");return;}
+    if(!p){return;}if(!isKnownResourceKey(resourceType)){deny("Unknown item. Resource catalog is out of sync.");return;}if(quantity<=0||quantity>500){deny("Invalid quantity.");return;}
     const pr=economy.price(resourceType);if(!pr){deny("This item cannot be sold here.");return;}
     if(!removeInventory(p,resourceType,quantity)){deny("You do not have that quantity in your server inventory.");return;}
     const earned=pr*quantity;p.credits+=earned;p.tradingVolume=(p.tradingVolume||0)+earned;economy.sold(resourceType,quantity);addScore(p,Math.floor(earned*0.1),"Trade");
@@ -2715,7 +2764,7 @@ io.on("connection",socket=>{
   socket.on("buy",({requestId,resourceType,quantity,pricePerUnit})=>{
     const p=players.get(socket.id);requestId=String(requestId||"").slice(0,80);resourceType=String(resourceType||"");quantity=Math.floor(Number(quantity)||0);
     const deny=(reason,extra={})=>socket.emit("buyDenied",{requestId,resourceType,reason,...extra});
-    if(!p)return;if(!RES_KEYS.includes(resourceType)){deny("Unknown item.");return;}if(quantity<=0||quantity>500){deny("Invalid quantity.");return;}
+    if(!p)return;if(!isKnownResourceKey(resourceType)){deny("Unknown item. Resource catalog is out of sync.",{resourceCatalogVersion:2});return;}if(quantity<=0||quantity>500){deny("Invalid quantity.");return;}
     const marketPrice=Math.max(1,economy.price(resourceType)||1),quotedPrice=Math.floor(Number(pricePerUnit)||0);
     const minAllowed=Math.max(1,Math.ceil(marketPrice*1.01)),maxAllowed=Math.max(minAllowed,Math.ceil(marketPrice*6));
     if(quotedPrice<=0){deny("Price unavailable. Retry.",{pricePerUnit:minAllowed});return;}
