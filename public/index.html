@@ -1384,6 +1384,19 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
   </div>
 </div>
 
+<!-- Planetside module crafting panel -->
+<div id="module-crafting-panel" class="overlay-panel" style="display:none" aria-label="Planetside module forge">
+  <div class="panel-box" style="min-width:780px;max-width:1040px;max-height:90vh;overflow:auto">
+    <span class="panel-close" onclick="toggleModuleCrafting(false)">✕</span>
+    <h2>🧩 PLANETSIDE MODULE FORGE — <span id="module-forge-location">Planet Surface</span></h2>
+    <p style="font-size:11px;color:#8fa3cc;margin:0 0 12px">Craft and upgrade permanent suit modules with mined resources. Select a module to view its next recipe, owned materials, and stat improvement.</p>
+    <div style="display:grid;grid-template-columns:280px 1fr;gap:14px;align-items:start">
+      <div id="module-crafting-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div id="module-crafting-detail" style="min-height:360px"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Server list / player list panel -->
 <div id="sl-panel" class="overlay-panel" style="display:none">
   <div class="panel-box" style="min-width:500px">
@@ -1684,7 +1697,7 @@ function drawGalaxyMapOverlay(){
   g.fillStyle="#b8cbe8";g.font="11px monospace";g.fillText(`Center ${Math.round(cx)}, ${Math.round(cy)} · Range ±${range.toLocaleString()}`,10,18);document.getElementById("galaxy-map-coords").textContent=`${Math.round(ship.x)}, ${Math.round(ship.y)}`;
 }
 
-const BLOCKING_DOM_PANEL_IDS=["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
+const BLOCKING_DOM_PANEL_IDS=["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","module-crafting-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
 function isShown(el){return !!el&&getComputedStyle(el).display!=="none"&&getComputedStyle(el).visibility!=="hidden";}
 function isTextControl(target){if(target&&target.closest&&target.closest("#mobile-controls,#mobile-menu-hub"))return false;const el=target&&target.closest&&target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
 function joinScreenOpen(){return isShown(document.getElementById("join-screen"));}
@@ -1737,6 +1750,7 @@ window.addEventListener("keydown",e=>{
   if(key==="v"){toggleQuestLog();e.preventDefault();return;}
   if(key==="y"){toggleBadgeLog();e.preventDefault();return;}
   if(key==="]"){toggleStatsPanel();e.preventDefault();return;}
+  if(key==="4"){toggleModuleCrafting();e.preventDefault();return;}
   if(key==="3"){toggleStoryPanel();e.preventDefault();return;}
   if(key==="2"){toggleGalaxyMap();e.preventDefault();return;}
   if(key==="k"){toggleLeaderboard();return;}
@@ -1950,7 +1964,7 @@ function resetMobileControlState(reason="reset"){
 
 function mobileToggleHub(force){if(!IS_MOBILE_TOUCH)return;const open=force===undefined?!document.body.classList.contains("mobile-menu-open"):!!force;document.body.classList.toggle("mobile-menu-open",open);clearMovementInput();}
 function mobileCloseAllPanels(){
-  mobileToggleHub(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);
+  mobileToggleHub(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","module-crafting-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);
   if(socialOpen){socialOpen=false;hidePanel("social-panel");}
   try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }
   inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();
@@ -1981,6 +1995,7 @@ function mobileAction(action){
     case "shop":mobileToggleHub(false);mobileToggleShop();break;
     case "attributes":mobileToggleHub(false);mobileToggleAttributes();break;
     case "character":mobileToggleHub(false);toggleCharacterPanel();break;
+    case "modules":mobileToggleHub(false);toggleModuleCrafting();break;
     case "ship-status":mobileToggleHub(false);toggleShipStatusPanel();break;
     case "ship-shop":mobileToggleHub(false);toggleShipShop();break;
     case "build":mobileToggleHub(false);mobileBuildOrTile();break;
@@ -2010,7 +2025,7 @@ function desktopToggleInventory(){inventoryOpen=!inventoryOpen;shopOpen=false;at
 function desktopToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;resetShopTransactions();}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
 function desktopBuildOrTile(){if(mode===MODE.PLANET){placeBuildTileAt(mouse.x||canvas.width/2,mouse.y||canvas.height/2);return;}if(mode===MODE.SPACE)toggleBuildPanel();}
 function desktopInteract(){if(mode===MODE.SPACE&&(nearStation||shopOpen)){desktopToggleShop();return;}keys.add("e");setTimeout(()=>keys.delete("e"),90);}
-function closeAllDesktopPanels(){showMasterMenu(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);if(socialOpen){socialOpen=false;hidePanel("social-panel");}try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();}
+function closeAllDesktopPanels(){showMasterMenu(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","module-crafting-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);if(socialOpen){socialOpen=false;hidePanel("social-panel");}try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();}
 function desktopAction(action){
   if(!joined&&action!=="close")return;
   switch(action){
@@ -2023,6 +2038,7 @@ function desktopAction(action){
     case "cosmetics":toggleCosmeticShop();break;
     case "ship-shop":toggleShipShop();break;
     case "character":toggleCharacterPanel();break;
+    case "modules":toggleModuleCrafting();break;
     case "social":toggleSocialPanel();break;
     case "quests":toggleQuestLog();break;
     case "badges":toggleBadgeLog();break;
@@ -2056,6 +2072,7 @@ const MASTER_MENU_ENTRIES=[
   {action:"cosmetics",cat:"economy",label:"Cosmetics + Coupons",hotkey:";",desc:"Open cosmetic shop, coupon code redemption, and owned visual styles.",style:"gold"},
   {action:"ship-shop",cat:"economy",label:"Ship Market",hotkey:"H",desc:"Buy or switch ship frames from the showroom."},
   {action:"character",cat:"core",label:"Character Bay",hotkey:"C",desc:"Open pilot upgrades, planetside gear, and character information."},
+  {action:"modules",cat:"survival",label:"Planetside Module Forge",hotkey:"4",desc:"Craft and upgrade suit modules with mined resources while landed."},
   {action:"attributes",cat:"core",label:"Attributes",hotkey:"P",desc:"Spend pilot points and review stats."},
   {action:"ship-status",cat:"core",label:"Ship Stats + Loadout",hotkey:"Z",desc:"View hull, shield, weapons, and attachment modules."},
   {action:"quests",cat:"progress",label:"Quest Log",hotkey:"V",desc:"View active station and planetside quests."},
@@ -2382,6 +2399,64 @@ function fireWeaponLocal(ang){statsInc("shotsFired",1);
   return d.cooldown||0.25;
 }
 
+/* ── Planetside module frame + crafting ── */
+const PLANET_MODULE_MAX_LEVEL=10;
+const PLANET_MODULE_ORDER=["life_support","suit_plating","mining_array","jetpack_capacitor","weapon_amplifier","resource_magnet"];
+const PLANET_MODULE_DEFS={
+  life_support:{key:"life_support",name:"CO₂ Scrubber Core",icon:"◉",color:"#7be6ff",description:"Expands suit oxygen reserves and slows CO₂ buildup / oxygen drain.",baseCredits:900,materials:{oxygen_tank:2,cobalt:3,circuit_board:1},advanced:[{level:4,type:"ether_glass",qty:1},{level:7,type:"quantum_core",qty:1}]},
+  suit_plating:{key:"suit_plating",name:"Vitality Weave",icon:"⬡",color:"#78ff8a",description:"Adds planetside suit health and reduces incoming surface damage.",baseCredits:1100,materials:{nano_fiber:4,titanium:3,alloy_frame:1},advanced:[{level:4,type:"gloom_steel",qty:1},{level:7,type:"dark_matter_shard",qty:1}]},
+  mining_array:{key:"mining_array",name:"Excavation Matrix",icon:"⛏",color:"#ffdd44",description:"Shortens hold-to-mine time and increases mining apparatus power.",baseCredits:1000,materials:{iron:8,copper:6,circuit_board:2},advanced:[{level:4,type:"prism_ore",qty:2},{level:7,type:"quantum_core",qty:1}]},
+  jetpack_capacitor:{key:"jetpack_capacitor",name:"Jetpack Capacitor",icon:"▲",color:"#ff9b42",description:"Extends flight time, lowers fuel drain, and improves recharge speed.",baseCredits:1200,materials:{fuel:4,plasma_cell:2,nano_fiber:2},advanced:[{level:4,type:"alloy_frame",qty:1},{level:7,type:"quantum_core",qty:1}]},
+  weapon_amplifier:{key:"weapon_amplifier",name:"Surface Weapon Amplifier",icon:"✦",color:"#ff77dd",description:"Boosts planetside weapon damage and reduces firing cooldown.",baseCredits:1350,materials:{weapon_array:1,copper:6,plasma_cell:2},advanced:[{level:4,type:"miasma_core",qty:1},{level:7,type:"dark_matter_shard",qty:1}]},
+  resource_magnet:{key:"resource_magnet",name:"Resource Magnet",icon:"◎",color:"#cc88ff",description:"Increases planetside pickup range and gently pulls loose drops toward the pilot.",baseCredits:950,materials:{cobalt:4,crystal:4,circuit_board:2},advanced:[{level:4,type:"ether_glass",qty:2},{level:7,type:"stardust",qty:2}]}
+};
+function defaultPlanetModules(){return Object.fromEntries(PLANET_MODULE_ORDER.map(k=>[k,0]));}
+function normalizePlanetModules(raw){const out=defaultPlanetModules();if(raw&&typeof raw==="object")for(const k of PLANET_MODULE_ORDER)out[k]=clamp(Math.floor(Number(raw[k])||0),0,PLANET_MODULE_MAX_LEVEL);return out;}
+function planetModuleLevel(key){return Math.max(0,Math.min(PLANET_MODULE_MAX_LEVEL,Math.floor(Number(player?.planetModules?.[key])||0)));}
+function planetModuleRecipe(key,currentLevel=planetModuleLevel(key)){
+  const def=PLANET_MODULE_DEFS[key];if(!def||currentLevel>=PLANET_MODULE_MAX_LEVEL)return null;
+  const target=currentLevel+1,growth=Math.pow(1.48,currentLevel),recipe={credits:Math.round(def.baseCredits*Math.pow(1.58,currentLevel))};
+  for(const [type,base] of Object.entries(def.materials||{}))recipe[type]=Math.max(1,Math.ceil(base*growth));
+  for(const gate of def.advanced||[])if(target>=gate.level)recipe[gate.type]=(recipe[gate.type]||0)+Math.max(1,Math.ceil(gate.qty*Math.pow(1.38,target-gate.level)));
+  return recipe;
+}
+function planetModuleEffects(modules=player?.planetModules||{}){
+  const l=k=>Math.max(0,Math.min(PLANET_MODULE_MAX_LEVEL,Number(modules?.[k])||0));
+  return {
+    oxygenMaxBonus:l("life_support")*25,
+    oxygenDrainMult:Math.pow(.95,l("life_support")),
+    suitHpBonus:l("suit_plating")*18,
+    damageReduction:Math.min(.35,l("suit_plating")*.03),
+    miningSpeedMult:Math.pow(.93,l("mining_array")),
+    miningPowerBonus:l("mining_array")*4,
+    jetpackMaxBonus:l("jetpack_capacitor")*16,
+    jetpackDrainMult:Math.pow(.96,l("jetpack_capacitor")),
+    jetpackRechargeMult:1+l("jetpack_capacitor")*.07,
+    weaponDamageMult:1+l("weapon_amplifier")*.09,
+    weaponCooldownMult:Math.max(.70,1-l("weapon_amplifier")*.025),
+    pickupRangeBonus:l("resource_magnet")*10,
+    pickupPull:l("resource_magnet")*.75
+  };
+}
+function planetModuleStatText(key,level=planetModuleLevel(key)){
+  const n=Math.max(0,Number(level)||0);
+  if(key==="life_support")return `+${n*25} O₂ capacity · ${Math.round((1-Math.pow(.95,n))*100)}% slower drain`;
+  if(key==="suit_plating")return `+${n*18} suit HP · ${Math.round(Math.min(.35,n*.03)*100)}% damage reduction`;
+  if(key==="mining_array")return `+${n*4} mining power · ${Math.round((1-Math.pow(.93,n))*100)}% faster mining`;
+  if(key==="jetpack_capacitor")return `+${n*16} jet fuel · +${n*7}% recharge`;
+  if(key==="weapon_amplifier")return `+${n*9}% damage · ${Math.round((1-Math.max(.70,1-n*.025))*100)}% faster fire`;
+  if(key==="resource_magnet")return `+${n*10}px pickup range · pull ${Math.round(n*.75)}`;
+  return "No bonus";
+}
+function applyPlanetModuleEffects(){
+  const fx=planetModuleEffects();
+  if(typeof oxygen!=="undefined")applyOxygenLevel();
+  if(typeof jetpack!=="undefined"){
+    const oldMax=Math.max(1,Number(jetpack.max)||100),ratio=clamp((Number(jetpack.current)||0)/oldMax,0,1);
+    jetpack.max=100+fx.jetpackMaxBonus;jetpack.current=clamp(jetpack.max*ratio,0,jetpack.max);
+  }
+}
+
 /* ── Player ── */
 const player={
   id:null,name:"",credits:300,
@@ -2391,6 +2466,7 @@ const player={
   attrPoints:0,color:"#7be6ff",shipType:"scout",score:0,kills:0,deaths:0,
   equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
   equippedAttachments:defaultAttachmentSlots(),
+  planetModules:defaultPlanetModules(),
   equippedCosmetics:{ship:null,bullet:null,enemy:null,particle:null,trail:null,station:null,planet:null,npcship:null,turret:null,engine:null,shield:null,suit:null,laser:null},
 };
 const character={
@@ -2818,7 +2894,7 @@ function sanitizeLocalSlots(slots,maxSlots=24){
 }
 function readLocalGameState(){try{const raw=JSON.parse(localStorage.getItem(LOCAL_GAME_SAVE_KEY)||"null");return raw&&typeof raw==="object"?raw:null;}catch(_){return null;}}
 function makeLocalGameSnapshot(reason="local_save"){
-  return {version:401,reason,updatedAt:Date.now(),credits:Math.max(0,Math.floor(Number(player.credits)||0)),maxSlots:Math.max(24,Math.min(96,Math.floor(Number(player.maxSlots)||24))),invSlots:sanitizeLocalSlots(player.invSlots,player.maxSlots),level:Math.max(1,Math.floor(Number(player.level)||1)),xp:Math.max(0,Math.floor(Number(player.xp)||0)),xpToNext:Math.max(1,Math.floor(Number(player.xpToNext)||100)),attrPoints:Math.max(0,Math.floor(Number(player.attrPoints)||0)),attrs:{...player.attrs},shipType:player.shipType||"scout",equippedWeapon:player.equippedWeapon||"weapon_laser_mk1",weaponLevels:{...player.weaponLevels},equippedAttachments:normalizeAttachments(player.equippedAttachments||{}),cosmeticInventory:normalizeCosmeticInventory(cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(equippedCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(redeemedCoupons||{}),storyProgress:normalizeStoryProgress(storyProgress||{})};
+  return {version:401,reason,updatedAt:Date.now(),credits:Math.max(0,Math.floor(Number(player.credits)||0)),maxSlots:Math.max(24,Math.min(96,Math.floor(Number(player.maxSlots)||24))),invSlots:sanitizeLocalSlots(player.invSlots,player.maxSlots),level:Math.max(1,Math.floor(Number(player.level)||1)),xp:Math.max(0,Math.floor(Number(player.xp)||0)),xpToNext:Math.max(1,Math.floor(Number(player.xpToNext)||100)),attrPoints:Math.max(0,Math.floor(Number(player.attrPoints)||0)),attrs:{...player.attrs},shipType:player.shipType||"scout",equippedWeapon:player.equippedWeapon||"weapon_laser_mk1",weaponLevels:{...player.weaponLevels},equippedAttachments:normalizeAttachments(player.equippedAttachments||{}),planetModules:normalizePlanetModules(player.planetModules||{}),cosmeticInventory:normalizeCosmeticInventory(cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(equippedCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(redeemedCoupons||{}),storyProgress:normalizeStoryProgress(storyProgress||{})};
 }
 function saveLocalGameState(reason="local_save"){
   try{localStorage.setItem(LOCAL_GAME_SAVE_KEY,JSON.stringify(makeLocalGameSnapshot(reason)));}catch(_){/* local storage unavailable */}
@@ -2827,7 +2903,7 @@ function saveLocalGameStateSoon(reason="local_save"){
   clearTimeout(localGameSaveDirtyTimer);
   localGameSaveDirtyTimer=setTimeout(()=>saveLocalGameState(reason),180);
 }
-function localSnapshotHasProgress(snap){return !!(snap&&(Number(snap.credits)>300||Number(snap.level)>1||Number(snap.xp)>0||clientInventoryPayloadHasItems(snap.invSlots)||Object.keys(snap.cosmeticInventory||{}).length||Number(snap.storyProgress?.completed)>0));}
+function localSnapshotHasProgress(snap){return !!(snap&&(Number(snap.credits)>300||Number(snap.level)>1||Number(snap.xp)>0||clientInventoryPayloadHasItems(snap.invSlots)||Object.keys(snap.cosmeticInventory||{}).length||Number(snap.storyProgress?.completed)>0||Object.values(normalizePlanetModules(snap.planetModules||{})).some(v=>v>0)));}
 function applyLocalGameSnapshot(snap,reason="local_first"){
   if(!snap||typeof snap!=="object")return false;
   if(typeof snap.credits==="number")player.credits=Math.max(player.credits||0,Math.floor(snap.credits));
@@ -2842,6 +2918,7 @@ function applyLocalGameSnapshot(snap,reason="local_first"){
   if(snap.equippedWeapon)player.equippedWeapon=snap.equippedWeapon;
   if(snap.weaponLevels&&typeof snap.weaponLevels==="object")player.weaponLevels={...player.weaponLevels,...snap.weaponLevels};
   if(snap.equippedAttachments&&typeof snap.equippedAttachments==="object")player.equippedAttachments=normalizeAttachments(snap.equippedAttachments);
+  if(snap.planetModules&&typeof snap.planetModules==="object")player.planetModules=normalizePlanetModules({...player.planetModules,...snap.planetModules});
   cosmeticInventory={...normalizeCosmeticInventory(snap.cosmeticInventory||{}),...normalizeCosmeticInventory(cosmeticInventory||{})};
   const localEq=normalizeEquippedCosmetics(snap.equippedCosmetics||{}),curEq=normalizeEquippedCosmetics(equippedCosmetics||{});
   equippedCosmetics={...localEq,...curEq};
@@ -3136,9 +3213,9 @@ const CHARACTER_UPGRADES={
   oxygen:{label:"Oxygen Tank",key:"oxygenLevel",baseCost:500},
 };
 function characterUpgradeCost(kind){const u=CHARACTER_UPGRADES[kind];return u?Math.floor(u.baseCost*Math.pow(1.65,Math.max(0,(character[u.key]||1)-1))):999999;}
-function planetWeaponDamage(){return 12+(character.weaponLevel-1)*5;}
-function planetMiningPower(){return 18+(character.miningLevel-1)*6;}
-function applyOxygenLevel(){oxygen.max=100+(character.oxygenLevel-1)*25;oxygen.drainRate=Math.max(1.2,4-(character.oxygenLevel-1)*0.45);oxygen.current=clamp(oxygen.current,0,oxygen.max);}
+function planetWeaponDamage(){return (12+(character.weaponLevel-1)*5)*planetModuleEffects().weaponDamageMult;}
+function planetMiningPower(){return 18+(character.miningLevel-1)*6+planetModuleEffects().miningPowerBonus;}
+function applyOxygenLevel(){const fx=planetModuleEffects();oxygen.max=100+(character.oxygenLevel-1)*25+fx.oxygenMaxBonus;oxygen.drainRate=Math.max(.65,(4-(character.oxygenLevel-1)*.45)*fx.oxygenDrainMult);oxygen.current=clamp(oxygen.current,0,oxygen.max);}
 function xpForLevel(l){return Math.floor(100*Math.pow(1.4,l-1));}
 
 /* ── Ship ── */
@@ -4790,16 +4867,33 @@ function setTile(x,y,t){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H){
 function tileHP(x,y){if(!planetMap||x<0||y<0||x>=planetMap.W||y>=planetMap.H)return 0;return planetMap.hp[y*planetMap.W+x];}
 function setTileHP(x,y,h){if(planetMap&&x>=0&&y>=0&&x<planetMap.W&&y<planetMap.H)planetMap.hp[y*planetMap.W+x]=clamp(h,0,255);}
 function collidePlanet(a,horiz){const TP=16,l=Math.floor((a.x-a.w/2)/TP),ri=Math.floor((a.x+a.w/2)/TP),t=Math.floor((a.y-a.h)/TP),b=Math.floor(a.y/TP);for(let ty=t;ty<=b;ty++)for(let tx=l;tx<=ri;tx++){const ti=tileAt(tx,ty);if(!ti)continue;const tl=tx*TP,tt=ty*TP,tr=tl+TP,tb=tt+TP,ax1=a.x-a.w/2,ax2=a.x+a.w/2,ay1=a.y-a.h,ay2=a.y;if(ax2>tl&&ax1<tr&&ay2>tt&&ay1<tb){if(horiz){if(a.vx>0){a.x=tl-a.w/2;a.vx=0;}else if(a.vx<0){a.x=tr+a.w/2;a.vx=0;}}else{if(a.vy>0){a.y=tt;a.vy=0;a.onGround=true;}else if(a.vy<0){a.y=tb+a.h;a.vy=0;}}}}}
-function itemCollide(it){
-  // Only settle drops when they are falling onto the top of a solid tile.
-  // The old check snapped any drop inside a tile to that tile's top, which could
-  // visually yank drops upward if they spawned under the block above them.
-  const TP=16,r=it.r||3,tx=Math.floor(it.x/TP),ty=Math.floor((it.y+r)/TP);
-  if(it.vy>=0&&tileAt(tx,ty)){
-    it.y=ty*TP-r-0.35;
-    return true;
+function itemCollide(it,prevX=it.x,prevY=it.y){
+  // Swept/sub-stepped collision keeps loot inside mined caves. The earlier
+  // single-point test could skip a ceiling at a low frame rate and let a drop
+  // travel upward through the terrain until it reached the planet surface.
+  const TP=16,r=Math.max(2,Number(it.r)||3);let hit=false;
+  if(!Number.isFinite(it.x)||!Number.isFinite(it.y)){it.x=Number.isFinite(prevX)?prevX:astronaut.x;it.y=Number.isFinite(prevY)?prevY:astronaut.y-8;it.vx=0;it.vy=0;return true;}
+  const endX=it.x,endY=it.y,dx=endX-prevX,dy=endY-prevY,steps=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dy))/(TP*.28)));
+  it.x=prevX;it.y=prevY;
+  for(let step=1;step<=steps;step++){
+    const nx=prevX+dx*(step/steps),ny=prevY+dy*(step/steps);
+    it.x=nx;
+    if(dx>0){const tx=Math.floor((it.x+r)/TP),y0=Math.floor((it.y-r+.5)/TP),y1=Math.floor((it.y+r-.5)/TP);if(tileAt(tx,y0)||tileAt(tx,y1)){it.x=tx*TP-r-.35;it.vx=-Math.abs(it.vx)*.18;hit=true;}}
+    else if(dx<0){const tx=Math.floor((it.x-r)/TP),y0=Math.floor((it.y-r+.5)/TP),y1=Math.floor((it.y+r-.5)/TP);if(tileAt(tx,y0)||tileAt(tx,y1)){it.x=(tx+1)*TP+r+.35;it.vx=Math.abs(it.vx)*.18;hit=true;}}
+    it.y=ny;
+    if(dy>0){const ty=Math.floor((it.y+r)/TP),x0=Math.floor((it.x-r+.5)/TP),x1=Math.floor((it.x+r-.5)/TP);if(tileAt(x0,ty)||tileAt(x1,ty)){it.y=ty*TP-r-.35;it.vy=0;hit=true;}}
+    else if(dy<0){const ty=Math.floor((it.y-r)/TP),x0=Math.floor((it.x-r+.5)/TP),x1=Math.floor((it.x+r-.5)/TP);if(tileAt(x0,ty)||tileAt(x1,ty)){it.y=(ty+1)*TP+r+.35;it.vy=Math.abs(it.vy)*.12;hit=true;}}
+    if(hit)break;
   }
-  return false;
+  // A drop should never remain embedded in a solid tile. Nudge it into the
+  // closest neighboring empty cell rather than allowing terrain tunnelling.
+  const cx=Math.floor(it.x/TP),cy=Math.floor(it.y/TP);
+  if(tileAt(cx,cy)){
+    const choices=[[0,-1],[0,1],[-1,0],[1,0]];let moved=false;
+    for(const[ox,oy]of choices)if(!tileAt(cx+ox,cy+oy)){it.x=(cx+ox)*TP+TP/2;it.y=(cy+oy)*TP+TP/2;it.vx*=.15;it.vy=oy<0?0:Math.max(0,it.vy);moved=true;break;}
+    if(!moved){it.x=prevX;it.y=prevY;it.vx=0;it.vy=0;}hit=true;
+  }
+  return hit;
 }
 function makeMineDropKey(planetId,kind,x,y){return `${planetId||"?"}|${kind||"?"}|${Math.round(Number(x)||0)}|${Math.round(Number(y)||0)}`;}
 const recentMineDropVisuals=new Map();
@@ -4815,13 +4909,13 @@ function spawnPlanetLootVisual({planetId,kind,x,y,qty=1,ownerId=null,serverGrant
   const count=clamp(Math.floor(Number(qty)||1),1,4);
   for(let i=0;i<count;i++){
     const ang=(-Math.PI/2)+(Math.random()-0.5)*1.45;
-    const sp=34+Math.random()*32;
+    const sp=7+Math.random()*9;
     drops.push({
       kind,
-      x:(Number(x)||0)+(Math.random()-0.5)*8,
-      y:(Number(y)||0)-5+(Math.random()-0.5)*4,
+      x:(Number(x)||0)+(Math.random()-0.5)*7,
+      y:(Number(y)||0)+(Math.random()-0.5)*2,
       vx:Math.cos(ang)*sp,
-      vy:Math.sin(ang)*sp-18,
+      vy:Math.max(-13,Math.sin(ang)*sp),
       r:3,
       age:0,
       life:7,
@@ -4855,7 +4949,7 @@ function findContinuousMiningTarget(screenX,screenY,avoidKey=""){
   const fallback=findMineableTargetTile(wx,wy,3);return fallback&&`${fallback.tx},${fallback.ty}`!==avoidKey?fallback:null;
 }
 function miningResourceForTarget(target){if(!target||!activePlanet||!planetMap)return"stone";return resForTile(activePlanet,target.t,target.ty,planetMap.H,target.tx)||"stone";}
-function miningHoldDurationMs(target){const kind=miningResourceForTarget(target),rarity=Math.max(1,Number(RES[kind]?.rarity)||1),hp=Math.max(1,Number(tileHP(target.tx,target.ty))||1),level=Math.max(1,Number(character.miningLevel)||1);const raw=700+rarity*140+Math.min(650,hp*4),speed=1+(level-1)*.08;return clamp(Math.round(raw/speed),650,2400);}
+function miningHoldDurationMs(target){const kind=miningResourceForTarget(target),rarity=Math.max(1,Number(RES[kind]?.rarity)||1),hp=Math.max(1,Number(tileHP(target.tx,target.ty))||1),level=Math.max(1,Number(character.miningLevel)||1),fx=planetModuleEffects();const raw=700+rarity*140+Math.min(650,hp*4),speed=(1+(level-1)*.08)/Math.max(.35,fx.miningSpeedMult);return clamp(Math.round(raw/speed),420,2400);}
 function miningHoldProgress(){if(!miningHoldState)return 0;if(!miningHoldState.serverReady)return Math.min(.06,(performance.now()-miningHoldState.startSentAt)/12000);return clamp((performance.now()-miningHoldState.startedAt)/Math.max(1,miningHoldState.requiredMs),0,1);}
 function mineStateMatches(requestId){return !!requestId&&!!miningHoldState&&miningHoldState.requestId===String(requestId);}
 function clearMiningChainTimer(){if(miningChainTimer)clearTimeout(miningChainTimer);miningChainTimer=0;miningChainScheduled=false;}
@@ -5521,6 +5615,7 @@ function buildWixAuthSnapshot(msg){
   if(typeof msg.equippedWeapon==="string")snap.equippedWeapon=msg.equippedWeapon;
   if(msg.weaponLevels&&typeof msg.weaponLevels==="object")snap.weaponLevels=msg.weaponLevels;
   if(msg.equippedAttachments&&typeof msg.equippedAttachments==="object")snap.equippedAttachments=msg.equippedAttachments;
+  if(msg.planetModules&&typeof msg.planetModules==="object")snap.planetModules=msg.planetModules;
   if(Array.isArray(msg.activeMercs))snap.activeMercs=msg.activeMercs;
   if(msg.buildings&&typeof msg.buildings==="object")snap.buildings=msg.buildings;
   if(msg.signupCreditBonusGranted===true||msg.accountCreationBonusGranted===true)snap.signupCreditBonusGranted=true;
@@ -5554,7 +5649,7 @@ const SAFE_GAMEPLAY_INVENTORY_SYNC_REASONS=new Set([
   "planet_mine","planet_build","space_loot_pickup","sell_resource","buy_resource",
   "buy_inventory_slot","buy_ship","craft_ship","station_quest_reward","ship_part_reward",
   "badge_reward","credit_purchase","account_creation_bonus","upgrade_weapon",
-  "equip_weapon","unequip_weapon","equip_attachment","unequip_attachment",
+  "equip_weapon","unequip_weapon","equip_attachment","unequip_attachment","craft_planet_module",
   "buy_station","hire_station_ship","hire_merc","buy_structure",
   "storage_deposit","storage_withdraw","storage_upgrade","turret_upgrade",
   "collect_station_goods","use_oxygen_tank","use_gas","upgrade_attr","upgrade_attr_paid",
@@ -5585,6 +5680,7 @@ function applyAuthoritativeInventory(payload){
   if(payload.equippedWeapon)player.equippedWeapon=payload.equippedWeapon;
   if(payload.weaponLevels&&typeof payload.weaponLevels==="object")player.weaponLevels={...player.weaponLevels,...payload.weaponLevels};
   if(payload.equippedAttachments&&typeof payload.equippedAttachments==="object")player.equippedAttachments=normalizeAttachments(payload.equippedAttachments);
+  if(payload.planetModules&&typeof payload.planetModules==="object"){player.planetModules=normalizePlanetModules(payload.planetModules);applyPlanetModuleEffects();}
   if(payload.attachmentDefs&&typeof payload.attachmentDefs==="object")for(const[k,v]of Object.entries(payload.attachmentDefs))ATTACHMENT_DEFS[k]={...(ATTACHMENT_DEFS[k]||{}),...v,key:k};
   ensureClientInventorySlots();clampPanelScrolls();updateHud();
   return true;
@@ -6025,9 +6121,9 @@ socket.on("connect_error",(err)=>{setJoinStatus("Cannot reach global server: " +
 socket.on("reconnect_attempt",()=>{setJoinStatus("Reconnecting to global Space Eco server…","#ffcc44");});
 socket.on("serverFull",()=>{setJoinStatus("Server full. Try again later.","#ffcc44");});
 
-socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons,worldCosmetics,stationTierCosmetics:serverStationTierCosmetics,planetTypeCosmetics:serverPlanetTypeCosmetics,worldPlanetTypeCosmetics,storyProgress:serverStoryProgress,resourceDefs:serverResourceDefs,resourceKeys:serverResourceKeys,shopResourceKeys:serverShopResourceKeys,resourceCatalogVersion:serverResourceCatalogVersion,spriteCosmeticRegistryVersion})=>{
+socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons,worldCosmetics,stationTierCosmetics:serverStationTierCosmetics,planetTypeCosmetics:serverPlanetTypeCosmetics,worldPlanetTypeCosmetics,storyProgress:serverStoryProgress,resourceDefs:serverResourceDefs,resourceKeys:serverResourceKeys,shopResourceKeys:serverShopResourceKeys,resourceCatalogVersion:serverResourceCatalogVersion,spriteCosmeticRegistryVersion})=>{
   player.id=id;player.color=color;serverAccountPersistenceLoaded=!!persistenceLoaded;accountInventoryPendingLoad=!!(serverMemberId&&!serverAccountPersistenceLoaded);if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken&&serverAccountPersistenceLoaded)wixLinkedToken=wixSnapshotKey();}
-  applyAuthoritativeInventory({credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,persistenceLoaded,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,reason:"login"});GALAXY_SEED=seed;applyAuthoritativeResourceCatalog(serverResourceDefs,serverResourceKeys,serverShopResourceKeys,serverResourceCatalogVersion);serverPrices=prices||{};
+  applyAuthoritativeInventory({credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,persistenceLoaded,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,reason:"login"});GALAXY_SEED=seed;applyAuthoritativeResourceCatalog(serverResourceDefs,serverResourceKeys,serverShopResourceKeys,serverResourceCatalogVersion);if(serverModuleDefs&&typeof serverModuleDefs==="object")for(const[k,v]of Object.entries(serverModuleDefs))if(PLANET_MODULE_DEFS[k])PLANET_MODULE_DEFS[k]={...PLANET_MODULE_DEFS[k],...v,key:k};serverPrices=prices||{};
   if(shipTypes)SHIP_TYPES=shipTypes;if(worldCosmetics)globalWorldCosmetics=normalizeEquippedCosmetics(worldCosmetics);
   if(ownedStationTiers)OWNED_STATION_TIERS=ownedStationTiers;
   if(structureTypes)STRUCTURE_TYPES=structureTypes;
@@ -6138,8 +6234,8 @@ socket.on("accountCreationBonusGranted",({creditsAdded,credits})=>{
   if(joined)showFT(`+${Number(creditsAdded||100000).toLocaleString()} Account Bonus`,ship.x,ship.y-36,"#ffdd44",13);
 });
 socket.on("accountCreationBonusPending",({reason})=>setAccountBonusStatus(reason||"Account linked. Waiting for Wix save status before welcome bonus.","#ffcc44"));
-socket.on("inventorySync",({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,storyProgress:serverStoryProgress})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);if(persistenceLoaded!==undefined)serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded)accountInventoryPendingLoad=false;applyAuthoritativeInventory({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs});});
-socket.on("accountLinked",({memberId,credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,storyProgress:serverStoryProgress,alreadyLinked,persistenceLoaded,signupCreditBonusGranted})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);syncStoryProgressSoon();if(memberId)wixMemberId=memberId;serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded){accountInventoryPendingLoad=false;wixLinkedToken=wixSnapshotKey();}wixLinkInFlightToken=null;const applied=applyAuthoritativeInventory({credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,memberId,persistenceLoaded,reason:"accountLinked"});if(applied&&!wixSyncedNoticeShown&&!alreadyLinked&&persistenceLoaded!==false){showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);wixSyncedNoticeShown=true;}if(signupCreditBonusGranted)setAccountBonusStatus("Welcome reward secured on this account. Progress saving is active.","#78ff8a");setCreditPayStatus(persistenceLoaded===false?"Wix account linked. Waiting for saved inventory snapshot before saving.":"Wix account synced with the game server.",persistenceLoaded===false?"#ffcc44":"#78ff8a");});
+socket.on("inventorySync",({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,storyProgress:serverStoryProgress})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);if(persistenceLoaded!==undefined)serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded)accountInventoryPendingLoad=false;applyAuthoritativeInventory({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs});});
+socket.on("accountLinked",({memberId,credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,storyProgress:serverStoryProgress,alreadyLinked,persistenceLoaded,signupCreditBonusGranted})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);syncStoryProgressSoon();if(memberId)wixMemberId=memberId;serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded){accountInventoryPendingLoad=false;wixLinkedToken=wixSnapshotKey();}wixLinkInFlightToken=null;const applied=applyAuthoritativeInventory({credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,memberId,persistenceLoaded,reason:"accountLinked"});if(applied&&!wixSyncedNoticeShown&&!alreadyLinked&&persistenceLoaded!==false){showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);wixSyncedNoticeShown=true;}if(signupCreditBonusGranted)setAccountBonusStatus("Welcome reward secured on this account. Progress saving is active.","#78ff8a");setCreditPayStatus(persistenceLoaded===false?"Wix account linked. Waiting for saved inventory snapshot before saving.":"Wix account synced with the game server.",persistenceLoaded===false?"#ffcc44":"#78ff8a");});
 socket.on("storyProgressSync",({storyProgress:serverStoryProgress})=>{if(serverStoryProgress){mergeStoryProgress(serverStoryProgress);renderStoryPanel();}});
 socket.on("accountSyncPending",({reason})=>setCreditPayStatus(reason||"Waiting for Wix inventory snapshot before saving.","#ffcc44"));
 socket.on("accountSuperseded",({reason})=>{setCreditPayStatus(reason||"This account is open in another game session.","#ffcc44");});
@@ -6255,7 +6351,7 @@ socket.on("planetPlayersState",({planetId,players:pps,projectiles})=>{
 socket.on("planetHit",({damage,hp,attackerName})=>{ship.hp=hp;showFT(`-${Math.round(damage)} ${attackerName||"hit"}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)enterGameOver("hit-zero");});
 socket.on("planetAttackConfirm",({targetId,damage,hp})=>{const pp=planetPlayers.get(targetId);if(pp){pp.hp=hp;showFT(`-${Math.round(damage)}`,pp.renderX||pp.x,pp.renderY||pp.y-24,"#ffff44",9);}});
 socket.on("planetAttackDenied",({reason})=>showFT(reason||"Attack missed",astronaut.x,astronaut.y-24,"#ffcc44",8));
-socket.on("characterState",({cosmeticColor,suitColor,weaponLevel,miningLevel,oxygenLevel,credits})=>{if(cosmeticColor)character.cosmeticColor=cosmeticColor;if(suitColor)character.suitColor=suitColor;if(weaponLevel)character.weaponLevel=weaponLevel;if(miningLevel)character.miningLevel=miningLevel;if(oxygenLevel)character.oxygenLevel=oxygenLevel;if(typeof credits==="number")player.credits=credits;applyOxygenLevel();updateHud();});
+socket.on("characterState",({cosmeticColor,suitColor,weaponLevel,miningLevel,oxygenLevel,credits,planetModules,hp,maxHp})=>{if(cosmeticColor)character.cosmeticColor=cosmeticColor;if(suitColor)character.suitColor=suitColor;if(weaponLevel)character.weaponLevel=weaponLevel;if(miningLevel)character.miningLevel=miningLevel;if(oxygenLevel)character.oxygenLevel=oxygenLevel;if(typeof credits==="number")player.credits=credits;if(planetModules)player.planetModules=normalizePlanetModules(planetModules);if(typeof hp==="number")ship.hp=hp;if(typeof maxHp==="number")ship.maxHp=maxHp;applyPlanetModuleEffects();updateHud();});
 socket.on("characterUpgradeConfirm",({kind,level,credits})=>{const u=CHARACTER_UPGRADES[kind];if(u)character[u.key]=level;if(typeof credits==="number")player.credits=credits;applyOxygenLevel();showFT(`${u?.label||kind} Lv${level}`,canvas.width/2,canvas.height/2-30,"#7be6ff",11);updateHud();});
 socket.on("characterUpgradeDenied",({reason})=>showFT(reason||"Upgrade denied",canvas.width/2,canvas.height/2-20,"#ff5544",10));
 socket.on("tradeRequest",({fromId,fromName,mode})=>{pendingTradeRequest={fromId,fromName,mode,expires:Date.now()+25000};tradeStatus=`${fromName} wants to trade.`;addChat("Trade",`${tradeStatus} Use the yellow banner or press Y/N.`,"#ffdd44");showTradeRequestBanner();showFT("TRADE REQUEST!",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-40:ship.y-24,"#ffdd44",13);});
@@ -6290,6 +6386,10 @@ socket.on("factionLeft",({reason})=>{factionState=null;renderSocialPanel();addCh
 socket.on("factionQuestCompleted",({rewardPlayerXp,rewardFactionXp,rewardCredits})=>{addChat("Faction",`Quest complete! +${rewardPlayerXp||0} player XP, +${rewardFactionXp||0} faction XP${rewardCredits?`, +${rewardCredits}cr`:""}.`,"#78ff8a");});
 
 socket.on("oxygenDamageUpdate",({hp,damage})=>{ship.hp=hp;showFT(`O2 DAMAGE -${Math.round(damage)}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)enterGameOver("hit-zero");});
+
+socket.on("planetModuleState",({planetModules,moduleDefs,hp,maxHp}={})=>{if(moduleDefs&&typeof moduleDefs==="object")for(const[k,v]of Object.entries(moduleDefs))if(PLANET_MODULE_DEFS[k])PLANET_MODULE_DEFS[k]={...PLANET_MODULE_DEFS[k],...v,key:k};if(planetModules)player.planetModules=normalizePlanetModules(planetModules);if(typeof hp==="number")ship.hp=hp;if(typeof maxHp==="number")ship.maxHp=maxHp;applyPlanetModuleEffects();saveLocalGameStateSoon("planet_module_sync");if(isShown(document.getElementById("module-crafting-panel")))renderModuleCrafting();});
+socket.on("planetModuleCrafted",({moduleKey,planetModules,credits,invSlots,maxSlots,hp,maxHp}={})=>{planetModuleCraftPending=false;if(planetModules)player.planetModules=normalizePlanetModules(planetModules);if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}if(typeof hp==="number")ship.hp=hp;if(typeof maxHp==="number")ship.maxHp=maxHp;applyPlanetModuleEffects();const d=PLANET_MODULE_DEFS[moduleKey];showFT(`${d?.name||"Module"} Lv${planetModuleLevel(moduleKey)}`,astronaut.x,astronaut.y-34,d?.color||"#78ff8a",11);saveLocalGameStateSoon("craft_planet_module");renderModuleCrafting();updateHud();});
+socket.on("planetModuleDenied",({reason}={})=>{planetModuleCraftPending=false;showFT(reason||"Module crafting denied",mode===MODE.PLANET?astronaut.x:ship.x,(mode===MODE.PLANET?astronaut.y:ship.y)-28,"#ff5544",9);renderModuleCrafting();});
 
 socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield,equippedAttachments})=>{
   player.shipType=shipTypeKey;player.credits=credits;if(equippedAttachments)player.equippedAttachments=normalizeAttachments(equippedAttachments);ship.hp=hp;ship.maxHp=maxHp;ship.shield=shield;ship.maxShield=maxShield;
@@ -7465,7 +7565,7 @@ function shipStatusUiScale(){
   // The game canvas is intentionally low-res/pixelated, so DOM/CSS scaling should not shrink the menu text.
   // Keep a readable internal pixel scale and let the browser upscale the canvas cleanly.
   const base=Math.min(canvas.width/560,canvas.height/310);
-  const s=Math.max(0.54,Math.min(0.86,base||0.54));
+  const s=Math.max(0.64,Math.min(1.02,(base||0.54)*1.17));
   return {sx,sy,s,cssW:r.width||canvas.width,cssH:r.height||canvas.height};
 }
 function shipStatusLayout(){
@@ -7663,10 +7763,10 @@ function updatePlanet(dt){
   if(jetpack.active){
     astronaut.vy-=jetpack.thrust*dt;
     astronaut.vy=Math.max(astronaut.vy,-230);
-    jetpack.current=clamp(jetpack.current-jetpack.drainRate*dt,0,jetpack.max);
+    jetpack.current=clamp(jetpack.current-jetpack.drainRate*planetModuleEffects().jetpackDrainMult*dt,0,jetpack.max);
   }else{
     const mult=astronaut.onGround?jetpack.groundRechargeMult:jetpack.airRechargeMult;
-    jetpack.current=clamp(jetpack.current+jetpack.rechargeRate*mult*dt,0,jetpack.max);
+    jetpack.current=clamp(jetpack.current+jetpack.rechargeRate*planetModuleEffects().jetpackRechargeMult*mult*dt,0,jetpack.max);
   }
   astronaut.vy+=grav*dt;astronaut.x+=astronaut.vx*dt;astronaut.x=clamp(astronaut.x,8,planetMap.W*16-8);collidePlanet(astronaut,true);
   astronaut.y+=astronaut.vy*dt;astronaut.onGround=false;collidePlanet(astronaut,false);
@@ -7684,12 +7784,13 @@ function updatePlanet(dt){
     it.age=(it.age||0)+dt;
     if(Number.isFinite(it.life)){it.life-=dt;if(it.life<=0){drops.splice(i,1);continue;}}
     if(it.pickupDelay>0)it.pickupDelay-=dt;
+    const prevX=it.x,prevY=it.y,fx=planetModuleEffects();
+    if((it.pickupDelay||0)<=0&&fx.pickupPull>0){const dx=astronaut.x-it.x,dy=(astronaut.y-7)-it.y,d=Math.hypot(dx,dy)||1;if(d<75+fx.pickupRangeBonus){it.vx+=dx/d*fx.pickupPull*42*dt;it.vy+=dy/d*fx.pickupPull*34*dt;}}
     it.vy+=grav*dt;
-    it.x+=it.vx*dt;
-    it.y+=it.vy*dt;
-    it.vx*=Math.pow(0.985,dt*60);
-    if(itemCollide(it)){it.vx*=0.72;it.vy=0;}
-    const canPickup=(it.pickupDelay||0)<=0&&dist(astronaut.x,astronaut.y,it.x,it.y)<18;
+    it.x+=it.vx*dt;it.y+=it.vy*dt;
+    it.vx*=Math.pow(.975,dt*60);
+    if(itemCollide(it,prevX,prevY))it.vx*=.66;
+    const canPickup=(it.pickupDelay||0)<=0&&dist(astronaut.x,astronaut.y,it.x,it.y)<18+fx.pickupRangeBonus;
     if(canPickup){
       if(it.serverGranted){drops.splice(i,1);}
       else if(addToInventory(it.kind,1)){showResourcePickupPopup(it.kind,1);drops.splice(i,1);}
@@ -7765,6 +7866,24 @@ function drawPlanet(){
 }
 
 
+/* ── Planetside module forge UI ── */
+let selectedPlanetModuleKey="life_support",planetModuleCraftPending=false;
+function moduleRecipeLine(recipe){return Object.entries(recipe||{}).map(([type,qty])=>type==="credits"?`${Number(qty).toLocaleString()} credits`:`${qty}× ${RES[type]?.name||type}`).join(" · ");}
+function canCraftPlanetModuleLocal(recipe){if(!recipe)return false;if((player.credits||0)<(recipe.credits||0))return false;return Object.entries(recipe).every(([type,qty])=>type==="credits"||inventoryTotal(type)>=qty);}
+function selectPlanetModule(key){if(PLANET_MODULE_DEFS[key])selectedPlanetModuleKey=key;renderModuleCrafting();}
+function craftSelectedPlanetModule(){if(planetModuleCraftPending)return;if(mode!==MODE.PLANET){showFT("Land on a planet to use the module forge",ship.x,ship.y-20,"#ffcc44",9);return;}const key=selectedPlanetModuleKey,recipe=planetModuleRecipe(key);if(!recipe)return;if(!canCraftPlanetModuleLocal(recipe)){showFT("Missing module recipe materials",astronaut.x,astronaut.y-28,"#ff5544",9);return;}planetModuleCraftPending=true;renderModuleCrafting();socket.emit("craftPlanetModule",{moduleKey:key,requestId:`pm_${Date.now()}_${Math.floor(Math.random()*99999)}`});}
+function renderModuleCrafting(){
+  const list=document.getElementById("module-crafting-list"),detail=document.getElementById("module-crafting-detail"),loc=document.getElementById("module-forge-location");if(!list||!detail)return;
+  if(loc)loc.textContent=mode===MODE.PLANET?(activePlanet?.name||activePlanet?.type||"Planet Surface"):"LANDING REQUIRED";
+  list.innerHTML=PLANET_MODULE_ORDER.map(key=>{const d=PLANET_MODULE_DEFS[key],lv=planetModuleLevel(key),sel=key===selectedPlanetModuleKey;return `<button type="button" data-module-select="${key}" style="text-align:left;padding:10px;border-radius:7px;border:1px solid ${sel?d.color:"#284258"};background:${sel?"#142333":"#0d1522"};color:#d6e1ff;cursor:pointer"><div style="display:flex;justify-content:space-between;gap:8px"><b style="color:${d.color}">${d.icon} ${safeHtml(d.name)}</b><span style="color:${lv?"#78ff8a":"#8fa3cc"}">Lv ${lv}/${PLANET_MODULE_MAX_LEVEL}</span></div><div style="font-size:9px;color:#8fa3cc;margin-top:4px">${safeHtml(planetModuleStatText(key,lv))}</div></button>`;}).join("");
+  for(const b of list.querySelectorAll("[data-module-select]"))b.onclick=()=>selectPlanetModule(b.dataset.moduleSelect);
+  const key=selectedPlanetModuleKey,d=PLANET_MODULE_DEFS[key],lv=planetModuleLevel(key),recipe=planetModuleRecipe(key),maxed=lv>=PLANET_MODULE_MAX_LEVEL,next=lv+1;
+  const reqRows=recipe?Object.entries(recipe).map(([type,qty])=>{const have=type==="credits"?(player.credits||0):inventoryTotal(type),name=type==="credits"?"Credits":(RES[type]?.name||type),ok=have>=qty;return `<tr><td>${safeHtml(name)}</td><td>${Number(have).toLocaleString()}</td><td>${Number(qty).toLocaleString()}</td><td style="color:${ok?"#78ff8a":"#ff7777"}">${ok?"READY":"NEEDED"}</td></tr>`;}).join(""):"";
+  detail.innerHTML=`<div style="background:#0c1422;border:1px solid ${d.color};border-radius:8px;padding:14px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><div style="font-size:18px;color:${d.color};font-weight:bold">${d.icon} ${safeHtml(d.name)}</div><div style="font-size:10px;color:#9fb0d0;margin-top:4px">${safeHtml(d.description)}</div></div><div style="font-size:18px;color:#ffdd44">Lv ${lv}</div></div><div style="margin-top:12px;padding:10px;background:#101c2d;border:1px solid #253f62;border-radius:6px"><b style="color:#7be6ff">Current:</b> <span style="color:#d6e1ff">${safeHtml(planetModuleStatText(key,lv))}</span><br><b style="color:#78ff8a">${maxed?"Maximum":"Next level"}:</b> <span style="color:#d6e1ff">${safeHtml(planetModuleStatText(key,maxed?lv:next))}</span></div>${maxed?`<div style="margin-top:14px;padding:18px;text-align:center;border:1px solid #4a8a6a;background:#10261d;color:#78ff8a;border-radius:6px"><b>MAXIMUM MODULE LEVEL REACHED</b></div>`:`<h3 style="margin:14px 0 7px;color:#ffdd44">Recipe for Level ${next}</h3><table style="width:100%"><thead><tr><th>Material</th><th>Owned</th><th>Needed</th><th>Status</th></tr></thead><tbody>${reqRows}</tbody></table><div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:12px"><span style="font-size:9px;color:#8fa3cc">Costs rise with each upgrade and introduce rarer materials at higher levels.</span><button id="module-craft-btn" class="trade-btn ready" ${planetModuleCraftPending||!canCraftPlanetModuleLocal(recipe)||mode!==MODE.PLANET?"disabled":""}>${planetModuleCraftPending?"CRAFTING...":lv===0?"CRAFT MODULE":`UPGRADE TO LV ${next}`}</button></div>`}</div>`;
+  const btn=document.getElementById("module-craft-btn");if(btn)btn.onclick=craftSelectedPlanetModule;
+}
+function toggleModuleCrafting(force){const el=document.getElementById("module-crafting-panel");if(!el)return;const open=force===undefined?!isShown(el):!!force;if(open&&mode!==MODE.PLANET){showFT("Land on a planet to access the Module Forge",ship.x,ship.y-22,"#ffcc44",10);return;}el.style.display=open?"flex":"none";if(open){characterOpen=false;renderModuleCrafting();}else planetModuleCraftPending=false;}
+
 /* ── Character / planet interaction UI ── */
 function toggleCharacterPanel(){characterOpen=!characterOpen;if(characterOpen){inventoryOpen=false;shopOpen=false;attrOpen=false;shipStatusOpen=false;}}
 function togglePlanetTool(){if(mode!==MODE.PLANET)return;planetTool=planetTool==="mining"?"weapon":"mining";showFT(`Tool: ${planetTool}`,astronaut.x,astronaut.y-24,"#ffdd44",9);}
@@ -7785,7 +7904,7 @@ function planetWeaponAttack(){
     }
     planetAttackCooldown=0.22;showFT("Miss",astronaut.x,astronaut.y-22,"#ffcc44",7);return;
   }
-  planetAttackCooldown=0.18;
+  planetAttackCooldown=0.18*planetModuleEffects().weaponCooldownMult;
   const sx=astronaut.x,sy=astronaut.y-8,ang=angleToward(sx,sy,wx,wy);
   planetLocalProjectiles.push({x:sx,y:sy,vx:Math.cos(ang)*310,vy:Math.sin(ang)*310,damage:planetWeaponDamage(),life:1.55,color:cosmeticProjectileColor("#ffdd44"),size:cosmeticProjectileSize(3.2)});
   socket.emit("planetFireProjectile",{planetId:activePlanet.id,x:sx,y:sy,targetX:wx,targetY:wy});
@@ -7839,41 +7958,41 @@ function renderFactionSocial(){const el=document.getElementById("social-faction-
 function initSocialDom(){const c=document.getElementById("social-close"),a=document.getElementById("social-invite-accept"),d=document.getElementById("social-invite-decline");if(c)c.onclick=()=>toggleSocialPanel();if(a)a.onclick=()=>respondSocialInvite(true);if(d)d.onclick=()=>respondSocialInvite(false);}
 function cycleCosmetic(){const colors=["#ffd27a","#f4b0ff","#7be6ff","#78ff8a","#ff9966","#dfe8ff","#ffdd44"];const i=colors.indexOf(character.cosmeticColor);character.cosmeticColor=colors[(i+1)%colors.length];socket.emit("characterCosmetic",{cosmeticColor:character.cosmeticColor,suitColor:character.suitColor});}
 function handleCharacterClick(mx,my){
-  const pw=440,ph=258,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  const pw=620,ph=390,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
   if(mx<px||mx>px+pw||my<py||my>py+ph){characterOpen=false;return;}
   const rows=["weapon","mining","oxygen"];
-  for(let i=0;i<rows.length;i++){const y=py+128+i*38,bx=px+323,by=y-18,bw=92,bh=22;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){socket.emit("upgradeCharacterPart",{kind:rows[i]});return;}}
-  const cbx=px+24,cby=py+72;if(mx>=cbx&&mx<=cbx+126&&my>=cby&&my<=cby+24){cycleCosmetic();}
+  for(let i=0;i<rows.length;i++){const y=py+174+i*48,bx=px+201,by=y-23,bw=92,bh=25;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){socket.emit("upgradeCharacterPart",{kind:rows[i]});return;}}
+  const cbx=px+25,cby=py+89;if(mx>=cbx&&mx<=cbx+132&&my>=cby&&my<=cby+26){cycleCosmetic();return;}
+  if(mode===MODE.PLANET){
+    const frameX=px+320,frameY=py+55,cardW=132,cardH=68,gap=9;
+    PLANET_MODULE_ORDER.forEach((key,i)=>{const col=i%2,row=Math.floor(i/2),x=frameX+col*(cardW+gap),y=frameY+row*(cardH+gap);if(mx>=x&&mx<=x+cardW&&my>=y&&my<=y+cardH){selectedPlanetModuleKey=key;toggleModuleCrafting(true);}});
+    const bx=px+378,by=py+310,bw=180,bh=32;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh)toggleModuleCrafting(true);
+  }
 }
 function drawCharacterPanel(){
-  const pw=440,ph=258,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
-  ctx.fillStyle="rgba(0,0,0,.74)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  const pw=620,ph=390,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  ctx.fillStyle="rgba(0,0,0,.80)";ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle="#0d1424";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#3f86bf";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
-  ctx.fillStyle="#7be6ff";ctx.font="bold 13px monospace";ctx.fillText("CHARACTER BAY",px+14,py+20);
-  ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText("C close · R trade · Q tool",px+292,py+20);
+  ctx.fillStyle="#7be6ff";ctx.font="bold 15px monospace";ctx.fillText("CHARACTER BAY + MODULE FRAME",px+16,py+24);
+  ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText("C close · 4 module forge · Q tool",px+372,py+23);
 
-  ctx.fillStyle="#091020";ctx.fillRect(px+16,py+36,146,86);ctx.strokeStyle="#274364";ctx.strokeRect(px+16,py+36,146,86);
-  const suitPreview=activeCosmeticDef("suit");ctx.fillStyle=safeColor(suitPreview?.accent||character.cosmeticColor,"#ffd27a");ctx.fillRect(px+78,py+54,16,11);ctx.fillStyle=safeColor(suitPreview?.color||character.suitColor,"#dfe8ff");ctx.fillRect(px+76,py+66,20,22);ctx.fillStyle=safeColor(suitPreview?.accent||"#6ad1ff","#6ad1ff");ctx.fillRect(px+81,py+68,10,4);
-  ctx.fillStyle="#123120";ctx.fillRect(px+24,py+72,126,24);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(px+24,py+72,126,24);
-  ctx.fillStyle="#78ff8a";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText("CHANGE COLOR",px+87,py+88);ctx.textAlign="left";
+  ctx.fillStyle="#091020";ctx.fillRect(px+18,py+42,150,112);ctx.strokeStyle="#274364";ctx.strokeRect(px+18,py+42,150,112);
+  const suitPreview=activeCosmeticDef("suit");ctx.fillStyle=safeColor(suitPreview?.accent||character.cosmeticColor,"#ffd27a");ctx.fillRect(px+82,py+62,18,12);ctx.fillStyle=safeColor(suitPreview?.color||character.suitColor,"#dfe8ff");ctx.fillRect(px+79,py+75,24,28);ctx.fillStyle=safeColor(suitPreview?.accent||"#6ad1ff","#6ad1ff");ctx.fillRect(px+85,py+78,12,5);
+  ctx.fillStyle="#123120";ctx.fillRect(px+25,py+89,132,26);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(px+25,py+89,132,26);ctx.fillStyle="#78ff8a";ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText("CHANGE COLOR",px+91,py+106);ctx.textAlign="left";
 
-  ctx.fillStyle="#d6e1ff";ctx.font="9px monospace";
-  ctx.fillText(`Credits: ${player.credits}cr`,px+180,py+44);
-  ctx.fillText(`Level: ${player.level}   XP: ${player.xp}/${player.xpToNext}`,px+180,py+58);
-  ctx.fillText(`Ship: ${SHIP_TYPES[player.shipType]?.name||player.shipType}`,px+180,py+72);
-  ctx.fillText(`HP ${Math.round(ship.hp)}/${ship.maxHp}   SH ${Math.round(ship.shield)}/${ship.maxShield}`,px+180,py+86);
-  ctx.fillText(`Planet Tool: ${planetTool.toUpperCase()}`,px+180,py+100);
+  const fx=planetModuleEffects();ctx.fillStyle="#d6e1ff";ctx.font="10px monospace";
+  ctx.fillText(`Credits: ${Math.floor(player.credits).toLocaleString()}cr`,px+183,py+52);ctx.fillText(`Level: ${player.level}   XP: ${player.xp}/${player.xpToNext}`,px+183,py+68);ctx.fillText(`Ship: ${SHIP_TYPES[player.shipType]?.name||player.shipType}`,px+183,py+84);ctx.fillText(`HP ${Math.round(ship.hp)}/${ship.maxHp}   SH ${Math.round(ship.shield)}/${ship.maxShield}`,px+183,py+100);ctx.fillText(`Planet Tool: ${planetTool.toUpperCase()}`,px+183,py+116);ctx.fillStyle=mode===MODE.PLANET?"#78ff8a":"#ffcc44";ctx.fillText(mode===MODE.PLANET?"MODULE FRAME ACTIVE":"LAND TO ACTIVATE MODULE FRAME",px+183,py+136);
 
-  const rows=[['weapon','Planet Weapon',character.weaponLevel,`Damage ${planetWeaponDamage()}`],['mining','Mining Apparatus',character.miningLevel,`Power ${planetMiningPower()}`],['oxygen','Oxygen Tank',character.oxygenLevel,`O2 ${oxygen.max}% · drain ${oxygen.drainRate.toFixed(1)}`]];
-  for(let i=0;i<rows.length;i++){
-    const [kind,label,lv,stat]=rows[i],y=py+128+i*38,cost=characterUpgradeCost(kind),can=player.credits>=cost;
-    ctx.fillStyle=i%2===0?"#0b1220":"#10192b";ctx.fillRect(px+18,y-24,pw-36,31);ctx.strokeStyle="#1e3858";ctx.strokeRect(px+18,y-24,pw-36,31);
-    ctx.fillStyle="#ffdd44";ctx.font="bold 9px monospace";ctx.fillText(`${label} Lv${lv}`,px+28,y-10);
-    ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(stat,px+172,y-10);
-    ctx.fillStyle=can?"#183a2a":"#3a1b1b";ctx.fillRect(px+323,y-18,92,22);ctx.strokeStyle=can?"#4a8a6a":"#6a3333";ctx.strokeRect(px+323,y-18,92,22);
-    ctx.fillStyle=can?"#78ff8a":"#aa7777";ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(`UP ${cost}cr`,px+369,y-4);ctx.textAlign="left";
-  }
-  if(tradeStatus){ctx.fillStyle="#7be6ff";ctx.font="8px monospace";ctx.fillText(tradeStatus,px+20,py+ph-12);}
+  ctx.fillStyle="#ffdd44";ctx.font="bold 11px monospace";ctx.fillText("BASE PLANETSIDE UPGRADES",px+20,py+171);
+  const rows=[["weapon","Planet Weapon",character.weaponLevel,`Damage ${planetWeaponDamage().toFixed(1)}`],["mining","Mining Apparatus",character.miningLevel,`Power ${planetMiningPower().toFixed(0)}`],["oxygen","Oxygen Tank",character.oxygenLevel,`O₂ ${oxygen.max} · drain ${oxygen.drainRate.toFixed(2)}`]];
+  for(let i=0;i<rows.length;i++){const [kind,label,lv,stat]=rows[i],y=py+198+i*48,cost=characterUpgradeCost(kind),can=player.credits>=cost;ctx.fillStyle=i%2===0?"#0b1220":"#10192b";ctx.fillRect(px+18,y-25,280,38);ctx.strokeStyle="#1e3858";ctx.strokeRect(px+18,y-25,280,38);ctx.fillStyle="#ffdd44";ctx.font="bold 9px monospace";ctx.fillText(`${label} Lv${lv}`,px+28,y-9);ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(stat,px+28,y+4);ctx.fillStyle=can?"#183a2a":"#3a1b1b";ctx.fillRect(px+201,y-23,92,25);ctx.strokeStyle=can?"#4a8a6a":"#6a3333";ctx.strokeRect(px+201,y-23,92,25);ctx.fillStyle=can?"#78ff8a":"#aa7777";ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(`UP ${cost}cr`,px+247,y-7);ctx.textAlign="left";}
+
+  ctx.fillStyle="#ffdd44";ctx.font="bold 11px monospace";ctx.fillText("PLANETSIDE MODULE FRAME",px+320,py+43);
+  const frameX=px+320,frameY=py+55,cardW=132,cardH=68,gap=9;
+  PLANET_MODULE_ORDER.forEach((key,i)=>{const d=PLANET_MODULE_DEFS[key],lv=planetModuleLevel(key),col=i%2,row=Math.floor(i/2),x=frameX+col*(cardW+gap),y=frameY+row*(cardH+gap);ctx.globalAlpha=mode===MODE.PLANET?1:.48;ctx.fillStyle=lv?"#10251f":"#101827";ctx.fillRect(x,y,cardW,cardH);ctx.strokeStyle=lv?d.color:"#2a3d59";ctx.strokeRect(x,y,cardW,cardH);ctx.fillStyle=d.color;ctx.font="bold 10px monospace";ctx.fillText(`${d.icon} ${d.name}`,x+7,y+15);ctx.fillStyle=lv?"#78ff8a":"#8fa3cc";ctx.font="bold 9px monospace";ctx.fillText(`LEVEL ${lv}/${PLANET_MODULE_MAX_LEVEL}`,x+7,y+30);ctx.fillStyle="#aebfd2";ctx.font="7px monospace";const summary=planetModuleStatText(key,lv);ctx.fillText(summary.slice(0,31),x+7,y+44);ctx.fillText(summary.slice(31,62),x+7,y+56);ctx.globalAlpha=1;});
+  ctx.fillStyle=mode===MODE.PLANET?"#173a2a":"#312713";ctx.fillRect(px+378,py+310,180,32);ctx.strokeStyle=mode===MODE.PLANET?"#78ff8a":"#8a6d2a";ctx.strokeRect(px+378,py+310,180,32);ctx.fillStyle=mode===MODE.PLANET?"#78ff8a":"#ffcc44";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(mode===MODE.PLANET?"OPEN MODULE FORGE [4]":"LAND TO CRAFT MODULES",px+468,py+330);ctx.textAlign="left";
+  ctx.fillStyle="#8fa3cc";ctx.font="8px monospace";ctx.fillText(`Module totals: +${fx.oxygenMaxBonus} O₂ · +${fx.suitHpBonus} suit HP · +${Math.round((fx.weaponDamageMult-1)*100)}% surface damage · +${fx.pickupRangeBonus}px pickup`,px+20,py+371);
+  if(tradeStatus){ctx.fillStyle="#7be6ff";ctx.font="8px monospace";ctx.fillText(tradeStatus,px+20,py+ph-7);}
 }
 
 /* v4.0.5 desktop canvas menu scale layer: doubles core canvas menus when room allows. */
@@ -7881,7 +8000,7 @@ function largeCanvasMenuBase(kind){
   if(kind==="inventory")return {w:400,h:220};
   if(kind==="shop")return {w:520,h:292};
   if(kind==="attributes")return {w:430,h:268};
-  if(kind==="character")return {w:440,h:258};
+  if(kind==="character")return {w:620,h:390};
   if(kind==="quest")return {w:450,h:274};
   if(kind==="badge")return {w:400,h:252};
   return {w:440,h:270};
