@@ -300,7 +300,7 @@ function publicCivilizationZone(zone,viewerId){
     ownerName:zone.ownerName||null,owned:!!zone.ownerId||!!zone.ownerMemberId,isOwn,
     taxPerMinute:tax,pendingTax:isOwn?Math.floor(zone.pendingTax||0):0,
     stationTasks:isOwn?zone.stationTasks:{},
-    stationTierCosmetics:normalizeStationTierCosmetics(zone.stationTierCosmetics||{}),npcshipCosmeticKey:zone.npcshipCosmeticKey||null,
+    stationTierCosmetics:normalizeStationTierCosmetics(zone.stationTierCosmetics||{}),npcshipCosmeticKey:zone.npcshipCosmeticKey||null,turretCosmeticKey:zone.turretCosmeticKey||null,
     builtStations:(zone.builtStations||[]).map(st=>({id:st.id,x:st.x,y:st.y,tier:st.tier,ownerName:zone.ownerName||st.ownerName||"Owner",task:isOwn?(zone.stationTasks?.[st.id]||{task:"mine"}):undefined})),
     stationCosts:Object.fromEntries(["outpost","standard","advanced","capital"].map(t=>[t,civilizationZoneStationBuildCost(zone,t)]))
   };
@@ -318,7 +318,7 @@ function emitCivilizationZones(socket){socket.emit("civilizationZonesList",civil
 function broadcastCivilizationZonesList(){for(const [,sock] of io.sockets.sockets)emitCivilizationZones(sock);}
 function makeCivilizationZoneRecord(input,p){
   return {zoneId:input.zoneId,name:input.name,color:input.color,x:input.x,y:input.y,radius:input.radius,baseStationCount:input.baseStationCount,
-    ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,purchasedAt:Date.now(),builtStations:[],stationTasks:{},pendingTax:0,totalTaxCollected:0,stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),npcshipCosmeticKey:p.equippedCosmetics?.npcship||null};
+    ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,purchasedAt:Date.now(),builtStations:[],stationTasks:{},pendingTax:0,totalTaxCollected:0,stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),npcshipCosmeticKey:p.equippedCosmetics?.npcship||null,turretCosmeticKey:p.equippedCosmetics?.turret||null};
 }
 function randomPointInZone(zone,seedExtra=""){
   const rng=makeRng(`${GALAXY_SEED}|owned-civ-station|${zone.zoneId}|${zone.builtStations?.length||0}|${seedExtra}|${Date.now()}`);
@@ -679,7 +679,66 @@ Object.assign(COSMETIC_DEFS,{
   station_sprite_49:{key:"station_sprite_49",slot:"station",name:"Red Tower",price:7380000,description:"Red Tower imported station design. After purchase, assign it to Outpost, Standard, Advanced, Capital, Super Station, or Wandering Exchange from the tier dropdown.",color:"#514542",accent:"#ffffff",spritePath:"assets/spliced_stations/whitey.png_auto_49.png",spriteScale:1.0,stationAssignable:true}
 });
 
-const COSMETIC_SLOTS = ["ship","bullet","enemy","npcship","particle","trail","station","planet","engine","shield","suit","laser"];
+Object.assign(COSMETIC_DEFS,{
+  turret_sprite_01:{key:"turret_sprite_01",slot:"turret",name:"Frontier Turret Design 01",price:940000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6f6255",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_1.png",spriteScale:1.0},
+  turret_sprite_02:{key:"turret_sprite_02",slot:"turret",name:"Frontier Turret Design 02",price:1030000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5e4181",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_2.png",spriteScale:1.0},
+  turret_sprite_03:{key:"turret_sprite_03",slot:"turret",name:"Frontier Turret Design 03",price:1120000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#416471",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_3.png",spriteScale:1.0},
+  turret_sprite_04:{key:"turret_sprite_04",slot:"turret",name:"Frontier Turret Design 04",price:1210000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#766a59",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_4.png",spriteScale:1.0},
+  turret_sprite_05:{key:"turret_sprite_05",slot:"turret",name:"Frontier Turret Design 05",price:1300000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#65767f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_5.png",spriteScale:1.0},
+  turret_sprite_06:{key:"turret_sprite_06",slot:"turret",name:"Frontier Turret Design 06",price:1390000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#596252",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_6.png",spriteScale:1.0},
+  turret_sprite_07:{key:"turret_sprite_07",slot:"turret",name:"Frontier Turret Design 07",price:1480000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#7c7b7d",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_7.png",spriteScale:1.0},
+  turret_sprite_08:{key:"turret_sprite_08",slot:"turret",name:"Frontier Turret Design 08",price:1570000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#51616c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_8.png",spriteScale:1.0},
+  turret_sprite_09:{key:"turret_sprite_09",slot:"turret",name:"Frontier Turret Design 09",price:1660000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#61544e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_9.png",spriteScale:1.0},
+  turret_sprite_10:{key:"turret_sprite_10",slot:"turret",name:"Frontier Turret Design 10",price:1750000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5e6954",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_10.png",spriteScale:1.0},
+  turret_sprite_11:{key:"turret_sprite_11",slot:"turret",name:"Frontier Turret Design 11",price:1840000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#486471",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_11.png",spriteScale:1.0},
+  turret_sprite_12:{key:"turret_sprite_12",slot:"turret",name:"Frontier Turret Design 12",price:1930000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#58436b",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_12.png",spriteScale:1.0},
+  turret_sprite_13:{key:"turret_sprite_13",slot:"turret",name:"Frontier Turret Design 13",price:2020000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#604745",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_13.png",spriteScale:1.0},
+  turret_sprite_14:{key:"turret_sprite_14",slot:"turret",name:"Frontier Turret Design 14",price:2110000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6f726d",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_14.png",spriteScale:1.0},
+  turret_sprite_15:{key:"turret_sprite_15",slot:"turret",name:"Frontier Turret Design 15",price:2200000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5b7d8c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_15.png",spriteScale:1.0},
+  turret_sprite_16:{key:"turret_sprite_16",slot:"turret",name:"Frontier Turret Design 16",price:2290000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#4c7a95",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_16.png",spriteScale:1.0},
+  turret_sprite_17:{key:"turret_sprite_17",slot:"turret",name:"Frontier Turret Design 17",price:2380000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#4b7b8f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_17.png",spriteScale:1.0},
+  turret_sprite_18:{key:"turret_sprite_18",slot:"turret",name:"Frontier Turret Design 18",price:2470000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#877372",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_18.png",spriteScale:1.0},
+  turret_sprite_19:{key:"turret_sprite_19",slot:"turret",name:"Frontier Turret Design 19",price:2560000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#7c5c3a",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_19.png",spriteScale:1.0},
+  turret_sprite_20:{key:"turret_sprite_20",slot:"turret",name:"Frontier Turret Design 20",price:2650000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6c604c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_20.png",spriteScale:1.0},
+  turret_sprite_21:{key:"turret_sprite_21",slot:"turret",name:"Frontier Turret Design 21",price:2740000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#446c4c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_21.png",spriteScale:1.0},
+  turret_sprite_22:{key:"turret_sprite_22",slot:"turret",name:"Frontier Turret Design 22",price:2830000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5e704e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_22.png",spriteScale:1.0},
+  turret_sprite_23:{key:"turret_sprite_23",slot:"turret",name:"Frontier Turret Design 23",price:2920000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#644185",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_23.png",spriteScale:1.0},
+  turret_sprite_24:{key:"turret_sprite_24",slot:"turret",name:"Frontier Turret Design 24",price:3010000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#594544",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_24.png",spriteScale:1.0},
+  turret_sprite_25:{key:"turret_sprite_25",slot:"turret",name:"Frontier Turret Design 25",price:3100000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#648074",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_25.png",spriteScale:1.0},
+  turret_sprite_26:{key:"turret_sprite_26",slot:"turret",name:"Frontier Turret Design 26",price:3190000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#665376",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_26.png",spriteScale:1.0},
+  turret_sprite_27:{key:"turret_sprite_27",slot:"turret",name:"Frontier Turret Design 27",price:3280000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#517b7e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_27.png",spriteScale:1.0},
+  turret_sprite_28:{key:"turret_sprite_28",slot:"turret",name:"Frontier Turret Design 28",price:3370000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#666054",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_28.png",spriteScale:1.0},
+  turret_sprite_29:{key:"turret_sprite_29",slot:"turret",name:"Frontier Turret Design 29",price:3460000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#564748",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_29.png",spriteScale:1.0},
+  turret_sprite_30:{key:"turret_sprite_30",slot:"turret",name:"Frontier Turret Design 30",price:3550000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#556447",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_30.png",spriteScale:1.0},
+  turret_sprite_31:{key:"turret_sprite_31",slot:"turret",name:"Frontier Turret Design 31",price:3640000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#67504f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_31.png",spriteScale:1.0},
+  turret_sprite_32:{key:"turret_sprite_32",slot:"turret",name:"Frontier Turret Design 32",price:3730000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#48606d",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_32.png",spriteScale:1.0},
+  turret_sprite_33:{key:"turret_sprite_33",slot:"turret",name:"Frontier Turret Design 33",price:3820000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#406f7f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_33.png",spriteScale:1.0},
+  turret_sprite_34:{key:"turret_sprite_34",slot:"turret",name:"Frontier Turret Design 34",price:3910000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6d6146",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_34.png",spriteScale:1.0},
+  turret_sprite_35:{key:"turret_sprite_35",slot:"turret",name:"Frontier Turret Design 35",price:4000000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#436575",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_35.png",spriteScale:1.0},
+  turret_sprite_36:{key:"turret_sprite_36",slot:"turret",name:"Frontier Turret Design 36",price:4090000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#563b73",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_36.png",spriteScale:1.0},
+  turret_sprite_37:{key:"turret_sprite_37",slot:"turret",name:"Frontier Turret Design 37",price:4180000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6a655a",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_37.png",spriteScale:1.0},
+  turret_sprite_38:{key:"turret_sprite_38",slot:"turret",name:"Frontier Turret Design 38",price:4270000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#557584",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_38.png",spriteScale:1.0},
+  turret_sprite_39:{key:"turret_sprite_39",slot:"turret",name:"Frontier Turret Design 39",price:4360000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#775752",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_39.png",spriteScale:1.0},
+  turret_sprite_40:{key:"turret_sprite_40",slot:"turret",name:"Frontier Turret Design 40",price:4450000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#626f6d",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_40.png",spriteScale:1.0},
+  turret_sprite_41:{key:"turret_sprite_41",slot:"turret",name:"Frontier Turret Design 41",price:4540000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5f6f55",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_41.png",spriteScale:1.0},
+  turret_sprite_42:{key:"turret_sprite_42",slot:"turret",name:"Frontier Turret Design 42",price:4630000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#7a6d4a",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_42.png",spriteScale:1.0},
+  turret_sprite_43:{key:"turret_sprite_43",slot:"turret",name:"Frontier Turret Design 43",price:4720000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#565858",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_43.png",spriteScale:1.0},
+  turret_sprite_44:{key:"turret_sprite_44",slot:"turret",name:"Frontier Turret Design 44",price:4810000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#487790",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_44.png",spriteScale:1.0},
+  turret_sprite_45:{key:"turret_sprite_45",slot:"turret",name:"Frontier Turret Design 45",price:4900000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#56686c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_45.png",spriteScale:1.0},
+  turret_sprite_46:{key:"turret_sprite_46",slot:"turret",name:"Frontier Turret Design 46",price:4990000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#657262",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_46.png",spriteScale:1.0},
+  turret_sprite_47:{key:"turret_sprite_47",slot:"turret",name:"Frontier Turret Design 47",price:5080000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#565f5e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_47.png",spriteScale:1.0},
+  turret_sprite_48:{key:"turret_sprite_48",slot:"turret",name:"Frontier Turret Design 48",price:5170000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#655151",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_48.png",spriteScale:1.0},
+  turret_sprite_49:{key:"turret_sprite_49",slot:"turret",name:"Frontier Turret Design 49",price:5260000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#74643f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_49.png",spriteScale:1.0},
+  turret_sprite_50:{key:"turret_sprite_50",slot:"turret",name:"Frontier Turret Design 50",price:5350000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6e787e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_50.png",spriteScale:1.0},
+  turret_sprite_51:{key:"turret_sprite_51",slot:"turret",name:"Frontier Turret Design 51",price:5440000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6b6550",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_51.png",spriteScale:1.0},
+  turret_sprite_52:{key:"turret_sprite_52",slot:"turret",name:"Frontier Turret Design 52",price:5530000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#56673e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_52.png",spriteScale:1.0},
+  turret_sprite_53:{key:"turret_sprite_53",slot:"turret",name:"Frontier Turret Design 53",price:5620000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#477c90",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_53.png",spriteScale:1.0},
+  turret_sprite_54:{key:"turret_sprite_54",slot:"turret",name:"Frontier Turret Design 54",price:5710000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#573d6f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_54.png",spriteScale:1.0},
+  turret_sprite_55:{key:"turret_sprite_55",slot:"turret",name:"Frontier Turret Design 55",price:5800000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#597c84",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_55.png",spriteScale:1.0},
+  turret_sprite_56:{key:"turret_sprite_56",slot:"turret",name:"Frontier Turret Design 56",price:5890000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#586364",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_56.png",spriteScale:1.0}
+});
+
+const COSMETIC_SLOTS = ["ship","bullet","enemy","npcship","particle","trail","station","planet","turret","engine","shield","suit","laser"];
 const WORLD_COSMETIC_SLOTS = ["npcship","enemy","station","planet"];
 function applySharedWorldCosmeticSlot(slot,key){
   if(!WORLD_COSMETIC_SLOTS.includes(slot))return false;
@@ -698,15 +757,16 @@ function normalizeCosmeticInventory(raw){
   return out;
 }
 function normalizeEquippedCosmetics(raw){
-  const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null};
+  const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,turret:null,engine:null,shield:null,suit:null,laser:null};
   if(raw&&typeof raw==="object")for(const slot of COSMETIC_SLOTS){const key=String(raw[slot]||"");if(key&&COSMETIC_DEFS[key]?.slot===slot)out[slot]=key;}
   return out;
 }
 
 const STATION_VISUAL_TIERS=["outpost","standard","advanced","capital","super","wandering_exchange"];
 function normalizeStationTierCosmetics(raw){const out={};for(const tier of STATION_VISUAL_TIERS)out[tier]=null;if(raw&&typeof raw==="object")for(const tier of STATION_VISUAL_TIERS){const key=String(raw[tier]||"");if(key&&COSMETIC_DEFS[key]?.slot==="station")out[tier]=key;}return out;}
-function syncOwnedZoneCosmeticsForPlayer(p){if(!p)return false;let changed=false;const tierMap=normalizeStationTierCosmetics(p.stationTierCosmetics||{}),npcKey=p.equippedCosmetics?.npcship||null;for(const zone of civilizationZones.values()){if(zone.ownerId===p.id||(p.memberId&&zone.ownerMemberId===p.memberId)){zone.stationTierCosmetics={...tierMap};zone.npcshipCosmeticKey=npcKey;changed=true;}}return changed;}
+function syncOwnedZoneCosmeticsForPlayer(p){if(!p)return false;let changed=false;const tierMap=normalizeStationTierCosmetics(p.stationTierCosmetics||{}),npcKey=p.equippedCosmetics?.npcship||null,turretKey=p.equippedCosmetics?.turret||null;for(const zone of civilizationZones.values()){if(zone.ownerId===p.id||(p.memberId&&zone.ownerMemberId===p.memberId)){zone.stationTierCosmetics={...tierMap};zone.npcshipCosmeticKey=npcKey;zone.turretCosmeticKey=turretKey;changed=true;}}for(const st of ownedStructures.values())if(st.type==="defense_turret"&&(st.ownerId===p.id||(p.memberId&&st.ownerMemberId===p.memberId))){st.turretCosmeticKey=turretKey;changed=true;}return changed;}
 
+function normalizeStoryProgress(raw){const completed=Math.max(0,Math.min(8,Math.floor(Number(raw?.completed)||0)));return{completed,startedAt:Math.max(0,Math.floor(Number(raw?.startedAt)||Date.now())),updatedAt:Math.max(0,Math.floor(Number(raw?.updatedAt)||Date.now()))};}
 function normalizeRedeemedCoupons(raw){
   const out={};
   if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){const code=String(k||"").trim().toUpperCase();if(code&&v===true)out[code]=true;}
@@ -737,8 +797,8 @@ function defaultPlayer(id, name, x, y) {
     ping:0, pingTs:0,
     planetX:0, planetY:0, planetVx:0, planetVy:0, planetTool:"mining",
     cosmeticColor:"#ffd27a", suitColor:"#ffffff", weaponLevel:1, miningLevel:1, oxygenLevel:1,
-    badgeRewards:{},
-    cosmeticInventory:{}, equippedCosmetics:{ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null}, stationTierCosmetics:normalizeStationTierCosmetics({}), planetTypeCosmetics:normalizePlanetTypeCosmetics({}), redeemedCoupons:{},
+    badgeRewards:{},storyProgress:normalizeStoryProgress({}),
+    cosmeticInventory:{}, equippedCosmetics:{ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,turret:null,engine:null,shield:null,suit:null,laser:null}, stationTierCosmetics:normalizeStationTierCosmetics({}), planetTypeCosmetics:normalizePlanetTypeCosmetics({}), redeemedCoupons:{},
     equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
     equippedAttachments:defaultAttachmentSlots(),
   };
@@ -1009,7 +1069,7 @@ function authHasNonDefaultProgress(auth){
   if(auth.shipType&&auth.shipType!=="scout")return true;
   if(Number(auth.level)>1||Number(auth.xp)>0)return true;
   if(Array.isArray(auth.activeMercs)&&auth.activeMercs.length>0)return true;
-  if(objectHasAnyValue(auth.buildings)||objectHasAnyValue(auth.badgeRewards))return true;
+  if(objectHasAnyValue(auth.buildings)||objectHasAnyValue(auth.badgeRewards)||Number(auth.storyProgress?.completed)>0)return true;
   if(auth.attrs&&typeof auth.attrs==="object"&&Object.entries(auth.attrs).some(([_,v])=>Number(v)>1))return true;
   if(auth.weaponLevels&&typeof auth.weaponLevels==="object"&&Object.entries(auth.weaponLevels).some(([k,v])=>isWeaponKey(k)&&Number(v)>1))return true;
   if(auth.equippedWeapon&&auth.equippedWeapon!=="weapon_laser_mk1")return true;
@@ -1047,7 +1107,7 @@ function playerHasSaveWorthyProgress(p){
   if((p.level||1)>1||(p.xp||0)>0)return true;
   if(p.shipType&&p.shipType!=="scout")return true;
   if(Array.isArray(p.activeMercs)&&p.activeMercs.length>0)return true;
-  if(objectHasAnyValue(p.savedBuildings)||objectHasAnyValue(p.badgeRewards))return true;
+  if(objectHasAnyValue(p.savedBuildings)||objectHasAnyValue(p.badgeRewards)||Number(p.storyProgress?.completed)>0)return true;
   if(p.attrs&&Object.entries(p.attrs).some(([_,v])=>Number(v)>1))return true;
   if(p.weaponLevels&&Object.entries(p.weaponLevels).some(([k,v])=>isWeaponKey(k)&&Number(v)>1))return true;
   if(p.equippedWeapon&&p.equippedWeapon!=="weapon_laser_mk1")return true;
@@ -1056,7 +1116,7 @@ function playerHasSaveWorthyProgress(p){
 }
 function trustedSnapshotForPlayer(p,reason="cache"){
   if(!p?.memberId)return null;
-  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
+  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},storyProgress:normalizeStoryProgress(p.storyProgress||{}),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
 }
 function rememberTrustedSnapshot(p,reason="update"){
   if(!p?.memberId||!p.persistenceLoaded)return;
@@ -1106,6 +1166,7 @@ function cleanClientWixSnapshot(snapshot,memberId){
   if(typeof snapshot.xp==="number")out.xp=Math.max(0,Math.floor(snapshot.xp));
   if(snapshot.attrs&&typeof snapshot.attrs==="object")out.attrs=snapshot.attrs;
   if(snapshot.badgeRewards&&typeof snapshot.badgeRewards==="object")out.badgeRewards=snapshot.badgeRewards;
+  if(snapshot.storyProgress&&typeof snapshot.storyProgress==="object")out.storyProgress=normalizeStoryProgress(snapshot.storyProgress);
   if(typeof snapshot.equippedWeapon==="string"&&isWeaponKey(snapshot.equippedWeapon))out.equippedWeapon=snapshot.equippedWeapon;
   if(snapshot.weaponLevels&&typeof snapshot.weaponLevels==="object")out.weaponLevels=snapshot.weaponLevels;
   if(snapshot.equippedAttachments&&typeof snapshot.equippedAttachments==="object")out.equippedAttachments=normalizeAttachments(snapshot.equippedAttachments);
@@ -1138,7 +1199,7 @@ function combineAuthWithClientSnapshot(auth,snapshot){
   const out={...auth};
   // Signed token data wins when it contains a value. The snapshot fills gaps when
   // Wix sends member auth separately from the persisted inventory payload.
-  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","equippedAttachments","activeMercs","buildings","cosmeticInventory","equippedCosmetics","stationTierCosmetics","planetTypeCosmetics","redeemedCoupons","signupCreditBonusGranted","signupCreditBonusEligible","isNewMember","newMember","noSavedGame","savedGameMissing","freshAccount","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
+  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","storyProgress","equippedAttachments","activeMercs","buildings","cosmeticInventory","equippedCosmetics","stationTierCosmetics","planetTypeCosmetics","redeemedCoupons","signupCreditBonusGranted","signupCreditBonusEligible","isNewMember","newMember","noSavedGame","savedGameMissing","freshAccount","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
     if(out[k]===undefined&&snap[k]!==undefined)out[k]=snap[k];
   }
   if(!authHasInventoryPayload(out)&&authHasInventoryPayload(snap)){
@@ -1239,7 +1300,7 @@ function emitInventorySync(p,reason="sync"){
     credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),
     level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},
     equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},
-    equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),attachmentDefs:ATTACHMENT_DEFS,reason,
+    equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),attachmentDefs:ATTACHMENT_DEFS,storyProgress:normalizeStoryProgress(p.storyProgress||{}),reason,
     persistenceLoaded:!!p.persistenceLoaded,accountLoaded:!!p.accountLoaded,memberId:p.memberId||null
   });
 }
@@ -1249,7 +1310,7 @@ async function persistPlayerNow(p,reason="update"){
   if(!p.persistenceLoaded){console.warn("Wix persistence skipped: account inventory snapshot not loaded yet", p?.id, p?.memberId, reason);return;}
   if(!playerHasSaveWorthyProgress(p)&&!p.signupCreditBonusGranted){console.warn("Wix persistence skipped: refusing to save empty/default account snapshot", p?.id, p?.memberId, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
-  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,reason,updatedAt:Date.now()};
+  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},storyProgress:normalizeStoryProgress(p.storyProgress||{}),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,reason,updatedAt:Date.now()};
   try{
     const res = await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
     if(!res.ok){
@@ -1326,6 +1387,7 @@ function applyAuthAccountToPlayer(p,auth){
   if(auth.xp!==undefined)p.xp=Math.max(0,Math.floor(Number(auth.xp)||0));
   if(auth.attrs&&typeof auth.attrs==="object")p.attrs={...p.attrs,...auth.attrs};
   if(auth.badgeRewards&&typeof auth.badgeRewards==="object")p.badgeRewards={...auth.badgeRewards};
+  if(auth.storyProgress&&typeof auth.storyProgress==="object"){const incoming=normalizeStoryProgress(auth.storyProgress),cur=normalizeStoryProgress(p.storyProgress||{});p.storyProgress=normalizeStoryProgress({completed:Math.max(cur.completed,incoming.completed),startedAt:Math.min(cur.startedAt,incoming.startedAt),updatedAt:Math.max(cur.updatedAt,incoming.updatedAt)});}
   if(auth.weaponLevels&&typeof auth.weaponLevels==="object"){p.weaponLevels={...(p.weaponLevels||{})};for(const [k,v] of Object.entries(auth.weaponLevels)){if(isWeaponKey(k)){const lvl=Math.max(1,Math.min(20,Math.floor(Number(v)||1)));p.weaponLevels[k]=lvl;}}}
   if(typeof auth.equippedWeapon==="string"&&isWeaponKey(auth.equippedWeapon))p.equippedWeapon=auth.equippedWeapon;
   if(auth.equippedAttachments&&typeof auth.equippedAttachments==="object")p.equippedAttachments=normalizeAttachments(auth.equippedAttachments);
@@ -1438,7 +1500,7 @@ function publicStructure(st,viewerId){
     isOwn:st.ownerId===viewerId,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,
     destroyed:!!st.destroyed,storageSlots:st.storageSlots||0,storageUsed:Array.isArray(st.invSlots)?st.invSlots.filter(x=>x?.type&&x.count>0).length:0,
     storage:st.ownerId===viewerId?st.invSlots:undefined,damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,
-    damage:turretDamage(st),range:turretRange(st)
+    damage:turretDamage(st),range:turretRange(st),storageUpgradeCost:st.type==="storage_facility"&&Number(st.storageSlots||24)<100?structureUpgradeCost(st,"storage"):0,turretCosmeticKey:st.turretCosmeticKey||null
   };
 }
 function playerStructuresFor(viewerId){return [...ownedStructures.values()].map(st=>publicStructure(st,viewerId));}
@@ -1452,14 +1514,14 @@ function removeStorage(st,type,amount){const fake={invSlots:st.invSlots,maxSlots
 function buildingSnapshotForPlayer(p){
   const memberId=p.memberId||"";
   const stations=[...ownedStations.values()].filter(st=>st.ownerId===p.id||(memberId&&st.ownerMemberId===memberId)).map(st=>({
-    key:st.key,x:Math.round(st.x),y:Math.round(st.y),tier:st.tier,ownerName:st.ownerName,hiredShips:st.hiredShips||[],accumulatedGoods:st.accumulatedGoods||{},hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now()
+    key:st.key,x:Math.round(st.x),y:Math.round(st.y),tier:st.tier,ownerName:st.ownerName,hiredShips:st.hiredShips||[],accumulatedGoods:st.accumulatedGoods||{},hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now(),turretCosmeticKey:st.turretCosmeticKey||null
   }));
   const structures=[...ownedStructures.values()].filter(st=>st.ownerId===p.id||(memberId&&st.ownerMemberId===memberId)).map(st=>({
-    key:st.key,type:st.type,x:Math.round(st.x),y:Math.round(st.y),ownerName:st.ownerName,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,storageSlots:st.storageSlots,invSlots:st.invSlots||[],damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now()
+    key:st.key,type:st.type,x:Math.round(st.x),y:Math.round(st.y),ownerName:st.ownerName,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,storageSlots:st.storageSlots,invSlots:st.invSlots||[],damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now(),turretCosmeticKey:st.turretCosmeticKey||null
   }));
   const civilizationZonesOwned=[...civilizationZones.values()].filter(z=>z.ownerId===p.id||(memberId&&z.ownerMemberId===memberId)).map(z=>({
     zoneId:z.zoneId,name:z.name,color:z.color,x:Math.round(z.x),y:Math.round(z.y),radius:z.radius,baseStationCount:z.baseStationCount,
-    ownerName:z.ownerName,purchasedAt:z.purchasedAt||Date.now(),builtStations:z.builtStations||[],stationTierCosmetics:normalizeStationTierCosmetics(z.stationTierCosmetics||{}),npcshipCosmeticKey:z.npcshipCosmeticKey||null,pendingTax:Math.floor(z.pendingTax||0),totalTaxCollected:Math.floor(z.totalTaxCollected||0)
+    ownerName:z.ownerName,purchasedAt:z.purchasedAt||Date.now(),builtStations:z.builtStations||[],stationTierCosmetics:normalizeStationTierCosmetics(z.stationTierCosmetics||{}),npcshipCosmeticKey:z.npcshipCosmeticKey||null,turretCosmeticKey:z.turretCosmeticKey||null,pendingTax:Math.floor(z.pendingTax||0),totalTaxCollected:Math.floor(z.totalTaxCollected||0)
   }));
   return {stations,structures,civilizationZones:civilizationZonesOwned,zones:civilizationZonesOwned};
 }
@@ -1486,7 +1548,7 @@ function restorePersistentBuildingsForPlayer(p){
         built.push({id,x,y,tier,ownerName:p.name,createdAt:st.createdAt||Date.now()});
         if(built.length>=30)break;
       }
-      civilizationZones.set(input.zoneId,{...(zone||{}),...input,ownerId:p.id,ownerMemberId:p.memberId,ownerName:p.name,purchasedAt:rec.purchasedAt||Date.now(),builtStations:built,pendingTax:Math.max(0,Math.floor(Number(rec.pendingTax)||0)),totalTaxCollected:Math.max(0,Math.floor(Number(rec.totalTaxCollected)||0)),stationTierCosmetics:normalizeStationTierCosmetics(rec.stationTierCosmetics||p.stationTierCosmetics||{}),npcshipCosmeticKey:rec.npcshipCosmeticKey||p.equippedCosmetics?.npcship||null});
+      civilizationZones.set(input.zoneId,{...(zone||{}),...input,ownerId:p.id,ownerMemberId:p.memberId,ownerName:p.name,purchasedAt:rec.purchasedAt||Date.now(),builtStations:built,pendingTax:Math.max(0,Math.floor(Number(rec.pendingTax)||0)),totalTaxCollected:Math.max(0,Math.floor(Number(rec.totalTaxCollected)||0)),stationTierCosmetics:normalizeStationTierCosmetics(rec.stationTierCosmetics||p.stationTierCosmetics||{}),npcshipCosmeticKey:rec.npcshipCosmeticKey||p.equippedCosmetics?.npcship||null,turretCosmeticKey:rec.turretCosmeticKey||p.equippedCosmetics?.turret||null});
     }
   }
   collectPendingCivilizationTaxesFor(p);
@@ -1505,7 +1567,7 @@ function restorePersistentBuildingsForPlayer(p){
     const x=Math.round(Number(rec.x)||0),y=Math.round(Number(rec.y)||0),key=String(rec.key||`${type}_${Math.round(x/80)}_${Math.round(y/80)}`);
     let st=ownedStructures.get(key);
     if(!st||st.ownerMemberId===p.memberId||st.ownerId===p.id){
-      const base={key,type,ownerId:p.id,ownerMemberId:p.memberId,ownerName:p.name,x,y,createdAt:rec.createdAt||Date.now(),...structureDefaultState(type)};
+      const base={key,type,ownerId:p.id,ownerMemberId:p.memberId,ownerName:p.name,x,y,createdAt:rec.createdAt||Date.now(),...structureDefaultState(type)};if(type==="defense_turret")base.turretCosmeticKey=rec.turretCosmeticKey||p.equippedCosmetics?.turret||null;
       base.storageSlots=Math.max(24,Math.min(100,Math.floor(Number(rec.storageSlots)||base.storageSlots||24)));
       base.invSlots=normalizeStorageSlots(rec.invSlots,base.storageSlots);
       base.damageLevel=Math.max(1,Math.min(12,Math.floor(Number(rec.damageLevel)||1)));
@@ -1612,7 +1674,7 @@ async function persistOfflineCreditGrant(memberId,pack,grantBase){
   if(!memberId||!WIX_PERSIST_URL||!WIX_PERSIST_SECRET)return {ok:false,error:"Player is offline and Wix persistence is not configured."};
   const loaded=await loadPersistedAccountSnapshot(memberId).catch(()=>null);
   const cached=accountLastGoodSnapshots.get(memberId);
-  const base=loaded||cached||{memberId,displayName:"Space Eco Pilot",credits:300,maxSlots:24,invSlots:emptySlots(24),level:1,xp:0,shipType:"scout",attrs:{},badgeRewards:{},equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},equippedAttachments:{},activeMercs:[],buildings:{},cosmeticInventory:{},equippedCosmetics:{},stationTierCosmetics:{},planetTypeCosmetics:{},redeemedCoupons:{},signupCreditBonusGranted:false};
+  const base=loaded||cached||{memberId,displayName:"Space Eco Pilot",credits:300,maxSlots:24,invSlots:emptySlots(24),level:1,xp:0,shipType:"scout",attrs:{},badgeRewards:{},storyProgress:normalizeStoryProgress({}),equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},equippedAttachments:{},activeMercs:[],buildings:{},cosmeticInventory:{},equippedCosmetics:{},stationTierCosmetics:{},planetTypeCosmetics:{},redeemedCoupons:{},signupCreditBonusGranted:false};
   const payload={...base,memberId,credits:Math.max(0,Math.floor(Number(base.credits)||0))+pack.credits,reason:"offline_credit_purchase",updatedAt:Date.now()};
   const res=await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
   if(!res.ok){const text=await res.text().catch(()=>"");return {ok:false,error:`Wix persistence failed: ${res.status} ${text.slice(0,160)}`};}
@@ -2125,7 +2187,7 @@ io.on("connection",socket=>{
     restorePersistentBuildingsForPlayer(p);
     if(auth)maybeGrantAccountCreationBonus(p,auth,"join");
     applyShipStats(p,false);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),worldCosmetics:GLOBAL_WORLD_COSMETICS,worldPlanetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS,spriteCosmeticRegistryVersion:1,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),worldCosmetics:GLOBAL_WORLD_COSMETICS,worldPlanetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS,storyProgress:normalizeStoryProgress(p.storyProgress||{}),spriteCosmeticRegistryVersion:1,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
     emitInventorySync(p,"login");
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
@@ -2157,7 +2219,7 @@ io.on("connection",socket=>{
     }
     if(!linkResult.alreadyLinked)restorePersistentBuildingsForPlayer(p);
     maybeGrantAccountCreationBonus(p,auth,"link_account");
-    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),attachmentDefs:ATTACHMENT_DEFS,alreadyLinked:!!linkResult.alreadyLinked,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
+    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),attachmentDefs:ATTACHMENT_DEFS,storyProgress:normalizeStoryProgress(p.storyProgress||{}),alreadyLinked:!!linkResult.alreadyLinked,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
     emitInventorySync(p,linkResult.alreadyLinked?"account_link_confirmed":"account_linked");
     if(!p.persistenceLoaded)socket.emit("accountSyncPending",{reason:"Waiting for Wix inventory snapshot before saving."});
     if(!linkResult.alreadyLinked&&p.persistenceLoaded)persistPlayerSoon(p,"account_linked");
@@ -2180,6 +2242,7 @@ io.on("connection",socket=>{
       for(const slot of WORLD_COSMETIC_SLOTS)if(merged[slot])applySharedWorldCosmeticSlot(slot,merged[slot]);
     }
     if(snapshot.redeemedCoupons)p.redeemedCoupons={...normalizeRedeemedCoupons(snapshot.redeemedCoupons),...normalizeRedeemedCoupons(p.redeemedCoupons||{})};
+    if(snapshot.storyProgress){const incoming=normalizeStoryProgress(snapshot.storyProgress),cur=normalizeStoryProgress(p.storyProgress||{});p.storyProgress=normalizeStoryProgress({completed:Math.max(cur.completed,incoming.completed),startedAt:Math.min(cur.startedAt,incoming.startedAt),updatedAt:Math.max(cur.updatedAt,incoming.updatedAt)});}
     emitInventorySync(p,"client_local_bootstrap");sendCosmeticState(socket,p,"client_local_bootstrap");persistPlayerSoon(p,"client_local_bootstrap");
   });
 
@@ -2448,7 +2511,7 @@ io.on("connection",socket=>{
     if((p.credits||0)<cost){socket.emit("cosmeticDenied",{reason:`Need ${cost.toLocaleString()} credits.`});return;}
     p.credits=(p.credits||0)-cost;p.cosmeticInventory[key]=true;p.planetTypeCosmetics=normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{});
     if(def.slot==="planet"){const type=planetTypeForCosmetic(def);p.planetTypeCosmetics[type]=key;GLOBAL_PLANET_TYPE_COSMETICS[type]=key;}else{p.equippedCosmetics[def.slot]=key;applySharedWorldCosmeticSlot(def.slot,key);}const zonesChanged=syncOwnedZoneCosmeticsForPlayer(p);
-    socket.emit("creditUpdate",{credits:p.credits});sendCosmeticState(socket,p,"bought");socket.broadcast.emit("cosmeticPeerUpdate",{id:p.id,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})});io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS,planetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS});if(zonesChanged)broadcastCivilizationZonesList();persistPlayerSoon(p,"cosmetic_bought");
+    socket.emit("creditUpdate",{credits:p.credits});sendCosmeticState(socket,p,"bought");socket.broadcast.emit("cosmeticPeerUpdate",{id:p.id,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})});io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS,planetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS});if(zonesChanged){broadcastCivilizationZonesList();broadcastPlayerStructuresList();}persistPlayerSoon(p,"cosmetic_bought");
   });
 
   socket.on("equipCosmetic",({key,slot})=>{
@@ -2470,7 +2533,7 @@ io.on("connection",socket=>{
     sendCosmeticState(socket,p,"equipped");
     socket.broadcast.emit("cosmeticPeerUpdate",{id:p.id,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})});
     io.emit("worldCosmeticSync",{worldCosmetics:GLOBAL_WORLD_COSMETICS,planetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS});
-    if(zonesChanged)broadcastCivilizationZonesList();
+    if(zonesChanged){broadcastCivilizationZonesList();broadcastPlayerStructuresList();}
     persistPlayerSoon(p,"cosmetic_equipped");
   });
 
@@ -2623,6 +2686,13 @@ io.on("connection",socket=>{
 
   socket.on("requestInventorySync",()=>{const p=players.get(socket.id);if(p)emitInventorySync(p,"requested");});
 
+
+  socket.on("storyProgressUpdate",({storyProgress})=>{
+    const p=players.get(socket.id);if(!p)return;const incoming=normalizeStoryProgress(storyProgress||{}),cur=normalizeStoryProgress(p.storyProgress||{});
+    p.storyProgress=normalizeStoryProgress({completed:Math.max(cur.completed,incoming.completed),startedAt:Math.min(cur.startedAt,incoming.startedAt),updatedAt:Math.max(cur.updatedAt,incoming.updatedAt)});
+    socket.emit("storyProgressSync",{storyProgress:p.storyProgress});persistPlayerSoon(p,"story_progress",400);
+  });
+
   socket.on("buyInventorySlot",()=>{
     const p=players.get(socket.id);if(!p)return;
     const SLOT_COST=1000,MAX_TOTAL_SLOTS=96;
@@ -2632,39 +2702,28 @@ io.on("connection",socket=>{
     socket.emit("inventorySlotConfirm",{credits:p.credits,maxSlots:p.maxSlots});syncAndPersist(p,"buy_inventory_slot");
   });
 
-  socket.on("sell",({resourceType,quantity})=>{
-    const p=players.get(socket.id);if(!p||quantity<=0||quantity>500)return;
-    const pr=economy.price(resourceType);if(!pr)return;
-    quantity=Math.floor(Number(quantity)||0);
-    if(!removeInventory(p,resourceType,quantity)){socket.emit("sellDenied",{reason:"You do not have that quantity in your server inventory."});return;}
-    const earned=pr*quantity;p.credits+=earned;p.tradingVolume=(p.tradingVolume||0)+earned;
-    economy.sold(resourceType,quantity);addScore(p,Math.floor(earned*0.1),"Trade");
-    socket.emit("sellConfirm",{resourceType,quantity,earned,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});
-    syncAndPersist(p,"sell_resource");
+  socket.on("sell",({requestId,resourceType,quantity})=>{
+    const p=players.get(socket.id);requestId=String(requestId||"").slice(0,80);resourceType=String(resourceType||"");quantity=Math.floor(Number(quantity)||0);
+    const deny=reason=>socket.emit("sellDenied",{requestId,reason});
+    if(!p){return;}if(!RES_KEYS.includes(resourceType)){deny("Unknown item.");return;}if(quantity<=0||quantity>500){deny("Invalid quantity.");return;}
+    const pr=economy.price(resourceType);if(!pr){deny("This item cannot be sold here.");return;}
+    if(!removeInventory(p,resourceType,quantity)){deny("You do not have that quantity in your server inventory.");return;}
+    const earned=pr*quantity;p.credits+=earned;p.tradingVolume=(p.tradingVolume||0)+earned;economy.sold(resourceType,quantity);addScore(p,Math.floor(earned*0.1),"Trade");
+    socket.emit("sellConfirm",{requestId,resourceType,quantity,earned,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});syncAndPersist(p,"sell_resource");
   });
 
-  socket.on("buy",({resourceType,quantity,pricePerUnit})=>{
-    const p=players.get(socket.id);if(!p||quantity<=0||quantity>500)return;
-    resourceType=String(resourceType||"");
-    quantity=Math.floor(Number(quantity)||0);
-    if(!RES_KEYS.includes(resourceType)||quantity<=0)return;
-
-    // Never allow buy prices below the global sell value, or players can buy low
-    // and immediately sell high. Client station stock now also uses this floor.
-    const marketPrice=economy.price(resourceType);
-    const quotedPrice=Math.floor(Number(pricePerUnit)||0);
-    const minAllowed=Math.max(1,Math.ceil(marketPrice*1.08));
-    const maxAllowed=Math.max(minAllowed,Math.ceil(marketPrice*6.0));
-    const unitPrice=quotedPrice>0?quotedPrice:minAllowed;
-    if(unitPrice<minAllowed||unitPrice>maxAllowed){
-      socket.emit("buyDenied",{reason:"Price changed. Retry."});return;
-    }
-
-    const cost=unitPrice*quantity;if(p.credits<cost){socket.emit("buyDenied",{reason:"Insufficient credits."});return;}
-    if(!canFitInventory(p,resourceType,quantity)){socket.emit("buyDenied",{reason:"Inventory full."});return;}
-    p.credits-=cost;economy.bought(resourceType,quantity);addInventory(p,resourceType,quantity);
-    socket.emit("buyConfirm",{resourceType,quantity,cost,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});
-    syncAndPersist(p,"buy_resource");
+  socket.on("buy",({requestId,resourceType,quantity,pricePerUnit})=>{
+    const p=players.get(socket.id);requestId=String(requestId||"").slice(0,80);resourceType=String(resourceType||"");quantity=Math.floor(Number(quantity)||0);
+    const deny=(reason,extra={})=>socket.emit("buyDenied",{requestId,resourceType,reason,...extra});
+    if(!p)return;if(!RES_KEYS.includes(resourceType)){deny("Unknown item.");return;}if(quantity<=0||quantity>500){deny("Invalid quantity.");return;}
+    const marketPrice=Math.max(1,economy.price(resourceType)||1),quotedPrice=Math.floor(Number(pricePerUnit)||0);
+    const minAllowed=Math.max(1,Math.ceil(marketPrice*1.01)),maxAllowed=Math.max(minAllowed,Math.ceil(marketPrice*6));
+    if(quotedPrice<=0){deny("Price unavailable. Retry.",{pricePerUnit:minAllowed});return;}
+    if(quotedPrice<minAllowed||quotedPrice>maxAllowed){deny("Station price refreshed — retry purchase.",{pricePerUnit:minAllowed});return;}
+    const unitPrice=quotedPrice,cost=unitPrice*quantity;if((p.credits||0)<cost){deny("Insufficient credits.",{pricePerUnit:unitPrice});return;}
+    if(!canFitInventory(p,resourceType,quantity)){deny("Inventory full.",{pricePerUnit:unitPrice});return;}
+    p.credits-=cost;economy.bought(resourceType,quantity);if(!addInventory(p,resourceType,quantity)){p.credits+=cost;deny("Inventory changed before purchase completed.",{pricePerUnit:unitPrice});return;}
+    socket.emit("buyConfirm",{requestId,resourceType,quantity,unitPrice,cost,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});syncAndPersist(p,"buy_resource");
   });
 
   socket.on("buyShip",({shipTypeKey})=>{
@@ -2928,7 +2987,7 @@ io.on("connection",socket=>{
     const key=`${type}_${Math.round(x/80)}_${Math.round(y/80)}`;
     if(ownedStructures.has(key)||ownedStations.has(`${Math.round(x/100)}_${Math.round(y/100)}`)){socket.emit("structureDenied",{reason:"Location occupied."});return;}
     p.credits-=def.price;
-    const st={key,type,ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,x,y,createdAt:Date.now(),...structureDefaultState(type)};
+    const st={key,type,ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,x,y,createdAt:Date.now(),...structureDefaultState(type)};if(type==="defense_turret")st.turretCosmeticKey=p.equippedCosmetics?.turret||null;
     ownedStructures.set(key,st);syncAndPersist(p,"buy_structure");
     socket.emit("structureBuildConfirm",{structure:publicStructure(st,p.id),credits:p.credits});broadcastPlayerStructuresList();
   });
@@ -2940,7 +2999,7 @@ io.on("connection",socket=>{
     if(!RES_KEYS.includes(resourceType)||inventoryCount(p,resourceType)<quantity){socket.emit("storageDenied",{reason:"You do not have that item."});return;}
     if(!canFitStorage(st,resourceType,quantity)){socket.emit("storageDenied",{reason:"Storage slots full."});return;}
     removeInventory(p,resourceType,quantity);addStorage(st,resourceType,quantity);syncAndPersist(p,"storage_deposit");
-    socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits});broadcastPlayerStructuresList();
+    socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits,nextStorageUpgradeCost:Number(st.storageSlots||24)<100?structureUpgradeCost(st,"storage"):0});broadcastPlayerStructuresList();
   });
 
   socket.on("withdrawStorageItem",({structureKey,resourceType,quantity})=>{
@@ -2950,16 +3009,16 @@ io.on("connection",socket=>{
     if(!RES_KEYS.includes(resourceType)||inventoryCount({invSlots:st.invSlots,maxSlots:st.storageSlots},resourceType)<quantity){socket.emit("storageDenied",{reason:"Storage does not have that item."});return;}
     if(!canFitInventory(p,resourceType,quantity)){socket.emit("storageDenied",{reason:"Inventory slots full."});return;}
     removeStorage(st,resourceType,quantity);addInventory(p,resourceType,quantity);syncAndPersist(p,"storage_withdraw");
-    socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits});broadcastPlayerStructuresList();
+    socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits,nextStorageUpgradeCost:Number(st.storageSlots||24)<100?structureUpgradeCost(st,"storage"):0});broadcastPlayerStructuresList();
   });
 
   socket.on("upgradeStorageSlots",({structureKey})=>{
     const p=players.get(socket.id);if(!p)return;const st=ownedStructures.get(String(structureKey||""));
-    if(!st||st.ownerId!==p.id||st.type!=="storage_facility"||st.destroyed)return;
+    if(!st||st.ownerId!==p.id||st.type!=="storage_facility"||st.destroyed){socket.emit("storageDenied",{reason:"Storage unavailable."});return;}
     if((st.storageSlots||24)>=100){socket.emit("storageDenied",{reason:"Storage is already maxed."});return;}
     const cost=structureUpgradeCost(st,"storage");if((p.credits||0)<cost){socket.emit("storageDenied",{reason:`Need ${cost}cr.`});return;}
     p.credits-=cost;const old=st.storageSlots||24;st.storageSlots=Math.min(100,old+4);st.invSlots=normalizeStorageSlots(st.invSlots,st.storageSlots);
-    syncAndPersist(p,"storage_upgrade");socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits});broadcastPlayerStructuresList();
+    syncAndPersist(p,"storage_upgrade");socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits,cost,nextStorageUpgradeCost:Number(st.storageSlots||24)<100?structureUpgradeCost(st,"storage"):0});broadcastPlayerStructuresList();
   });
 
   socket.on("upgradeTurret",({structureKey,kind})=>{
