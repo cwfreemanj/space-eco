@@ -1373,6 +1373,17 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
   </div>
 </div>
 
+
+<!-- Story panel -->
+<div id="story-panel" class="overlay-panel" style="display:none">
+  <div class="panel-box" style="min-width:680px;max-width:900px;max-height:88vh;overflow:auto">
+    <span class="panel-close" onclick="document.getElementById('story-panel').style.display='none'">✕</span>
+    <h2>📖 THE ECO SIGNAL — STORY LOG</h2>
+    <p style="font-size:11px;color:#8fa3cc;margin:0 0 10px">Story progress saves locally for guests and syncs to the linked Wix account when account persistence is available.</p>
+    <div id="story-panel-content"></div>
+  </div>
+</div>
+
 <!-- Server list / player list panel -->
 <div id="sl-panel" class="overlay-panel" style="display:none">
   <div class="panel-box" style="min-width:500px">
@@ -1673,7 +1684,7 @@ function drawGalaxyMapOverlay(){
   g.fillStyle="#b8cbe8";g.font="11px monospace";g.fillText(`Center ${Math.round(cx)}, ${Math.round(cy)} · Range ±${range.toLocaleString()}`,10,18);document.getElementById("galaxy-map-coords").textContent=`${Math.round(ship.x)}, ${Math.round(ship.y)}`;
 }
 
-const BLOCKING_DOM_PANEL_IDS=["master-menu-panel","lb-panel","sl-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
+const BLOCKING_DOM_PANEL_IDS=["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
 function isShown(el){return !!el&&getComputedStyle(el).display!=="none"&&getComputedStyle(el).visibility!=="hidden";}
 function isTextControl(target){if(target&&target.closest&&target.closest("#mobile-controls,#mobile-menu-hub"))return false;const el=target&&target.closest&&target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
 function joinScreenOpen(){return isShown(document.getElementById("join-screen"));}
@@ -1688,7 +1699,7 @@ function closeTopDomPanel(){
   if(isShown(document.getElementById("master-menu-panel"))){hidePanel("master-menu-panel");document.body.classList.remove("master-menu-open");return true;}
   if(isShown(document.getElementById("trade-panel-dom"))){closeTradePanel(true);return true;}
   if(isShown(document.getElementById("social-panel"))){socialOpen=false;hidePanel("social-panel");return true;}
-  for(const id of ["master-menu-panel","cosmetic-panel","credit-panel","build-panel","ship-panel","sl-panel","lb-panel","stats-panel"]){if(isShown(document.getElementById(id))){hidePanel(id);return true;}}
+  for(const id of ["master-menu-panel","cosmetic-panel","credit-panel","build-panel","ship-panel","sl-panel","lb-panel","stats-panel","story-panel"]){if(isShown(document.getElementById(id))){hidePanel(id);return true;}}
   return false;
 }
 function closeMatchingPanelHotkey(key){
@@ -1726,6 +1737,7 @@ window.addEventListener("keydown",e=>{
   if(key==="v"){toggleQuestLog();e.preventDefault();return;}
   if(key==="y"){toggleBadgeLog();e.preventDefault();return;}
   if(key==="]"){toggleStatsPanel();e.preventDefault();return;}
+  if(key==="3"){toggleStoryPanel();e.preventDefault();return;}
   if(key==="2"){toggleGalaxyMap();e.preventDefault();return;}
   if(key==="k"){toggleLeaderboard();return;}
   if(key==="n"){toggleServerList();return;}
@@ -1847,9 +1859,9 @@ function bindMobilePinchZoom(){
 function resizeGameCanvasToDisplay(){
   const r=canvas.getBoundingClientRect();
   if(!r||r.width<80||r.height<80)return;
-  const zoomOut=mobileCameraViewMultiplier();
-  const minW=IS_MOBILE_TOUCH?560:560,minH=IS_MOBILE_TOUCH?310:310;
-  const w=Math.max(minW,Math.round(r.width*zoomOut)),h=Math.max(minH,Math.round(r.height*zoomOut));
+  const zoomOut=mobileCameraViewMultiplier(),cameraZoomIn=1.15;
+  const minW=IS_MOBILE_TOUCH?500:500,minH=IS_MOBILE_TOUCH?275:275;
+  const w=Math.max(minW,Math.round(r.width*zoomOut/cameraZoomIn)),h=Math.max(minH,Math.round(r.height*zoomOut/cameraZoomIn));
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;mouse.x=canvas.width/2;mouse.y=canvas.height/2;layoutFloatingHud();}
 }
 function mobileAimFallback(){
@@ -1938,7 +1950,7 @@ function resetMobileControlState(reason="reset"){
 
 function mobileToggleHub(force){if(!IS_MOBILE_TOUCH)return;const open=force===undefined?!document.body.classList.contains("mobile-menu-open"):!!force;document.body.classList.toggle("mobile-menu-open",open);clearMovementInput();}
 function mobileCloseAllPanels(){
-  mobileToggleHub(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);
+  mobileToggleHub(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);
   if(socialOpen){socialOpen=false;hidePanel("social-panel");}
   try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }
   inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();
@@ -1953,7 +1965,7 @@ function mobileScrollPanel(delta){
 }
 function mobileToggleInventory(){inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
 function mobileToggleAttributes(){attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);}
-function mobileToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
+function mobileToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;resetShopTransactions();}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
 function mobileLandTakeoff(){if(mode===MODE.SPACE){statsInc("landings",1);landOnNearestPlanet();return;}if(mode===MODE.PLANET){if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<42){statsInc("takeoffs",1);leavePlanet();}else showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
 function mobileInteract(){if(mode===MODE.SPACE&&(nearStation||shopOpen)){mobileToggleShop();return;}keys.add("e");setTimeout(()=>keys.delete("e"),90);}
 function mobileBuildOrTile(){if(mode===MODE.PLANET){placeBuildTileAt(mouse.x||canvas.width/2,mouse.y||canvas.height/2);return;}if(mode===MODE.SPACE)toggleBuildPanel();}
@@ -1995,10 +2007,10 @@ function mobileAction(action){
 }
 
 function desktopToggleInventory(){inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
-function desktopToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
+function desktopToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;resetShopTransactions();}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
 function desktopBuildOrTile(){if(mode===MODE.PLANET){placeBuildTileAt(mouse.x||canvas.width/2,mouse.y||canvas.height/2);return;}if(mode===MODE.SPACE)toggleBuildPanel();}
 function desktopInteract(){if(mode===MODE.SPACE&&(nearStation||shopOpen)){desktopToggleShop();return;}keys.add("e");setTimeout(()=>keys.delete("e"),90);}
-function closeAllDesktopPanels(){showMasterMenu(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);if(socialOpen){socialOpen=false;hidePanel("social-panel");}try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();}
+function closeAllDesktopPanels(){showMasterMenu(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);if(socialOpen){socialOpen=false;hidePanel("social-panel");}try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();}
 function desktopAction(action){
   if(!joined&&action!=="close")return;
   switch(action){
@@ -2015,6 +2027,7 @@ function desktopAction(action){
     case "quests":toggleQuestLog();break;
     case "badges":toggleBadgeLog();break;
     case "stats":toggleStatsPanel();break;
+    case "story":toggleStoryPanel();break;
     case "leaderboard":toggleLeaderboard();break;
     case "players":toggleServerList();break;
     case "build":desktopBuildOrTile();break;
@@ -2048,6 +2061,7 @@ const MASTER_MENU_ENTRIES=[
   {action:"quests",cat:"progress",label:"Quest Log",hotkey:"V",desc:"View active station and planetside quests."},
   {action:"badges",cat:"progress",label:"Badges",hotkey:"Y",desc:"Open badges, achievements, and stat milestones."},
   {action:"stats",cat:"progress",label:"Pilot Stats",hotkey:"]",desc:"View persistent combat, mining, trade, exploration, and record statistics."},
+  {action:"story",cat:"progress",label:"The Eco Signal Story",hotkey:"3",desc:"Follow the persistent Space Eco narrative and current chapter objectives."},
   {action:"leaderboard",cat:"progress",label:"Leaderboard",hotkey:"K",desc:"Compare pilots by score, kills, deaths, and level."},
   {action:"players",cat:"social",label:"Players Online",hotkey:"N",desc:"Show pilots currently in the server."},
   {action:"social",cat:"social",label:"Party + Faction",hotkey:"F",desc:"Open party and faction command panel."},
@@ -2347,7 +2361,7 @@ const player={
   attrPoints:0,color:"#7be6ff",shipType:"scout",score:0,kills:0,deaths:0,
   equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
   equippedAttachments:defaultAttachmentSlots(),
-  equippedCosmetics:{ship:null,bullet:null,enemy:null,particle:null,trail:null,station:null,planet:null,npcship:null,engine:null,shield:null,suit:null,laser:null},
+  equippedCosmetics:{ship:null,bullet:null,enemy:null,particle:null,trail:null,station:null,planet:null,npcship:null,turret:null,engine:null,shield:null,suit:null,laser:null},
 };
 const character={
   cosmeticColor:"#ffd27a",
@@ -2371,6 +2385,30 @@ function updatePersistentStats(dt){statsPlayAccumulator+=Number(dt)||0;if(statsP
 function formatStatsTime(sec){sec=Math.max(0,Math.floor(Number(sec)||0));const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return `${h}h ${m}m ${s}s`;}
 function renderStatsPanel(){const host=document.getElementById("stats-panel-content");if(!host)return;const rows=[["Time Played",formatStatsTime(playerStats.timePlayedSeconds)],["Sessions",playerStats.sessions],["Distance Travelled",Math.round(playerStats.distanceTravelled).toLocaleString()],["Shots Fired",playerStats.shotsFired],["Asteroids Destroyed",playerStats.asteroidsDestroyed],["NPC Ships Destroyed",playerStats.npcShipsDestroyed],["Stations Destroyed",playerStats.stationsDestroyed],["Player Kills",playerStats.playerKills],["Deaths",playerStats.deaths],["Resources Mined",playerStats.resourcesMined],["Resources Collected",playerStats.collectedResources],["Items Bought",playerStats.itemsBought],["Items Sold",playerStats.itemsSold],["Trade Actions",playerStats.tradeActions],["Credits Earned",Math.floor(playerStats.creditsEarned).toLocaleString()],["Credits Spent",Math.floor(playerStats.creditsSpent).toLocaleString()],["Cosmetics Purchased",playerStats.cosmeticsPurchased],["Civilization Zones Purchased",playerStats.zonesPurchased],["Civilization Stations Built",playerStats.civilizationStationsBuilt],["Landings",playerStats.landings],["Takeoffs",playerStats.takeoffs],["Gas Used",playerStats.gasUsed],["O₂ Tanks Used",playerStats.oxygenUsed],["Highest Level",playerStats.maxLevel],["Highest Credits Held",Math.floor(playerStats.maxCredits).toLocaleString()],["Highest Score",Math.floor(playerStats.maxScore).toLocaleString()],["Highest Inventory Load",playerStats.highestInventoryLoad]];const top=Object.entries(playerStats.perResource||{}).sort((a,b)=>b[1]-a[1]).slice(0,14);host.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start"><table><thead><tr><th>Stat</th><th>Value</th></tr></thead><tbody>${rows.map(([k,v])=>`<tr><td>${safeHtml(String(k))}</td><td>${safeHtml(String(v))}</td></tr>`).join("")}</tbody></table><table><thead><tr><th>Top Resource</th><th>Collected</th></tr></thead><tbody>${top.length?top.map(([k,v])=>`<tr><td>${safeHtml(RES[k]?.name||k)}</td><td>${Number(v).toLocaleString()}</td></tr>`).join(""):`<tr><td colspan="2">No resources collected yet.</td></tr>`}</tbody></table></div>`;}
 function toggleStatsPanel(){const el=document.getElementById("stats-panel");if(!el)return;const open=!isShown(el);if(open){renderStatsPanel();el.style.display="flex";}else el.style.display="none";}
+
+const STORY_STORAGE_KEY="spaceEcoStoryProgressV1";
+const STORY_CHAPTERS=[
+  {title:"A Signal in the Dark",text:"A faint ecological beacon is repeating from beyond the trade lanes. Keep your ship active long enough to isolate its source.",goal:"Survive and explore for 60 seconds.",test:()=>Number(playerStats.timePlayedSeconds||0)>=60},
+  {title:"First Descent",text:"The signal resolves into mineral harmonics from a living world. Descend and establish visual contact with the surface.",goal:"Land on any planet.",test:()=>Number(playerStats.landings||0)>=1},
+  {title:"The Living Crust",text:"The planet is storing fragments of an ancient environmental archive inside its mineral layers.",goal:"Mine at least 8 resources.",test:()=>Number(playerStats.resourcesMined||0)>=8},
+  {title:"The Frontier Exchange",text:"The archive fragments require translation keys scattered through the galactic economy.",goal:"Complete at least 3 station buy or sell actions.",test:()=>Number(playerStats.tradeActions||0)>=3},
+  {title:"Foundations of Aequitas",text:"A permanent structure will stabilize the signal and give the expedition a foothold.",goal:"Build a storage facility or defense turret.",test:()=>Array.isArray(playerStructuresList)&&playerStructuresList.some(s=>s?.isOwn&&!s.destroyed)},
+  {title:"The Raider's Wake",text:"Raiders are following the same signal. Their recovered flight data points toward a hidden civilization corridor.",goal:"Destroy 3 NPC or raider ships.",test:()=>Number(playerStats.npcShipsDestroyed||0)>=3},
+  {title:"A Zone of Our Own",text:"The signal can only be amplified through a civilization network under your control.",goal:"Purchase a civilization zone.",test:()=>Number(playerStats.zonesPurchased||0)>=1||(Array.isArray(civilizationZonesList)&&civilizationZonesList.some(z=>z?.isOwn))},
+  {title:"The Eco Accord",text:"The archive reveals its final directive: build an economy that protects worlds instead of exhausting them.",goal:"Reach level 5 and collect 50 total resources.",test:()=>Number(player.level||1)>=5&&Number(playerStats.collectedResources||0)>=50}
+];
+function normalizeStoryProgress(raw){const max=STORY_CHAPTERS.length;const completed=Math.max(0,Math.min(max,Math.floor(Number(raw?.completed)||0)));return{completed,startedAt:Math.max(0,Math.floor(Number(raw?.startedAt)||Date.now())),updatedAt:Math.max(0,Math.floor(Number(raw?.updatedAt)||Date.now()))};}
+function loadStoryProgress(){try{return normalizeStoryProgress(JSON.parse(localStorage.getItem(STORY_STORAGE_KEY)||"{}"));}catch(_){return normalizeStoryProgress({});}}
+let storyProgress=loadStoryProgress(),storySyncTimer=0,storyEvalTimer=0;
+function saveStoryProgressLocal(){storyProgress.updatedAt=Date.now();try{localStorage.setItem(STORY_STORAGE_KEY,JSON.stringify(storyProgress));}catch(_){}saveLocalGameStateSoon?.("story_progress");}
+function mergeStoryProgress(raw){const incoming=normalizeStoryProgress(raw||{});storyProgress=normalizeStoryProgress({completed:Math.max(storyProgress.completed||0,incoming.completed||0),startedAt:Math.min(storyProgress.startedAt||Date.now(),incoming.startedAt||Date.now()),updatedAt:Math.max(storyProgress.updatedAt||0,incoming.updatedAt||0)});saveStoryProgressLocal();return storyProgress;}
+function syncStoryProgressSoon(){clearTimeout(storySyncTimer);storySyncTimer=setTimeout(()=>{if(socket?.connected)socket.emit("storyProgressUpdate",{storyProgress:normalizeStoryProgress(storyProgress)});},350);}
+function evaluateStoryProgress(showNotice=false){let advanced=false;while(storyProgress.completed<STORY_CHAPTERS.length){const chapter=STORY_CHAPTERS[storyProgress.completed];let done=false;try{done=!!chapter.test();}catch(_){done=false;}if(!done)break;storyProgress.completed++;advanced=true;if(showNotice||storyProgress.completed>0){const title=chapter.title;showFT?.(`Story Complete: ${title}`,mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-42:ship.y-38,"#ffdd44",12);addChat?.("Story",`${title} completed.`,"#ffdd44");}}if(advanced){saveStoryProgressLocal();syncStoryProgressSoon();renderStoryPanel();}return advanced;}
+function storyGoalStatus(index){if(index<storyProgress.completed)return"COMPLETE";if(index===storyProgress.completed)return"ACTIVE";return"LOCKED";}
+function renderStoryPanel(){const host=document.getElementById("story-panel-content");if(!host)return;evaluateStoryProgress(false);host.innerHTML=STORY_CHAPTERS.map((c,i)=>{const status=storyGoalStatus(i),active=status==="ACTIVE",done=status==="COMPLETE";return `<div style="border:1px solid ${done?"#4a9a6a":active?"#b8942a":"#27364a"};background:${done?"#10261d":active?"#2a2410":"#0c1119"};border-radius:6px;padding:10px;margin-bottom:8px;opacity:${status==="LOCKED"?.62:1}"><div style="display:flex;justify-content:space-between;gap:12px"><b style="color:${done?"#78ff8a":active?"#ffdd44":"#6f8098"}">Chapter ${i+1}: ${safeHtml(c.title)}</b><span style="font-size:9px;color:${done?"#78ff8a":active?"#ffdd44":"#6f8098"}">${status}</span></div><p style="font-size:10px;color:#aebfd2;line-height:1.45;margin:7px 0">${safeHtml(c.text)}</p><div style="font-size:10px;color:#7be6ff"><b>Objective:</b> ${safeHtml(c.goal)}</div></div>`;}).join("")+`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span style="font-size:10px;color:#8fa3cc">Progress: ${storyProgress.completed}/${STORY_CHAPTERS.length} chapters</span><button class="trade-btn ready" onclick="evaluateStoryProgress(true);renderStoryPanel()">Check Progress</button></div>`;}
+function toggleStoryPanel(){const el=document.getElementById("story-panel");if(!el)return;const open=!isShown(el);if(open){renderStoryPanel();el.style.display="flex";}else el.style.display="none";}
+window.addEventListener("beforeunload",()=>{saveStoryProgressLocal();});
+
 window.addEventListener("beforeunload",savePlayerStats);
 
 
@@ -2625,8 +2663,67 @@ Object.assign(COSMETIC_DEFS,{
   station_sprite_49:{key:"station_sprite_49",slot:"station",name:"Red Tower",price:7380000,description:"Red Tower imported station design. After purchase, assign it to Outpost, Standard, Advanced, Capital, Super Station, or Wandering Exchange from the tier dropdown.",color:"#514542",accent:"#ffffff",spritePath:"assets/spliced_stations/whitey.png_auto_49.png",spriteScale:1.0,stationAssignable:true}
 });
 
-const COSMETIC_SLOTS=["ship","bullet","enemy","npcship","particle","trail","station","planet","engine","shield","suit","laser"];
-let cosmeticInventory={},equippedCosmetics={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null},redeemedCoupons={};
+Object.assign(COSMETIC_DEFS,{
+  turret_sprite_01:{key:"turret_sprite_01",slot:"turret",name:"Frontier Turret Design 01",price:940000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6f6255",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_1.png",spriteScale:1.0},
+  turret_sprite_02:{key:"turret_sprite_02",slot:"turret",name:"Frontier Turret Design 02",price:1030000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5e4181",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_2.png",spriteScale:1.0},
+  turret_sprite_03:{key:"turret_sprite_03",slot:"turret",name:"Frontier Turret Design 03",price:1120000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#416471",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_3.png",spriteScale:1.0},
+  turret_sprite_04:{key:"turret_sprite_04",slot:"turret",name:"Frontier Turret Design 04",price:1210000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#766a59",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_4.png",spriteScale:1.0},
+  turret_sprite_05:{key:"turret_sprite_05",slot:"turret",name:"Frontier Turret Design 05",price:1300000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#65767f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_5.png",spriteScale:1.0},
+  turret_sprite_06:{key:"turret_sprite_06",slot:"turret",name:"Frontier Turret Design 06",price:1390000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#596252",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_6.png",spriteScale:1.0},
+  turret_sprite_07:{key:"turret_sprite_07",slot:"turret",name:"Frontier Turret Design 07",price:1480000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#7c7b7d",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_7.png",spriteScale:1.0},
+  turret_sprite_08:{key:"turret_sprite_08",slot:"turret",name:"Frontier Turret Design 08",price:1570000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#51616c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_8.png",spriteScale:1.0},
+  turret_sprite_09:{key:"turret_sprite_09",slot:"turret",name:"Frontier Turret Design 09",price:1660000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#61544e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_9.png",spriteScale:1.0},
+  turret_sprite_10:{key:"turret_sprite_10",slot:"turret",name:"Frontier Turret Design 10",price:1750000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5e6954",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_10.png",spriteScale:1.0},
+  turret_sprite_11:{key:"turret_sprite_11",slot:"turret",name:"Frontier Turret Design 11",price:1840000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#486471",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_11.png",spriteScale:1.0},
+  turret_sprite_12:{key:"turret_sprite_12",slot:"turret",name:"Frontier Turret Design 12",price:1930000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#58436b",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_12.png",spriteScale:1.0},
+  turret_sprite_13:{key:"turret_sprite_13",slot:"turret",name:"Frontier Turret Design 13",price:2020000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#604745",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_13.png",spriteScale:1.0},
+  turret_sprite_14:{key:"turret_sprite_14",slot:"turret",name:"Frontier Turret Design 14",price:2110000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6f726d",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_14.png",spriteScale:1.0},
+  turret_sprite_15:{key:"turret_sprite_15",slot:"turret",name:"Frontier Turret Design 15",price:2200000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5b7d8c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_15.png",spriteScale:1.0},
+  turret_sprite_16:{key:"turret_sprite_16",slot:"turret",name:"Frontier Turret Design 16",price:2290000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#4c7a95",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_16.png",spriteScale:1.0},
+  turret_sprite_17:{key:"turret_sprite_17",slot:"turret",name:"Frontier Turret Design 17",price:2380000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#4b7b8f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_17.png",spriteScale:1.0},
+  turret_sprite_18:{key:"turret_sprite_18",slot:"turret",name:"Frontier Turret Design 18",price:2470000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#877372",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_18.png",spriteScale:1.0},
+  turret_sprite_19:{key:"turret_sprite_19",slot:"turret",name:"Frontier Turret Design 19",price:2560000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#7c5c3a",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_19.png",spriteScale:1.0},
+  turret_sprite_20:{key:"turret_sprite_20",slot:"turret",name:"Frontier Turret Design 20",price:2650000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6c604c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_20.png",spriteScale:1.0},
+  turret_sprite_21:{key:"turret_sprite_21",slot:"turret",name:"Frontier Turret Design 21",price:2740000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#446c4c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_21.png",spriteScale:1.0},
+  turret_sprite_22:{key:"turret_sprite_22",slot:"turret",name:"Frontier Turret Design 22",price:2830000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5e704e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_22.png",spriteScale:1.0},
+  turret_sprite_23:{key:"turret_sprite_23",slot:"turret",name:"Frontier Turret Design 23",price:2920000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#644185",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_23.png",spriteScale:1.0},
+  turret_sprite_24:{key:"turret_sprite_24",slot:"turret",name:"Frontier Turret Design 24",price:3010000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#594544",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_24.png",spriteScale:1.0},
+  turret_sprite_25:{key:"turret_sprite_25",slot:"turret",name:"Frontier Turret Design 25",price:3100000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#648074",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_25.png",spriteScale:1.0},
+  turret_sprite_26:{key:"turret_sprite_26",slot:"turret",name:"Frontier Turret Design 26",price:3190000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#665376",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_26.png",spriteScale:1.0},
+  turret_sprite_27:{key:"turret_sprite_27",slot:"turret",name:"Frontier Turret Design 27",price:3280000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#517b7e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_27.png",spriteScale:1.0},
+  turret_sprite_28:{key:"turret_sprite_28",slot:"turret",name:"Frontier Turret Design 28",price:3370000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#666054",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_28.png",spriteScale:1.0},
+  turret_sprite_29:{key:"turret_sprite_29",slot:"turret",name:"Frontier Turret Design 29",price:3460000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#564748",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_29.png",spriteScale:1.0},
+  turret_sprite_30:{key:"turret_sprite_30",slot:"turret",name:"Frontier Turret Design 30",price:3550000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#556447",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_30.png",spriteScale:1.0},
+  turret_sprite_31:{key:"turret_sprite_31",slot:"turret",name:"Frontier Turret Design 31",price:3640000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#67504f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_31.png",spriteScale:1.0},
+  turret_sprite_32:{key:"turret_sprite_32",slot:"turret",name:"Frontier Turret Design 32",price:3730000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#48606d",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_32.png",spriteScale:1.0},
+  turret_sprite_33:{key:"turret_sprite_33",slot:"turret",name:"Frontier Turret Design 33",price:3820000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#406f7f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_33.png",spriteScale:1.0},
+  turret_sprite_34:{key:"turret_sprite_34",slot:"turret",name:"Frontier Turret Design 34",price:3910000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6d6146",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_34.png",spriteScale:1.0},
+  turret_sprite_35:{key:"turret_sprite_35",slot:"turret",name:"Frontier Turret Design 35",price:4000000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#436575",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_35.png",spriteScale:1.0},
+  turret_sprite_36:{key:"turret_sprite_36",slot:"turret",name:"Frontier Turret Design 36",price:4090000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#563b73",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_36.png",spriteScale:1.0},
+  turret_sprite_37:{key:"turret_sprite_37",slot:"turret",name:"Frontier Turret Design 37",price:4180000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6a655a",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_37.png",spriteScale:1.0},
+  turret_sprite_38:{key:"turret_sprite_38",slot:"turret",name:"Frontier Turret Design 38",price:4270000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#557584",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_38.png",spriteScale:1.0},
+  turret_sprite_39:{key:"turret_sprite_39",slot:"turret",name:"Frontier Turret Design 39",price:4360000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#775752",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_39.png",spriteScale:1.0},
+  turret_sprite_40:{key:"turret_sprite_40",slot:"turret",name:"Frontier Turret Design 40",price:4450000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#626f6d",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_40.png",spriteScale:1.0},
+  turret_sprite_41:{key:"turret_sprite_41",slot:"turret",name:"Frontier Turret Design 41",price:4540000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#5f6f55",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_41.png",spriteScale:1.0},
+  turret_sprite_42:{key:"turret_sprite_42",slot:"turret",name:"Frontier Turret Design 42",price:4630000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#7a6d4a",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_42.png",spriteScale:1.0},
+  turret_sprite_43:{key:"turret_sprite_43",slot:"turret",name:"Frontier Turret Design 43",price:4720000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#565858",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_43.png",spriteScale:1.0},
+  turret_sprite_44:{key:"turret_sprite_44",slot:"turret",name:"Frontier Turret Design 44",price:4810000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#487790",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_44.png",spriteScale:1.0},
+  turret_sprite_45:{key:"turret_sprite_45",slot:"turret",name:"Frontier Turret Design 45",price:4900000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#56686c",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_45.png",spriteScale:1.0},
+  turret_sprite_46:{key:"turret_sprite_46",slot:"turret",name:"Frontier Turret Design 46",price:4990000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#657262",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_46.png",spriteScale:1.0},
+  turret_sprite_47:{key:"turret_sprite_47",slot:"turret",name:"Frontier Turret Design 47",price:5080000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#565f5e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_47.png",spriteScale:1.0},
+  turret_sprite_48:{key:"turret_sprite_48",slot:"turret",name:"Frontier Turret Design 48",price:5170000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#655151",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_48.png",spriteScale:1.0},
+  turret_sprite_49:{key:"turret_sprite_49",slot:"turret",name:"Frontier Turret Design 49",price:5260000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#74643f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_49.png",spriteScale:1.0},
+  turret_sprite_50:{key:"turret_sprite_50",slot:"turret",name:"Frontier Turret Design 50",price:5350000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6e787e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_50.png",spriteScale:1.0},
+  turret_sprite_51:{key:"turret_sprite_51",slot:"turret",name:"Frontier Turret Design 51",price:5440000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#6b6550",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_51.png",spriteScale:1.0},
+  turret_sprite_52:{key:"turret_sprite_52",slot:"turret",name:"Frontier Turret Design 52",price:5530000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#56673e",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_52.png",spriteScale:1.0},
+  turret_sprite_53:{key:"turret_sprite_53",slot:"turret",name:"Frontier Turret Design 53",price:5620000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#477c90",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_53.png",spriteScale:1.0},
+  turret_sprite_54:{key:"turret_sprite_54",slot:"turret",name:"Frontier Turret Design 54",price:5710000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#573d6f",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_54.png",spriteScale:1.0},
+  turret_sprite_55:{key:"turret_sprite_55",slot:"turret",name:"Frontier Turret Design 55",price:5800000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#597c84",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_55.png",spriteScale:1.0},
+  turret_sprite_56:{key:"turret_sprite_56",slot:"turret",name:"Frontier Turret Design 56",price:5890000,description:"Imported turret sprite cosmetic for player-built defense turrets and civilization-zone turrets owned by the player.",color:"#586364",accent:"#ffdd44",spritePath:"assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_56.png",spriteScale:1.0}
+});
+
+const COSMETIC_SLOTS=["ship","bullet","enemy","npcship","particle","trail","station","planet","turret","engine","shield","suit","laser"];
+let cosmeticInventory={},equippedCosmetics={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,turret:null,engine:null,shield:null,suit:null,laser:null},redeemedCoupons={};
 let serverSupportsSpriteCosmetics=false,pendingCosmeticPurchaseKey=null,pendingCosmeticEquipKey=null;
 const WORLD_COSMETIC_SLOTS=["npcship","enemy","station","planet"];
 let globalWorldCosmetics={npcship:null,enemy:null,station:null,planet:null};
@@ -2691,7 +2788,7 @@ function sanitizeLocalSlots(slots,maxSlots=24){
 }
 function readLocalGameState(){try{const raw=JSON.parse(localStorage.getItem(LOCAL_GAME_SAVE_KEY)||"null");return raw&&typeof raw==="object"?raw:null;}catch(_){return null;}}
 function makeLocalGameSnapshot(reason="local_save"){
-  return {version:401,reason,updatedAt:Date.now(),credits:Math.max(0,Math.floor(Number(player.credits)||0)),maxSlots:Math.max(24,Math.min(96,Math.floor(Number(player.maxSlots)||24))),invSlots:sanitizeLocalSlots(player.invSlots,player.maxSlots),level:Math.max(1,Math.floor(Number(player.level)||1)),xp:Math.max(0,Math.floor(Number(player.xp)||0)),xpToNext:Math.max(1,Math.floor(Number(player.xpToNext)||100)),attrPoints:Math.max(0,Math.floor(Number(player.attrPoints)||0)),attrs:{...player.attrs},shipType:player.shipType||"scout",equippedWeapon:player.equippedWeapon||"weapon_laser_mk1",weaponLevels:{...player.weaponLevels},equippedAttachments:normalizeAttachments(player.equippedAttachments||{}),cosmeticInventory:normalizeCosmeticInventory(cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(equippedCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(redeemedCoupons||{})};
+  return {version:401,reason,updatedAt:Date.now(),credits:Math.max(0,Math.floor(Number(player.credits)||0)),maxSlots:Math.max(24,Math.min(96,Math.floor(Number(player.maxSlots)||24))),invSlots:sanitizeLocalSlots(player.invSlots,player.maxSlots),level:Math.max(1,Math.floor(Number(player.level)||1)),xp:Math.max(0,Math.floor(Number(player.xp)||0)),xpToNext:Math.max(1,Math.floor(Number(player.xpToNext)||100)),attrPoints:Math.max(0,Math.floor(Number(player.attrPoints)||0)),attrs:{...player.attrs},shipType:player.shipType||"scout",equippedWeapon:player.equippedWeapon||"weapon_laser_mk1",weaponLevels:{...player.weaponLevels},equippedAttachments:normalizeAttachments(player.equippedAttachments||{}),cosmeticInventory:normalizeCosmeticInventory(cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(equippedCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(redeemedCoupons||{}),storyProgress:normalizeStoryProgress(storyProgress||{})};
 }
 function saveLocalGameState(reason="local_save"){
   try{localStorage.setItem(LOCAL_GAME_SAVE_KEY,JSON.stringify(makeLocalGameSnapshot(reason)));}catch(_){/* local storage unavailable */}
@@ -2700,7 +2797,7 @@ function saveLocalGameStateSoon(reason="local_save"){
   clearTimeout(localGameSaveDirtyTimer);
   localGameSaveDirtyTimer=setTimeout(()=>saveLocalGameState(reason),180);
 }
-function localSnapshotHasProgress(snap){return !!(snap&&(Number(snap.credits)>300||Number(snap.level)>1||Number(snap.xp)>0||clientInventoryPayloadHasItems(snap.invSlots)||Object.keys(snap.cosmeticInventory||{}).length));}
+function localSnapshotHasProgress(snap){return !!(snap&&(Number(snap.credits)>300||Number(snap.level)>1||Number(snap.xp)>0||clientInventoryPayloadHasItems(snap.invSlots)||Object.keys(snap.cosmeticInventory||{}).length||Number(snap.storyProgress?.completed)>0));}
 function applyLocalGameSnapshot(snap,reason="local_first"){
   if(!snap||typeof snap!=="object")return false;
   if(typeof snap.credits==="number")player.credits=Math.max(player.credits||0,Math.floor(snap.credits));
@@ -2720,6 +2817,7 @@ function applyLocalGameSnapshot(snap,reason="local_first"){
   equippedCosmetics={...localEq,...curEq};
   for(const slot of COSMETIC_SLOTS)if(equippedCosmetics[slot]&&!cosmeticInventory[equippedCosmetics[slot]])equippedCosmetics[slot]=null;
   redeemedCoupons={...normalizeRedeemedCoupons(snap.redeemedCoupons||{}),...normalizeRedeemedCoupons(redeemedCoupons||{})};
+  if(snap.storyProgress)mergeStoryProgress(snap.storyProgress);
   player.equippedCosmetics=equippedCosmetics;
   ensureClientInventorySlots?.();
   updateHud?.();
@@ -2736,7 +2834,7 @@ function safeColor(v,fb="#7be6ff"){v=String(v||"").trim();return /^#[0-9a-f]{3,8
 function localCreditBonusForCoupons(){let total=0;for(const code of Object.keys(redeemedCoupons||{})){const d=CLIENT_COUPON_DEFS[code];if(d&&!d.reusable)total+=Math.max(0,Math.floor(Number(d.credits)||0));}return total;}
 function applyLocalCouponBonusIfNeeded(){if(cosmeticBackendSupported)return;const bonus=localCreditBonusForCoupons();if(bonus>0){player.credits=Math.max(player.credits||0,bonus);}updateHud();renderCosmeticShop&&renderCosmeticShop();}
 function normalizeCosmeticInventory(raw){const out={};if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){if(COSMETIC_DEFS[k]&&v===true)out[k]=true;}return out;}
-function normalizeEquippedCosmetics(raw){const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,engine:null,shield:null,suit:null,laser:null};if(raw&&typeof raw==="object")for(const slot of COSMETIC_SLOTS){const key=String(raw[slot]||"");if(key&&COSMETIC_DEFS[key]?.slot===slot)out[slot]=key;}return out;}
+function normalizeEquippedCosmetics(raw){const out={ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,turret:null,engine:null,shield:null,suit:null,laser:null};if(raw&&typeof raw==="object")for(const slot of COSMETIC_SLOTS){const key=String(raw[slot]||"");if(key&&COSMETIC_DEFS[key]?.slot===slot)out[slot]=key;}return out;}
 function normalizeRedeemedCoupons(raw){const out={};if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){const code=String(k||"").toUpperCase();if(code&&v===true)out[code]=true;}return out;}
 function activeCosmeticDef(slot,source=equippedCosmetics){const key=source?.[slot];return key?COSMETIC_DEFS[key]||null:null;}
 function setSharedWorldCosmetic(slot,key){if(!WORLD_COSMETIC_SLOTS.includes(slot))return;globalWorldCosmetics[slot]=key||null;}
@@ -2759,6 +2857,9 @@ function drawSpriteImageFit(path,x,y,w,h,targetCtx=ctx){
   if(!img||!img.complete||!img.naturalWidth||!img.naturalHeight)return false;
   try{targetCtx.drawImage(img,x,y,w,h);return true;}catch(error){console.warn("Sprite draw skipped:",path,error);spriteAssetRenderingPausedUntil=Date.now()+800;return false;}
 }
+function turretCosmeticDefForEntity(entity,zone=null){const key=String(entity?.turretCosmeticKey||zone?.turretCosmeticKey||equippedCosmetics?.turret||"");return key&&COSMETIC_DEFS[key]?.slot==="turret"?COSMETIC_DEFS[key]:null;}
+function drawTurretCosmetic(def,cx,cy,size=26,destroyed=false){if(!def?.spritePath)return false;const wh=Math.max(18,Number(size)||26);ctx.save();ctx.globalAlpha=destroyed?.58:1;ctx.shadowColor=def.color||"#ff8844";ctx.shadowBlur=5;const ok=drawSpriteImageFit(def.spritePath,cx-wh/2,cy-wh/2,wh,wh);ctx.restore();return ok;}
+
 function drawCosmeticSprite(def){if(!def?.spritePath)return false;const img=getCosmeticSprite(def.spritePath);if(!img||!img.complete||!img.naturalWidth)return false;const scale=Math.max(0.08,Number(def.spriteScale)||0.2),w=img.naturalWidth*scale,h=img.naturalHeight*scale;ctx.save();ctx.rotate(Math.PI/2);ctx.shadowColor=def.slot==="enemy"?"rgba(255,60,60,.55)":"rgba(90,220,255,.42)";ctx.shadowBlur=5;ctx.drawImage(img,-w/2,-h/2,w,h);ctx.restore();return true;}
 const RESOURCE_TILE_ART={
   grass_tuft:"assets/resource_tiles/transparent tiles.png_auto_1.png",
@@ -2954,7 +3055,7 @@ function drawPlanetVisual(p,px,py){
 }
 function cosmeticPreviewHtml(def){
  const color=safeColor(def.color||"#7be6ff"),accent=safeColor(def.accent||def.color||"#ffdd44");
- if(def.spritePath&&["ship","npcship","enemy","station","planet"].includes(def.slot))return `<div class="cosmetic-preview" style="color:${color}"><img class="sprite-preview" src="${safeHtml(def.spritePath)}" alt=""/></div>`;
+ if(def.spritePath&&["ship","npcship","enemy","station","planet","turret"].includes(def.slot))return `<div class="cosmetic-preview" style="color:${color}"><img class="sprite-preview" src="${safeHtml(def.spritePath)}" alt=""/></div>`;
  if(def.slot==="ship"||def.slot==="npcship"){const pts="96,29 48,10 55,25 18,18 38,29 18,40 55,33 48,48";return `<div class="cosmetic-preview"><svg width="118" height="58"><polygon points="${pts}" fill="${color}" stroke="${accent}" stroke-width="3"/></svg></div>`;}
  if(def.slot==="bullet")return `<div class="cosmetic-preview"><div class="preview-stage"><span class="preview-bullet-dot" style="background:${color}"></span><span class="preview-bullet-dot" style="background:${accent}"></span></div></div>`;
  if(def.slot==="station"||def.slot==="planet")return `<div class="cosmetic-preview" style="background:linear-gradient(135deg,${color},${accent})"></div>`;
@@ -2968,8 +3069,8 @@ function equipCosmetic(slot,key){slot=String(slot||COSMETIC_DEFS[key]?.slot||"")
 function buyCosmetic(key){key=String(key||"");const def=COSMETIC_DEFS[key];if(!def)return;pendingCosmeticPurchaseKey=key;if(def.spritePath&&!serverSupportsSpriteCosmetics){localBuyCosmetic(key,"sprite_compat");pendingCosmeticPurchaseKey=null;const st=document.getElementById("coupon-status");if(st)st.textContent="Sprite cosmetic purchased and equipped locally. Deploy the included server.js for multiplayer persistence/sync.";return;}if(cosmeticBackendSupported&&socket?.connected){socket.emit("buyCosmetic",{key});setTimeout(()=>{if(pendingCosmeticPurchaseKey===key&&!cosmeticInventory[key]){localBuyCosmetic(key,"purchase_timeout");pendingCosmeticPurchaseKey=null;}},1400);}else{localBuyCosmetic(key);pendingCosmeticPurchaseKey=null;}}
 function redeemCoupon(){const input=document.getElementById("coupon-code-input"),status=document.getElementById("coupon-status");const code=String(input?.value||"").trim().toUpperCase();if(!code){if(status)status.textContent="Enter a coupon code first.";return;}if(redeemedCoupons[code]&&!CLIENT_COUPON_DEFS[code]?.reusable){if(status)status.textContent="Coupon already redeemed on this pilot.";return;}if(status)status.textContent=cosmeticBackendSupported&&socket?.connected?"Checking coupon…":"Redeeming local coupon…";pendingCouponCode=code;clearTimeout(pendingCouponTimer);if(cosmeticBackendSupported&&socket?.connected){socket.emit("redeemCoupon",{code});pendingCouponTimer=setTimeout(()=>{if(pendingCouponCode===code)localRedeemCoupon(code,"timeout");pendingCouponCode=null;},1400);}else{localRedeemCoupon(code,"offline");pendingCouponCode=null;}}
 let selectedCosmeticType="all";
-const COSMETIC_TYPE_LABELS={all:"All",ship:"Player Ships",npcship:"NPC Ships",station:"Stations",planet:"Planets",bullet:"Bullets",particle:"Particles",trail:"Trails",enemy:"Enemies",engine:"Engines",shield:"Shields",suit:"Suits",laser:"Mining Beams"};
-function cosmeticTypeOrder(){return ["all","ship","npcship","station","planet","bullet","particle","trail","enemy","engine","shield","suit","laser"];}
+const COSMETIC_TYPE_LABELS={all:"All",ship:"Player Ships",npcship:"NPC Ships",station:"Stations",planet:"Planets",turret:"Turrets",bullet:"Bullets",particle:"Particles",trail:"Trails",enemy:"Enemies",engine:"Engines",shield:"Shields",suit:"Suits",laser:"Mining Beams"};
+function cosmeticTypeOrder(){return ["all","ship","npcship","station","planet","turret","bullet","particle","trail","enemy","engine","shield","suit","laser"];}
 function renderCosmeticTabs(defs){
   const tabs=document.getElementById("cosmetic-type-tabs");if(!tabs)return;
   const counts={all:defs.length};for(const d of defs)counts[d.slot]=(counts[d.slot]||0)+1;
@@ -2978,7 +3079,7 @@ function renderCosmeticTabs(defs){
 }
 function renderCosmeticShop(){
   const cur=document.getElementById("cosmetic-credit-current"),list=document.getElementById("cosmetic-list");if(cur)cur.textContent=(player.credits||0).toLocaleString();if(!list)return;
-  const order=["ship","npcship","station","planet","bullet","particle","trail","enemy","engine","shield","suit","laser"];
+  const order=["ship","npcship","station","planet","turret","bullet","particle","trail","enemy","engine","shield","suit","laser"];
   const defs=Object.values(COSMETIC_DEFS).sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)||a.price-b.price);if(!COSMETIC_TYPE_LABELS[selectedCosmeticType])selectedCosmeticType="all";renderCosmeticTabs(defs);
   const activeSummary=COSMETIC_SLOTS.filter(slot=>slot!=="station"&&slot!=="planet").map(slot=>{const key=equippedCosmetics[slot],def=key?COSMETIC_DEFS[key]:null;return `<button class="${key?"":"warn"}" data-cos-clear-active="${safeHtml(slot)}" ${key?"":"disabled"}>${safeHtml(COSMETIC_TYPE_LABELS[slot]||slot)}: ${safeHtml(def?.name||"Default")}</button>`;}).join("");
   const filtered=selectedCosmeticType==="all"?defs:defs.filter(d=>d.slot===selectedCosmeticType);
@@ -3082,6 +3183,16 @@ let gameOverStartedAt=0,lastRespawnRequestAt=0;
 let questLogScroll=0,badgeLogScroll=0;
 const QUEST_LOG_VISIBLE_ROWS=6,BADGE_LOG_VISIBLE_ROWS=7;
 let shopTab="sell",shopSelectedSlot=null,shopSellQty=1,shopBuyItem=null,shopBuyQty=1,pendingShopBuy=null;
+
+let shopRequestSeq=0,pendingShopBuyTimer=0,pendingShopSell=null,pendingShopSellTimer=0;
+function nextShopRequestId(kind="shop"){shopRequestSeq=(shopRequestSeq+1)%1000000;return `${kind}_${Date.now().toString(36)}_${shopRequestSeq.toString(36)}`;}
+function clearPendingShopBuy(requestId=null){if(requestId&&pendingShopBuy?.requestId&&pendingShopBuy.requestId!==requestId)return false;clearTimeout(pendingShopBuyTimer);pendingShopBuyTimer=0;pendingShopBuy=null;return true;}
+function clearPendingShopSell(requestId=null){if(requestId&&pendingShopSell?.requestId&&pendingShopSell.requestId!==requestId)return false;clearTimeout(pendingShopSellTimer);pendingShopSellTimer=0;pendingShopSell=null;return true;}
+function refreshVisibleStationQuotes(prices=serverPrices){for(const st of visibleStations||[]){if(!Array.isArray(st?.buyStock))continue;for(const item of st.buyStock){const market=Math.max(1,Math.floor(Number(prices?.[item.type])||Number(serverPrices?.[item.type])||price(item.type)||1));const floor=Math.max(1,Math.ceil(market*1.02));if(!Number.isFinite(Number(item.price))||Number(item.price)<floor)item.price=floor;}}}
+function beginShopBuy(st,index,item,quantity){if(!st||!item||pendingShopBuy)return false;const available=Math.max(0,Math.floor(Number(item.qty)||0));if(available<=0)return false;quantity=Math.max(1,Math.min(500,Math.floor(Number(quantity)||1),available));const requestId=nextShopRequestId("buy");pendingShopBuy={requestId,stationId:st.id,index,type:item.type,quantity,pricePerUnit:Math.max(1,Math.floor(Number(item.price)||1)),startedAt:performance.now()};socket.emit("buy",{requestId,resourceType:item.type,quantity,pricePerUnit:pendingShopBuy.pricePerUnit,stationId:st.id});clearTimeout(pendingShopBuyTimer);pendingShopBuyTimer=setTimeout(()=>{if(pendingShopBuy?.requestId===requestId){clearPendingShopBuy(requestId);showFT("Shop request timed out — try again",ship.x,ship.y-18,"#ffcc44",9);refreshVisibleStationQuotes();}},3200);return true;}
+function beginShopSell(st,type,quantity){if(!st||pendingShopSell)return false;quantity=Math.max(1,Math.min(500,Math.floor(Number(quantity)||1)));const requestId=nextShopRequestId("sell");pendingShopSell={requestId,stationId:st.id,type,quantity,startedAt:performance.now()};socket.emit("sell",{requestId,resourceType:type,quantity,stationId:st.id});clearTimeout(pendingShopSellTimer);pendingShopSellTimer=setTimeout(()=>{if(pendingShopSell?.requestId===requestId){clearPendingShopSell(requestId);showFT("Sale request timed out — try again",ship.x,ship.y-18,"#ffcc44",9);}},3200);return true;}
+function resetShopTransactions(){clearPendingShopBuy();clearPendingShopSell();}
+
 let selectedSlot=null,nearStation=null,buildSlotIndex=null,planetLoading=false,planetLoadStartedAt=0,planetLoadLastRequestAt=0,planetLoadAttempts=0,planetLoadFallbackUsed=false,oxygenDamageTimer=0;
 let oxygenAutoUsePending=false,oxygenAutoUseCooldown=0,oxygenNoTankFlashTimer=0,oxygenNoTankWarnCooldown=0;
 function localOxygenTankCount(){
@@ -3292,6 +3403,7 @@ function decorateCivilizationZone(zone){
   zone.stationCosts=rec?.stationCosts||{};
   zone.stationTierCosmetics=normalizeStationTierCosmetics(rec?.stationTierCosmetics||{});
   zone.npcshipCosmeticKey=rec?.npcshipCosmeticKey||null;
+  zone.turretCosmeticKey=rec?.turretCosmeticKey||null;
   return zone;
 }
 function makeCivilizationSuperStation(zone,baseStationCount){
@@ -5766,11 +5878,11 @@ function updateDefenseTurrets(dt){
 }
 function drawCivilizationZones(camX,camY){
   for(const z of visibleCivZones){const x=z.x-camX,y=z.y-camY;if(x<-z.radius||y<-z.radius||x>canvas.width+z.radius||y>canvas.height+z.radius)continue;ctx.save();ctx.globalAlpha=.09;ctx.fillStyle=z.color;ctx.beginPath();ctx.arc(x,y,z.radius,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.38;ctx.strokeStyle=z.color;ctx.setLineDash([10,8]);ctx.beginPath();ctx.arc(x,y,z.radius,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=z.color;ctx.font="bold 8px monospace";ctx.textAlign="center";ctx.fillText(`CIV ZONE: ${z.name}`,x,y-z.radius-8);if(z.ownerName){ctx.fillStyle="#78ff8a";ctx.font="7px monospace";ctx.fillText(`Owner: ${z.ownerName} · ${Math.floor(z.taxPerMinute||0)}cr/min`,x,y-z.radius+4);}ctx.restore();ctx.textAlign="left";
-    for(const t of z.turrets||[]){ensureCivilizationTurretState(t,z);if(t.destroyed)continue;const tx=t.x-camX,ty=t.y-camY;if(tx<-40||ty<-40||tx>canvas.width+40||ty>canvas.height+40)continue;ctx.fillStyle=t.color;ctx.beginPath();ctx.moveTo(tx,ty-8);ctx.lineTo(tx+8,ty+8);ctx.lineTo(tx-8,ty+8);ctx.closePath();ctx.fill();ctx.strokeStyle="#fff8";ctx.stroke();const hpPct=clamp((t.hp||0)/(t.maxHp||260),0,1);ctx.fillStyle="#300";ctx.fillRect(tx-9,ty+10,18,2);ctx.fillStyle=hpPct>.45?"#78ff8a":"#ff8844";ctx.fillRect(tx-9,ty+10,18*hpPct,2);}
+    for(const t of z.turrets||[]){ensureCivilizationTurretState(t,z);if(t.destroyed)continue;const tx=t.x-camX,ty=t.y-camY;if(tx<-40||ty<-40||tx>canvas.width+40||ty>canvas.height+40)continue;const td=turretCosmeticDefForEntity(t,z);if(!drawTurretCosmetic(td,tx,ty,28,false)){ctx.fillStyle=t.color;ctx.beginPath();ctx.moveTo(tx,ty-8);ctx.lineTo(tx+8,ty+8);ctx.lineTo(tx-8,ty+8);ctx.closePath();ctx.fill();ctx.strokeStyle="#fff8";ctx.stroke();}const hpPct=clamp((t.hp||0)/(t.maxHp||260),0,1);ctx.fillStyle="#300";ctx.fillRect(tx-9,ty+10,18,2);ctx.fillStyle=hpPct>.45?"#78ff8a":"#ff8844";ctx.fillRect(tx-9,ty+10,18*hpPct,2);}
   }
 }
 function drawPlayerStructures(camX,camY){
-  for(const ps of playerStructuresList){const x=ps.x-camX,y=ps.y-camY;if(x<-60||y<-60||x>canvas.width+60||y>canvas.height+60)continue;ctx.save();ctx.translate(x,y);ctx.fillStyle=ps.destroyed?"#4a1a1a":ps.type==="defense_turret"?"#ff8844":"#78ff8a";ctx.strokeStyle=ps.isOwn?"#ffee88":"#aaaaaa";ctx.lineWidth=2;if(ps.type==="defense_turret"){ctx.beginPath();ctx.moveTo(0,-11);ctx.lineTo(11,9);ctx.lineTo(-11,9);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle="#111";ctx.fillRect(-2,-4,4,12);}else{ctx.fillRect(-12,-9,24,18);ctx.strokeRect(-12,-9,24,18);ctx.fillStyle="#111";ctx.fillRect(-7,-4,14,8);}ctx.restore();drawStationBars(x,y-27,30,ps.hp||0,ps.maxHp||1,ps.shield||0,ps.maxShield||1);ctx.fillStyle=ps.type==="defense_turret"?"#ff8844":"#78ff8a";ctx.font="7px monospace";ctx.textAlign="center";ctx.fillText(ps.type==="defense_turret"?`TURRET D${ps.damageLevel||1}/S${ps.shieldLevel||1}`:`STORAGE ${ps.storageUsed||0}/${ps.storageSlots||24}`,x,y+20);if(ps.isOwn&&dist(ship.x,ship.y,ps.x,ps.y)<90)ctx.fillText("B: Manage",x,y+30);ctx.textAlign="left";}
+  for(const ps of playerStructuresList){const x=ps.x-camX,y=ps.y-camY;if(x<-60||y<-60||x>canvas.width+60||y>canvas.height+60)continue;ctx.save();ctx.translate(x,y);ctx.fillStyle=ps.destroyed?"#4a1a1a":ps.type==="defense_turret"?"#ff8844":"#78ff8a";ctx.strokeStyle=ps.isOwn?"#ffee88":"#aaaaaa";ctx.lineWidth=2;if(ps.type==="defense_turret"){const td=turretCosmeticDefForEntity(ps);if(!drawTurretCosmetic(td,0,0,30,ps.destroyed)){ctx.beginPath();ctx.moveTo(0,-11);ctx.lineTo(11,9);ctx.lineTo(-11,9);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle="#111";ctx.fillRect(-2,-4,4,12);}}else{ctx.fillRect(-12,-9,24,18);ctx.strokeRect(-12,-9,24,18);ctx.fillStyle="#111";ctx.fillRect(-7,-4,14,8);}ctx.restore();drawStationBars(x,y-27,30,ps.hp||0,ps.maxHp||1,ps.shield||0,ps.maxShield||1);ctx.fillStyle=ps.type==="defense_turret"?"#ff8844":"#78ff8a";ctx.font="7px monospace";ctx.textAlign="center";ctx.fillText(ps.type==="defense_turret"?`TURRET D${ps.damageLevel||1}/S${ps.shieldLevel||1}`:`STORAGE ${ps.storageUsed||0}/${ps.storageSlots||24}`,x,y+20);if(ps.isOwn&&dist(ship.x,ship.y,ps.x,ps.y)<90)ctx.fillText("B: Manage",x,y+30);ctx.textAlign="left";}
 }
 function structureCostText(type){const d=STRUCTURE_TYPES[type]||{};return `${d.price||0}cr`;}
 function renderBuildPanel(){
@@ -5787,7 +5899,7 @@ function renderPlayerStructuresList(){
   const host=document.getElementById("owned-stations-list");if(!host)return;let wrap=document.getElementById("owned-structures-list");if(!wrap){wrap=document.createElement("div");wrap.id="owned-structures-list";host.parentNode.appendChild(wrap);}const mine=playerStructuresList.filter(s=>s.isOwn);
   if(!mine.length){wrap.innerHTML="<div style='font-size:10px;color:#5a6a7a;margin-top:8px'>No storage facilities or turrets yet.</div>";return;}
   wrap.innerHTML=`<div style="font-size:11px;font-weight:bold;color:#78ff8a;margin:10px 0 6px">YOUR STRUCTURES</div>`;
-  for(const st of mine){const div=document.createElement("div");div.style.cssText="background:#0f1420;border:1px solid #2a5a3a;border-radius:5px;padding:8px;margin-bottom:6px;font-size:10px;";const title=st.type==="defense_turret"?`Defense Turret · D${st.damageLevel||1}/S${st.shieldLevel||1}`:`Storage Facility · ${st.storageUsed||0}/${st.storageSlots||24} slots`;div.innerHTML=`<div style="display:flex;justify-content:space-between"><span style="color:#78ff8a">${title} · (${st.x},${st.y})</span><span>${Math.round(st.hp||0)}/${Math.round(st.maxHp||1)} HP</span></div><div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">${st.type==="storage_facility"?`<button onclick="openStorageFacility('${st.key}')" class="trade-btn">Open Storage</button><button onclick="upgradeStorage('${st.key}')" class="trade-btn ready">+4 Slots</button>`:`<button onclick="upgradeTurret('${st.key}','damage')" class="trade-btn ready">Upgrade Damage</button><button onclick="upgradeTurret('${st.key}','shield')" class="trade-btn ready">Upgrade Shield</button>`}</div>`;wrap.appendChild(div);}
+  for(const st of mine){const div=document.createElement("div");div.style.cssText="background:#0f1420;border:1px solid #2a5a3a;border-radius:5px;padding:8px;margin-bottom:6px;font-size:10px;";const title=st.type==="defense_turret"?`Defense Turret · D${st.damageLevel||1}/S${st.shieldLevel||1}`:`Storage Facility · ${st.storageUsed||0}/${st.storageSlots||24} slots`;div.innerHTML=`<div style="display:flex;justify-content:space-between"><span style="color:#78ff8a">${title} · (${st.x},${st.y})</span><span>${Math.round(st.hp||0)}/${Math.round(st.maxHp||1)} HP</span></div><div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">${st.type==="storage_facility"?`<button onclick="openStorageFacility('${st.key}')" class="trade-btn">Open Storage</button><button onclick="upgradeStorage('${st.key}')" class="trade-btn ready" ${Number(st.storageSlots||24)>=100?"disabled":""}>${storageUpgradeLabel(st)}</button>`:`<button onclick="upgradeTurret('${st.key}','damage')" class="trade-btn ready">Upgrade Damage</button><button onclick="upgradeTurret('${st.key}','shield')" class="trade-btn ready">Upgrade Shield</button>`}</div>`;wrap.appendChild(div);}
 }
 function renderOwnedStations(){
   const el=document.getElementById("owned-stations-list");if(!el)return;const mine=ownedStationsList.filter(s=>s.isOwn);
@@ -5804,11 +5916,13 @@ function renderStoragePanel(){
   const body=document.getElementById("storage-panel-body");if(!body)return;const st=playerStructuresList.find(s=>s.key===selectedStorageKey);if(!st){body.innerHTML="Storage not found.";return;}const inv=countsFromSlots(player.invSlots),stor=countsFromSlots(st.storage||[]);
   const invRows=Object.entries(inv).map(([type,count])=>`<div class="char-row"><span><b style="color:${RES[type]?.color||'#fff'}">${RES[type]?.name||type}</b> × ${count}</span><span><button class="char-btn" onclick="depositStorage('${type}',1)">Deposit 1</button> <button class="char-btn" onclick="depositStorage('${type}',${count})">All</button></span></div>`).join("")||"<div class='social-small'>Inventory empty.</div>";
   const stRows=Object.entries(stor).map(([type,count])=>`<div class="char-row"><span><b style="color:${RES[type]?.color||'#fff'}">${RES[type]?.name||type}</b> × ${count}</span><span><button class="char-btn" onclick="withdrawStorage('${type}',1)">Take 1</button> <button class="char-btn" onclick="withdrawStorage('${type}',${count})">All</button></span></div>`).join("")||"<div class='social-small'>Storage empty.</div>";
-  body.innerHTML=`<div class="social-small">${st.ownerName}'s Storage · ${st.storageUsed||0}/${st.storageSlots||24} slots · Coordinates ${st.x}, ${st.y}</div><div class="trade-grid" style="margin-top:8px"><div class="trade-column"><h3>Your Inventory</h3>${invRows}</div><div class="trade-column"><h3>Stored Items</h3>${stRows}</div></div><div style="margin-top:8px;text-align:right"><button class="trade-btn ready" onclick="upgradeStorage('${st.key}')">Upgrade +4 Slots</button></div>`;
+  body.innerHTML=`<div class="social-small">${st.ownerName}'s Storage · ${st.storageUsed||0}/${st.storageSlots||24} slots · Coordinates ${st.x}, ${st.y}</div><div class="trade-grid" style="margin-top:8px"><div class="trade-column"><h3>Your Inventory</h3>${invRows}</div><div class="trade-column"><h3>Stored Items</h3>${stRows}</div></div><div style="margin-top:8px;text-align:right"><button class="trade-btn ready" onclick="upgradeStorage('${st.key}')" ${Number(st.storageSlots||24)>=100?"disabled":""}>${storageUpgradeLabel(st)}</button></div>`;
 }
 function depositStorage(type,qty){if(selectedStorageKey)socket.emit("depositStorageItem",{structureKey:selectedStorageKey,resourceType:type,quantity:qty});}
 function withdrawStorage(type,qty){if(selectedStorageKey)socket.emit("withdrawStorageItem",{structureKey:selectedStorageKey,resourceType:type,quantity:qty});}
-function upgradeStorage(key){socket.emit("upgradeStorageSlots",{structureKey:key});}
+function storageUpgradePriceLocal(st){if(!st)return 0;if(Number(st.storageSlots||24)>=100)return 0;return Math.max(0,Math.floor(Number(st.storageUpgradeCost)||Number(st.nextStorageUpgradeCost)||450+Math.max(0,Number(st.storageSlots||24)-24)*42));}
+function storageUpgradeLabel(st){const cost=storageUpgradePriceLocal(st);return cost>0?`+4 Slots — ${cost.toLocaleString()}cr`:"Storage MAX";}
+function upgradeStorage(key){const st=playerStructuresList.find(s=>s.key===key);const cost=storageUpgradePriceLocal(st);if(!cost){showFT("Storage is already maxed",ship.x,ship.y-20,"#ffcc44",9);return;}socket.emit("upgradeStorageSlots",{structureKey:key});}
 function upgradeTurret(key,kind){socket.emit("upgradeTurret",{structureKey:key,kind});}
 window.buyStructure=buyStructure;window.openStorageFacility=openStorageFacility;window.depositStorage=depositStorage;window.withdrawStorage=withdrawStorage;window.upgradeStorage=upgradeStorage;window.upgradeTurret=upgradeTurret;
 
@@ -5866,7 +5980,7 @@ socket.on("connect",()=>{
   else setJoinStatus("Connected to global Space Eco server. Enter your name and launch.","#78ff8a");
 });
 socket.on("disconnect",(reason)=>{
-  joined=false;
+  joined=false;resetShopTransactions();
   if(launchedOnce){
     setJoinStatus("Connection lost ("+reason+"). Reconnecting to the global galaxy…","#ffcc44");
   }else{
@@ -5881,7 +5995,7 @@ socket.on("connect_error",(err)=>{setJoinStatus("Cannot reach global server: " +
 socket.on("reconnect_attempt",()=>{setJoinStatus("Reconnecting to global Space Eco server…","#ffcc44");});
 socket.on("serverFull",()=>{setJoinStatus("Server full. Try again later.","#ffcc44");});
 
-socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons,worldCosmetics,stationTierCosmetics:serverStationTierCosmetics,planetTypeCosmetics:serverPlanetTypeCosmetics,worldPlanetTypeCosmetics,spriteCosmeticRegistryVersion})=>{
+socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons,worldCosmetics,stationTierCosmetics:serverStationTierCosmetics,planetTypeCosmetics:serverPlanetTypeCosmetics,worldPlanetTypeCosmetics,storyProgress:serverStoryProgress,spriteCosmeticRegistryVersion})=>{
   player.id=id;player.color=color;serverAccountPersistenceLoaded=!!persistenceLoaded;accountInventoryPendingLoad=!!(serverMemberId&&!serverAccountPersistenceLoaded);if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken&&serverAccountPersistenceLoaded)wixLinkedToken=wixSnapshotKey();}
   applyAuthoritativeInventory({credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,persistenceLoaded,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,reason:"login"});GALAXY_SEED=seed;serverPrices=prices||{};
   if(shipTypes)SHIP_TYPES=shipTypes;if(worldCosmetics)globalWorldCosmetics=normalizeEquippedCosmetics(worldCosmetics);
@@ -5894,14 +6008,14 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   if(attachmentDefs&&typeof attachmentDefs==="object")for(const[k,v]of Object.entries(attachmentDefs))ATTACHMENT_DEFS[k]={...(ATTACHMENT_DEFS[k]||{}),...v,key:k};
   cosmeticBackendSupported=!!(cosmeticDefs&&typeof cosmeticDefs==="object");
   if(cosmeticDefs&&typeof cosmeticDefs==="object")for(const[k,v]of Object.entries(cosmeticDefs))COSMETIC_DEFS[k]={...(COSMETIC_DEFS[k]||{}),...v,key:k};
-  cosmeticInventory=normalizeCosmeticInventory(serverCosmeticInventory||{});equippedCosmetics=normalizeEquippedCosmetics(serverEquippedCosmetics||{});stationTierCosmetics=normalizeStationTierCosmetics(serverStationTierCosmetics||{});planetTypeCosmetics=normalizePlanetTypeCosmetics(serverPlanetTypeCosmetics||{});globalPlanetTypeCosmetics=normalizePlanetTypeCosmetics(worldPlanetTypeCosmetics||{});redeemedCoupons=normalizeRedeemedCoupons(serverRedeemedCoupons||{});mergeLocalCosmeticState();player.equippedCosmetics=equippedCosmetics;applyLocalCouponBonusIfNeeded();
+  cosmeticInventory=normalizeCosmeticInventory(serverCosmeticInventory||{});equippedCosmetics=normalizeEquippedCosmetics(serverEquippedCosmetics||{});stationTierCosmetics=normalizeStationTierCosmetics(serverStationTierCosmetics||{});planetTypeCosmetics=normalizePlanetTypeCosmetics(serverPlanetTypeCosmetics||{});globalPlanetTypeCosmetics=normalizePlanetTypeCosmetics(worldPlanetTypeCosmetics||{});redeemedCoupons=normalizeRedeemedCoupons(serverRedeemedCoupons||{});if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);mergeLocalCosmeticState();player.equippedCosmetics=equippedCosmetics;applyLocalCouponBonusIfNeeded();
   const localBootSnap=readLocalGameState();
   if(localSnapshotHasProgress(localBootSnap)&&(Number(localBootSnap.credits||0)>Number(player.credits||0)||clientInventoryPayloadHasItems(localBootSnap.invSlots))){applyLocalGameSnapshot(localBootSnap,"welcome_local_first");socket.emit("clientLocalSaveSync",{snapshot:makeLocalGameSnapshot("client_local_bootstrap")});setCreditPayStatus("Local credits loaded. Syncing local save to Railway...","#7be6ff");}
   ship.x=x;ship.y=y;joined=true;
   joinScreen.style.display="none";gameWrap.style.display="flex";
   document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
   pcEl.textContent=`👥 ${playerCount}`;
-  socket.emit("requestCivilizationZones");maybeLinkWixAccount();updateChunks();updateHud();scheduleCreditShopTip();
+  socket.emit("requestCivilizationZones");syncStoryProgressSoon();maybeLinkWixAccount();updateChunks();updateHud();scheduleCreditShopTip();
   // Start one ping loop and one animation loop only, even after reconnect/rejoin.
   if(!pingTimer)pingTimer=setInterval(()=>{if(socket.connected)socket.emit("clientPing");},2000);
   if(!gameLoopStarted){gameLoopStarted=true;requestAnimationFrame(tick);}
@@ -5932,7 +6046,7 @@ socket.on("pvpProjectileSpawn",({projectile}={})=>{
   pvpProjectiles.push(projectile);
 });
 
-socket.on("economyUpdate",prices=>{serverPrices=prices;});
+socket.on("economyUpdate",prices=>{serverPrices=prices||{};refreshVisibleStationQuotes(serverPrices);});
 socket.on("playerJoined",({name})=>{addChat("Server",`${name} entered the galaxy`,"#78ff8a");pcEl.textContent=`👥 ${(parseInt(pcEl.textContent.replace(/\D/g,""))||1)+1}`;});
 socket.on("worldCosmeticSync",({worldCosmetics,planetTypeCosmetics:worldPlanets}={})=>{if(worldCosmetics)globalWorldCosmetics=normalizeEquippedCosmetics(worldCosmetics);if(worldPlanets)globalPlanetTypeCosmetics=normalizePlanetTypeCosmetics(worldPlanets);renderCosmeticShop&&renderCosmeticShop();});
 socket.on("cosmeticPeerUpdate",({id,equippedCosmetics:eq}={})=>{if(!id)return;if(id===myId){equippedCosmetics=normalizeEquippedCosmetics(eq||{});player.equippedCosmetics=equippedCosmetics;return;}const op=otherPlayers.get(id);if(op)op.equippedCosmetics=normalizeEquippedCosmetics(eq||{});});
@@ -5994,8 +6108,9 @@ socket.on("accountCreationBonusGranted",({creditsAdded,credits})=>{
   if(joined)showFT(`+${Number(creditsAdded||100000).toLocaleString()} Account Bonus`,ship.x,ship.y-36,"#ffdd44",13);
 });
 socket.on("accountCreationBonusPending",({reason})=>setAccountBonusStatus(reason||"Account linked. Waiting for Wix save status before welcome bonus.","#ffcc44"));
-socket.on("inventorySync",({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs})=>{if(persistenceLoaded!==undefined)serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded)accountInventoryPendingLoad=false;applyAuthoritativeInventory({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs});});
-socket.on("accountLinked",({memberId,credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,alreadyLinked,persistenceLoaded,signupCreditBonusGranted})=>{if(memberId)wixMemberId=memberId;serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded){accountInventoryPendingLoad=false;wixLinkedToken=wixSnapshotKey();}wixLinkInFlightToken=null;const applied=applyAuthoritativeInventory({credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,memberId,persistenceLoaded,reason:"accountLinked"});if(applied&&!wixSyncedNoticeShown&&!alreadyLinked&&persistenceLoaded!==false){showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);wixSyncedNoticeShown=true;}if(signupCreditBonusGranted)setAccountBonusStatus("Welcome reward secured on this account. Progress saving is active.","#78ff8a");setCreditPayStatus(persistenceLoaded===false?"Wix account linked. Waiting for saved inventory snapshot before saving.":"Wix account synced with the game server.",persistenceLoaded===false?"#ffcc44":"#78ff8a");});
+socket.on("inventorySync",({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,storyProgress:serverStoryProgress})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);if(persistenceLoaded!==undefined)serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded)accountInventoryPendingLoad=false;applyAuthoritativeInventory({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs});});
+socket.on("accountLinked",({memberId,credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,storyProgress:serverStoryProgress,alreadyLinked,persistenceLoaded,signupCreditBonusGranted})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);syncStoryProgressSoon();if(memberId)wixMemberId=memberId;serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded){accountInventoryPendingLoad=false;wixLinkedToken=wixSnapshotKey();}wixLinkInFlightToken=null;const applied=applyAuthoritativeInventory({credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,memberId,persistenceLoaded,reason:"accountLinked"});if(applied&&!wixSyncedNoticeShown&&!alreadyLinked&&persistenceLoaded!==false){showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);wixSyncedNoticeShown=true;}if(signupCreditBonusGranted)setAccountBonusStatus("Welcome reward secured on this account. Progress saving is active.","#78ff8a");setCreditPayStatus(persistenceLoaded===false?"Wix account linked. Waiting for saved inventory snapshot before saving.":"Wix account synced with the game server.",persistenceLoaded===false?"#ffcc44":"#78ff8a");});
+socket.on("storyProgressSync",({storyProgress:serverStoryProgress})=>{if(serverStoryProgress){mergeStoryProgress(serverStoryProgress);renderStoryPanel();}});
 socket.on("accountSyncPending",({reason})=>setCreditPayStatus(reason||"Waiting for Wix inventory snapshot before saving.","#ffcc44"));
 socket.on("accountSuperseded",({reason})=>{setCreditPayStatus(reason||"This account is open in another game session.","#ffcc44");});
 socket.on("accountLinkDenied",({reason})=>{wixLinkInFlightToken=null;setCreditPayStatus(reason||"Could not link Wix account.","#ff5544");});
@@ -6030,22 +6145,10 @@ socket.on("creditPurchaseDenied",({reason})=>{setCreditPayStatus(reason||"Credit
 socket.on("xpUpdate",({xp,level})=>{player.xp=xp;player.level=level;player.xpToNext=xpForLevel(level);updateHud();});
 socket.on("levelUp",({level,attrPoints})=>{player.level=level;player.attrPoints=attrPoints;showFT("LEVEL UP! +2 Attr Points",canvas.width/2,canvas.height/2,"#cc88ff",18);});
 socket.on("scoreUpdate",({score,delta,reason})=>{player.score=score;showScorePopup(delta,reason);updateHud();});
-socket.on("sellConfirm",({resourceType,quantity,earned,credits,prices,invSlots,maxSlots})=>{statsInc("itemsSold",quantity||0);statsInc("tradeActions",1);statsInc("creditsEarned",earned||0);serverPrices=prices;if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();clampPanelScrolls();recordQuestProgress("trade",earned||0,{resource:resourceType});showFT(`+${earned}cr`,ship.x,ship.y-15,"#ffd15c");updateHud();});
-socket.on("buyConfirm",({resourceType,quantity,cost,credits,prices,invSlots,maxSlots})=>{statsInc("itemsBought",quantity||0);statsInc("tradeActions",1);statsInc("creditsSpent",cost||0);
-  serverPrices=prices;if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();clampPanelScrolls();
-  if(pendingShopBuy&&pendingShopBuy.type===resourceType){
-    for(const st of visibleStations){
-      if(st.id===pendingShopBuy.stationId&&Array.isArray(st.buyStock)){
-        const item=st.buyStock[pendingShopBuy.index];
-        if(item&&item.type===resourceType){item.qty=Math.max(0,item.qty-quantity);if(!item.qty){st.buyStock.splice(pendingShopBuy.index,1);shopBuyItem=null;}}
-      }
-    }
-  }
-  pendingShopBuy=null;shopBuyQty=1;
-  showFT(`Bought ${quantity}x ${RES[resourceType]?.name}`,ship.x,ship.y-15,"#78ff8a");updateHud();
-});
-socket.on("buyDenied",({reason})=>{pendingShopBuy=null;showFT(reason,ship.x,ship.y-15,"#ff5544");});
-socket.on("sellDenied",({reason})=>{showFT(reason||"Sale denied",ship.x,ship.y-15,"#ff5544");});
+socket.on("sellConfirm",({requestId,resourceType,quantity,earned,credits,prices,invSlots,maxSlots})=>{if(requestId&&!clearPendingShopSell(requestId))return;else if(!requestId)clearPendingShopSell();statsInc("itemsSold",quantity||0);statsInc("tradeActions",1);statsInc("creditsEarned",earned||0);serverPrices=prices||serverPrices;if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();if(shopSelectedSlot!==null&&!player.invSlots[shopSelectedSlot]?.type){shopSelectedSlot=null;shopSellQty=1;}clampPanelScrolls();refreshVisibleStationQuotes(serverPrices);recordQuestProgress("trade",earned||0,{resource:resourceType});showFT(`+${earned}cr`,ship.x,ship.y-15,"#ffd15c");updateHud();evaluateStoryProgress(false);});
+socket.on("buyConfirm",({requestId,resourceType,quantity,cost,unitPrice,credits,prices,invSlots,maxSlots})=>{const tx=pendingShopBuy?{...pendingShopBuy}:null;if(requestId&&!clearPendingShopBuy(requestId))return;else if(!requestId)clearPendingShopBuy();statsInc("itemsBought",quantity||0);statsInc("tradeActions",1);statsInc("creditsSpent",cost||0);serverPrices=prices||serverPrices;if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;ensureClientInventorySlots();clampPanelScrolls();const station=(visibleStations||[]).find(st=>st?.id===(tx?.stationId||nearStation?.id));if(station&&Array.isArray(station.buyStock)){let item=Number.isInteger(tx?.index)?station.buyStock[tx.index]:null;if(!item||item.type!==resourceType)item=station.buyStock.find(x=>x?.type===resourceType&&Number(x.qty)>0);if(item){item.qty=Math.max(0,Number(item.qty||0)-Number(quantity||0));if(Number(unitPrice)>0)item.price=Math.max(Number(item.price)||0,Number(unitPrice));if(!item.qty){const idx=station.buyStock.indexOf(item);if(idx>=0)station.buyStock.splice(idx,1);if(station===nearStation)shopBuyItem=null;}}}refreshVisibleStationQuotes(serverPrices);shopBuyQty=1;showFT(`Bought ${quantity}x ${RES[resourceType]?.name||resourceType}`,ship.x,ship.y-15,"#78ff8a");updateHud();evaluateStoryProgress(false);});
+socket.on("buyDenied",({requestId,reason,resourceType,pricePerUnit})=>{const tx=pendingShopBuy?{...pendingShopBuy}:null;if(requestId&&!clearPendingShopBuy(requestId))return;else if(!requestId)clearPendingShopBuy();let retryItem=null,retryStation=null;if(resourceType&&Number(pricePerUnit)>0){for(const st of visibleStations||[]){for(const item of st.buyStock||[])if(item.type===resourceType){item.price=Math.max(1,Math.floor(Number(pricePerUnit)));if(st.id===tx?.stationId){retryItem=item;retryStation=st;}}}}if(tx&&retryItem&&retryStation&&/price refreshed/i.test(String(reason||""))&&player.credits>=retryItem.price*tx.quantity&&canFitInventoryLocal(retryItem.type,tx.quantity)){showFT("Station price refreshed — retrying",ship.x,ship.y-15,"#ffcc44",8);setTimeout(()=>beginShopBuy(retryStation,retryStation.buyStock.indexOf(retryItem),retryItem,tx.quantity),90);return;}showFT(reason||"Purchase denied",ship.x,ship.y-15,"#ff5544");});
+socket.on("sellDenied",({requestId,reason})=>{if(requestId&&!clearPendingShopSell(requestId))return;else if(!requestId)clearPendingShopSell();showFT(reason||"Sale denied",ship.x,ship.y-15,"#ff5544");});
 socket.on("attrConfirm",({attr,val,attrPoints,credits,xp,level})=>{player.attrs[attr]=val;if(typeof attrPoints==="number")player.attrPoints=attrPoints;if(typeof credits==="number")player.credits=credits;if(typeof xp==="number")player.xp=xp;if(typeof level==="number")player.level=level;player.xpToNext=xpForLevel(player.level);updateHud();showFT(`${attr} → Lv${val}`,canvas.width/2,canvas.height/2-20,"#cc88ff",10);});
 socket.on("upgradeDenied",({reason})=>{showFT(reason,canvas.width/2,canvas.height/2,"#ff5544",10);});
 socket.on("energyUpdate",({energy:e})=>{energy.current=e;});
@@ -6200,7 +6303,7 @@ socket.on("mercState",({activeMercs,maxActive})=>{if(maxActive)maxActiveMercs=ma
 socket.on("playerStructuresList",(list)=>{playerStructuresList=Array.isArray(list)?list:[];renderPlayerStructuresList();if(selectedStorageKey)renderStoragePanel();});
 socket.on("structureBuildConfirm",({structure,credits})=>{if(typeof credits==="number")player.credits=credits;if(structure){playerStructuresList=playerStructuresList.filter(s=>s.key!==structure.key);playerStructuresList.push(structure);}showFT("Structure built!",ship.x,ship.y-18,"#78ff8a",11);updateHud();renderPlayerStructuresList();});
 socket.on("structureDenied",({reason})=>showFT(reason||"Structure action denied",ship.x,ship.y-20,"#ff5544",9));
-socket.on("storageUpdate",({structure,credits})=>{if(typeof credits==="number")player.credits=credits;if(structure){playerStructuresList=playerStructuresList.filter(s=>s.key!==structure.key);playerStructuresList.push(structure);}updateHud();renderPlayerStructuresList();renderStoragePanel();});
+socket.on("storageUpdate",({structure,credits,cost,nextStorageUpgradeCost})=>{if(typeof credits==="number")player.credits=credits;if(structure){if(Number(nextStorageUpgradeCost)>=0)structure.storageUpgradeCost=Number(nextStorageUpgradeCost)||0;playerStructuresList=playerStructuresList.filter(s=>s.key!==structure.key);playerStructuresList.push(structure);}if(Number(cost)>0){const next=Number(nextStorageUpgradeCost)||0;showFT(`Storage +4 slots — ${Number(cost).toLocaleString()}cr${next?` · Next ${next.toLocaleString()}cr`:" · MAX"}`,ship.x,ship.y-24,"#78ff8a",10);}updateHud();renderPlayerStructuresList();renderStoragePanel();});
 socket.on("storageDenied",({reason})=>showFT(reason||"Storage unavailable",ship.x,ship.y-20,"#ff5544",9));
 socket.on("structureUpdate",({structure,credits})=>{if(typeof credits==="number")player.credits=credits;if(structure){playerStructuresList=playerStructuresList.filter(s=>s.key!==structure.key);playerStructuresList.push(structure);}updateHud();renderPlayerStructuresList();});
 socket.on("playerStructureDamaged",({structureKey,hp,maxHp,shield,maxShield,ownerName,attackerName})=>{const st=playerStructuresList.find(s=>s.key===structureKey);if(st){Object.assign(st,{hp,maxHp,shield,maxShield,underAttackUntil:Date.now()+35000});}});
@@ -6531,7 +6634,7 @@ function updateSpace(dt){
     if(!canvasPanelOpen()&&keys.has("g")){keys.delete("g");useGasCanister();}
     if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;shipStatusOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
     if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;shipStatusOpen=false;}
-    if(keys.has("o")){keys.delete("o");if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;shipStatusOpen=false;clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;}}}
+    if(keys.has("o")){keys.delete("o");if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;shipStatusOpen=false;clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;resetShopTransactions();}}}
   }
 }
 
@@ -7048,7 +7151,7 @@ function handleShopClick(mx,my){
   if(st.isCivSuperStation){handleCivilizationSuperStationClick(st,mx,my);return;}
   const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
   const tabs=["sell","buy","quests","hire"];for(let i=0;i<tabs.length;i++){const tx=px+10+i*80,ty=py+34,tw=75,th=18;if(mx>=tx&&mx<=tx+tw&&my>=ty&&my<=ty+th){shopTab=tabs[i];shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;if(shopTab==="hire")socket.emit("requestMercOffers");return;}}
-  const gx=px+10,gy=py+ph-28,gw=130,gh=20;if(mx>=gx&&mx<=gx+gw&&my>=gy&&my<=gy+gh){const gasPrice=stationGasPrice();if(player.credits>=gasPrice){showFT("Buying gas canister",ship.x,ship.y-15,"#aaff44");socket.emit("buy",{resourceType:"gas_canister",quantity:1,pricePerUnit:gasPrice});}return;}
+  const gx=px+10,gy=py+ph-28,gw=130,gh=20;if(mx>=gx&&mx<=gx+gw&&my>=gy&&my<=gy+gh){const gasPrice=stationGasPrice();if(player.credits>=gasPrice){showFT("Buying gas canister",ship.x,ship.y-15,"#aaff44");beginShopBuy(st,-1,{type:"gas_canister",qty:1,price:gasPrice},1);}return;}
   if(shopTab==="sell")handleSellClick(st,mx,my,px,py,pw,ph);else if(shopTab==="buy")handleBuyClick(st,mx,my,px,py,pw,ph);else if(shopTab==="quests")handleQuestClick(st,mx,my,px,py,pw,ph);else handleHireClick(st,mx,my,px,py,pw,ph);
 }
 
@@ -7060,11 +7163,11 @@ function handleSellClick(st,mx,my,px,py,pw,ph){
     if(mx>=mx2&&mx<=mx2+bw&&my>=my2&&my<=my2+bh){shopSellQty=Math.max(1,shopSellQty-1);return;}
     const plusX=dx+dw-52;if(mx>=plusX&&mx<=plusX+bw&&my>=my2&&my<=my2+bh){shopSellQty=Math.min(slot.count,shopSellQty+1);return;}
     const saX=dx+8,saY=dy+132,saW=68,btnH=18;if(mx>=saX&&mx<=saX+saW&&my>=saY&&my<=saY+btnH){shopSellQty=slot.count;return;}
-    const sellAllX=dx+8,sellAllY=dy+154,sellAllW=150;if(mx>=sellAllX&&mx<=sellAllX+sellAllW&&my>=sellAllY&&my<=sellAllY+btnH){const type=slot.type,qty=slot.count;shopSellQty=1;socket.emit("sell",{resourceType:type,quantity:qty,stationId:nearStation.id});return;}
+    const sellAllX=dx+8,sellAllY=dy+154,sellAllW=150;if(mx>=sellAllX&&mx<=sellAllX+sellAllW&&my>=sellAllY&&my<=sellAllY+btnH){const type=slot.type,qty=slot.count;shopSellQty=1;beginShopSell(st,type,qty);return;}
     const sellX=dx+88,sellY=dy+132,sellW=70;
     if(mx>=sellX&&mx<=sellX+sellW&&my>=sellY&&my<=sellY+btnH){
       const type=slot.type,qty=Math.min(shopSellQty,slot.count);
-      shopSellQty=1;socket.emit("sell",{resourceType:type,quantity:qty,stationId:nearStation.id});return;
+      shopSellQty=1;beginShopSell(st,type,qty);return;
     }
   }
 }
@@ -7076,15 +7179,14 @@ function handleBuyClick(st,mx,my,px,py,pw,ph){
     const item=stock[shopBuyItem],dx=px+215,dy=py+58,dw=215,bw=28,bh=18,my2=dy+94,mx2=dx+12;
     if(mx>=mx2&&mx<=mx2+bw&&my>=my2&&my<=my2+bh){shopBuyQty=Math.max(1,shopBuyQty-1);return;}
     const plusX2=dx+dw-44;if(mx>=plusX2&&mx<=plusX2+bw&&my>=my2&&my<=my2+bh){shopBuyQty=Math.min(item.qty,shopBuyQty+1);return;}
-    const allQ=fitQuantityFor(item.type,Math.min(item.qty,Math.floor(player.credits/Math.max(1,item.price))));const allX=dx+8,allY=dy+158,allW=dw-16,allH=18;if(mx>=allX&&mx<=allX+allW&&my>=allY&&my<=allY+allH&&allQ>0&&!pendingShopBuy){pendingShopBuy={stationId:st.id,index:shopBuyItem,type:item.type,quantity:allQ,pricePerUnit:item.price};socket.emit("buy",{resourceType:item.type,quantity:allQ,pricePerUnit:item.price,stationId:st.id});return;}
+    const allQ=fitQuantityFor(item.type,Math.min(item.qty,Math.floor(player.credits/Math.max(1,item.price))));const allX=dx+8,allY=dy+158,allW=dw-16,allH=18;if(mx>=allX&&mx<=allX+allW&&my>=allY&&my<=allY+allH&&allQ>0&&!pendingShopBuy){beginShopBuy(st,shopBuyItem,item,allQ);return;}
     const bX=dx+8,bY=dy+136,bW=dw-16,bH=20;
     if(mx>=bX&&mx<=bX+bW&&my>=bY&&my<=bY+bH){
       const qty=Math.min(shopBuyQty,item.qty),total=item.price*qty;
       if(pendingShopBuy)return;
       if(player.credits<total){showFT("Not enough credits",ship.x,ship.y-15,"#ff5544");return;}
       if(!canFitInventoryLocal(item.type,qty)){showFT("Inventory slots full",ship.x,ship.y-15,"#ff5544");return;}
-      pendingShopBuy={stationId:st.id,index:shopBuyItem,type:item.type,quantity:qty,pricePerUnit:item.price};
-      socket.emit("buy",{resourceType:item.type,quantity:qty,pricePerUnit:item.price,stationId:st.id});
+      beginShopBuy(st,shopBuyItem,item,qty);
       return;
     }
   }
