@@ -1069,6 +1069,28 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
 @media (max-width:700px){body.desktop-browser #desktop-command-dock{grid-template-columns:repeat(6,minmax(0,1fr))!important}.cosmetic-type-tab{font-size:9px;padding:6px 8px}}
 @media (max-height:620px){body.desktop-browser #desktop-command-dock{grid-template-columns:repeat(13,minmax(0,1fr))!important;max-height:none!important}body.desktop-browser #chat-wrap{bottom:118px!important}}
 
+/* v4.1.2 civilization operations usability */
+#desktop-command-dock-toggle{display:none}
+body.desktop-browser #desktop-command-dock-toggle{
+  position:fixed;right:18px;bottom:18px;z-index:96;display:flex;align-items:center;gap:6px;
+  min-height:34px;padding:0 12px;border:1px solid rgba(123,230,255,.7);border-radius:999px;
+  background:linear-gradient(180deg,rgba(19,39,69,.97),rgba(7,12,25,.98));color:#dff8ff;
+  box-shadow:0 0 18px rgba(123,230,255,.19);font:900 10px system-ui,Segoe UI,Arial;letter-spacing:.04em;cursor:pointer;
+}
+body.desktop-browser #desktop-command-dock-toggle:hover{border-color:#ffdd44;color:#ffed8a}
+body.desktop-browser #desktop-command-dock.dock-minimized{
+  display:none!important;pointer-events:none!important;
+}
+body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
+.civ-number-input{
+  position:fixed;z-index:95;box-sizing:border-box;display:none;min-width:64px;height:30px;padding:2px 8px;
+  border:2px solid #7be6ff;border-radius:5px;outline:none;background:rgba(6,16,31,.98);color:#fff2a2;
+  box-shadow:0 0 14px rgba(123,230,255,.25),inset 0 0 10px rgba(255,221,68,.06);
+  font:900 13px ui-monospace,SFMono-Regular,Menlo,monospace;text-align:center;
+}
+.civ-number-input:focus{border-color:#ffdd44;box-shadow:0 0 18px rgba(255,221,68,.35)}
+.civ-number-input::-webkit-outer-spin-button,.civ-number-input::-webkit-inner-spin-button{opacity:1}
+
 
 /* v4.0.20 minimap + full galaxy map */
 #galaxy-map-panel .panel-box{width:min(1180px,94vw)!important;max-width:1180px!important;max-height:92vh!important;overflow:auto!important}
@@ -1283,6 +1305,7 @@ body.desktop-browser #cosmetic-panel .panel-box{width:clamp(520px,92vw,1320px)!i
   <button class="desktop-command-btn" data-desktop-action="interact" type="button">Talk/Loot<small>E</small></button>
   <button class="desktop-command-btn red" data-desktop-action="close" type="button">Close<small>Esc</small></button>
 </div>
+<button id="desktop-command-dock-toggle" type="button" aria-expanded="true" title="Hide the hotkey dock">⌄ Hide Hotkeys</button>
 
 <!-- Universal master menu. 1 opens this on desktop/browser builds. L is land/takeoff. -->
 <div id="master-menu-panel" class="master-menu-panel" style="display:none" aria-label="Space Eco master menu">
@@ -1772,7 +1795,7 @@ window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 window.addEventListener("blur",clearLiveInput);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)clearLiveInput();});
 
-canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;mouse.x=(e.clientX-r.left)*sx;mouse.y=(e.clientY-r.top)*sy;miningPointerScreen={x:mouse.x,y:mouse.y};if(miningPointerHeld&&mouse.down&&!miningHoldState)scheduleContinuousMiningNext("",40);updateInventoryScrollDragFromCanvas(mouse.x,mouse.y);});
+canvas.addEventListener("mousemove",e=>{const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height;mouse.x=(e.clientX-r.left)*sx;mouse.y=(e.clientY-r.top)*sy;miningPointerScreen={x:mouse.x,y:mouse.y};if(miningPointerHeld&&mouse.down&&!miningHoldState)scheduleContinuousMiningNext("",40);updateInventoryScrollDragFromCanvas(mouse.x,mouse.y);updateCivPanelScrollbarDragFromCanvas(mouse.x,mouse.y);});
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("mousedown",e=>{
   if(domInputLocked(e.target)){clearLiveInput();return;}
@@ -1790,7 +1813,7 @@ canvas.addEventListener("mousedown",e=>{
   else if(attrOpen)handleAttrClick(mx,my);
   else if(gameOver)requestRespawn();
 });
-window.addEventListener("mouseup",()=>{if(miningHoldState&&!miningHoldState.completing&&miningHoldProgress()>=.995)doMining(0);miningPointerHeld=false;clearMiningChainTimer();mouse.down=false;if(miningHoldState&&!miningHoldState.completing)cancelMiningHold(true);endInventoryScrollDrag();});
+window.addEventListener("mouseup",()=>{if(miningHoldState&&!miningHoldState.completing&&miningHoldProgress()>=.995)doMining(0);miningPointerHeld=false;clearMiningChainTimer();mouse.down=false;if(miningHoldState&&!miningHoldState.completing)cancelMiningHold(true);endInventoryScrollDrag();endCivPanelScrollbarDrag();});
 canvas.addEventListener("wheel",e=>{
   if(domInputLocked(e.target)){clearLiveInput();return;}
   if(questLogOpen){
@@ -1803,7 +1826,11 @@ canvas.addEventListener("wheel",e=>{
     inventoryScrollRows=clamp(inventoryScrollRows+(e.deltaY>0?1:-1),0,maxInventoryScrollRows());
     e.preventDefault();
   }else if(shopOpen&&nearStation?.isCivSuperStation){
-    civCommandStationScroll=clamp(civCommandStationScroll+(e.deltaY>0?1:-1),0,maxCivCommandStationScroll());
+    const p=largeCanvasMenuPoint("shop",mouse.x,mouse.y);
+    if(!civHandleSuperStationWheel(p.x,p.y,e.deltaY))civCommandStationScroll=clamp(civCommandStationScroll+(e.deltaY>0?1:-1),0,maxCivCommandStationScroll());
+    e.preventDefault();
+  }else if(shopOpen&&shopTab==="buy"){
+    shopBuyScroll=clamp(shopBuyScroll+(e.deltaY>0?1:-1),0,maxShopBuyScroll(nearStation));
     e.preventDefault();
   }else if(shopOpen&&shopTab==="sell"){
     shopInventoryScrollRows=clamp(shopInventoryScrollRows+(e.deltaY>0?1:-1),0,maxShopInventoryScrollRows());
@@ -2126,6 +2153,20 @@ function bindDesktopCommandDock(){
   document.querySelectorAll("[data-desktop-action]").forEach(btn=>{
     btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();desktopAction(btn.dataset.desktopAction);});
   });
+  const dock=document.getElementById("desktop-command-dock"),toggle=document.getElementById("desktop-command-dock-toggle");
+  if(dock&&toggle){
+    const apply=minimized=>{
+      dock.classList.toggle("dock-minimized",!!minimized);
+      document.body.classList.toggle("command-dock-minimized",!!minimized);
+      toggle.textContent=minimized?"⌃ Show Hotkeys":"⌄ Hide Hotkeys";
+      toggle.title=minimized?"Show the hotkey dock":"Hide the hotkey dock";
+      toggle.setAttribute("aria-expanded",String(!minimized));
+      try{localStorage.setItem("spaceEco.desktopDockMinimized",minimized?"1":"0");}catch(_){}
+    };
+    let minimized=false;try{minimized=localStorage.getItem("spaceEco.desktopDockMinimized")==="1";}catch(_){}
+    apply(minimized);
+    toggle.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();apply(!dock.classList.contains("dock-minimized"));});
+  }
 }
 function syncDesktopPanelState(){
   if(IS_MOBILE_TOUCH)return;
@@ -3768,7 +3809,7 @@ const NPC_TRADE_SHIP_CLASSES={
 const NPC_TRADE_SHIP_CLASS_ORDER=["basic","skirmisher","juggernaut","fighter"];
 function createNpcTradeShip(st,slot){
   const cfg=st.tierDef.shipConfig,total=Math.max(1,st.tierDef.shipCount),ang=Math.PI*2*(slot/total),roster=(st.civRoster||[])[Math.max(0,slot-(st.civBaseShipCount||0))],classKey=roster?.role==="defender"?"fighter":NPC_TRADE_SHIP_CLASS_ORDER[Math.abs(slot)%NPC_TRADE_SHIP_CLASS_ORDER.length],cls=NPC_TRADE_SHIP_CLASSES[classKey]||NPC_TRADE_SHIP_CLASSES.basic,rs=roster?.stats||{},hp=Math.max(12,Math.round(rs.hp||cfg.hp*cls.hpMult));
-  return {id:roster?.id||st.id+"|ship|"+slot,homeSlot:slot,stationId:st.id,faction:st.faction,factionColor:st.factionColor,x:st.x+Math.cos(ang)*60,y:st.y+Math.sin(ang)*60,vx:0,vy:0,angle:ang,hp,maxHp:hp,maxShield:rs.shield||0,shield:rs.shield||0,speed:rs.speed||cfg.speed*cls.speedMult,damage:rs.damage||cfg.damage*cls.damageMult,cargoCapacity:Math.max(4,Math.floor(rs.capacity||cfg.cargo||8)),size:Math.max(3,cfg.size*cls.sizeMult),tier:st.tier,npcClass:classKey,className:roster?.name||cls.name,shipShape:cls.shape,fireInterval:cls.fireInterval,bulletSpeed:cls.bulletSpeed,bulletSize:cls.bulletSize,combatRange:cls.combatRange,state:roster?.status==="respawning"?"return":"idle",stateTimer:1+Math.random()*2,targetPlanet:null,lootCarried:{},shootTimer:0,ownerType:"npc",playerPursuitCooldown:0,civRosterShipId:roster?.id||null};
+  return {id:roster?.id||st.id+"|ship|"+slot,homeSlot:slot,stationId:st.id,faction:st.faction,factionColor:st.factionColor,x:st.x+Math.cos(ang)*60,y:st.y+Math.sin(ang)*60,vx:0,vy:0,angle:ang,hp,maxHp:hp,maxShield:rs.shield||0,shield:rs.shield||0,speed:rs.speed||cfg.speed*cls.speedMult,damage:rs.damage||cfg.damage*cls.damageMult,cargoCapacity:Math.max(4,Math.floor(rs.capacity||cfg.cargo||8)),size:Math.max(3,cfg.size*cls.sizeMult),tier:st.tier,npcClass:classKey,className:roster?.name||cls.name,shipShape:cls.shape,fireInterval:cls.fireInterval,bulletSpeed:cls.bulletSpeed,bulletSize:cls.bulletSize,combatRange:cls.combatRange,state:roster?.status==="respawning"?"return":"idle",stateTimer:1+Math.random()*2,targetPlanet:null,lootCarried:{},shootTimer:0,ownerType:"npc",playerPursuitCooldown:0,civRosterShipId:roster?.id||null,_lastPathX:st.x+Math.cos(ang)*60,_lastPathY:st.y+Math.sin(ang)*60,_stuckTime:0,_recoveryAttempts:0,_nextDefenseScan:0};
 }
 function initTradeShips(st,localPlanets){
   st.tradeShips=[];st.tradeRespawns=[];
@@ -3782,7 +3823,9 @@ function resetNpcTradeShipPath(ts,station,mode="return"){
   ts.civRaidTargetZoneId=null;
   ts.targetPlanet=null;
   ts.state=mode;
-  ts.stateTimer=Math.max(ts.stateTimer||0,1.5);
+  ts.stateTimer=mode==="idle"?.4:0;
+  ts._stuckTime=0;
+  ts._lastPathX=ts.x;ts._lastPathY=ts.y;
   ts.playerPursuitCooldown=Math.max(ts.playerPursuitCooldown||0,PURSUIT_BREAK_COOLDOWN*0.75);
   if(station){
     const d=dist(ts.x,ts.y,station.x,station.y);
@@ -3884,6 +3927,49 @@ function applyCivilizationRaidDamage(ts,station,target){
     if(target.obj.hp<=0)destroyCivilizationTurret(target.obj,target.zone,"attacking ships");
   }
 }
+function npcRawTargetsCivilizationZone(raw,zoneId){
+  if(!raw||!zoneId)return false;
+  if(raw.targetZoneId===zoneId||raw.zoneId===zoneId)return true;
+  if(raw.type==="civTurret")return raw.zoneId===zoneId;
+  if(raw.type==="npcStation"||raw.type==="npcTradeShip"){
+    const station=visibleStations.find(st=>st.id===raw.stationId);
+    return station?.civilizationZoneId===zoneId;
+  }
+  return false;
+}
+function npcTradeShipThreatensOwnedZone(enemy,enemyStation,zoneId){
+  if(!enemy||enemy.hp<=0||!enemyStation||enemyStation.destroyed||enemyStation.civilizationZoneId===zoneId)return false;
+  if(enemyStation.civTask==="attack"&&enemyStation.civAttackTargetZoneId===zoneId)return true;
+  if(enemyStation.civWarTargetZoneId===zoneId||enemy.civRaidTargetZoneId===zoneId)return true;
+  return npcRawTargetsCivilizationZone(enemy.combatTarget,zoneId)||npcRawTargetsCivilizationZone(enemy.civRaidTarget,zoneId);
+}
+function findPlayerOwnedCivShipDefenseTarget(ts,station,range=1050){
+  const zoneId=station?.civilizationZoneId,zone=visibleCivZoneById(zoneId);
+  if(!zoneId||!zone?.isOwn||station.destroyed)return null;
+  let best=null,bestD=Infinity;
+  for(const enemyStation of visibleStations){
+    if(enemyStation.destroyed||enemyStation.civilizationZoneId===zoneId||isFriendlyNpcTarget(station,enemyStation))continue;
+    for(const enemy of enemyStation.tradeShips||[]){
+      if(!npcTradeShipThreatensOwnedZone(enemy,enemyStation,zoneId))continue;
+      const d=dist(ts.x,ts.y,enemy.x,enemy.y);
+      if(d<=range&&d<bestD){bestD=d;best={type:"npcTradeShip",stationId:enemyStation.id,shipId:enemy.id,x:enemy.x,y:enemy.y,sourceZoneId:enemyStation.civilizationZoneId||null,targetZoneId:zoneId,zoneDefense:true,proximityDefense:true};}
+    }
+  }
+  return best;
+}
+function recoverNpcTradeShipTask(ts,station,allPlanets){
+  if(!ts||!station||station.destroyed)return;
+  setLocalStationTask(station);
+  ts._stuckTime=0;ts._recoveryAttempts=(ts._recoveryAttempts||0)+1;ts.combatTarget=null;ts.civRaidTarget=null;ts.civRaidTargetZoneId=null;
+  if(station.civTask==="attack"&&station.civAttackTargetZoneId){ts.targetPlanet=null;ts.state="travel";ts.stateTimer=0;return;}
+  const assigned=station.civIsOwn?civAssignedMiningPlanet(station):null;
+  const fallback=assigned||allPlanets.filter(p=>Number.isFinite(p?.x)&&Number.isFinite(p?.y)&&dist(station.x,station.y,p.x,p.y)<700)[0]||null;
+  if(!fallback){ts.targetPlanet=null;ts.state="idle";ts.stateTimer=.45;ts.vx=0;ts.vy=0;return;}
+  ts.targetPlanet=fallback;ts.state="travel";ts.stateTimer=0;
+  const a=angleToward(ts.x,ts.y,fallback.x,fallback.y);
+  if(Number.isFinite(a)){ts.angle=a;ts.vx=Math.cos(a)*(ts.speed||80)*.48;ts.vy=Math.sin(a)*(ts.speed||80)*.48;}
+  ts._lastPathX=ts.x;ts._lastPathY=ts.y;
+}
 function updateTradeShip(ts,station,allPlanets,dt){
   const taskNow=performance.now();
   // A short heartbeat prevents ships from keeping an old idle/combat path when
@@ -3892,7 +3978,7 @@ function updateTradeShip(ts,station,allPlanets,dt){
     setLocalStationTask(station);
     ts._taskRefreshAt=taskNow+1100;
     const assigned=civAssignedMiningPlanet(station);
-    if(station.civIsOwn&&station.civTask!=="attack"&&assigned&&!["combat","flee","return"].includes(ts.state)){
+    if((station.civIsOwn||stationBelongsToPlayerOwnedCivilization(station))&&station.civTask!=="attack"&&assigned&&!["combat","flee","return"].includes(ts.state)){
       ts.targetPlanet=assigned;
       if(ts.state==="idle")ts.state="travel";
     }
@@ -3902,10 +3988,21 @@ function updateTradeShip(ts,station,allPlanets,dt){
     if(ts.hp<=0){killTradeShip(ts,station);return;}
   }
   const activeSpeed=(ts._civSlowUntil&&taskNow<ts._civSlowUntil)?ts.speed*Math.max(.25,1-(Number(ts._civSlowAmount)||.16)):ts.speed;
+  if((station.civIsOwn||stationBelongsToPlayerOwnedCivilization(station))&&station.civilizationZoneId&&taskNow>=(ts._nextDefenseScan||0)){
+    ts._nextDefenseScan=taskNow+650;
+    const threat=findPlayerOwnedCivShipDefenseTarget(ts,station,Math.max(1050,(ts.combatRange||320)*3.5));
+    if(threat&&ts.state!=="flee"){
+      const same=ts.combatTarget?.type===threat.type&&ts.combatTarget?.stationId===threat.stationId&&ts.combatTarget?.shipId===threat.shipId;
+      if(!same||ts.state!=="combat"){ts.combatTarget=threat;ts.state="combat";ts.stateTimer=999;ts.shootTimer=Math.min(ts.shootTimer||0,.18+Math.random()*.12);}
+      station.underCivAttackTimer=Math.max(station.underCivAttackTimer||0,10);
+    }
+  }
   const moved=Math.hypot((ts.x-(ts._lastPathX??ts.x)),(ts.y-(ts._lastPathY??ts.y)));
-  ts._stuckTime=moved<0.35&&(ts.state==="return"||ts.state==="travel"||ts.state==="mining"||ts.state==="combat")?(ts._stuckTime||0)+dt:0;
+  const requiresProgress=ts.state==="return"||ts.state==="travel"||ts.state==="combat"||ts.state==="flee";
+  const stuckThreshold=Math.max(.4,(activeSpeed||80)*dt*.09);
+  ts._stuckTime=requiresProgress&&moved<stuckThreshold?(ts._stuckTime||0)+dt:0;
   ts._lastPathX=ts.x;ts._lastPathY=ts.y;
-  if(ts._stuckTime>3.5&&!station.destroyed){ts._stuckTime=0;resetNpcTradeShipPath(ts,station,station.civTask==="attack"?"travel":"return");}
+  if(ts._stuckTime>2.4&&!station.destroyed)recoverNpcTradeShipTask(ts,station,allPlanets);
   ts.stateTimer=Math.max(0,ts.stateTimer-dt);ts.shootTimer=Math.max(0,ts.shootTimer-dt);ts.playerPursuitCooldown=Math.max(0,(ts.playerPursuitCooldown||0)-dt);
   const homeDistance=dist(ts.x,ts.y,station.x,station.y);
   if(!station.destroyed&&station.civTask!=="attack"&&homeDistance>2600&&!["return","travel","mining"].includes(ts.state)){resetNpcTradeShipPath(ts,station,"return");}
@@ -3968,10 +4065,11 @@ function updateTradeShip(ts,station,allPlanets,dt){
     }else{ts.state="return";}
     ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;
   }
-  if(ts.state==="idle"&&ts.stateTimer<=0){const assigned=station.civIsOwn&&station.civTask!=="attack"?civAssignedMiningPlanet(station):null;const c=assigned?[assigned]:allPlanets.filter(p=>dist(ts.x,ts.y,p.x,p.y)<700);if(c.length>0){ts.targetPlanet=c[Math.floor(Math.random()*c.length)];ts.state="travel";}}
-  if(ts.state==="travel"&&ts.targetPlanet){const d=dist(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);if(d<ts.targetPlanet.radius+20){ts.state="mining";ts.stateTimer=3+Math.random()*4;}else{const ang=angleToward(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);ts.vx=lerp(ts.vx,Math.cos(ang)*activeSpeed,0.05);ts.vy=lerp(ts.vy,Math.sin(ang)*activeSpeed,0.05);ts.angle=ang;}}
-  if(ts.state==="mining"&&ts.stateTimer<=0){if(ts.targetPlanet){const rl=(ts.targetPlanet.resList||ts.targetPlanet.resources||[]).filter(Boolean),col=Math.max(1,Math.floor(ts.cargoCapacity||8));ts.lootCarried={};for(let i=0;i<col&&rl.length;i++){const r=rl[Math.floor(Math.random()*rl.length)];ts.lootCarried[r]=(ts.lootCarried[r]||0)+1;}}ts.state="return";}
-  if(ts.state==="return"){const d=dist(ts.x,ts.y,station.x,station.y);if(station.destroyed){ts.state="combat";ts.stateTimer=999;}else if(d<station.r+15){if(!station.isOwnedCivStation||!station.civIsOwn){for(const[r,q]of Object.entries(ts.lootCarried)){const ex=station.buyStock.find(s=>s.type===r);if(ex)ex.qty=Math.min(ex.maxQty+20,ex.qty+q);}}ts.lootCarried={};ts.state="idle";ts.stateTimer=2+Math.random()*3;}else{const ang=angleToward(ts.x,ts.y,station.x,station.y);ts.vx=lerp(ts.vx,Math.cos(ang)*activeSpeed,0.05);ts.vy=lerp(ts.vy,Math.sin(ang)*activeSpeed,0.05);ts.angle=ang;}}
+  if(ts.state==="idle"&&ts.stateTimer<=0){const assigned=(station.civIsOwn||stationBelongsToPlayerOwnedCivilization(station))&&station.civTask!=="attack"?civAssignedMiningPlanet(station):null;const c=assigned?[assigned]:allPlanets.filter(p=>dist(ts.x,ts.y,p.x,p.y)<700);if(c.length>0){ts.targetPlanet=c[Math.floor(Math.random()*c.length)];ts.state="travel";}else{ts.stateTimer=.7;}}
+  if(ts.state==="travel"&&!ts.targetPlanet){recoverNpcTradeShipTask(ts,station,allPlanets);}
+  if(ts.state==="travel"&&ts.targetPlanet){const d=dist(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);if(d<ts.targetPlanet.radius+20){ts.state="mining";ts.stateTimer=3+Math.random()*4;ts.vx=0;ts.vy=0;}else{const ang=angleToward(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);ts.vx=lerp(ts.vx,Math.cos(ang)*activeSpeed,0.12);ts.vy=lerp(ts.vy,Math.sin(ang)*activeSpeed,0.12);ts.angle=ang;}}
+  if(ts.state==="mining"&&ts.stateTimer<=0){if(ts.targetPlanet){const rl=(ts.targetPlanet.resList||ts.targetPlanet.resources||[]).filter(Boolean),col=Math.max(1,Math.floor(ts.cargoCapacity||8));ts.lootCarried={};for(let i=0;i<col&&rl.length;i++){const r=rl[Math.floor(Math.random()*rl.length)];ts.lootCarried[r]=(ts.lootCarried[r]||0)+1;}}ts.state="return";ts.stateTimer=0;}
+  if(ts.state==="return"){const d=dist(ts.x,ts.y,station.x,station.y);if(station.destroyed){ts.state="combat";ts.stateTimer=999;}else if(d<station.r+15){if(!station.isOwnedCivStation||!station.civIsOwn){for(const[r,q]of Object.entries(ts.lootCarried)){const ex=station.buyStock.find(s=>s.type===r);if(ex)ex.qty=Math.min(ex.maxQty+20,ex.qty+q);}}ts.lootCarried={};ts.targetPlanet=null;ts.state="idle";ts.stateTimer=2+Math.random()*3;ts.vx=0;ts.vy=0;}else{const ang=angleToward(ts.x,ts.y,station.x,station.y);ts.vx=lerp(ts.vx,Math.cos(ang)*activeSpeed,0.12);ts.vy=lerp(ts.vy,Math.sin(ang)*activeSpeed,0.12);ts.angle=ang;}}
   ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;ts.vx*=Math.pow(0.97,dt*60);ts.vy*=Math.pow(0.97,dt*60);
 }
 
@@ -4536,7 +4634,7 @@ function resolveNpcCombatTargetRaw(raw,homeStation=null){
     const st=visibleStations.find(s=>s.id===raw.stationId&&!s.destroyed);
     const t=st?.tradeShips?.find(q=>q.id===raw.shipId&&q.hp>0);
     if(st&&t&&(!homeStation||!isFriendlyNpcTarget(homeStation,st))){
-      if(raw.zoneDefense&&raw.targetZoneId&&!isTradeShipHostileToZone(t,st,raw.targetZoneId))return null;
+      if(raw.zoneDefense&&!raw.proximityDefense&&raw.targetZoneId&&!isTradeShipHostileToZone(t,st,raw.targetZoneId))return null;
       return {type:"npcTradeShip",x:t.x,y:t.y,obj:t,station:st};
     }
   }else if(raw.type==="npcStation"){
@@ -7381,6 +7479,7 @@ function drawCivilizationSuperStationMenu(st){
   ctx.fillStyle="#8fa3cc";ctx.font="9px monospace";ctx.fillText(`Credits: ${player.credits} · Zone radius: ${Math.round(zone.radius)} · Stations: ${stationCount}`,px+pw/2,py+30);ctx.textAlign="left";
   ["commands","stockpile","bank","trade"].forEach((tab,i)=>{const bx=px+16+i*166,by=py+36,active=civSuperPanelTab===tab;ctx.fillStyle=active?"#29405c":"#0b1020";ctx.fillRect(bx,by,154,18);ctx.strokeStyle=active?"#7be6ff":"#2a3a5a";ctx.strokeRect(bx,by,154,18);ctx.fillStyle=active?"#dff5ff":"#8fa3cc";ctx.font="7px monospace";ctx.textAlign="center";ctx.fillText(tab.toUpperCase(),bx+77,by+12);ctx.textAlign="left";});
   if(isOwn&&civSuperPanelTab!=="commands"){drawCivSuperLogistics(st,zone,rec,px,py,pw,ph);return;}
+  civHideNumberInputs();
   ctx.fillStyle="rgba(255,221,68,.08)";ctx.fillRect(px+12,py+40,pw-24,50);ctx.strokeStyle="#4a3a16";ctx.strokeRect(px+12,py+40,pw-24,50);
   ctx.fillStyle=owned?(isOwn?"#78ff8a":"#ffcc44"):"#ffdd44";ctx.font="bold 10px monospace";ctx.fillText(owned?`OWNER: ${rec.ownerName}${isOwn?" (YOU)":""}`:"UNOWNED CIVILIZATION ZONE",px+22,py+56);
   ctx.fillStyle="#d6e1ff";ctx.font="8px monospace";ctx.fillText(`Taxes: ${(rec?.taxPerMinute||0).toLocaleString()}cr / minute · O closes this menu`,px+22,py+72);
@@ -7478,9 +7577,216 @@ function handleOwnedCivilizationStationClick(st,mx,my){
   if(mx>=px+256&&mx<=px+556&&my>=py+354&&my<=py+376){const p=planets.find(x=>x.id===civStationPlanetPick);if(p)socket.emit("setCivilizationResourceTarget",{zoneId:z.zoneId,stationId:rec.id,planet:{id:p.id,name:p.name||p.type,x:p.x,y:p.y,resources:p.resList||p.resources||p.resourceTypes||[],density:p.density||0}});return;}
   if(mx>=px+566&&mx<=px+714&&my>=py+354&&my<=py+376){civStationRetailStationId=st.id;shopTab="buy";shopBuyItem=null;}
 }
+
+/* ── v4.1.2 Super-station usability layer ─────────────────────── */
+let shopBuyScroll=0;
+let civUiTradeGiveScroll=0;
+let civPanelScrollbarDrag=null;
+let civUiPanelFilters={
+  inventory:{open:false,sort:"az"},
+  stockpile:{open:false,sort:"az"},
+  stations:{open:false,sort:"tier"}
+};
+let civUiPanelScroll={inventory:0,stockpile:0,stations:0};
+let civVisibleNumberInputs=new Set();
+
+function civRarityScore(type){
+  const raw=RES[type]?.rarity;
+  if(Number.isFinite(Number(raw)))return Number(raw);
+  const order={common:1,uncommon:2,rare:3,epic:4,legendary:5,exotic:6};
+  return order[String(raw||"").toLowerCase()]||0;
+}
+function civItemValue(type){return Math.max(0,Number(price(type)||RES[type]?.base||0));}
+function civItemEntriesFromMap(map){return [...map.entries()].map(([type,count])=>({type,count:Number(count)||0}));}
+function civInventoryEntriesV412(){const items=new Map();for(const s of player.invSlots||[])if(s?.type&&Number(s.count)>0)items.set(s.type,(items.get(s.type)||0)+Math.floor(Number(s.count)||0));return civItemEntriesFromMap(items);}
+function civStockEntriesV412(rec){const stock=rec?.stockpile||{},rates=rec?.resourceRates||{},keys=[...new Set([...Object.keys(stock),...Object.keys(rates)])].filter(type=>Number(stock[type]||0)>0||Number(rates[type]||0)>0);return keys.map(type=>({type,count:Number(stock[type]||0),rate:Number(rates[type]||0)}));}
+function civSortItemEntriesV412(entries,sort){
+  const out=[...entries];
+  return out.sort((a,b)=>{
+    if(sort==="rarity-desc")return civRarityScore(b.type)-civRarityScore(a.type)||String(RES[a.type]?.name||a.type).localeCompare(String(RES[b.type]?.name||b.type));
+    if(sort==="rarity-asc")return civRarityScore(a.type)-civRarityScore(b.type)||String(RES[a.type]?.name||a.type).localeCompare(String(RES[b.type]?.name||b.type));
+    if(sort==="value-desc")return civItemValue(b.type)-civItemValue(a.type)||String(a.type).localeCompare(String(b.type));
+    if(sort==="value-asc")return civItemValue(a.type)-civItemValue(b.type)||String(a.type).localeCompare(String(b.type));
+    return String(RES[a.type]?.name||a.type).localeCompare(String(RES[b.type]?.name||b.type));
+  });
+}
+function civStationEntriesV412(rec){return [...(rec?.baseStations||[]),...(rec?.builtStations||[])];}
+function civSortStationEntriesV412(entries,sort,selectedType){
+  const tierOrder={outpost:1,standard:2,advanced:3,capital:4};
+  return [...entries].sort((a,b)=>{
+    if(sort==="az")return `${a.tier||""} ${a.id||""}`.localeCompare(`${b.tier||""} ${b.id||""}`);
+    if(sort==="capacity")return Number(b.shipCapacity||0)-Number(a.shipCapacity||0)||String(a.id).localeCompare(String(b.id));
+    if(sort==="health")return Number(b.maxHp||0)-Number(a.maxHp||0)||String(a.id).localeCompare(String(b.id));
+    if(sort==="listed")return Number(b.market?.[selectedType]?.amount||0)-Number(a.market?.[selectedType]?.amount||0)||String(a.id).localeCompare(String(b.id));
+    return (tierOrder[a.tier]||99)-(tierOrder[b.tier]||99)||String(a.id).localeCompare(String(b.id));
+  });
+}
+function civFilterOptions(panel){
+  return panel==="stations"?
+    [["tier","TIER"],["az","A–Z"],["capacity","CAPACITY"],["health","HULL"],["listed","LISTED"]]:
+    [["az","A–Z"],["rarity-desc","RARE ↓"],["rarity-asc","RARE ↑"],["value-desc","VALUE ↓"],["value-asc","VALUE ↑"]];
+}
+function civPanelLayoutV412(panel,px,py){
+  const defs={inventory:{x:px+24,w:195},stockpile:{x:px+238,w:202},stations:{x:px+458,w:220}};
+  const d=defs[panel],filter=civUiPanelFilters[panel]||{open:false};
+  return {...d,panel,filterX:d.x+d.w-45,filterY:py+111,filterW:45,filterH:13,listY:filter.open?py+176:py+130,rowH:23,visibleRows:filter.open?5:8};
+}
+function civPanelMaxScroll(panel,count,layout){return Math.max(0,Number(count||0)-layout.visibleRows);}
+function civClampPanelScroll(panel,count,layout){civUiPanelScroll[panel]=clamp(Number(civUiPanelScroll[panel]||0),0,civPanelMaxScroll(panel,count,layout));return civUiPanelScroll[panel];}
+function civDrawPanelFilterV412(panel,layout,px,py){
+  const filter=civUiPanelFilters[panel];
+  civDrawButton(layout.filterX,layout.filterY,layout.filterW,layout.filterH,filter.open?"SORT ▴":"SORT ▾",filter.open,"#7be6ff");
+  if(!filter.open)return;
+  const options=civFilterOptions(panel),cols=2,cellW=Math.floor((layout.w-3)/cols),cellH=13;
+  options.forEach(([key,label],i)=>{const col=i%cols,row=Math.floor(i/cols),x=layout.x+col*(cellW+3),y=py+128+row*(cellH+2);civDrawButton(x,y,cellW,cellH,label,filter.sort===key,"#7be6ff");});
+}
+function civDrawPanelScrollbarV412(panel,layout,count){
+  const max=civPanelMaxScroll(panel,count,layout);if(max<=0)return null;
+  const x=layout.x+layout.w-6,y=layout.listY,h=layout.visibleRows*layout.rowH-3,knobH=Math.max(15,h*(layout.visibleRows/Math.max(layout.visibleRows,count))),knobY=y+(h-knobH)*(civUiPanelScroll[panel]/max);
+  ctx.fillStyle="#07101b";ctx.fillRect(x,y,5,h);ctx.strokeStyle="#3e6787";ctx.strokeRect(x-.5,y-.5,6,h+1);ctx.fillStyle="#7be6ff";ctx.fillRect(x,knobY,5,knobH);
+  return {x,y,w:7,h,knobY,knobH,max};
+}
+function civDrawPanelRowsV412(panel,layout,entries,selected,drawRow){
+  const start=civClampPanelScroll(panel,entries.length,layout);
+  entries.slice(start,start+layout.visibleRows).forEach((entry,i)=>drawRow(entry,i,layout.listY+i*layout.rowH,start+i,selected));
+  return civDrawPanelScrollbarV412(panel,layout,entries.length);
+}
+function civPanelSetScrollFromY(panel,layout,count,my){
+  const max=civPanelMaxScroll(panel,count,layout);if(max<=0)return;
+  const h=layout.visibleRows*layout.rowH-3,knobH=Math.max(15,h*(layout.visibleRows/Math.max(layout.visibleRows,count))),ratio=clamp((my-layout.listY-knobH/2)/Math.max(1,h-knobH),0,1);
+  civUiPanelScroll[panel]=Math.round(ratio*max);
+}
+function civBeginPanelScrollbarDrag(panel,layout,count,my){civPanelScrollbarDrag={panel,layout,count};civPanelSetScrollFromY(panel,layout,count,my);}
+function updateCivPanelScrollbarDragFromCanvas(mx,my){
+  if(!civPanelScrollbarDrag)return;
+  const p=largeCanvasMenuPoint("shop",mx,my),d=civPanelScrollbarDrag;civPanelSetScrollFromY(d.panel,d.layout,d.count,p.y);
+}
+function endCivPanelScrollbarDrag(){civPanelScrollbarDrag=null;}
+function civHandlePanelClickV412(panel,layout,entries,mx,my,onSelect){
+  const filter=civUiPanelFilters[panel];
+  if(mx>=layout.filterX&&mx<=layout.filterX+layout.filterW&&my>=layout.filterY&&my<=layout.filterY+layout.filterH){filter.open=!filter.open;return true;}
+  if(filter.open){
+    const options=civFilterOptions(panel),cols=2,cellW=Math.floor((layout.w-3)/cols),cellH=13;
+    for(let i=0;i<options.length;i++){const col=i%cols,row=Math.floor(i/cols),x=layout.x+col*(cellW+3),y=layout.filterY+17+row*(cellH+2);if(mx>=x&&mx<=x+cellW&&my>=y&&my<=y+cellH){filter.sort=options[i][0];filter.open=false;civUiPanelScroll[panel]=0;return true;}}
+  }
+  const track=civDrawPanelScrollbarV412(panel,layout,entries.length);
+  if(track&&mx>=track.x-3&&mx<=track.x+track.w+3&&my>=track.y&&my<=track.y+track.h){civBeginPanelScrollbarDrag(panel,layout,entries.length,my);return true;}
+  const start=civClampPanelScroll(panel,entries.length,layout);
+  for(let i=0;i<Math.min(layout.visibleRows,entries.length-start);i++){const y=layout.listY+i*layout.rowH;if(mx>=layout.x&&mx<=layout.x+layout.w-9&&my>=y&&my<=y+20){onSelect(entries[start+i],start+i);return true;}}
+  return false;
+}
+function civLogicalRectToCssV412(x,y,w,h){
+  const s=largeCanvasMenuScale("shop"),cx=canvas.width/2,cy=canvas.height/2,rx=canvas.getBoundingClientRect(),sx=rx.width/canvas.width,sy=rx.height/canvas.height;
+  return {left:rx.left+(cx+(x-cx)*s)*sx,top:rx.top+(cy+(y-cy)*s)*sy,width:Math.max(40,w*s*sx),height:Math.max(22,h*s*sy)};
+}
+function civNumericValueV412(key){return key==="amount"?civUiAmount:key==="price"?civUiPrice:key==="bank"?civUiBankAmount:key==="give"?civUiTradeGiveAmount:key==="receive"?civUiTradeReceiveAmount:civUiTradeCredits;}
+function civSetNumericValueV412(key,value){const min=key==="credits"?0:1,n=Math.max(min,Math.floor(Number(value)||min));if(key==="amount")civUiAmount=n;else if(key==="price")civUiPrice=n;else if(key==="bank")civUiBankAmount=n;else if(key==="give")civUiTradeGiveAmount=n;else if(key==="receive")civUiTradeReceiveAmount=n;else civUiTradeCredits=n;}
+function civNumberInputV412(key){
+  let input=document.getElementById(`civ-number-input-${key}`);if(input)return input;
+  input=document.createElement("input");input.id=`civ-number-input-${key}`;input.className="civ-number-input";input.type="number";input.min=key==="credits"?"0":"1";input.step="1";input.inputMode="numeric";input.autocomplete="off";input.setAttribute("aria-label",`${key} quantity`);
+  input.addEventListener("pointerdown",e=>e.stopPropagation());input.addEventListener("mousedown",e=>e.stopPropagation());
+  input.addEventListener("input",()=>{const n=Math.floor(Number(input.value));if(Number.isFinite(n))civSetNumericValueV412(key,n);});
+  input.addEventListener("keydown",e=>{e.stopPropagation();if(e.key==="Escape"){input.blur();e.preventDefault();}});
+  document.body.appendChild(input);return input;
+}
+function civBeginNumberInputs(){civVisibleNumberInputs=new Set();}
+function civDrawNumberFieldV412(x,y,w,label,key,color="#7be6ff"){
+  drawUiFittedText(label,x,y,w,color,uiFont(7,true));ctx.fillStyle="#091321";ctx.fillRect(x,y+3,w,25);ctx.strokeStyle=color;ctx.strokeRect(x,y+3,w,25);
+  const input=civNumberInputV412(key),r=civLogicalRectToCssV412(x+2,y+5,w-4,21);civVisibleNumberInputs.add(key);
+  if(document.activeElement!==input)input.value=String(civNumericValueV412(key));input.style.left=`${r.left}px`;input.style.top=`${r.top}px`;input.style.width=`${r.width}px`;input.style.height=`${r.height}px`;input.style.display="block";
+}
+function civEndNumberInputs(){for(const input of document.querySelectorAll(".civ-number-input"))if(!civVisibleNumberInputs.has(input.id.replace("civ-number-input-",""))){input.style.display="none";if(document.activeElement===input)input.blur();}}
+function civHideNumberInputs(){for(const input of document.querySelectorAll(".civ-number-input")){input.style.display="none";if(document.activeElement===input)input.blur();}}
+function civTradeOfferEntriesV412(rec){return civSortItemEntriesV412(civStockEntriesV412(rec).filter(entry=>entry.count>0),civUiPanelFilters.stockpile.sort);}
+function civTradeOfferPickerRectV412(px,py){return {x:px+24,y:py+338,w:290,h:44,cols:3,cellW:94,cellH:22,visible:6};}
+function civDrawTradeOfferPickerV412(rec,px,py){
+  const entries=civTradeOfferEntriesV412(rec),r=civTradeOfferPickerRectV412(px,py),max=Math.max(0,entries.length-r.visible);civUiTradeGiveScroll=clamp(civUiTradeGiveScroll,0,max);
+  drawUiFittedText("OFFER FROM STOCKPILE — icon / quantity",r.x,py+333,270,"#78ff8a",uiFont(7,true));
+  entries.slice(civUiTradeGiveScroll,civUiTradeGiveScroll+r.visible).forEach((entry,i)=>{const col=i%r.cols,row=Math.floor(i/r.cols),x=r.x+col*r.cellW,y=r.y+row*r.cellH,sel=civUiSelectedItem===entry.type;ctx.fillStyle=sel?"#173b2c":"#0e1721";ctx.fillRect(x,y,r.cellW-3,19);ctx.strokeStyle=sel?"#78ff8a":"#345266";ctx.strokeRect(x,y,r.cellW-3,19);drawItemIcon(ctx,entry.type,x+3,y+2,15);drawUiFittedText(`${RES[entry.type]?.name||entry.type} x${entry.count}`,x+21,y+13,r.cellW-27,"#d6e1ff",uiFont(6));});
+  if(max>0){const tx=r.x+r.w-5,th=42,kh=Math.max(13,th*(r.visible/entries.length)),ky=r.y+(th-kh)*(civUiTradeGiveScroll/max);ctx.fillStyle="#0a121d";ctx.fillRect(tx,r.y,4,th);ctx.fillStyle="#78ff8a";ctx.fillRect(tx,ky,4,kh);}
+  return {entries,r,max};
+}
+function civDrawTradeReceivePickerV412(types,px,py){
+  const x=px+330,y=py+338,w=300;drawUiFittedText("RECEIVE — local resource demand",x,py+333,270,"#b9f3ff",uiFont(7,true));
+  types.slice(0,6).forEach((type,i)=>{const col=i%3,row=Math.floor(i/3),bx=x+col*94,by=y+row*22,sel=civUiTradeReceiveType===type;ctx.fillStyle=sel?"#24394a":"#0e1721";ctx.fillRect(bx,by,91,19);ctx.strokeStyle=sel?"#b9f3ff":"#345266";ctx.strokeRect(bx,by,91,19);drawItemIcon(ctx,type,bx+3,by+2,15);drawUiFittedText(RES[type]?.name||type,bx+21,by+13,66,"#d6e1ff",uiFont(6));});
+}
+function drawCivSuperLogistics(st,zone,rec,px,py,pw,ph){
+  const tab=civSuperPanelTab,stock=rec.stockpile||{},panelX=px+14,panelY=py+72,panelW=pw-28;civBeginNumberInputs();
+  ctx.fillStyle="#09111d";ctx.fillRect(panelX,panelY,panelW,ph-86);ctx.strokeStyle="#2d4969";ctx.strokeRect(panelX,panelY,panelW,ph-86);
+  if(tab==="stockpile"){
+    const inv=civSortItemEntriesV412(civInventoryEntriesV412(),civUiPanelFilters.inventory.sort),stockEntries=civSortItemEntriesV412(civStockEntriesV412(rec),civUiPanelFilters.stockpile.sort),stations=civSortStationEntriesV412(civStationEntriesV412(rec),civUiPanelFilters.stations.sort,civUiSelectedItem);
+    if(!civUiSelectedItem)civUiSelectedItem=inv[0]?.type||stockEntries[0]?.type||null;
+    const total=Object.values(stock).reduce((n,q)=>n+Number(q||0),0),layouts={inventory:civPanelLayoutV412("inventory",px,py),stockpile:civPanelLayoutV412("stockpile",px,py),stations:civPanelLayoutV412("stations",px,py)};
+    ctx.fillStyle="#b9f3ff";ctx.font="bold 10px monospace";ctx.fillText(`MASTER STOCKPILE ${Math.floor(total)}/${rec.stockpileCapacity||0}`,px+24,py+92);
+    drawUiFittedText(`LIVE MINING RATE: ${civRateSummary(rec,10)}`,px+24,py+105,650,"#78ff8a",uiFont(7));
+    drawUiFittedText("PLAYER INVENTORY — DEPOSIT",px+24,py+123,150,"#ffdd44",uiFont(7,true));drawUiFittedText("ZONE STOCKPILE — WITHDRAW / LIST",px+238,py+123,160,"#bd7cff",uiFont(7,true));drawUiFittedText("STATION STORE TARGETS",px+458,py+123,160,"#ffdd44",uiFont(7,true));
+    ["inventory","stockpile","stations"].forEach(panel=>civDrawPanelFilterV412(panel,layouts[panel],px,py));
+    civDrawPanelRowsV412("inventory",layouts.inventory,inv,civUiSelectedItem,(entry,_i,y)=>{const x=layouts.inventory.x,sel=civUiSelectedItem===entry.type;ctx.fillStyle=sel?"#243b54":"#0f1621";ctx.fillRect(x,y,layouts.inventory.w-9,20);ctx.strokeStyle=sel?"#7be6ff":"#284058";ctx.strokeRect(x,y,layouts.inventory.w-9,20);drawItemIcon(ctx,entry.type,x+2,y+2,16);drawUiFittedText(`${RES[entry.type]?.name||entry.type}  x${entry.count}`,x+22,y+13,layouts.inventory.w-34,"#d6e1ff",uiFont(7));});
+    civDrawPanelRowsV412("stockpile",layouts.stockpile,stockEntries,civUiSelectedItem,(entry,_i,y)=>{const x=layouts.stockpile.x,sel=civUiSelectedItem===entry.type;ctx.fillStyle=sel?"#32284b":"#0f1621";ctx.fillRect(x,y,layouts.stockpile.w-9,20);ctx.strokeStyle=sel?"#bd7cff":"#3c3156";ctx.strokeRect(x,y,layouts.stockpile.w-9,20);drawItemIcon(ctx,entry.type,x+2,y+2,16);drawUiFittedText(`${RES[entry.type]?.name||entry.type}  x${entry.count}`,x+22,y+13,layouts.stockpile.w-58,"#d6e1ff",uiFont(7));drawUiFittedText(`${entry.rate.toFixed(1)}/m`,x+layouts.stockpile.w-12,y+13,42,"#78ff8a",uiFont(6),"right");});
+    civDrawPanelRowsV412("stations",layouts.stations,stations,null,(station,index,y)=>{const x=layouts.stations.x,sel=civUiSelectedStationIds.has(station.id),listed=Number(station.market?.[civUiSelectedItem]?.amount||0);ctx.fillStyle=sel?"#3a351e":"#0f1621";ctx.fillRect(x,y,layouts.stations.w-9,20);ctx.strokeStyle=sel?"#ffdd44":"#48422c";ctx.strokeRect(x,y,layouts.stations.w-9,20);drawUiFittedText(`${String(station.tier||"station").toUpperCase()} ${index+1}`,x+5,y+13,88,"#d6e1ff",uiFont(7,true));drawUiFittedText(listed?`${listed} listed`:"empty",x+layouts.stations.w-13,y+13,74,listed?"#78ff8a":"#71839a",uiFont(6),"right");});
+    civDrawButton(px+458,py+317,72,19,"ALL",stations.length>0&&civUiSelectedStationIds.size===stations.length,"#ffdd44");civDrawButton(px+535,py+317,72,19,"CLEAR",false,"#ff9999");
+    civDrawNumberFieldV412(px+24,py+317,152,"ITEM QUANTITY","amount","#78ff8a");civDrawNumberFieldV412(px+210,py+317,152,"PRICE / EACH","price","#ffdd44");
+    civDrawButton(px+24,py+358,180,24,"DEPOSIT SELECTED ITEM",false,"#78ff8a");civDrawButton(px+210,py+358,180,24,"WITHDRAW SELECTED ITEM",false,"#7be6ff");
+    civDrawButton(px+458,py+347,220,24,"LIST AT SELECTED STATIONS",false,"#ffdd44");civDrawButton(px+458,py+377,220,22,"RECALL SELECTED LISTING",false,"#ff9999");
+    drawUiFittedText(civUiSelectedItem?`${RES[civUiSelectedItem]?.name||civUiSelectedItem} · use the highlighted inputs to choose quantities and station prices`:"Select an item from inventory or stockpile",px+24,py+407,650,"#9fb0ca",uiFont(7));
+  }else if(tab==="bank"){
+    const up=rec.zoneUpgradeCost||null,defs=CIV_CLIENT_TURRETS,chosen=defs[civUiTurretKey]||defs.pulse,builtTurretCount=(rec.turrets||[]).length,chosenCraftCost=Math.round(chosen.credits*(1+builtTurretCount*.08));
+    ctx.fillStyle="#ffdd44";ctx.font="bold 11px monospace";ctx.fillText(`SUPER STATION BANK: ${(rec.bankCredits||0).toLocaleString()}cr`,px+24,py+94);drawUiFittedText("Fund contracts here; station sales and player purchases credit this bank automatically.",px+24,py+108,620,"#9fb0ca",uiFont(7));
+    civDrawNumberFieldV412(px+24,py+116,148,"BANK AMOUNT","bank","#ffdd44");civDrawButton(px+190,py+121,170,26,"DEPOSIT PERSONAL CREDITS",false,"#ffdd44");civDrawButton(px+368,py+121,170,26,"WITHDRAW TO PLAYER",false,"#7be6ff");
+    ctx.fillStyle="#111b2a";ctx.fillRect(px+24,py+158,310,66);ctx.strokeStyle="#6e914e";ctx.strokeRect(px+24,py+158,310,66);drawUiFittedText(`ZONE LEVEL ${(rec.zoneLevel||1)}/10`,px+34,py+174,150,"#78ff8a",uiFont(8,true));
+    if(up){drawUiFittedText(`UPGRADE: ${up.credits.toLocaleString()}cr + ${up.amount} ${RES[up.resource]?.name||up.resource}`,px+34,py+190,275,"#d6e1ff",uiFont(7));drawItemIcon(ctx,up.resource,px+34,py+195,18);civDrawButton(px+178,py+195,145,20,"UPGRADE SUPER STATION",false,"#78ff8a");}else drawUiFittedText("MAX LEVEL — stockpile and turret capacity capped",px+34,py+194,270,"#ffdd44",uiFont(7));
+    drawUiFittedText(`TURRET RIM ${(rec.turrets||[]).length}/${rec.turretCapacity||0} · ${rec.factionBonus||"Faction bonus"}`,px+355,py+174,320,"#b9f3ff",uiFont(7,true));
+    Object.entries(defs).forEach(([key,def],i)=>{const col=i%3,row=Math.floor(i/3),x=px+24+col*218,y=py+238+row*75,sel=civUiTurretKey===key;ctx.fillStyle=sel?"#273d52":"#101824";ctx.fillRect(x,y,208,68);ctx.strokeStyle=sel?"#7be6ff":"#34506b";ctx.strokeRect(x,y,208,68);drawSpriteImageFit(`assets/spliced_turrets/ChatGPT Image Jul 22, 2026, 08_23_35 PM.png_auto_${def.sprite}.png`,x+5,y+7,46,46);drawUiFittedText(def.name,x+56,y+16,145,"#d6e1ff",uiFont(7,true));drawUiFittedText(`${def.damage} DMG · ${def.range}R · ${def.effect}`,x+56,y+29,145,"#9fb0ca",uiFont(6));drawUiFittedText(`${def.credits.toLocaleString()}cr`,x+56,y+42,88,"#ffdd44",uiFont(6));civRecipeInline(def.recipe,x+56,y+47,3);});
+    civDrawButton(px+24,py+397,310,25,`CRAFT ${chosen.name.toUpperCase()}`,false,"#78ff8a");drawUiFittedText(`${chosenCraftCost.toLocaleString()}cr + materials · ${chosen.effect}`,px+346,py+413,320,"#d6e1ff",uiFont(7));
+  }else{
+    const targets=civTargetZonesFor(zone);if(!civUiTradeTargetId&&targets[0])civUiTradeTargetId=targets[0].id;const target=targets.find(z=>z.id===civUiTradeTargetId)||targets[0],receiveTypes=[...new Set([...civRateEntries(target||{}).map(([type])=>type),"iron","crystal","gold","fuel"])].slice(0,6);if(!civUiTradeReceiveType&&receiveTypes[0])civUiTradeReceiveType=receiveTypes[0];
+    ctx.fillStyle="#bd7cff";ctx.font="bold 10px monospace";ctx.fillText("ALLIANCE & TRADE CONTRACTS",px+24,py+93);drawUiFittedText("Rates are live estimates from all assigned station fleets. Contracts use rates, density, cargo capacity and stock availability.",px+24,py+106,650,"#9fb0ca",uiFont(7));
+    drawUiFittedText("NEARBY CIVILIZATIONS — click a target",px+24,py+124,260,"#ffdd44",uiFont(7,true));targets.slice(0,7).forEach((z,i)=>{const x=px+24,y=py+131+i*29,sel=z.id===civUiTradeTargetId;ctx.fillStyle=sel?"#34264e":"#0f1621";ctx.fillRect(x,y,290,25);ctx.strokeStyle=sel?"#bd7cff":"#40335b";ctx.strokeRect(x,y,290,25);drawUiFittedText(z.name||"Civilization Zone",x+6,y+11,165,z.color||"#d6e1ff",uiFont(7,true));drawUiFittedText(civRateSummary(z,3),x+6,y+21,274,"#9fb0ca",uiFont(6));});
+    ctx.fillStyle="#111b2a";ctx.fillRect(px+330,py+124,348,86);ctx.strokeStyle="#4c3c65";ctx.strokeRect(px+330,py+124,348,86);drawUiFittedText(target?`TARGET: ${target.name}`:"No nearby target",px+342,py+140,320,"#d8bcff",uiFont(8,true));drawUiFittedText(`Generated rate: ${civRateSummary(target,6)}`,px+342,py+155,320,"#78ff8a",uiFont(7));drawUiFittedText(`Resource density: ${Number(target?.resourceDensity||0).toFixed(1)} · Your delivery capacity appears on accepted contracts.`,px+342,py+170,320,"#9fb0ca",uiFont(6));const cs=rec.contracts||[];if(cs.length)drawUiFittedText(`Contracts: ${cs.slice(0,3).map(c=>`${c.status}→${String(c.targetZoneId).slice(-8)}`).join(" · ")}`,px+342,py+192,320,"#d6e1ff",uiFont(6));
+    civDrawTradeOfferPickerV412(rec,px,py);civDrawTradeReceivePickerV412(receiveTypes,px,py);
+    civDrawNumberFieldV412(px+24,py+397,145,"GIVE / MIN","give","#78ff8a");civDrawNumberFieldV412(px+184,py+397,145,"RECV / MIN","receive","#b9f3ff");civDrawNumberFieldV412(px+344,py+397,145,"CREDITS / MIN","credits","#ffdd44");civDrawButton(px+535,py+400,143,26,"OFFER CONTRACT",false,"#d8bcff");
+  }
+  civEndNumberInputs();
+}
+function handleCivSuperLogisticsClick(st,zone,rec,mx,my,px,py){
+  const tab=civSuperPanelTab;
+  if(tab==="stockpile"){
+    const inv=civSortItemEntriesV412(civInventoryEntriesV412(),civUiPanelFilters.inventory.sort),stockEntries=civSortItemEntriesV412(civStockEntriesV412(rec),civUiPanelFilters.stockpile.sort),stations=civSortStationEntriesV412(civStationEntriesV412(rec),civUiPanelFilters.stations.sort,civUiSelectedItem),layouts={inventory:civPanelLayoutV412("inventory",px,py),stockpile:civPanelLayoutV412("stockpile",px,py),stations:civPanelLayoutV412("stations",px,py)};
+    if(civHandlePanelClickV412("inventory",layouts.inventory,inv,mx,my,entry=>{civUiSelectedItem=entry.type;}))return;
+    if(civHandlePanelClickV412("stockpile",layouts.stockpile,stockEntries,mx,my,entry=>{civUiSelectedItem=entry.type;}))return;
+    if(civHandlePanelClickV412("stations",layouts.stations,stations,mx,my,station=>{if(civUiSelectedStationIds.has(station.id))civUiSelectedStationIds.delete(station.id);else civUiSelectedStationIds.add(station.id);} ))return;
+    if(mx>=px+458&&mx<=px+530&&my>=py+317&&my<=py+336){for(const station of stations)civUiSelectedStationIds.add(station.id);return;}
+    if(mx>=px+535&&mx<=px+607&&my>=py+317&&my<=py+336){civUiSelectedStationIds.clear();return;}
+    if(!civUiSelectedItem)return;
+    if(mx>=px+24&&mx<=px+204&&my>=py+358&&my<=py+382){socket.emit("civilizationStockpileTransfer",{zoneId:zone.id,type:civUiSelectedItem,amount:civUiAmount,direction:"deposit"});return;}
+    if(mx>=px+210&&mx<=px+390&&my>=py+358&&my<=py+382){socket.emit("civilizationStockpileTransfer",{zoneId:zone.id,type:civUiSelectedItem,amount:civUiAmount,direction:"withdraw"});return;}
+    const ids=[...civUiSelectedStationIds];if(mx>=px+458&&mx<=px+678&&my>=py+347&&my<=py+371){if(!ids.length){showFT("Select one or more stations",ship.x,ship.y-20,"#ffcc44",9);return;}socket.emit("assignCivilizationMarketStock",{zoneId:zone.id,type:civUiSelectedItem,amount:civUiAmount,price:civUiPrice,stationIds:ids});return;}if(mx>=px+458&&mx<=px+678&&my>=py+377&&my<=py+399){if(ids.length)socket.emit("removeCivilizationMarketStock",{zoneId:zone.id,type:civUiSelectedItem,stationIds:ids});return;}
+  }else if(tab==="bank"){
+    if(mx>=px+190&&mx<=px+360&&my>=py+121&&my<=py+147){socket.emit("civilizationBankTransfer",{zoneId:zone.id,amount:civUiBankAmount,direction:"deposit"});return;}if(mx>=px+368&&mx<=px+538&&my>=py+121&&my<=py+147){socket.emit("civilizationBankTransfer",{zoneId:zone.id,amount:civUiBankAmount,direction:"withdraw"});return;}if(mx>=px+178&&mx<=px+323&&my>=py+195&&my<=py+215){socket.emit("upgradeCivilizationZone",{zoneId:zone.id});return;}
+    const entries=Object.keys(CIV_CLIENT_TURRETS);for(let i=0;i<entries.length;i++){const col=i%3,row=Math.floor(i/3),x=px+24+col*218,y=py+238+row*75;if(mx>=x&&mx<=x+208&&my>=y&&my<=y+68){civUiTurretKey=entries[i];return;}}if(mx>=px+24&&mx<=px+334&&my>=py+397&&my<=py+422){socket.emit("buildCivilizationTurret",{zoneId:zone.id,turretKey:civUiTurretKey});return;}
+  }else{
+    const targets=civTargetZonesFor(zone);for(let i=0;i<Math.min(7,targets.length);i++){const y=py+131+i*29;if(mx>=px+24&&mx<=px+314&&my>=y&&my<=y+25){civUiTradeTargetId=targets[i].id;return;}}
+    const pickerEntries=civTradeOfferEntriesV412(rec),r=civTradeOfferPickerRectV412(px,py),pickerMax=Math.max(0,pickerEntries.length-r.visible);
+    if(mx>=r.x+r.w-9&&mx<=r.x+r.w+4&&my>=r.y&&my<=r.y+r.cellH*2&&pickerMax>0){const ratio=clamp((my-r.y)/Math.max(1,r.cellH*2),0,1);civUiTradeGiveScroll=Math.round(ratio*pickerMax);return;}
+    for(let i=0;i<Math.min(r.visible,pickerEntries.length-civUiTradeGiveScroll);i++){const col=i%r.cols,row=Math.floor(i/r.cols),x=r.x+col*r.cellW,y=r.y+row*r.cellH;if(mx>=x&&mx<=x+r.cellW-3&&my>=y&&my<=y+19){civUiSelectedItem=pickerEntries[civUiTradeGiveScroll+i].type;return;}}
+    const target=targets.find(z=>z.id===civUiTradeTargetId)||targets[0],receiveTypes=[...new Set([...civRateEntries(target||{}).map(([type])=>type),"iron","crystal","gold","fuel"])].slice(0,6);for(let i=0;i<receiveTypes.length;i++){const col=i%3,row=Math.floor(i/3),x=px+330+col*94,y=py+338+row*22;if(mx>=x&&mx<=x+91&&my>=y&&my<=y+19){civUiTradeReceiveType=receiveTypes[i];return;}}
+    if(mx>=px+535&&mx<=px+678&&my>=py+400&&my<=py+426){if(!target){showFT("No nearby civilization zone found",ship.x,ship.y-20,"#ff5544",9);return;}if(!civUiSelectedItem){showFT("Choose a stockpiled item to offer",ship.x,ship.y-20,"#ffcc44",9);return;}socket.emit("offerCivilizationContract",{zoneId:zone.id,targetZoneId:target.id,giveType:civUiSelectedItem,giveAmount:civUiTradeGiveAmount,creditsPerMinute:civUiTradeCredits,receiveType:civUiTradeReceiveType||"",receiveAmount:civUiTradeReceiveAmount});}
+  }
+}
+function civHandleSuperStationWheel(mx,my,delta){
+  const st=nearStation;if(!st?.isCivSuperStation)return false;const zone=visibleCivZones.find(z=>z.id===st.civilizationZoneId)||{id:st.civilizationZoneId},rec=civZoneRecord(zone.id);if(!rec)return false;const pw=700,ph=470,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,step=delta>0?1:-1;
+  if(civSuperPanelTab==="stockpile"){
+    const data={inventory:civSortItemEntriesV412(civInventoryEntriesV412(),civUiPanelFilters.inventory.sort),stockpile:civSortItemEntriesV412(civStockEntriesV412(rec),civUiPanelFilters.stockpile.sort),stations:civSortStationEntriesV412(civStationEntriesV412(rec),civUiPanelFilters.stations.sort,civUiSelectedItem)};
+    for(const panel of Object.keys(data)){const l=civPanelLayoutV412(panel,px,py);if(mx>=l.x&&mx<=l.x+l.w&&my>=py+110&&my<=py+316){civUiPanelScroll[panel]=clamp((civUiPanelScroll[panel]||0)+step,0,civPanelMaxScroll(panel,data[panel].length,l));return true;}}
+  }
+  if(civSuperPanelTab==="trade"){const r=civTradeOfferPickerRectV412(px,py),count=civTradeOfferEntriesV412(rec).length;if(mx>=r.x&&mx<=r.x+r.w&&my>=r.y-10&&my<=r.y+r.cellH*2+2){civUiTradeGiveScroll=clamp(civUiTradeGiveScroll+step,0,Math.max(0,count-r.visible));return true;}}
+  return false;
+}
+
 function drawShop(st){
-  if(!st)return;
+  if(!st){civHideNumberInputs();return;}
   if(st.isCivSuperStation){drawCivilizationSuperStationMenu(st);return;}
+  civHideNumberInputs();
   if(st.isOwnedCivStation&&st.civIsOwn&&civStationRetailStationId!==st.id){drawOwnedCivilizationStationMenu(st);return;}
   beginReadableUi();ctx.fillStyle="rgba(0,0,0,0.82)";ctx.fillRect(0,0,canvas.width,canvas.height);
   const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
@@ -7523,9 +7829,11 @@ function drawShopSell(st,px,py,pw,ph){
 
 function drawShopBuy(st,px,py,pw,ph){
   beginReadableUi();drawUiFittedText("AVAILABLE STOCK",px+10,py+67,195,"#87a8b8",uiFont(8,true));
-  const stock=st.buyStock;if(!stock.length){drawUiFittedText("No stock — trade ships are en route",px+10,py+91,195,"#66798c",uiFont(8));return;}
+  const stock=st.buyStock||[];if(!stock.length){drawUiFittedText("No stock — trade ships are en route",px+10,py+91,195,"#66798c",uiFont(8));return;}
   const iw=195,ih=20,ig=3,startY=py+70;
-  for(let i=0;i<stock.length;i++){const item=stock[i],res=RES[item.type],isSel=shopBuyItem===i,bx=px+10,by=startY+i*(ih+ig);if(by+ih>py+ph-35||!res)break;ctx.fillStyle=isSel?"#1a2a3e":"#0f1419";ctx.fillRect(bx,by,iw,ih);ctx.strokeStyle=isSel?st.tierDef.color:"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,iw,ih);drawItemIcon(ctx,item.type,bx+2,by+2,16);drawUiFittedText(`${res.name} x${item.qty}`,bx+22,by+13,118,"#fff",uiFont(7));drawUiFittedText(`${item.price}cr`,bx+iw-5,by+13,48,"#ffd15c",uiFont(7),"right");}
+  shopBuyScroll=clamp(shopBuyScroll,0,maxShopBuyScroll(st));
+  for(let row=0;row<SHOP_BUY_VISIBLE_ROWS;row++){const i=shopBuyScroll+row,item=stock[i],res=item&&RES[item.type],isSel=shopBuyItem===i,bx=px+10,by=startY+row*(ih+ig);if(!item||!res)break;ctx.fillStyle=isSel?"#1a2a3e":"#0f1419";ctx.fillRect(bx,by,iw,ih);ctx.strokeStyle=isSel?st.tierDef.color:"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,iw,ih);drawItemIcon(ctx,item.type,bx+2,by+2,16);drawUiFittedText(`${res.name} x${item.qty}`,bx+22,by+13,118,"#fff",uiFont(7));drawUiFittedText(`${item.price}cr`,bx+iw-5,by+13,48,"#ffd15c",uiFont(7),"right");}
+  if(maxShopBuyScroll(st)>0){const tx=px+207,ty=startY,th=SHOP_BUY_VISIBLE_ROWS*(ih+ig)-ig,kh=Math.max(15,th*(SHOP_BUY_VISIBLE_ROWS/stock.length)),ky=ty+(th-kh)*(shopBuyScroll/maxShopBuyScroll(st));ctx.fillStyle="#0a121d";ctx.fillRect(tx,ty,5,th);ctx.strokeStyle="#456a88";ctx.strokeRect(tx-.5,ty-.5,6,th+1);ctx.fillStyle="#7be6ff";ctx.fillRect(tx,ky,5,kh);drawUiFittedText(`${shopBuyScroll+1}-${Math.min(stock.length,shopBuyScroll+SHOP_BUY_VISIBLE_ROWS)}/${stock.length}`,px+10,py+228,190,"#8fa3cc",uiFont(6),"right");}
   const dx=px+215,dy=py+58,dw=215,dh=175;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);
   if(shopBuyItem!==null&&stock[shopBuyItem]){
     const item=stock[shopBuyItem],res=RES[item.type];if(!res)return;drawItemIcon(ctx,item.type,dx+8,dy+8,36);
@@ -7540,13 +7848,16 @@ function drawShopBuy(st,px,py,pw,ph){
   }else drawUiFittedText("Click an item to buy",dx+dw/2,dy+dh/2,dw-20,"#617184",uiFont(8),"center");
 }
 
+const SHOP_BUY_VISIBLE_ROWS=7;
+function maxShopBuyScroll(st){return Math.max(0,Number(st?.buyStock?.length||0)-SHOP_BUY_VISIBLE_ROWS);}
+
 function handleShopClick(mx,my){
   if(!nearStation)return;const st=nearStation;
   if(st.isCivSuperStation){handleCivilizationSuperStationClick(st,mx,my);return;}
   if(st.isOwnedCivStation&&st.civIsOwn&&civStationRetailStationId!==st.id){handleOwnedCivilizationStationClick(st,mx,my);return;}
   const pw=440,ph=270,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
   if(st.isOwnedCivStation&&st.civIsOwn&&civStationRetailStationId===st.id&&mx>=px+270&&mx<=px+425&&my>=py+ph-28&&my<=py+ph-8){civStationRetailStationId=null;return;}
-  const tabs=["sell","buy","quests","hire"];for(let i=0;i<tabs.length;i++){const tx=px+10+i*80,ty=py+34,tw=75,th=18;if(mx>=tx&&mx<=tx+tw&&my>=ty&&my<=ty+th){shopTab=tabs[i];shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;if(shopTab==="hire")socket.emit("requestMercOffers");return;}}
+  const tabs=["sell","buy","quests","hire"];for(let i=0;i<tabs.length;i++){const tx=px+10+i*80,ty=py+34,tw=75,th=18;if(mx>=tx&&mx<=tx+tw&&my>=ty&&my<=ty+th){shopTab=tabs[i];shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopBuyScroll=0;if(shopTab==="hire")socket.emit("requestMercOffers");return;}}
   const gx=px+10,gy=py+ph-28,gw=130,gh=20;if(mx>=gx&&mx<=gx+gw&&my>=gy&&my<=gy+gh){const gasPrice=stationGasPrice();if(player.credits>=gasPrice){showFT("Buying gas canister",ship.x,ship.y-15,"#aaff44");beginShopBuy(st,-1,{type:"gas_canister",qty:1,price:gasPrice},1);}return;}
   if(shopTab==="sell")handleSellClick(st,mx,my,px,py,pw,ph);else if(shopTab==="buy")handleBuyClick(st,mx,my,px,py,pw,ph);else if(shopTab==="quests")handleQuestClick(st,mx,my,px,py,pw,ph);else handleHireClick(st,mx,my,px,py,pw,ph);
 }
@@ -7570,7 +7881,8 @@ function handleSellClick(st,mx,my,px,py,pw,ph){
 
 function handleBuyClick(st,mx,my,px,py,pw,ph){
   const stock=st.buyStock,iw=195,ih=20,ig=3,startY=py+70;
-  for(let i=0;i<stock.length;i++){const by=startY+i*(ih+ig);if(by+ih>py+ph-35)break;if(mx>=px+10&&mx<=px+10+iw&&my>=by&&my<=by+ih){shopBuyItem=i;shopBuyQty=1;return;}}
+  if(mx>=px+204&&mx<=px+214&&my>=startY&&my<=startY+SHOP_BUY_VISIBLE_ROWS*(ih+ig)){const ratio=clamp((my-startY)/(SHOP_BUY_VISIBLE_ROWS*(ih+ig)),0,1);shopBuyScroll=Math.round(ratio*maxShopBuyScroll(st));return;}
+  for(let row=0;row<SHOP_BUY_VISIBLE_ROWS;row++){const i=shopBuyScroll+row,by=startY+row*(ih+ig);if(!stock[i])break;if(mx>=px+10&&mx<=px+10+iw&&my>=by&&my<=by+ih){shopBuyItem=i;shopBuyQty=1;return;}}
   if(shopBuyItem!==null&&stock[shopBuyItem]){
     const item=stock[shopBuyItem],dx=px+215,dy=py+58,dw=215,bw=28,bh=18,my2=dy+94,mx2=dx+12;
     if(mx>=mx2&&mx<=mx2+bw&&my>=my2&&my<=my2+bh){shopBuyQty=Math.max(1,shopBuyQty-1);return;}
@@ -7759,7 +8071,25 @@ function drawItemIcon(icx,type,x,y,size){
     icx.fillRect(ox+inner*0.14,oy+inner*0.14,inner*0.72,inner*0.72);
   }
   icx.fillStyle="#fff"; icx.font=`bold ${Math.max(8,Math.floor(size*0.28))}px monospace`; icx.textAlign="center"; icx.textBaseline="middle"; icx.fillText(itemGlyphFor(type),x+size/2,y+size/2);
+  const tipPointer=uiItemTooltipPointer();if(icx===ctx&&uiItemTooltipEnabled()&&tipPointer.x>=x&&tipPointer.x<=x+size&&tipPointer.y>=y&&tipPointer.y<=y+size)uiItemTooltip={type,x:mouse.x,y:mouse.y};
   icx.restore();
+}
+
+let uiItemTooltip=null;
+function uiItemTooltipEnabled(){return !!(inventoryOpen||shopOpen||attrOpen||characterOpen||questLogOpen||badgeLogOpen);}
+function uiItemTooltipPointer(){
+  if(shopOpen)return largeCanvasMenuPoint("shop",mouse.x,mouse.y);
+  if(inventoryOpen)return largeCanvasMenuPoint("inventory",mouse.x,mouse.y);
+  if(attrOpen)return largeCanvasMenuPoint("attributes",mouse.x,mouse.y);
+  if(characterOpen)return largeCanvasMenuPoint("character",mouse.x,mouse.y);
+  if(questLogOpen)return largeCanvasMenuPoint("quest",mouse.x,mouse.y);
+  if(badgeLogOpen)return largeCanvasMenuPoint("badge",mouse.x,mouse.y);
+  return {x:mouse.x,y:mouse.y};
+}
+function drawItemHoverTooltip(){
+  const tip=uiItemTooltip;if(!tip||!uiItemTooltipEnabled())return;const res=RES[tip.type]||{name:tip.type,color:"#d6e1ff"},title=res.name||tip.type,value=Math.max(0,Number(price(tip.type)||res.base||0)),rarity=res.rarity!==undefined?`Rarity ${res.rarity}`:"Utility / material",description=itemDescription(tip.type);
+  const width=206,lineH=10,lines=wrapUiLines(description,width-16,uiFont(7),3),height=48+lines.length*lineH;let x=Math.min(canvas.width-width-8,tip.x+14),y=Math.min(canvas.height-height-8,tip.y+16);if(x<8)x=8;if(y<8)y=8;
+  ctx.save();ctx.fillStyle="rgba(4,10,21,.96)";ctx.fillRect(x,y,width,height);ctx.strokeStyle=res.color||"#7be6ff";ctx.lineWidth=1.5;ctx.strokeRect(x+.5,y+.5,width-1,height-1);drawItemIcon(ctx,tip.type,x+8,y+8,22);drawUiFittedText(title,x+36,y+17,width-44,"#ffffff",uiFont(8,true));drawUiFittedText(`${rarity} · ${value.toLocaleString()}cr base`,x+8,y+35,width-16,res.color||"#9fb0ca",uiFont(7));drawUiWrappedText(description,x+8,y+47,width-16,lineH,3,"#c7d4e4",uiFont(7));ctx.restore();
 }
 
 function drawInventoryDetail(slot,dx,dy,dw,dh){
@@ -8352,12 +8682,14 @@ let last=performance.now();
 function tick(now){
   if(!joined){requestAnimationFrame(tick);return;}
   try{
+    uiItemTooltip=null;
     resizeGameCanvasToDisplay();syncMobileTouchUI();syncDesktopPanelState();
+    if(!(shopOpen&&nearStation?.isCivSuperStation&&civSuperPanelTab!=="commands"))civHideNumberInputs();
     const dt=Math.min(0.033,Math.max(0,(now-last)/1000));last=now;sanitizeWorldRenderState();updatePersistentStats(dt);updatePlanetLoadingRecovery(now);sendInput();
     if(gameOver){maintainRespawnFlow(now);drawSpace();}
     else if(mode===MODE.SPACE){if(!planetLoading&&(activePlanet||planetMap)){activeRuin=null;activePlanet=null;planetMap=null;}updateSpace(dt);sanitizeWorldRenderState();drawSpace();if(characterOpen)drawCharacterPanel();}
     else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;invalidatePlanetTileRenderCache();planetPlayers.clear();updateSpace(dt);sanitizeWorldRenderState();drawSpace();if(characterOpen)drawCharacterPanel();}else drawPlanet();}
-    if(galaxyMapIsOpen())drawGalaxyMapOverlay();captureStableWorldFrame();
+    if(galaxyMapIsOpen())drawGalaxyMapOverlay();drawItemHoverTooltip();captureStableWorldFrame();
   }catch(error){handleFrameRuntimeError(error);}
   try{updateHud();}catch(error){console.warn("HUD recovery:",error);}
   requestAnimationFrame(tick);
