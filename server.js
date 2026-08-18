@@ -215,6 +215,35 @@ const CIV_STATION_TIERS = {
   advanced:{name:"Advanced",defenderDamage:20},
   capital:{name:"Capital",defenderDamage:32}
 };
+// V4.1 Civilization logistics.  These records live on the zone, rather than
+// the procedurally generated client objects, so a reconnect cannot duplicate
+// ships, stock or contracts.
+const CIV_FACTIONS=[
+  {id:"aurora",name:"Aurora Compact",bonus:"+15% ship shields",color:"#77dfff"},
+  {id:"verdant",name:"Verdant Combine",bonus:"+20% cargo capacity",color:"#8cff79"},
+  {id:"ember",name:"Ember Directorate",bonus:"+12% weapon damage",color:"#ff7a52"},
+  {id:"violet",name:"Violet Ascendancy",bonus:"+18% station shields",color:"#bd7cff"},
+  {id:"frontier",name:"Frontier Guild",bonus:"-12% ship build cost",color:"#ffcf62"},
+  {id:"aegis",name:"Aegis Covenant",bonus:"+20% station health",color:"#c9e5ff"},
+  {id:"nocturne",name:"Nocturne Syndicate",bonus:"+15% turret fire rate",color:"#ff586f"}
+];
+const CIV_SHIP_CATALOG={
+  hauler_i:{name:"Courier Hauler I",role:"trade",credits:9000,capacity:35,hp:180,shield:60,speed:92,recipe:{iron:12,fuel:6}},
+  hauler_ii:{name:"Freight Hauler II",role:"trade",credits:28000,capacity:100,hp:420,shield:160,speed:105,recipe:{iron:28,crystal:8,engine_core:2}},
+  hauler_iii:{name:"Atlas Hauler III",role:"trade",credits:76000,capacity:260,hp:900,shield:380,speed:112,recipe:{gold:18,crystal:22,cargo_pod:5,engine_core:5}},
+  fighter_i:{name:"Patrol Fighter I",role:"defender",credits:12000,capacity:8,hp:260,shield:100,speed:150,damage:16,recipe:{iron:14,weapon_array:2,fuel:8}},
+  fighter_ii:{name:"Aegis Fighter II",role:"defender",credits:42000,capacity:12,hp:620,shield:300,speed:165,damage:38,recipe:{gold:14,shield_matrix:4,weapon_array:6}},
+  fighter_iii:{name:"Vanguard Fighter III",role:"defender",credits:120000,capacity:18,hp:1300,shield:720,speed:180,damage:82,recipe:{crystal:30,shield_matrix:12,weapon_array:15,obelisk_core:1}}
+};
+const CIV_TIER_CAPACITY={outpost:3,standard:6,advanced:10,capital:16};
+function civFactionFor(zoneId){let n=0;for(const c of String(zoneId||""))n=(n*31+c.charCodeAt(0))>>>0;return CIV_FACTIONS[n%CIV_FACTIONS.length];}
+function civStationDefaults(st){const cap=CIV_TIER_CAPACITY[st.tier]||6;return {shipCapacity:cap,shipRoster:[],level:1,maxHp:2500+cap*400,hp:2500+cap*400,maxShield:900+cap*180,shield:900+cap*180,resourceTarget:null,store:{},market:{}};}
+function civZoneDefaults(zone){const faction=civFactionFor(zone.zoneId);return {factionId:faction.id,factionName:faction.name,factionBonus:faction.bonus,zoneLevel:Math.max(1,Math.min(10,Number(zone.zoneLevel)||1)),stockpile:{},stockpileItems:{},bankCredits:0,contracts:[],relations:{},turrets:[],stockpileCapacity:Math.min(10000,1000+(Math.max(1,Number(zone.zoneLevel)||1)-1)*1000)};}
+function ensureCivLogistics(zone){const defs=civZoneDefaults(zone);for(const[k,v]of Object.entries(defs))if(zone[k]===undefined||zone[k]===null)zone[k]=v;zone.builtStations=zone.builtStations||[];zone.baseStations=zone.baseStations||[];for(const st of [...zone.builtStations,...zone.baseStations]){const sd=civStationDefaults(st);for(const[k,v]of Object.entries(sd))if(st[k]===undefined||st[k]===null)st[k]=v;}return zone;}
+function civRecipeOk(p,def){for(const[k,n]of Object.entries(def.recipe||{}))if(inventoryCount(p,k)<n)return {ok:false,reason:`Need ${n} ${k.replace(/_/g," ")}.`};return {ok:true};}
+function civConsumeRecipe(p,def){for(const[k,n]of Object.entries(def.recipe||{}))removeInventory(p,k,n);}
+function civFactionShipStats(zone,def){const f=zone.factionId||civFactionFor(zone.zoneId).id,s={capacity:def.capacity,hp:def.hp,shield:def.shield,speed:def.speed,damage:def.damage||0};if(f==="aurora")s.shield=Math.round(s.shield*1.15);if(f==="verdant")s.capacity=Math.round(s.capacity*1.2);if(f==="ember")s.damage=Math.round(s.damage*1.12);if(f==="aegis")s.hp=Math.round(s.hp*1.2);if(f==="nocturne")s.speed=Math.round(s.speed*1.1);return s;}
+function civAddInventoryAny(p,type,amount){let rem=Math.max(0,Math.floor(Number(amount)||0));if(!rem)return true;if(!Array.isArray(p.invSlots))p.invSlots=emptySlots(p.maxSlots||24);for(let i=0;i<(p.maxSlots||24);i++){const s=p.invSlots[i];if(s?.type===type&&s.count<24){const n=Math.min(24-s.count,rem);s.count+=n;rem-=n;if(!rem)return true;}}for(let i=0;i<(p.maxSlots||24);i++){const s=p.invSlots[i];if(!s?.type){const n=Math.min(24,rem);p.invSlots[i]={type,count:n};rem-=n;if(!rem)return true;}}return false;}
 const civilizationDefenderShotCooldowns = new Map();
 const civilizationBuildLocks = new Map();
 const CIV_ZONE_BASE_TAX_PER_STATION = 150;
@@ -241,10 +270,12 @@ function safeCivZoneInput(raw={}){
   const name=safeText(raw.name||"Civilization Zone",48)||"Civilization Zone";
   const color=safeText(raw.color||"#ffdd44",16)||"#ffdd44";
   if(!zoneId||!Number.isFinite(x)||!Number.isFinite(y))return null;
-  return {zoneId,x,y,radius,baseStationCount,name,color};
+  let h=0;for(const c of zoneId)h=(h*33+c.charCodeAt(0))>>>0;
+  return {zoneId,x,y,radius,baseStationCount,name,color,superStationLevel:1+(h%4)};
 }
 function civilizationZonePurchaseCost(z){
-  const raw=(CIV_ZONE_BASE_COST + z.radius*CIV_ZONE_RADIUS_COST + z.baseStationCount*CIV_ZONE_STATION_COST) * economyIndex();
+  const level=Math.max(1,Math.min(10,Number(z.superStationLevel)||Number(z.zoneLevel)||1));
+  const raw=(CIV_ZONE_BASE_COST + z.radius*CIV_ZONE_RADIUS_COST + z.baseStationCount*CIV_ZONE_STATION_COST) * (1+(level-1)*.34) * economyIndex();
   return Math.max(65000,Math.round(raw/500)*500);
 }
 function civilizationZoneStationBuildCost(zone,tier){
@@ -267,7 +298,7 @@ function dedupeCivilizationBuiltStations(zone){
     if(!id||seen.has(id))continue;
     seen.add(id);
     const tier=CIV_STATION_TIERS[st.tier]?st.tier:"standard";
-    out.push({id,x:Math.round(Number(st.x)||zone.x||0),y:Math.round(Number(st.y)||zone.y||0),tier,ownerName:st.ownerName||zone.ownerName||"Owner",createdAt:st.createdAt||Date.now()});
+    out.push({...civStationDefaults({tier}),...st,id,x:Math.round(Number(st.x)||zone.x||0),y:Math.round(Number(st.y)||zone.y||0),tier,ownerName:st.ownerName||zone.ownerName||"Owner",createdAt:st.createdAt||Date.now()});
     if(out.length>=30)break;
   }
   zone.builtStations=out;
@@ -292,7 +323,7 @@ function sanitizeStationTasks(raw={}){
   return out;
 }
 function publicCivilizationZone(zone,viewerId){
-  dedupeCivilizationBuiltStations(zone);zone.stationTasks=sanitizeStationTasks(zone.stationTasks||{});
+  ensureCivLogistics(zone);dedupeCivilizationBuiltStations(zone);zone.stationTasks=sanitizeStationTasks(zone.stationTasks||{});
   const tax=civilizationZoneTaxPerMinute(zone),isOwn=zone.ownerId===viewerId;
   return {
     zoneId:zone.zoneId,name:zone.name,color:zone.color,x:zone.x,y:zone.y,radius:zone.radius,
@@ -300,8 +331,11 @@ function publicCivilizationZone(zone,viewerId){
     ownerName:zone.ownerName||null,owned:!!zone.ownerId||!!zone.ownerMemberId,isOwn,
     taxPerMinute:tax,pendingTax:isOwn?Math.floor(zone.pendingTax||0):0,
     stationTasks:isOwn?zone.stationTasks:{},
-    stationTierCosmetics:normalizeStationTierCosmetics(zone.stationTierCosmetics||{}),npcshipCosmeticKey:zone.npcshipCosmeticKey||null,turretCosmeticKey:zone.turretCosmeticKey||null,
-    builtStations:(zone.builtStations||[]).map(st=>({id:st.id,x:st.x,y:st.y,tier:st.tier,ownerName:zone.ownerName||st.ownerName||"Owner",task:isOwn?(zone.stationTasks?.[st.id]||{task:"mine"}):undefined})),
+    factionId:zone.factionId,factionName:zone.factionName,factionBonus:zone.factionBonus,zoneLevel:zone.zoneLevel,stockpileCapacity:zone.stockpileCapacity,turretCapacity:Math.min(20,2+zone.zoneLevel),
+    stockpile:isOwn?zone.stockpile:{},stockpileItems:isOwn?zone.stockpileItems:{},bankCredits:isOwn?zone.bankCredits:0,contracts:isOwn?zone.contracts:[],relations:isOwn?zone.relations:{},turrets:isOwn?zone.turrets:[],
+    stationTierCosmetics:{},npcshipCosmeticKey:null,turretCosmeticKey:null,
+    baseStations:(zone.baseStations||[]).map(st=>({id:st.id,tier:st.tier,shipCapacity:st.shipCapacity,shipRoster:isOwn?st.shipRoster:[],hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,resourceTarget:isOwn?st.resourceTarget:null,market:st.market||{}})),
+    builtStations:(zone.builtStations||[]).map(st=>({id:st.id,x:st.x,y:st.y,tier:st.tier,ownerName:zone.ownerName||st.ownerName||"Owner",shipCapacity:st.shipCapacity,shipRoster:isOwn?st.shipRoster:[],hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,resourceTarget:isOwn?st.resourceTarget:null,market:st.market||{},task:isOwn?(zone.stationTasks?.[st.id]||{task:"mine"}):undefined})),
     stationCosts:Object.fromEntries(["outpost","standard","advanced","capital"].map(t=>[t,civilizationZoneStationBuildCost(zone,t)]))
   };
 }
@@ -317,8 +351,10 @@ function playerInsideCivilizationZone(p,zone,pad=0){
 function emitCivilizationZones(socket){socket.emit("civilizationZonesList",civilizationZonesFor(socket.id));}
 function broadcastCivilizationZonesList(){for(const [,sock] of io.sockets.sockets)emitCivilizationZones(sock);}
 function makeCivilizationZoneRecord(input,p){
-  return {zoneId:input.zoneId,name:input.name,color:input.color,x:input.x,y:input.y,radius:input.radius,baseStationCount:input.baseStationCount,
-    ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,purchasedAt:Date.now(),builtStations:[],stationTasks:{},pendingTax:0,totalTaxCollected:0,stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),npcshipCosmeticKey:p.equippedCosmetics?.npcship||null,turretCosmeticKey:p.equippedCosmetics?.turret||null};
+  const superStationLevel=1+Math.floor(Math.random()*4);
+  const baseStations=[];for(let i=0;i<input.baseStationCount;i++){const tier=["outpost","standard","advanced","capital"][i%4];baseStations.push({...civStationDefaults({tier}),id:`${input.zoneId}|civst|${i}`,tier,ownerName:p.name,createdAt:Date.now()});}
+  return {...civZoneDefaults({zoneId:input.zoneId,zoneLevel:superStationLevel}),zoneId:input.zoneId,name:input.name,color:input.color,x:input.x,y:input.y,radius:input.radius,baseStationCount:input.baseStationCount,superStationLevel,
+    ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,purchasedAt:Date.now(),baseStations,builtStations:[],stationTasks:{},pendingTax:0,totalTaxCollected:0,stationTierCosmetics:{},npcshipCosmeticKey:null,turretCosmeticKey:null};
 }
 function randomPointInZone(zone,seedExtra=""){
   const rng=makeRng(`${GALAXY_SEED}|owned-civ-station|${zone.zoneId}|${zone.builtStations?.length||0}|${seedExtra}|${Date.now()}`);
@@ -346,6 +382,29 @@ function tickCivilizationTaxes(){
       persistPlayerSoon(owner,"civilization_zone_tax");
     }else{
       zone.pendingTax=(zone.pendingTax||0)+amount;
+    }
+  }
+  broadcastCivilizationZonesList();
+}
+function tickCivilizationLogistics(){
+  const now=Date.now();
+  for(const zone of civilizationZones.values()){
+    ensureCivLogistics(zone);
+    // Resource haulers assigned to a planet automatically cycle cargo into the
+    // super-station stockpile.  The client uses the same roster ids when it
+    // draws NPC ships, so respawns do not create a second logical ship.
+    for(const st of [...(zone.baseStations||[]),...(zone.builtStations||[])]){
+      for(const ship of st.shipRoster||[]){if(ship.status==="respawning"&&ship.respawnAt<=now)ship.status="active";}
+      const haulers=(st.shipRoster||[]).filter(s=>s.role==="trade"&&s.status==="active");
+      if(st.resourceTarget&&haulers.length){const total=Object.values(zone.stockpile).reduce((a,b)=>a+Number(b||0),0);const room=Math.max(0,zone.stockpileCapacity-total);if(room){const resource=Array.isArray(st.resourceTarget.resources)&&st.resourceTarget.resources[0]||"iron";const amount=Math.min(room,Math.max(1,Math.floor(haulers.reduce((n,s)=>n+(s.stats?.capacity||10),0)/60)));zone.stockpile[resource]=(zone.stockpile[resource]||0)+amount;}}
+    }
+    for(const c of zone.contracts||[]){
+      if(c.incoming)continue;
+      if(c.status==="pending"&&c.decisionAt<=now){c.status=(c.fairness||0)>=.5?"active":"declined";if(c.status==="active")zone.relations[c.targetZoneId]="ally";}
+      if(c.status!=="active")continue;
+      const g=c.give||{},r=c.receive||{},target=civilizationZones.get(c.targetZoneId);let payable=true;if(g.credits&&zone.bankCredits<g.credits)payable=false;if(g.type&&g.amount&&(zone.stockpile[g.type]||0)<g.amount)payable=false;if(!payable){c.status="paused";c.pauseReason="Insufficient bank or stockpile";continue;}if(g.credits)zone.bankCredits-=g.credits;if(g.type&&g.amount)zone.stockpile[g.type]-=g.amount;
+      if(target){ensureCivLogistics(target);if(g.credits)target.bankCredits+=g.credits;if(g.type&&g.amount)target.stockpile[g.type]=(target.stockpile[g.type]||0)+g.amount;if(r.credits&&target.bankCredits>=r.credits){target.bankCredits-=r.credits;zone.bankCredits+=r.credits;}if(r.type&&r.amount&&(target.stockpile[r.type]||0)>=r.amount){target.stockpile[r.type]-=r.amount;zone.stockpile[r.type]=(zone.stockpile[r.type]||0)+r.amount;}}else{if(r.credits)zone.bankCredits+=r.credits;if(r.type&&r.amount)zone.stockpile[r.type]=(zone.stockpile[r.type]||0)+r.amount;}
+      c.lastDeliveryAt=now;c.deliveryStatus="NPC convoy dispatched";
     }
   }
   broadcastCivilizationZonesList();
@@ -764,7 +823,7 @@ function normalizeEquippedCosmetics(raw){
 
 const STATION_VISUAL_TIERS=["outpost","standard","advanced","capital","super","wandering_exchange"];
 function normalizeStationTierCosmetics(raw){const out={};for(const tier of STATION_VISUAL_TIERS)out[tier]=null;if(raw&&typeof raw==="object")for(const tier of STATION_VISUAL_TIERS){const key=String(raw[tier]||"");if(key&&COSMETIC_DEFS[key]?.slot==="station")out[tier]=key;}return out;}
-function syncOwnedZoneCosmeticsForPlayer(p){if(!p)return false;let changed=false;const tierMap=normalizeStationTierCosmetics(p.stationTierCosmetics||{}),npcKey=p.equippedCosmetics?.npcship||null,turretKey=p.equippedCosmetics?.turret||null;for(const zone of civilizationZones.values()){if(zone.ownerId===p.id||(p.memberId&&zone.ownerMemberId===p.memberId)){zone.stationTierCosmetics={...tierMap};zone.npcshipCosmeticKey=npcKey;zone.turretCosmeticKey=turretKey;changed=true;}}for(const st of ownedStructures.values())if(st.type==="defense_turret"&&(st.ownerId===p.id||(p.memberId&&st.ownerMemberId===p.memberId))){st.turretCosmeticKey=turretKey;changed=true;}return changed;}
+function syncOwnedZoneCosmeticsForPlayer(p){if(!p)return false;let changed=false;for(const zone of civilizationZones.values()){if(zone.ownerId===p.id||(p.memberId&&zone.ownerMemberId===p.memberId)){zone.stationTierCosmetics={};zone.npcshipCosmeticKey=null;zone.turretCosmeticKey=null;changed=true;}}return changed;}
 
 function normalizeStoryProgress(raw){const completed=Math.max(0,Math.min(8,Math.floor(Number(raw?.completed)||0)));return{completed,startedAt:Math.max(0,Math.floor(Number(raw?.startedAt)||Date.now())),updatedAt:Math.max(0,Math.floor(Number(raw?.updatedAt)||Date.now()))};}
 function normalizeRedeemedCoupons(raw){
@@ -1597,7 +1656,7 @@ function buildingSnapshotForPlayer(p){
   }));
   const civilizationZonesOwned=[...civilizationZones.values()].filter(z=>z.ownerId===p.id||(memberId&&z.ownerMemberId===memberId)).map(z=>({
     zoneId:z.zoneId,name:z.name,color:z.color,x:Math.round(z.x),y:Math.round(z.y),radius:z.radius,baseStationCount:z.baseStationCount,
-    ownerName:z.ownerName,purchasedAt:z.purchasedAt||Date.now(),builtStations:z.builtStations||[],stationTierCosmetics:normalizeStationTierCosmetics(z.stationTierCosmetics||{}),npcshipCosmeticKey:z.npcshipCosmeticKey||null,turretCosmeticKey:z.turretCosmeticKey||null,pendingTax:Math.floor(z.pendingTax||0),totalTaxCollected:Math.floor(z.totalTaxCollected||0)
+    ownerName:z.ownerName,purchasedAt:z.purchasedAt||Date.now(),baseStations:z.baseStations||[],builtStations:z.builtStations||[],factionId:z.factionId,factionName:z.factionName,factionBonus:z.factionBonus,zoneLevel:z.zoneLevel,superStationLevel:z.superStationLevel,stockpile:z.stockpile||{},stockpileItems:z.stockpileItems||{},stockpileCapacity:z.stockpileCapacity,bankCredits:z.bankCredits||0,contracts:z.contracts||[],relations:z.relations||{},turrets:z.turrets||[],stationTierCosmetics:{},npcshipCosmeticKey:null,turretCosmeticKey:null,pendingTax:Math.floor(z.pendingTax||0),totalTaxCollected:Math.floor(z.totalTaxCollected||0)
   }));
   return {stations,structures,civilizationZones:civilizationZonesOwned,zones:civilizationZonesOwned};
 }
@@ -1621,10 +1680,11 @@ function restorePersistentBuildingsForPlayer(p){
         const id=safeZoneId(st.id||`${input.zoneId}|ownedciv|${built.length}`);
         if(!id||seenBuilt.has(id))continue;
         seenBuilt.add(id);
-        built.push({id,x,y,tier,ownerName:p.name,createdAt:st.createdAt||Date.now()});
+        built.push({...civStationDefaults({tier}),...st,id,x,y,tier,ownerName:p.name,createdAt:st.createdAt||Date.now()});
         if(built.length>=30)break;
       }
-      civilizationZones.set(input.zoneId,{...(zone||{}),...input,ownerId:p.id,ownerMemberId:p.memberId,ownerName:p.name,purchasedAt:rec.purchasedAt||Date.now(),builtStations:built,pendingTax:Math.max(0,Math.floor(Number(rec.pendingTax)||0)),totalTaxCollected:Math.max(0,Math.floor(Number(rec.totalTaxCollected)||0)),stationTierCosmetics:normalizeStationTierCosmetics(rec.stationTierCosmetics||p.stationTierCosmetics||{}),npcshipCosmeticKey:rec.npcshipCosmeticKey||p.equippedCosmetics?.npcship||null,turretCosmeticKey:rec.turretCosmeticKey||p.equippedCosmetics?.turret||null});
+      const baseStations=(Array.isArray(rec.baseStations)?rec.baseStations:[]).map((st,i)=>({...civStationDefaults({tier:CIV_STATION_TIERS[st?.tier]?st.tier:"standard"}),...st,id:safeZoneId(st?.id||`${input.zoneId}|civst|${i}`),tier:CIV_STATION_TIERS[st?.tier]?st.tier:"standard",ownerName:p.name}));
+      const restored={...civZoneDefaults({zoneId:input.zoneId,zoneLevel:rec.zoneLevel||1}),...(zone||{}),...input,...rec,ownerId:p.id,ownerMemberId:p.memberId,ownerName:p.name,purchasedAt:rec.purchasedAt||Date.now(),baseStations,builtStations:built,pendingTax:Math.max(0,Math.floor(Number(rec.pendingTax)||0)),totalTaxCollected:Math.max(0,Math.floor(Number(rec.totalTaxCollected)||0)),stationTierCosmetics:{},npcshipCosmeticKey:null,turretCosmeticKey:null};ensureCivLogistics(restored);civilizationZones.set(input.zoneId,restored);
     }
   }
   collectPendingCivilizationTaxesFor(p);
@@ -2058,6 +2118,7 @@ setInterval(()=>{
 },30000);
 
 setInterval(tickCivilizationTaxes,60000);
+setInterval(tickCivilizationLogistics,60000);
 
 /* ── Main tick ── */
 let lastTick=Date.now(),ecoTimer=0,lbTimer=0,slTimer=0,socialTimer=0;
@@ -2430,6 +2491,7 @@ io.on("connection",socket=>{
       targetColor:task==="attack"?(targetInfo?.color||""):"",
       updatedAt:Date.now()
     };
+    if(task==="attack"&&targetZoneId){ensureCivLogistics(zone);zone.relations[targetZoneId]="enemy";}
     socket.emit("civilizationStationTaskSet",{zone:publicCivilizationZone(zone,p.id),stationId,task,targetZoneId});broadcastCivilizationZonesList();persistPlayerSoon(p,"civilization_station_task");
   });
 
@@ -2801,18 +2863,37 @@ io.on("connection",socket=>{
     socket.emit("sellConfirm",{requestId,resourceType,quantity,earned,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});syncAndPersist(p,"sell_resource");
   });
 
-  socket.on("buy",({requestId,resourceType,quantity,pricePerUnit})=>{
-    const p=players.get(socket.id);requestId=String(requestId||"").slice(0,80);resourceType=String(resourceType||"");quantity=Math.floor(Number(quantity)||0);
+  socket.on("buy",({requestId,resourceType,quantity,pricePerUnit,stationId})=>{
+    const p=players.get(socket.id);requestId=String(requestId||"").slice(0,80);resourceType=String(resourceType||"");quantity=Math.floor(Number(quantity)||0);stationId=safeZoneId(stationId);
     const deny=(reason,extra={})=>socket.emit("buyDenied",{requestId,resourceType,reason,...extra});
     if(!p)return;if(!isKnownResourceKey(resourceType)){deny("Unknown item. Resource catalog is out of sync.",{resourceCatalogVersion:2});return;}if(quantity<=0||quantity>500){deny("Invalid quantity.");return;}
     const marketPrice=Math.max(1,economy.price(resourceType)||1),quotedPrice=Math.floor(Number(pricePerUnit)||0);
+    let civSale=null;
+    if(stationId){
+      for(const zone of civilizationZones.values()){
+        ensureCivLogistics(zone);
+        const station=[...(zone.baseStations||[]),...(zone.builtStations||[])].find(st=>st.id===stationId);
+        if(!station)continue;
+        const listing=station.market?.[resourceType];
+        if(!listing||Number(listing.amount||0)<quantity){deny("That civilization station does not have enough assigned stock.");return;}
+        civSale={zone,station,listing};break;
+      }
+    }
     const minAllowed=Math.max(1,Math.ceil(marketPrice*1.01)),maxAllowed=Math.max(minAllowed,Math.ceil(marketPrice*6));
-    if(quotedPrice<=0){deny("Price unavailable. Retry.",{pricePerUnit:minAllowed});return;}
-    if(quotedPrice<minAllowed||quotedPrice>maxAllowed){deny("Station price refreshed — retry purchase.",{pricePerUnit:minAllowed});return;}
-    const unitPrice=quotedPrice,cost=unitPrice*quantity;if((p.credits||0)<cost){deny("Insufficient credits.",{pricePerUnit:unitPrice});return;}
+    if(quotedPrice<=0){deny("Price unavailable. Retry.",{pricePerUnit:civSale?civSale.listing.price:minAllowed});return;}
+    if(civSale&&quotedPrice!==Math.floor(Number(civSale.listing.price)||0)){deny("Station price refreshed — retry purchase.",{pricePerUnit:civSale.listing.price});return;}
+    if(!civSale&&(quotedPrice<minAllowed||quotedPrice>maxAllowed)){deny("Station price refreshed — retry purchase.",{pricePerUnit:minAllowed});return;}
+    const unitPrice=civSale?Math.floor(Number(civSale.listing.price)||0):quotedPrice,cost=unitPrice*quantity;if((p.credits||0)<cost){deny("Insufficient credits.",{pricePerUnit:unitPrice});return;}
     if(!canFitInventory(p,resourceType,quantity)){deny("Inventory full.",{pricePerUnit:unitPrice});return;}
     p.credits-=cost;economy.bought(resourceType,quantity);if(!addInventory(p,resourceType,quantity)){p.credits+=cost;deny("Inventory changed before purchase completed.",{pricePerUnit:unitPrice});return;}
-    socket.emit("buyConfirm",{requestId,resourceType,quantity,unitPrice,cost,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots});syncAndPersist(p,"buy_resource");
+    if(civSale){
+      civSale.listing.amount-=quantity;if(civSale.listing.amount<=0)delete civSale.station.market[resourceType];
+      civSale.zone.bankCredits=(civSale.zone.bankCredits||0)+cost;
+      const owner=players.get(civSale.zone.ownerId);
+      if(owner){io.to(owner.id).emit("civilizationSaleRecorded",{zoneId:civSale.zone.zoneId,stationId:civSale.station.id,resourceType,quantity,amount:cost,bankCredits:civSale.zone.bankCredits,buyerName:p.name});persistPlayerSoon(owner,"civilization_station_sale");}
+      broadcastCivilizationZonesList();
+    }
+    socket.emit("buyConfirm",{requestId,resourceType,quantity,unitPrice,cost,credits:p.credits,prices:economy.snapshot(),invSlots:p.invSlots,maxSlots:p.maxSlots,civilizationSale:!!civSale});syncAndPersist(p,civSale?"civilization_station_purchase":"buy_resource");
   });
 
   socket.on("buyShip",({shipTypeKey})=>{
@@ -2950,6 +3031,22 @@ io.on("connection",socket=>{
     broadcastChat("Server",`${p.name} expanded ${zone.name} with a ${CIV_STATION_TIERS[tier].name} station.`,zone.color||"#ffdd44");
     persistPlayerSoon(p,"build_civilization_station");
   });
+
+  // ── V4.1 owned civilization station / super-station logistics ──
+  function ownCivZone(raw){const p=players.get(socket.id),zone=civilizationZones.get(safeZoneId(raw?.zoneId));if(!p||!zone||!playerOwnsCivilizationZone(p,zone))return {p:null,zone:null};ensureCivLogistics(zone);zone.ownerId=p.id;zone.ownerName=p.name;return {p,zone};}
+  function civStation(zone,id){const key=safeZoneId(id);return [...(zone.baseStations||[]),...(zone.builtStations||[])].find(s=>s.id===key)||null;}
+  function civSync(p,zone,reason){socket.emit("civilizationLogisticsSync",{zone:publicCivilizationZone(zone,p.id),reason});broadcastCivilizationZonesList();persistPlayerSoon(p,reason);}
+  socket.on("requestCivilizationLogistics",raw=>{const {p,zone}=ownCivZone(raw);if(p&&zone)civSync(p,zone,"civ_logistics_view");});
+  socket.on("buyCivilizationRosterShip",raw=>{const {p,zone}=ownCivZone(raw),st=zone&&civStation(zone,raw?.stationId),def=CIV_SHIP_CATALOG[String(raw?.shipKey||"")];if(!p||!zone||!st||!def){socket.emit("civilizationZoneDenied",{reason:"Invalid station ship request."});return;}if((st.shipRoster||[]).length>=st.shipCapacity){socket.emit("civilizationZoneDenied",{reason:"This station has reached its ship capacity."});return;}const buildCost=Math.round(def.credits*(zone.factionId==="frontier"?.88:1)),check=civRecipeOk(p,def);if(!check.ok||p.credits<buildCost){socket.emit("civilizationZoneDenied",{reason:check.reason||`Need ${buildCost}cr.`});return;}p.credits-=buildCost;civConsumeRecipe(p,def);st.shipRoster.push({id:`${st.id}|${raw.shipKey}|${Date.now()}`,shipKey:raw.shipKey,name:def.name,role:def.role,status:"respawning",builtAt:Date.now(),respawnAt:Date.now()+2500,stats:civFactionShipStats(zone,def)});socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_ship_built");});
+  socket.on("upgradeCivilizationStation",raw=>{const {p,zone}=ownCivZone(raw),st=zone&&civStation(zone,raw?.stationId),stat=String(raw?.stat||"");if(!p||!st||!["capacity","health","shield"].includes(stat)){socket.emit("civilizationZoneDenied",{reason:"Invalid station upgrade."});return;}const lv=Math.max(1,Number(st.level)||1),cost=8000*lv;const res=stat==="capacity"?"cargo_pod":stat==="health"?"hull_plate":"shield_matrix";if(p.credits<cost||inventoryCount(p,res)<lv){socket.emit("civilizationZoneDenied",{reason:`Need ${cost}cr and ${lv} ${res.replace(/_/g," ")}.`});return;}p.credits-=cost;removeInventory(p,res,lv);st.level=lv+1;if(stat==="capacity")st.shipCapacity+=2;if(stat==="health"){st.maxHp+=650;st.hp=st.maxHp;}if(stat==="shield"){st.maxShield+=360;st.shield=st.maxShield;}socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_station_upgrade");});
+  socket.on("setCivilizationResourceTarget",raw=>{const {p,zone}=ownCivZone(raw),st=zone&&civStation(zone,raw?.stationId);if(!p||!st)return;const target=raw?.planet||{};const d=Math.hypot((Number(target.x)||0)-st.x,(Number(target.y)||0)-st.y);if(!target.id||d>Math.max(1500,zone.radius*4)){socket.emit("civilizationZoneDenied",{reason:"That resource planet is outside this station's logistics range."});return;}st.resourceTarget={id:String(target.id).slice(0,80),name:safeText(target.name||"Resource Planet",48),x:Math.round(target.x),y:Math.round(target.y),resources:Array.isArray(target.resources)?target.resources.slice(0,12):[],density:Math.max(0,Number(target.density)||0)};zone.stationTasks[st.id]={task:"mine",targetZoneId:null,updatedAt:Date.now()};civSync(p,zone,"civ_resource_target");});
+  socket.on("civilizationStockpileTransfer",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const type=String(raw?.type||"").slice(0,80),amount=Math.max(1,Math.floor(Number(raw?.amount)||1)),dir=raw?.direction;if(!type)return;if(dir==="deposit"){if(inventoryCount(p,type)<amount){socket.emit("civilizationZoneDenied",{reason:"You do not have that amount."});return;}const total=Object.values(zone.stockpile).reduce((a,b)=>a+Number(b||0),0);if(total+amount>zone.stockpileCapacity){socket.emit("civilizationZoneDenied",{reason:"Super station stockpile is full."});return;}removeInventory(p,type,amount);zone.stockpile[type]=(zone.stockpile[type]||0)+amount;}else if(dir==="withdraw"){if((zone.stockpile[type]||0)<amount||!canFitInventory(p,type,amount)){socket.emit("civilizationZoneDenied",{reason:"Cannot withdraw: unavailable stock or inventory full."});return;}civAddInventoryAny(p,type,amount);zone.stockpile[type]-=amount;}else return;civSync(p,zone,"civ_stockpile_transfer");});
+  socket.on("civilizationBankTransfer",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const amount=Math.max(1,Math.floor(Number(raw?.amount)||0));if(raw?.direction==="deposit"){if(p.credits<amount){socket.emit("civilizationZoneDenied",{reason:"Not enough personal credits."});return;}p.credits-=amount;zone.bankCredits+=amount;}else if(raw?.direction==="withdraw"){if(zone.bankCredits<amount){socket.emit("civilizationZoneDenied",{reason:"Not enough credits in the station bank."});return;}zone.bankCredits-=amount;p.credits+=amount;}else return;socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_bank_transfer");});
+  socket.on("assignCivilizationMarketStock",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const type=String(raw?.type||"").slice(0,80),amount=Math.max(1,Math.floor(Number(raw?.amount)||0)),price=Math.max(1,Math.floor(Number(raw?.price)||1));const ids=Array.isArray(raw?.stationIds)?raw.stationIds:[raw?.stationId];const targets=ids.map(id=>civStation(zone,id)).filter(Boolean);if(!type||!targets.length){socket.emit("civilizationZoneDenied",{reason:"Choose at least one valid civilization station."});return;}const reclaim=targets.reduce((n,st)=>n+Math.max(0,Math.floor(Number(st.market?.[type]?.amount)||0)),0);if((zone.stockpile[type]||0)+reclaim<amount*targets.length){socket.emit("civilizationZoneDenied",{reason:"Insufficient stockpile resources for that station assignment."});return;}for(const st of targets){const old=Math.max(0,Math.floor(Number(st.market?.[type]?.amount)||0));if(old){zone.stockpile[type]=(zone.stockpile[type]||0)+old;delete st.market[type];}}for(const st of targets){st.market[type]={amount,price};zone.stockpile[type]-=amount;}civSync(p,zone,"civ_market_assignment");});
+  socket.on("upgradeCivilizationZone",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const lv=zone.zoneLevel||1;if(lv>=10){socket.emit("civilizationZoneDenied",{reason:"This civilization zone is already level 10."});return;}const cost=25000*lv,res=lv<4?"iron":lv<7?"crystal":"obelisk_core";if(p.credits<cost||inventoryCount(p,res)<lv){socket.emit("civilizationZoneDenied",{reason:`Need ${cost}cr and ${lv} ${res.replace(/_/g," ")}.`});return;}p.credits-=cost;removeInventory(p,res,lv);zone.zoneLevel=lv+1;zone.stockpileCapacity=Math.min(10000,1000+lv*1000);socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_zone_upgrade");});
+  socket.on("buildCivilizationTurret",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const cap=Math.min(20,2+(zone.zoneLevel||1)),cost=13000+(zone.turrets?.length||0)*5000;if((zone.turrets||[]).length>=cap||p.credits<cost){socket.emit("civilizationZoneDenied",{reason:(zone.turrets||[]).length>=cap?"Turret capacity reached.":`Need ${cost}cr.`});return;}p.credits-=cost;const a=((zone.turrets.length*2.399)+.3)%6.283;zone.turrets.push({id:`${zone.zoneId}|turret|${Date.now()}`,x:Math.round(zone.x+Math.cos(a)*(zone.radius-40)),y:Math.round(zone.y+Math.sin(a)*(zone.radius-40)),type:["pulse","rail","missile","beam"][zone.turrets.length%4],hp:1000+zone.zoneLevel*300,shield:360+zone.zoneLevel*120,damage:14+zone.zoneLevel*5,fireRate:1+zone.zoneLevel*.08});socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_turret_build");});
+  socket.on("offerCivilizationContract",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const targetId=safeZoneId(raw?.targetZoneId);if(!targetId||targetId===zone.zoneId){socket.emit("civilizationZoneDenied",{reason:"Choose a nearby civilization zone."});return;}const target=civilizationZones.get(targetId);const credit=Math.max(0,Math.floor(Number(raw?.creditsPerMinute)||0)),giveType=String(raw?.giveType||""),giveAmount=Math.max(0,Math.floor(Number(raw?.giveAmount)||0));if(credit>zone.bankCredits||(giveType&&giveAmount>(zone.stockpile[giveType]||0))){socket.emit("civilizationZoneDenied",{reason:"Your super station cannot fund that contract."});return;}const fairness=Math.max(.1,Math.min(.95,.35+Math.min(.35,(credit+giveAmount*(RES_BASE[giveType]||1))/12000)+Math.min(.15,(zone.builtStations?.length||0)/30)));const contract={id:`contract_${Date.now()}`,targetZoneId:targetId,status:"pending",createdAt:Date.now(),decisionAt:Date.now()+120000,give:{credits:credit,type:giveType,amount:giveAmount},receive:{credits:Math.max(0,Math.floor(Number(raw?.receiveCredits)||0)),type:String(raw?.receiveType||""),amount:Math.max(0,Math.floor(Number(raw?.receiveAmount)||0))},fairness,deliveryCapacity:(zone.builtStations||[]).reduce((n,s)=>n+(s.shipRoster||[]).filter(x=>x.role==="trade").reduce((m,x)=>m+(x.stats?.capacity||0),0),0)};zone.contracts.push(contract);if(target){ensureCivLogistics(target);target.contracts.push({...contract,sourceZoneId:zone.zoneId,incoming:true});}civSync(p,zone,"civ_contract_offer");});
+  socket.on("setCivilizationRelation",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const targetId=safeZoneId(raw?.targetZoneId),relation=raw?.relation==="enemy"?"enemy":"neutral";if(!targetId||targetId===zone.zoneId)return;zone.relations[targetId]=relation;if(relation==="enemy")for(const st of zone.builtStations||[])zone.stationTasks[st.id]={task:"attack",targetZoneId:targetId,updatedAt:Date.now()};civSync(p,zone,"civ_relation");});
 
   socket.on("buyStation",({x,y,tier})=>{
     const p=players.get(socket.id);if(!p)return;
