@@ -2409,19 +2409,20 @@ const WEAPON_CRAFT_ORDER=["weapon_arc_pulser","weapon_frost_shard","weapon_sunfl
 // Shared craft requirement renderer.  It deliberately uses the same item
 // glyph and tooltip source as every inventory panel, so a player can inspect
 // a material directly from either the ship or weapon crafting catalog.
-function craftRecipeIconsHTML(recipe){
+function craftRecipeIconsHTML(recipe,{iconSize=28,fontSize=11}={}){
   if(!recipe)return"";
+  const safeIconSize=Math.max(18,Math.min(36,Math.round(Number(iconSize)||28))),safeFontSize=Math.max(9,Math.min(14,Math.round(Number(fontSize)||11)));
   return Object.entries(recipe).map(([type,amount])=>{
-    if(type==="credits")return `<span title="Credits required" style="display:inline-flex;align-items:center;gap:3px;margin:1px 5px 1px 0;padding:2px 4px;background:#1d1a0d;border:1px solid #7c6826;border-radius:3px;color:#ffdd44;white-space:nowrap">◈ ${(Number(amount)||0).toLocaleString()}cr</span>`;
+    if(type==="credits")return `<span class="space-eco-craft-credit" aria-label="Credits required" style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0;padding:3px 6px;background:#1d1a0d;border:1px solid #7c6826;border-radius:4px;color:#ffdd44;white-space:nowrap;font-size:${safeFontSize}px">◈ ${(Number(amount)||0).toLocaleString()}cr</span>`;
     const label=RES[type]?.name||itemDefFor(type)?.name||String(type).replace(/_/g," ");
     const have=inventoryTotal(type);
-    return `<span title="${label}: ${have}/${amount} required" style="display:inline-flex;align-items:center;margin:1px 5px 1px 0;padding:1px 4px 1px 1px;background:#0a1420;border:1px solid ${have>=amount?"#35604c":"#654147"};border-radius:3px;color:${have>=amount?"#c8f5d7":"#ffb3b3"};white-space:nowrap">${storageDomIcon(type)}<b style="font-size:9px">${have}/${amount}</b></span>`;
+    return `<span class="space-eco-craft-resource" data-space-eco-item="${escapeTooltipText(type)}" aria-label="${escapeTooltipText(`${label}: ${have}/${amount} required`)}" style="display:inline-flex;align-items:center;gap:3px;margin:2px 6px 2px 0;padding:2px 6px 2px 2px;background:#0a1420;border:1px solid ${have>=amount?"#35604c":"#654147"};border-radius:4px;color:${have>=amount?"#c8f5d7":"#ffb3b3"};white-space:nowrap;font-size:${safeFontSize}px">${storageDomIcon(type,safeIconSize)}<b style="font-size:${safeFontSize}px">${have}/${amount}</b></span>`;
   }).join("");
 }
-function weaponRecipeText(recipe){return craftRecipeIconsHTML(recipe);}
+function weaponRecipeText(recipe){return craftRecipeIconsHTML(recipe,{iconSize:30,fontSize:11});}
 function canCraftWeaponLocal(recipe){if(!recipe)return false;if((player.credits||0)<(recipe.credits||0))return false;for(const [k,v] of Object.entries(recipe)){if(k!=="credits"&&inventoryTotal(k)<v)return false;}return true;}
 function craftWeapon(key){const def=WEAPON_DEFS[key];if(!def?.recipe)return; if(!canCraftWeaponLocal(def.recipe)){showFT("Missing weapon materials",ship.x,ship.y-18,"#ff5544",9);return;} socket.emit("craftWeapon",{weaponKey:key});}
-function renderWeaponCraftList(){const list=document.getElementById("weapon-craft-list");if(!list)return;list.innerHTML="";for(const key of WEAPON_CRAFT_ORDER){const def=WEAPON_DEFS[key];if(!def)continue;const owned=inventoryTotal(key)>0;const can=canCraftWeaponLocal(def.recipe);const div=document.createElement("div");div.style.cssText=`background:${owned?"#14331f":"#0f1824"};border:1px solid ${owned?"#4a8a6a":"#2a3a5a"};border-radius:6px;padding:10px;`;div.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:34px;height:34px;background:#081018;border:1px solid #284258;border-radius:6px;display:flex;align-items:center;justify-content:center;color:${def.color};font-size:20px">⚔</div><div><b style="color:${owned?"#78ff8a":"#d6e1ff"}">${def.name}</b>${owned?` <span style="color:#78ff8a;font-size:10px">Owned: ${inventoryTotal(key)}</span>`:""}<br><span style="font-size:10px;color:#8fa3cc">${def.class} · ${def.mode.toUpperCase()} · ${def.description||"Craftable weapon"}</span></div></div><div style="font-size:10px;color:#6a8aaa;display:grid;grid-template-columns:1fr 1fr;gap:2px"><span>Damage: ${def.damage}</span><span>Cooldown: ${(def.cooldown||0).toFixed(2)}s</span><span>Shots: ${def.shots||1}</span><span>Rarity: ${def.rarity||1}</span></div><div style="font-size:9px;color:#8fa3cc;text-align:left;margin:6px 0">${weaponRecipeText(def.recipe)}</div><div style="text-align:right"><button onclick="craftWeapon('${key}')" style="background:${can?"#102a3a":"#2a1a1a"};border:1px solid ${can?"#5bb9ff":"#5a3a3a"};border-radius:4px;color:${can?"#7be6ff":"#8a7777"};padding:4px 10px;cursor:${can?"pointer":"default"};font-size:11px">CRAFT WEAPON</button></div>`;list.appendChild(div);}}
+function renderWeaponCraftList(){const list=document.getElementById("weapon-craft-list");if(!list)return;list.innerHTML="";for(const key of WEAPON_CRAFT_ORDER){const def=WEAPON_DEFS[key];if(!def)continue;const owned=inventoryTotal(key)>0;const can=canCraftWeaponLocal(def.recipe);const div=document.createElement("div");div.style.cssText=`background:${owned?"#14331f":"#0f1824"};border:1px solid ${owned?"#4a8a6a":"#2a3a5a"};border-radius:6px;padding:10px;`;div.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div data-space-eco-item="${escapeTooltipText(key)}" aria-label="${escapeTooltipText(`${def.name} — ${def.description||"Craftable weapon"}`)}" style="width:34px;height:34px;background:#081018;border:1px solid #284258;border-radius:6px;display:flex;align-items:center;justify-content:center;color:${def.color};font-size:20px;cursor:help">⚔</div><div><b style="color:${owned?"#78ff8a":"#d6e1ff"}">${def.name}</b>${owned?` <span style="color:#78ff8a;font-size:10px">Owned: ${inventoryTotal(key)}</span>`:""}<br><span style="font-size:10px;color:#8fa3cc">${def.class} · ${def.mode.toUpperCase()} · ${def.description||"Craftable weapon"}</span></div></div><div style="font-size:10px;color:#6a8aaa;display:grid;grid-template-columns:1fr 1fr;gap:2px"><span>Damage: ${def.damage}</span><span>Cooldown: ${(def.cooldown||0).toFixed(2)}s</span><span>Shots: ${def.shots||1}</span><span>Rarity: ${def.rarity||1}</span></div><div style="font-size:9px;color:#8fa3cc;text-align:left;margin:6px 0">${weaponRecipeText(def.recipe)}</div><div style="text-align:right"><button onclick="craftWeapon('${key}')" style="background:${can?"#102a3a":"#2a1a1a"};border:1px solid ${can?"#5bb9ff":"#5a3a3a"};border-radius:4px;color:${can?"#7be6ff":"#8a7777"};padding:4px 10px;cursor:${can?"pointer":"default"};font-size:11px">CRAFT WEAPON</button></div>`;list.appendChild(div);}}
 
 const ATTACHMENT_DEFS={
   hull_plate:{key:"hull_plate",slot:"hull",name:"Reinforced Hull Plate",maxHpBonus:35,description:"Adds extra hull durability."},
@@ -6105,7 +6106,7 @@ function drawShipPreview(key,def){
   else if(key==="titan_bloom"){pc.fillRect(-15,-10,28,20);pc.fillStyle="#ff77dd";pc.beginPath();pc.arc(0,0,12,0,Math.PI*2);pc.strokeStyle="#ffd0ff";pc.lineWidth=1.2;pc.stroke();}
   pc.restore();
 }
-function shipRecipeText(recipe){return craftRecipeIconsHTML(recipe);}
+function shipRecipeText(recipe){return craftRecipeIconsHTML(recipe,{iconSize:30,fontSize:11});}
 function canCraftShipLocal(recipe){if(!recipe)return false;if(player.credits<(recipe.credits||0))return false;for(const[k,v]of Object.entries(recipe)){if(k!=="credits"&&inventoryTotal(k)<v)return false;}return true;}
 function craftShip(key){const def=SHIP_TYPES[key];if(!def?.recipe)return;if(!canCraftShipLocal(def.recipe)){showFT("Missing credits or ship parts",ship.x,ship.y-18,"#ff5544",9);return;}socket.emit("craftShip",{shipTypeKey:key});document.getElementById("ship-panel").style.display="none";}
 function buyShip(key){
@@ -6620,7 +6621,7 @@ function ensureStoragePanel(){
 }
 function countsFromSlots(slots){const o={};for(const s of slots||[])if(s?.type&&s.count>0)o[s.type]=(o[s.type]||0)+s.count;return o;}
 function openStorageFacility(key){selectedStorageKey=key;ensureStoragePanel().style.display="flex";renderStoragePanel();}
-function storageDomIcon(type){const r=itemDefFor(type)||{},desc=itemDescription(type).replace(/"/g,"&quot;");return `<span title="${(r.name||type).replace(/"/g,"&quot;")} — ${desc}" style="display:inline-flex;width:21px;height:21px;align-items:center;justify-content:center;margin-right:6px;background:#09111b;border:1px solid #35506b;color:${r.color||"#fff"};font-size:14px;vertical-align:middle">${itemGlyphFor(type)}</span>`;}
+function storageDomIcon(type,size=21){const r=itemDefFor(type)||{},label=`${r.name||type} — ${itemDescription(type)}`,px=Math.max(18,Math.min(38,Math.round(Number(size)||21))),glyphPx=Math.max(12,Math.round(px*.64));return `<span class="space-eco-dom-item-icon" data-space-eco-item="${escapeTooltipText(type)}" aria-label="${escapeTooltipText(label)}" style="display:inline-flex;width:${px}px;height:${px}px;align-items:center;justify-content:center;margin-right:${Math.max(4,Math.round(px*.23))}px;background:#09111b;border:1px solid #35506b;border-radius:3px;color:${r.color||"#fff"};font-size:${glyphPx}px;vertical-align:middle;cursor:help">${itemGlyphFor(type)}</span>`;}
 function renderStoragePanel(){
   const body=document.getElementById("storage-panel-body");if(!body)return;const st=playerStructuresList.find(s=>s.key===selectedStorageKey);if(!st){body.innerHTML="Storage not found.";return;}const inv=countsFromSlots(player.invSlots),stor=countsFromSlots(st.storage||[]);
   const invRows=Object.entries(inv).map(([type,count])=>{const r=itemDefFor(type)||{};return `<div class="char-row"><span>${storageDomIcon(type)}<b style="color:${r.color||'#fff'}">${r.name||type}</b> × ${count}</span><span><button class="char-btn" onclick="depositStorage('${type}',1)">Deposit 1</button> <button class="char-btn" onclick="depositStorage('${type}',${count})">All</button></span></div>`;}).join("")||"<div class='social-small'>Inventory empty.</div>";
@@ -8763,8 +8764,8 @@ function drawItemIcon(icx,type,x,y,size){
   icx.restore();
 }
 
-let uiItemTooltip=null;
-function uiItemTooltipEnabled(){return !!(inventoryOpen||shopOpen||attrOpen||characterOpen||questLogOpen||badgeLogOpen);}
+let uiItemTooltip=null,domItemTooltip=null,domItemTooltipListenersBound=false;
+function uiItemTooltipEnabled(){return !!(inventoryOpen||shopOpen||attrOpen||characterOpen||questLogOpen||badgeLogOpen||shipStatusOpen);}
 let uiItemTooltipDom=null;
 function escapeTooltipText(value){return String(value??"").replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[ch]));}
 function ensureItemTooltipDom(){
@@ -8795,6 +8796,28 @@ function syncItemTooltipDom(tip,res,title,value,rarity,description){
     if(bounds.bottom>window.innerHeight-8)el.style.top=`${Math.max(8,window.innerHeight-bounds.height-8)}px`;
   });
 }
+function syncDomItemTooltip(type,clientX,clientY){
+  const res=itemDefFor(type)||{name:type,color:"#d6e1ff"},title=res.name||type,value=Math.max(0,Number(price(type)||res.base||0)),rarity=res.rarity!==undefined?`Rarity ${res.rarity}`:"Utility / material",description=itemDescription(type),el=ensureItemTooltipDom(),color=String(res?.color||"#7be6ff");
+  el.style.borderColor=color;
+  el.innerHTML=`<div class="tip-name">${escapeTooltipText(title)}</div><div class="tip-meta" style="color:${escapeTooltipText(color)}">${escapeTooltipText(rarity)} · ${Math.floor(value).toLocaleString()}cr base</div><div class="tip-desc">${escapeTooltipText(description)}</div>`;
+  el.style.display="block";
+  el.style.left=`${Math.max(8,Math.min(window.innerWidth-24,Number(clientX||0)+18))}px`;
+  el.style.top=`${Math.max(8,Math.min(window.innerHeight-24,Number(clientY||0)+22))}px`;
+  requestAnimationFrame(()=>{
+    if(!el.isConnected||el.style.display==="none")return;
+    const bounds=el.getBoundingClientRect();
+    if(bounds.right>window.innerWidth-8)el.style.left=`${Math.max(8,window.innerWidth-bounds.width-8)}px`;
+    if(bounds.bottom>window.innerHeight-8)el.style.top=`${Math.max(8,window.innerHeight-bounds.height-8)}px`;
+  });
+}
+function bindDomItemTooltips(){
+  if(domItemTooltipListenersBound)return;domItemTooltipListenersBound=true;
+  const findIcon=target=>target&&typeof target.closest==="function"?target.closest("[data-space-eco-item]"):null;
+  document.addEventListener("pointerover",event=>{const icon=findIcon(event.target);if(!icon)return;const type=icon.getAttribute("data-space-eco-item");if(!type)return;domItemTooltip={type,clientX:event.clientX,clientY:event.clientY};syncDomItemTooltip(type,event.clientX,event.clientY);},true);
+  document.addEventListener("pointermove",event=>{const icon=findIcon(event.target);if(!icon||!domItemTooltip)return;const type=icon.getAttribute("data-space-eco-item");if(type!==domItemTooltip.type)return;domItemTooltip.clientX=event.clientX;domItemTooltip.clientY=event.clientY;syncDomItemTooltip(type,event.clientX,event.clientY);},true);
+  document.addEventListener("pointerout",event=>{const icon=findIcon(event.target);if(!icon)return;const next=findIcon(event.relatedTarget);if(next&&next.getAttribute("data-space-eco-item")===icon.getAttribute("data-space-eco-item"))return;domItemTooltip=null;if(!uiItemTooltip)hideItemTooltipDom();},true);
+}
+bindDomItemTooltips();
 function uiItemTooltipPointer(){
   if(shopOpen)return largeCanvasMenuPoint("shop",mouse.x,mouse.y);
   if(inventoryOpen)return inventoryTab==="modules"?{x:mouse.x,y:mouse.y}:largeCanvasMenuPoint("inventory",mouse.x,mouse.y);
@@ -8805,7 +8828,7 @@ function uiItemTooltipPointer(){
   return {x:mouse.x,y:mouse.y};
 }
 function drawItemHoverTooltip(){
-  const tip=uiItemTooltip;if(!tip||!uiItemTooltipEnabled()){hideItemTooltipDom();return;}const res=itemDefFor(tip.type)||{name:tip.type,color:"#d6e1ff"},title=res.name||tip.type,value=Math.max(0,Number(price(tip.type)||res.base||0)),rarity=res.rarity!==undefined?`Rarity ${res.rarity}`:"Utility / material",description=itemDescription(tip.type);
+  const tip=uiItemTooltip;if(!tip||!uiItemTooltipEnabled()){if(domItemTooltip){syncDomItemTooltip(domItemTooltip.type,domItemTooltip.clientX,domItemTooltip.clientY);return;}hideItemTooltipDom();return;}const res=itemDefFor(tip.type)||{name:tip.type,color:"#d6e1ff"},title=res.name||tip.type,value=Math.max(0,Number(price(tip.type)||res.base||0)),rarity=res.rarity!==undefined?`Rarity ${res.rarity}`:"Utility / material",description=itemDescription(tip.type);
   // The DOM copy is intentionally above every canvas/DOM HUD layer. The
   // canvas rendering below remains as a resilient fallback for embedded views.
   syncItemTooltipDom(tip,res,title,value,rarity,description);
@@ -9162,27 +9185,27 @@ function drawShipStatusPanel(){
 
   const forgeY=availY+availH+8*s,forgeH=Math.max(0,py+ph-forgeY-14*s);
   shipStatusFillRect(contentX,forgeY,contentW,forgeH,"#151326","#8d55bb");
-  ctx.font=shipStatusFont(13,true);drawShipText("MODULE FABRICATION",contentX+10*s,forgeY+17*s,176*s,"#e8bcff");
+  ctx.font=shipStatusFont(16,true);drawShipText("MODULE FABRICATION",contentX+12*s,forgeY+21*s,220*s,"#e8bcff");
   const craftPageCount=Math.max(1,Math.ceil(MODULE_CRAFT_ORDER.length/6));
   shipModuleCraftPage=clamp(Math.floor(Number(shipModuleCraftPage)||0),0,craftPageCount-1);
-  drawShipText(`Page ${shipModuleCraftPage+1}/${craftPageCount} · craft baseline modules with credits and materials`,contentX+184*s,forgeY+17*s,contentW-266*s,"#9fb0d0",shipStatusFont(8,false));
+  drawShipText(`Page ${shipModuleCraftPage+1}/${craftPageCount} · craft baseline modules with credits and materials`,contentX+236*s,forgeY+21*s,contentW-326*s,"#b8c9df",shipStatusFont(10,false));
   if(craftPageCount>1){
-    shipStatusButton("◀",contentX+contentW-74*s,forgeY+5*s,28*s,18*s,()=>{shipModuleCraftPage=(shipModuleCraftPage+craftPageCount-1)%craftPageCount;},true);
-    shipStatusButton("▶",contentX+contentW-40*s,forgeY+5*s,28*s,18*s,()=>{shipModuleCraftPage=(shipModuleCraftPage+1)%craftPageCount;},true);
+    shipStatusButton("◀",contentX+contentW-88*s,forgeY+6*s,34*s,22*s,()=>{shipModuleCraftPage=(shipModuleCraftPage+craftPageCount-1)%craftPageCount;},true);
+    shipStatusButton("▶",contentX+contentW-46*s,forgeY+6*s,34*s,22*s,()=>{shipModuleCraftPage=(shipModuleCraftPage+1)%craftPageCount;},true);
   }
-  const forgePad=8*s,forgeGap=7*s,forgeTop=forgeY+28*s,craftCols=3,craftCardW=(contentW-forgePad*2-forgeGap*(craftCols-1))/craftCols,craftCardH=Math.max(42*s,(forgeH-35*s-forgeGap)/2);
+  const forgePad=10*s,forgeGap=9*s,forgeTop=forgeY+34*s,craftCols=3,craftCardW=(contentW-forgePad*2-forgeGap*(craftCols-1))/craftCols,craftCardH=Math.max(58*s,(forgeH-42*s-forgeGap)/2);
   const craftKeys=MODULE_CRAFT_ORDER.slice(shipModuleCraftPage*6,shipModuleCraftPage*6+6);
   craftKeys.forEach((key,index)=>{
     const craftDef=ATTACHMENT_DEFS[key]||{},recipe=moduleCraftRecipeClient(key)||{},col=index%craftCols,row=Math.floor(index/craftCols),bx=contentX+forgePad+col*(craftCardW+forgeGap),by=forgeTop+row*(craftCardH+forgeGap),can=canCraftModuleLocal(key);
     shipStatusFillRect(bx,by,craftCardW,craftCardH,can?"#142738":"#211b22",can?"#456f8d":"#60414b");
-    drawItemIcon(ctx,key,bx+6*s,by+6*s,22*s);
-    drawShipText(craftDef.name||key,bx+34*s,by+14*s,craftCardW-40*s,"#f2f6ff",shipStatusFont(9,true));
-    drawShipText(`${Number(recipe.credits||0).toLocaleString()}cr`,bx+34*s,by+26*s,craftCardW-42*s,"#ffdd44",shipStatusFont(8,true));
-    const mats=Object.entries(recipe).filter(([type])=>type!=="credits"),iconY=by+31*s,step=Math.max(27*s,Math.min(42*s,(craftCardW-14*s)/Math.max(1,mats.length)));
+    drawItemIcon(ctx,key,bx+8*s,by+8*s,30*s);
+    drawShipText(craftDef.name||key,bx+46*s,by+19*s,craftCardW-54*s,"#f2f6ff",shipStatusFont(11,true));
+    drawShipText(`${Number(recipe.credits||0).toLocaleString()}cr`,bx+46*s,by+36*s,craftCardW-54*s,"#ffdd44",shipStatusFont(10,true));
+    const mats=Object.entries(recipe).filter(([type])=>type!=="credits"),iconY=by+44*s,step=Math.max(39*s,Math.min(56*s,(craftCardW-18*s)/Math.max(1,mats.length)));
     mats.forEach(([type,amount],matIndex)=>{
-      const ix=bx+7*s+matIndex*step;drawItemIcon(ctx,type,ix,iconY,11*s);drawShipText(`×${amount}`,ix+12*s,iconY+10*s,step-13*s,inventoryTotal(type)>=amount?"#c8f5d7":"#ffb3b3",shipStatusFont(7,true));
+      const ix=bx+9*s+matIndex*step;drawItemIcon(ctx,type,ix,iconY,17*s);drawShipText(`${inventoryTotal(type)}/${amount}`,ix+20*s,iconY+13*s,step-22*s,inventoryTotal(type)>=amount?"#c8f5d7":"#ffb3b3",shipStatusFont(8,true));
     });
-    shipStatusButton("CRAFT",bx+craftCardW-58*s,by+craftCardH-20*s,52*s,16*s,()=>requestModuleCraft(key),can);
+    shipStatusButton("CRAFT",bx+craftCardW-70*s,by+craftCardH-25*s,62*s,20*s,()=>requestModuleCraft(key),can);
   });
   ctx.restore();
 }
@@ -9596,10 +9619,10 @@ openModuleLab=function(key){
 // redirect into the tab now; it can no longer render a competing overlay.
 drawModuleLab=function(){if(moduleLabOpen){const key=moduleLabItemKey;moduleLabOpen=false;moduleLabItemKey=null;if(key)openModuleLab(key);}return false;};
 handleModuleLabClick=function(){moduleLabOpen=false;moduleLabItemKey=null;return false;};
-function drawModuleLabButton(x,y,w,h,label,enabled,color="#78ff8a"){
+function drawModuleLabButton(x,y,w,h,label,enabled,color="#78ff8a",fontSize=7){
   ctx.fillStyle=enabled?"#173a2a":"#2b1a20";ctx.fillRect(x,y,w,h);
   ctx.strokeStyle=enabled?color:"#8a4d58";ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
-  drawUiFittedText(label,x+w/2,y+h*.67,w-10,enabled?color:"#ff9b9b",uiFont(7,true),"center");
+  drawUiFittedText(label,x+w/2,y+h*.67,w-10,enabled?color:"#ff9b9b",uiFont(fontSize,true),"center");
 }
 drawInventoryModuleLabTab=function(){
   const r=inventoryModuleLabRect();
@@ -9730,70 +9753,77 @@ socket.on("moduleCraftResult",payload=>{
 });
 socket.on("moduleCraftDenied",({reason}={})=>{const text=reason||"Module craft denied";showFT(text,ship.x,ship.y-24,"#ff5544",9);showUiActionNotice(text,"#ff7777");});
 inventoryModuleLabRect=function(){
-  const maxW=Math.max(300,canvas.width-16),maxH=Math.max(270,canvas.height-16);
-  // Use most of the viewport: module recipes and convergence are decision
-  // screens, not a cramped popup.  Small canvases still remain bounded.
-  const w=Math.min(maxW,Math.max(660,Math.round(canvas.width*.86)));
-  const h=Math.min(maxH,Math.max(430,Math.round(canvas.height*.93)));
+  const maxW=Math.max(320,canvas.width-20),maxH=Math.max(300,canvas.height-20);
+  // A module upgrade is a long-term equipment decision. Give the lab more
+  // room than a normal inventory view, while remaining safe on smaller screens.
+  const w=Math.min(maxW,Math.max(780,Math.round(canvas.width*.90)));
+  const h=Math.min(maxH,Math.max(540,Math.round(canvas.height*.94)));
   return {x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h};
 };
 function moduleLabV420Layout(){
-  const r=inventoryModuleLabRect(),contentY=r.y+66,pad=14,listW=clamp(Math.floor(r.w*.30),140,218),listX=r.x+pad,listH=r.y+r.h-contentY-12,detailX=listX+listW+14,detailW=r.x+r.w-detailX-14;
-  const headerH=68,equipY=contentY+headerH+9,normalY=equipY+33,normalH=70,convY=normalY+normalH+10,convH=Math.max(128,r.y+r.h-12-convY);
-  return {r,contentY,listX,listW,listH,detailX,detailW,headerH,equipY,normalY,normalH,convY,convH};
+  const r=inventoryModuleLabRect(),u=clamp(Math.min(r.w/980,r.h/650),1,1.28),pad=Math.round(18*u),contentY=r.y+Math.round(86*u),listW=clamp(Math.round(r.w*.27),Math.round(210*u),Math.round(300*u)),listX=r.x+pad,listH=r.y+r.h-contentY-Math.round(16*u),detailX=listX+listW+Math.round(18*u),detailW=r.x+r.w-detailX-pad;
+  const headerH=Math.round(82*u),equipH=Math.round(30*u),equipY=contentY+headerH+Math.round(11*u),normalY=equipY+equipH+Math.round(11*u),normalH=Math.round(100*u),convY=normalY+normalH+Math.round(13*u),convH=Math.max(Math.round(184*u),r.y+r.h-Math.round(16*u)-convY),rowH=Math.round(37*u),rowBoxH=Math.round(30*u),tabH=Math.round(28*u),tabY=r.y+Math.round(11*u),itemTabW=Math.round(104*u),moduleTabW=Math.round(126*u),tabGap=Math.round(8*u),moduleTabX=r.x+r.w-pad-moduleTabW,itemTabX=moduleTabX-tabGap-itemTabW;
+  return {r,u,pad,contentY,listX,listW,listH,detailX,detailW,headerH,equipY,equipH,normalY,normalH,convY,convH,rowH,rowBoxH,tabs:{items:{x:itemTabX,y:tabY,w:itemTabW,h:tabH},modules:{x:moduleTabX,y:tabY,w:moduleTabW,h:tabH}}};
 }
 function moduleLabV420CopyChipRect(layout,index){
-  const cols=5,gap=4,w=Math.max(23,Math.floor((layout.detailW-20-gap*(cols-1))/cols)),row=Math.floor(index/cols),col=index%cols;
-  return {x:layout.detailX+10+col*(w+gap),y:layout.convY+52+row*24,w,h:19};
+  const u=layout.u,cols=5,gap=Math.round(7*u),w=Math.max(Math.round(34*u),Math.floor((layout.detailW-Math.round(20*u)-gap*(cols-1))/cols)),row=Math.floor(index/cols),col=index%cols;
+  return {x:layout.detailX+Math.round(10*u)+col*(w+gap),y:layout.convY+Math.round(66*u)+row*Math.round(34*u),w,h:Math.round(26*u)};
+}
+function drawLargeModuleLabCost(type,amount,x,y,u=1,maxWidth=200){
+  const d=itemDefFor(type)||{name:type,color:"#fff"},size=Math.round(29*u),textX=x+size+Math.round(8*u);
+  drawItemIcon(ctx,type,x,y,size);
+  drawUiFittedText(`${amount} ${d.name||type}`,textX,y+Math.round(size*.66),Math.max(44,maxWidth-size-Math.round(8*u)),d.color||"#d6e1ff",uiFont(9*u,true));
 }
 drawInventoryModuleLabTab=function(){
   const entries=moduleLabEntriesSafe();
   if(!entries.some(entry=>entry.key===inventoryModuleKey))inventoryModuleKey=entries[0]?.key||null;
-  const selected=entries.find(entry=>entry.key===inventoryModuleKey)||null,L=moduleLabV420Layout(),r=L.r;
-  const rowH=28,visible=Math.max(3,Math.floor((L.listH-13)/rowH));
+  const selected=entries.find(entry=>entry.key===inventoryModuleKey)||null,L=moduleLabV420Layout(),r=L.r,u=L.u,rowH=L.rowH,visible=Math.max(3,Math.floor((L.listH-Math.round(18*u))/rowH));
   moduleLabListScroll=clamp(moduleLabListScroll||0,0,Math.max(0,entries.length-visible));
   ctx.save();
   try{
-    ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle="rgba(0,0,0,.81)";ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle="#111a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#b978ff";ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
-    drawUiFittedText("INVENTORY",r.x+14,r.y+22,126,"#e7f2ff",uiFont(13,true));
-    inventoryTabButton("ITEMS",r.x+r.w-178,r.y+8,78,false);inventoryTabButton("MODULE LAB",r.x+r.w-94,r.y+8,84,true);
-    drawUiFittedText("MODULE LAB",r.x+14,r.y+43,r.w-28,"#e7bcff",uiFont(11,true));
-    drawUiFittedText("Choose matching module copies, then equip, upgrade, or attempt a convergence. Requests are server-authoritative.",r.x+14,r.y+56,r.w-28,"#93a7bf",uiFont(7));
-    ctx.fillStyle="#0a1220";ctx.fillRect(L.listX,L.contentY,L.listW,L.listH);ctx.strokeStyle="#2c4568";ctx.strokeRect(L.listX+.5,L.contentY+.5,L.listW-1,L.listH-1);
-    if(!entries.length)drawUiWrappedText("No ship modules in inventory. Craft modules from Ship Status (Z), then return here to improve them.",L.listX+9,L.contentY+24,L.listW-18,10,5,"#8fa3b9",uiFont(7));
+    ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#111a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#b978ff";ctx.lineWidth=Math.max(2,Math.round(2*u));ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
+    drawUiFittedText("INVENTORY",r.x+L.pad,r.y+Math.round(26*u),Math.round(176*u),"#e7f2ff",uiFont(16*u,true));
+    drawModuleLabButton(L.tabs.items.x,L.tabs.items.y,L.tabs.items.w,L.tabs.items.h,"ITEMS",true,"#4b6d90",9*u);
+    drawModuleLabButton(L.tabs.modules.x,L.tabs.modules.y,L.tabs.modules.w,L.tabs.modules.h,"MODULE LAB",true,"#e8bcff",9*u);
+    drawUiFittedText("MODULE LAB",r.x+L.pad,r.y+Math.round(53*u),r.w-L.pad*2,"#e7bcff",uiFont(14*u,true));
+    drawUiFittedText("Choose matching module copies, then equip, upgrade, or attempt a convergence. Requests are server-authoritative.",r.x+L.pad,r.y+Math.round(73*u),r.w-L.pad*2,"#b3c4dc",uiFont(9*u));
+    ctx.fillStyle="#0a1220";ctx.fillRect(L.listX,L.contentY,L.listW,L.listH);ctx.strokeStyle="#2c4568";ctx.lineWidth=Math.max(1,Math.round(u));ctx.strokeRect(L.listX+.5,L.contentY+.5,L.listW-1,L.listH-1);
+    if(!entries.length)drawUiWrappedText("No ship modules in inventory. Craft modules from Ship Status (Z), then return here to improve them.",L.listX+Math.round(12*u),L.contentY+Math.round(30*u),L.listW-Math.round(24*u),Math.round(14*u),5,"#aebfd2",uiFont(9*u));
     entries.slice(moduleLabListScroll,moduleLabListScroll+visible).forEach((entry,i)=>{
-      const y=L.contentY+7+i*rowH,active=entry.key===selected?.key;ctx.fillStyle=active?"#2a3954":"#101a2a";ctx.fillRect(L.listX+6,y,L.listW-12,23);ctx.strokeStyle=active?"#b978ff":"#263e61";ctx.strokeRect(L.listX+6.5,y+.5,L.listW-13,22);
-      drawItemIcon(ctx,entry.key,L.listX+10,y+3,17);drawUiFittedText(moduleDisplayName(entry.key),L.listX+32,y+11,L.listW-68,active?"#fff":"#d6e1ff",uiFont(7,true));drawUiFittedText(`x${entry.count}`,L.listX+L.listW-10,y+18,34,"#8be4ff",uiFont(7),"right");
+      const y=L.contentY+Math.round(9*u)+i*rowH,active=entry.key===selected?.key,rowPad=Math.round(8*u),iconSize=Math.round(23*u);ctx.fillStyle=active?"#2a3954":"#101a2a";ctx.fillRect(L.listX+rowPad,y,L.listW-rowPad*2,L.rowBoxH);ctx.strokeStyle=active?"#b978ff":"#263e61";ctx.strokeRect(L.listX+rowPad+.5,y+.5,L.listW-rowPad*2-1,L.rowBoxH-1);
+      drawItemIcon(ctx,entry.key,L.listX+rowPad+Math.round(5*u),y+Math.round(4*u),iconSize);drawUiFittedText(moduleDisplayName(entry.key),L.listX+rowPad+iconSize+Math.round(12*u),y+Math.round(14*u),L.listW-Math.round(92*u),active?"#fff":"#d6e1ff",uiFont(9*u,true));drawUiFittedText(`x${entry.count}`,L.listX+L.listW-Math.round(11*u),y+Math.round(23*u),Math.round(46*u),"#8be4ff",uiFont(8*u,true),"right");
     });
-    if(entries.length>visible){const max=Math.max(1,entries.length-visible),trackX=L.listX+L.listW-8,trackY=L.contentY+7,trackH=L.listH-18,knobH=Math.max(14,trackH*(visible/entries.length)),knobY=trackY+(trackH-knobH)*(moduleLabListScroll/max);ctx.fillStyle="#13233a";ctx.fillRect(trackX,trackY,4,trackH);ctx.fillStyle="#b978ff";ctx.fillRect(trackX,knobY,4,knobH);drawUiFittedText(`${moduleLabListScroll+1}–${Math.min(entries.length,moduleLabListScroll+visible)} / ${entries.length}`,L.listX+8,L.contentY+L.listH-7,L.listW-25,"#879db5",uiFont(6));}
-    if(!selected){drawUiFittedText("Select a module from the left to inspect its stat path.",L.detailX+10,L.contentY+28,L.detailW-20,"#9fb0ca",uiFont(9));return;}
-    const key=selected.key,m=selected.tier,d=selected.def,next=moduleLabCostSafe("upgrade",key),copies=clamp(Math.floor(Number(inventoryModuleCopies)||1),1,Math.min(10,selected.count)),available=MODULE_CONVERGENCE_BONUSES.filter(b=>!m.bonuses.includes(b)),conv=moduleLabCostSafe("converge",key,copies),upgradeReady=m.level<10&&player.credits>=next.credits&&inventoryTotal(next.resource)>=next.amount,convergeReady=available.length>0&&selected.count>=copies&&player.credits>=conv.credits&&inventoryTotal(conv.resource)>=conv.amount;
+    if(entries.length>visible){const max=Math.max(1,entries.length-visible),trackX=L.listX+L.listW-Math.round(10*u),trackY=L.contentY+Math.round(9*u),trackH=L.listH-Math.round(25*u),knobH=Math.max(Math.round(20*u),trackH*(visible/entries.length)),knobY=trackY+(trackH-knobH)*(moduleLabListScroll/max);ctx.fillStyle="#13233a";ctx.fillRect(trackX,trackY,Math.round(5*u),trackH);ctx.fillStyle="#b978ff";ctx.fillRect(trackX,knobY,Math.round(5*u),knobH);drawUiFittedText(`${moduleLabListScroll+1}–${Math.min(entries.length,moduleLabListScroll+visible)} / ${entries.length}`,L.listX+Math.round(10*u),L.contentY+L.listH-Math.round(9*u),L.listW-Math.round(30*u),"#9fb4cb",uiFont(8*u));}
+    if(!selected){drawUiFittedText("Select a module from the left to inspect its stat path.",L.detailX+Math.round(12*u),L.contentY+Math.round(34*u),L.detailW-Math.round(24*u),"#b5c3d4",uiFont(11*u));return;}
+    const key=selected.key,m=selected.tier,d=selected.def,next=moduleLabCostSafe("upgrade",key),copies=clamp(Math.floor(Number(inventoryModuleCopies)||1),1,Math.min(10,selected.count)),available=MODULE_CONVERGENCE_BONUSES.filter(b=>!m.bonuses.includes(b)),conv=moduleLabCostSafe("converge",key,copies),upgradeReady=m.level<10&&player.credits>=next.credits&&inventoryTotal(next.resource)>=next.amount,convergeReady=available.length>0&&selected.count>=copies&&player.credits>=conv.credits&&inventoryTotal(conv.resource)>=conv.amount,detailPad=Math.round(12*u),moduleIconSize=Math.round(54*u);
     inventoryModuleCopies=copies;
-    ctx.fillStyle="#0b1424";ctx.fillRect(L.detailX,L.contentY,L.detailW,L.headerH);ctx.strokeStyle="#345170";ctx.strokeRect(L.detailX+.5,L.contentY+.5,L.detailW-1,L.headerH-1);drawItemIcon(ctx,key,L.detailX+10,L.contentY+9,42);
-    drawUiFittedText(moduleDisplayName(key),L.detailX+61,L.contentY+20,L.detailW-71,"#fff",uiFont(10,true));drawUiFittedText(`${String(d.slot||"module").toUpperCase()} SLOT · ${selected.count} matching copies`,L.detailX+61,L.contentY+34,L.detailW-71,"#ffdd88",uiFont(7,true));drawUiWrappedText(attachmentBonusLine(key)||d.description||"Passive ship module",L.detailX+61,L.contentY+47,L.detailW-71,8,2,"#c9d8eb",uiFont(6));
-    drawModuleLabButton(L.detailX+10,L.equipY,L.detailW-20,23,moduleUiPendingAction?"MODULE REQUEST PENDING":`EQUIP IN ${String(d.slot||"module").toUpperCase()} SLOT`,!moduleUiPendingAction,"#78ff8a");
-    ctx.fillStyle="#10241b";ctx.fillRect(L.detailX,L.normalY,L.detailW,L.normalH);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(L.detailX+.5,L.normalY+.5,L.detailW-1,L.normalH-1);drawUiFittedText("NORMAL UPGRADE",L.detailX+10,L.normalY+14,L.detailW-20,"#78ff8a",uiFont(8,true));drawUiFittedText(m.level>=10?"Maximum +10 reached":`+${m.level||0} → +${Math.min(10,m.level+1)}`,L.detailX+10,L.normalY+28,L.detailW-20,"#d6e1ff",uiFont(8));
-    if(m.level<10){drawUiFittedText(`${next.credits.toLocaleString()}cr`,L.detailX+10,L.normalY+42,82,"#ffdd44",uiFont(7,true));drawModuleLabCost(next.resource,next.amount,L.detailX+90,L.normalY+31);}
-    drawModuleLabButton(L.detailX+10,L.normalY+L.normalH-22,L.detailW-20,18,m.level>=10?"MAX LEVEL":moduleUiPendingAction?"MODULE REQUEST PENDING":upgradeReady?"UPGRADE MODULE":"UPGRADE — MISSING COST",m.level<10&&upgradeReady&&!moduleUiPendingAction,"#78ff8a");
-    ctx.fillStyle="#21152c";ctx.fillRect(L.detailX,L.convY,L.detailW,L.convH);ctx.strokeStyle="#b978ff";ctx.strokeRect(L.detailX+.5,L.convY+.5,L.detailW-1,L.convH-1);drawUiFittedText("CONVERGENCE",L.detailX+10,L.convY+14,L.detailW-20,"#e8bcff",uiFont(8,true));drawUiFittedText(available.length?`Possible new trait: ${available.join(", ")}`:"All convergence traits unlocked",L.detailX+10,L.convY+27,L.detailW-20,"#d6e1ff",uiFont(7));drawUiFittedText("Choose copies to consume (each adds 10% success chance; all chosen copies are consumed on success or failure).",L.detailX+10,L.convY+40,L.detailW-20,"#bba5cb",uiFont(6));
-    for(let i=0;i<10;i++){const n=i+1,chip=moduleLabV420CopyChipRect(L,i),enabled=n<=selected.count,active=n===copies;drawModuleLabButton(chip.x,chip.y,chip.w,chip.h,`${n}`,enabled,active?"#ffdd88":"#b978ff");if(active){ctx.strokeStyle="#ffdd88";ctx.lineWidth=1;ctx.strokeRect(chip.x+1,chip.y+1,chip.w-2,chip.h-2);}}
-    const infoY=L.convY+108;drawUiFittedText(`${Math.min(100,copies*10)}% success · uses ${copies} matching ${copies===1?"module":"modules"}`,L.detailX+10,infoY,L.detailW-20,"#ffdd44",uiFont(8,true));drawUiFittedText(`${conv.credits.toLocaleString()}cr`,L.detailX+10,infoY+15,76,"#ffdd44",uiFont(7,true));drawModuleLabCost(conv.resource,conv.amount,L.detailX+88,infoY+4);
-    drawModuleLabButton(L.detailX+10,L.convY+L.convH-23,L.detailW-20,18,available.length?(moduleUiPendingAction?"MODULE REQUEST PENDING":convergeReady?"CONVERGE SELECTED MODULES":"CONVERGE — MISSING COST"):"ALL TRAITS UNLOCKED",available.length>0&&convergeReady&&!moduleUiPendingAction,"#e8bcff");
+    ctx.fillStyle="#0b1424";ctx.fillRect(L.detailX,L.contentY,L.detailW,L.headerH);ctx.strokeStyle="#345170";ctx.strokeRect(L.detailX+.5,L.contentY+.5,L.detailW-1,L.headerH-1);drawItemIcon(ctx,key,L.detailX+detailPad,L.contentY+Math.round(13*u),moduleIconSize);
+    const textX=L.detailX+detailPad+moduleIconSize+Math.round(14*u),textW=L.detailW-(textX-L.detailX)-detailPad;drawUiFittedText(moduleDisplayName(key),textX,L.contentY+Math.round(27*u),textW,"#fff",uiFont(13*u,true));drawUiFittedText(`${String(d.slot||"module").toUpperCase()} SLOT · ${selected.count} matching copies`,textX,L.contentY+Math.round(48*u),textW,"#ffdd88",uiFont(9*u,true));drawUiWrappedText(attachmentBonusLine(key)||d.description||"Passive ship module",textX,L.contentY+Math.round(66*u),textW,Math.round(11*u),2,"#d4e0ef",uiFont(8*u));
+    drawModuleLabButton(L.detailX+detailPad,L.equipY,L.detailW-detailPad*2,L.equipH,moduleUiPendingAction?"MODULE REQUEST PENDING":`EQUIP IN ${String(d.slot||"module").toUpperCase()} SLOT`,!moduleUiPendingAction,"#78ff8a",10*u);
+    ctx.fillStyle="#10241b";ctx.fillRect(L.detailX,L.normalY,L.detailW,L.normalH);ctx.strokeStyle="#4a8a6a";ctx.strokeRect(L.detailX+.5,L.normalY+.5,L.detailW-1,L.normalH-1);drawUiFittedText("NORMAL UPGRADE",L.detailX+detailPad,L.normalY+Math.round(18*u),L.detailW-detailPad*2,"#78ff8a",uiFont(10*u,true));drawUiFittedText(m.level>=10?"Maximum +10 reached":`+${m.level||0} → +${Math.min(10,m.level+1)}`,L.detailX+detailPad,L.normalY+Math.round(37*u),L.detailW-detailPad*2,"#e4eefc",uiFont(10*u));
+    if(m.level<10){drawUiFittedText(`${next.credits.toLocaleString()}cr`,L.detailX+detailPad,L.normalY+Math.round(58*u),Math.round(100*u),"#ffdd44",uiFont(9*u,true));drawLargeModuleLabCost(next.resource,next.amount,L.detailX+Math.round(112*u),L.normalY+Math.round(39*u),u,L.detailW-Math.round(122*u));}
+    const upgradeH=Math.round(24*u),upgradeY=L.normalY+L.normalH-upgradeH-Math.round(7*u);drawModuleLabButton(L.detailX+detailPad,upgradeY,L.detailW-detailPad*2,upgradeH,m.level>=10?"MAX LEVEL":moduleUiPendingAction?"MODULE REQUEST PENDING":upgradeReady?"UPGRADE MODULE":"UPGRADE — MISSING COST",m.level<10&&upgradeReady&&!moduleUiPendingAction,"#78ff8a",9*u);
+    ctx.fillStyle="#21152c";ctx.fillRect(L.detailX,L.convY,L.detailW,L.convH);ctx.strokeStyle="#b978ff";ctx.strokeRect(L.detailX+.5,L.convY+.5,L.detailW-1,L.convH-1);drawUiFittedText("CONVERGENCE",L.detailX+detailPad,L.convY+Math.round(18*u),L.detailW-detailPad*2,"#e8bcff",uiFont(10*u,true));drawUiFittedText(available.length?`Possible new trait: ${available.join(", ")}`:"All convergence traits unlocked",L.detailX+detailPad,L.convY+Math.round(38*u),L.detailW-detailPad*2,"#e7eef9",uiFont(9*u));drawUiWrappedText("Choose copies to consume. Each matching module raises success by 10%; all selected copies are consumed on success or failure.",L.detailX+detailPad,L.convY+Math.round(54*u),L.detailW-detailPad*2,Math.round(10*u),2,"#d1bedc",uiFont(8*u));
+    for(let i=0;i<10;i++){const n=i+1,chip=moduleLabV420CopyChipRect(L,i),enabled=n<=selected.count,active=n===copies;drawModuleLabButton(chip.x,chip.y,chip.w,chip.h,`${n}`,enabled,active?"#ffdd88":"#b978ff",9*u);if(active){ctx.strokeStyle="#ffdd88";ctx.lineWidth=Math.max(1,Math.round(u));ctx.strokeRect(chip.x+1,chip.y+1,chip.w-2,chip.h-2);}}
+    const infoY=L.convY+Math.round(127*u);drawUiFittedText(`${Math.min(100,copies*10)}% success · uses ${copies} matching ${copies===1?"module":"modules"}`,L.detailX+detailPad,infoY,L.detailW-detailPad*2,"#ffdd44",uiFont(10*u,true));drawUiFittedText(`${conv.credits.toLocaleString()}cr`,L.detailX+detailPad,infoY+Math.round(22*u),Math.round(100*u),"#ffdd44",uiFont(9*u,true));drawLargeModuleLabCost(conv.resource,conv.amount,L.detailX+Math.round(120*u),infoY+Math.round(5*u),u,L.detailW-Math.round(132*u));
+    const convergeH=Math.round(25*u),convergeY=L.convY+L.convH-convergeH-Math.round(8*u);drawModuleLabButton(L.detailX+detailPad,convergeY,L.detailW-detailPad*2,convergeH,available.length?(moduleUiPendingAction?"MODULE REQUEST PENDING":convergeReady?"CONVERGE SELECTED MODULES":"CONVERGE — MISSING COST"):"ALL TRAITS UNLOCKED",available.length>0&&convergeReady&&!moduleUiPendingAction,"#e8bcff",9*u);
   }catch(error){console.error("Module Lab draw recovered",error);moduleUiPendingAction="";inventoryTab="items";showUiActionNotice("Module Lab recovered — Items restored","#ffcc44");}
   finally{ctx.restore();}
 };
 handleInventoryModuleLabTabClick=function(mx,my){
   try{
-    const entries=moduleLabEntriesSafe(),L=moduleLabV420Layout(),r=L.r,rowH=28,visible=Math.max(3,Math.floor((L.listH-13)/rowH));
-    if(my>=r.y+7&&my<=r.y+29){if(mx>=r.x+r.w-178&&mx<=r.x+r.w-100){setInventoryModuleTab("items");return true;}return true;}
-    if(entries.length>visible&&mx>=L.listX+L.listW-16&&mx<=L.listX+L.listW&&my>=L.contentY&&my<=L.contentY+L.listH){moduleLabListScroll=clamp((moduleLabListScroll||0)+(my<L.contentY+L.listH/2?-1:1),0,Math.max(0,entries.length-visible));return true;}
-    const shown=entries.slice(moduleLabListScroll,moduleLabListScroll+visible);for(let i=0;i<shown.length;i++){const y=L.contentY+7+i*rowH;if(mx>=L.listX+6&&mx<=L.listX+L.listW-12&&my>=y&&my<=y+23){selectInventoryModuleSafe(shown[i].key);return true;}}
+    const entries=moduleLabEntriesSafe(),L=moduleLabV420Layout(),visible=Math.max(3,Math.floor((L.listH-Math.round(18*L.u))/L.rowH)),detailPad=Math.round(12*L.u);
+    const inRect=(point,rect)=>point.x>=rect.x&&point.x<=rect.x+rect.w&&point.y>=rect.y&&point.y<=rect.y+rect.h;
+    if(inRect({x:mx,y:my},L.tabs.items)){setInventoryModuleTab("items");return true;}
+    if(inRect({x:mx,y:my},L.tabs.modules))return true;
+    if(entries.length>visible&&mx>=L.listX+L.listW-Math.round(20*L.u)&&mx<=L.listX+L.listW&&my>=L.contentY&&my<=L.contentY+L.listH){moduleLabListScroll=clamp((moduleLabListScroll||0)+(my<L.contentY+L.listH/2?-1:1),0,Math.max(0,entries.length-visible));return true;}
+    const shown=entries.slice(moduleLabListScroll,moduleLabListScroll+visible);for(let i=0;i<shown.length;i++){const y=L.contentY+Math.round(9*L.u)+i*L.rowH;if(mx>=L.listX+Math.round(8*L.u)&&mx<=L.listX+L.listW-Math.round(16*L.u)&&my>=y&&my<=y+L.rowBoxH){selectInventoryModuleSafe(shown[i].key);return true;}}
     const selected=entries.find(entry=>entry.key===inventoryModuleKey);if(!selected)return true;
-    if(mx>=L.detailX+10&&mx<=L.detailX+L.detailW-10&&my>=L.equipY&&my<=L.equipY+23){requestEquipAttachmentSafe(selected.key);return true;}
-    if(mx>=L.detailX+10&&mx<=L.detailX+L.detailW-10&&my>=L.normalY+L.normalH-22&&my<=L.normalY+L.normalH-4){const cost=moduleLabCostSafe("upgrade",selected.key),meta=moduleTierForClient(selected.key);if(meta.level>=10)showUiActionNotice("This module is already +10","#ffcc44");else if(player.credits<cost.credits||inventoryTotal(cost.resource)<cost.amount)showUiActionNotice("Missing module upgrade materials","#ff7777");else moduleLabSend("upgradeModuleItem",{itemKey:selected.key},"Upgrading module…","#7be6ff");return true;}
+    if(mx>=L.detailX+detailPad&&mx<=L.detailX+L.detailW-detailPad&&my>=L.equipY&&my<=L.equipY+L.equipH){requestEquipAttachmentSafe(selected.key);return true;}
+    const upgradeH=Math.round(24*L.u),upgradeY=L.normalY+L.normalH-upgradeH-Math.round(7*L.u);if(mx>=L.detailX+detailPad&&mx<=L.detailX+L.detailW-detailPad&&my>=upgradeY&&my<=upgradeY+upgradeH){const cost=moduleLabCostSafe("upgrade",selected.key),meta=moduleTierForClient(selected.key);if(meta.level>=10)showUiActionNotice("This module is already +10","#ffcc44");else if(player.credits<cost.credits||inventoryTotal(cost.resource)<cost.amount)showUiActionNotice("Missing module upgrade materials","#ff7777");else moduleLabSend("upgradeModuleItem",{itemKey:selected.key},"Upgrading module…","#7be6ff");return true;}
     for(let i=0;i<10;i++){const n=i+1,chip=moduleLabV420CopyChipRect(L,i);if(mx>=chip.x&&mx<=chip.x+chip.w&&my>=chip.y&&my<=chip.y+chip.h){if(n<=selected.count)inventoryModuleCopies=n;else showUiActionNotice(`Need ${n} matching modules to select that chance`,"#ffcc44");return true;}}
-    if(mx>=L.detailX+10&&mx<=L.detailX+L.detailW-10&&my>=L.convY+L.convH-23&&my<=L.convY+L.convH-5){const copies=clamp(Math.floor(Number(inventoryModuleCopies)||1),1,Math.min(10,selected.count)),cost=moduleLabCostSafe("converge",selected.key,copies),meta=moduleTierForClient(selected.key),remaining=MODULE_CONVERGENCE_BONUSES.filter(b=>!(meta.bonuses||[]).includes(b));if(!remaining.length)showUiActionNotice("All convergence traits are unlocked","#ffcc44");else if(player.credits<cost.credits||inventoryTotal(cost.resource)<cost.amount||selected.count<copies)showUiActionNotice("Missing matching modules or convergence materials","#ff7777");else moduleLabSend("convergeModuleItem",{itemKey:selected.key,copies},`Converging ${copies} module${copies===1?"":"s"}…`,"#e6bcff");return true;}
+    const convergeH=Math.round(25*L.u),convergeY=L.convY+L.convH-convergeH-Math.round(8*L.u);if(mx>=L.detailX+detailPad&&mx<=L.detailX+L.detailW-detailPad&&my>=convergeY&&my<=convergeY+convergeH){const copies=clamp(Math.floor(Number(inventoryModuleCopies)||1),1,Math.min(10,selected.count)),cost=moduleLabCostSafe("converge",selected.key,copies),meta=moduleTierForClient(selected.key),remaining=MODULE_CONVERGENCE_BONUSES.filter(b=>!(meta.bonuses||[]).includes(b));if(!remaining.length)showUiActionNotice("All convergence traits are unlocked","#ffcc44");else if(player.credits<cost.credits||inventoryTotal(cost.resource)<cost.amount||selected.count<copies)showUiActionNotice("Missing matching modules or convergence materials","#ff7777");else moduleLabSend("convergeModuleItem",{itemKey:selected.key,copies},`Converging ${copies} module${copies===1?"":"s"}…`,"#e6bcff");return true;}
     return true;
   }catch(error){console.error("Module Lab click recovered",error);showUiActionNotice("Module Lab recovered safely","#ffcc44");return true;}
 };
