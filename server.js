@@ -13,7 +13,15 @@ const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, {
   cors: { origin: "*", methods: ["GET","POST"] },
-  pingTimeout: 20000, pingInterval: 10000
+  // Mobile browsers and embedded game frames can briefly suspend networking.
+  // Give Socket.IO a wider heartbeat window and let it recover its transport
+  // before treating a healthy pilot as disconnected.
+  pingTimeout: 30000,
+  pingInterval: 15000,
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 60000,
+    skipMiddlewares: true
+  }
 });
 
 // Allow cross-origin requests from any domain (needed for Wix embedding)
@@ -985,6 +993,73 @@ function sendPlanetModuleState(socket,p){socket.emit("planetModuleState",{planet
 
 /* ── Player state ── */
 const players = new Map();
+
+// A short in-memory handoff keeps a pilot's live session intact across a
+// transient Socket.IO reconnect.  Persistent accounts still save through Wix;
+// this specifically protects the common guest/embed disconnect path without
+// trusting a client-supplied player snapshot.
+const transientReconnectSessions = new Map();
+const TRANSIENT_RECONNECT_TTL_MS = 120000;
+
+function normalizeReconnectToken(raw){
+  const token=String(raw||"").trim();
+  return /^[A-Za-z0-9_-]{24,128}$/.test(token)?token:"";
+}
+function expireTransientReconnectSessions(){
+  const now=Date.now();
+  for(const [token,entry] of transientReconnectSessions){
+    if(entry&&entry.expiresAt>now)continue;
+    transientReconnectSessions.delete(token);
+    // A session that did not return during the recovery window is a real
+    // disconnect.  Finish the small amount of volatile social cleanup that
+    // was deliberately deferred while we kept its pilot state available.
+    const p=entry?.player,oldId=String(entry?.oldId||p?.id||"");
+    if(p?.partyId){
+      const party=parties.get(p.partyId);
+      if(party){
+        party.members.delete(oldId);
+        party.invites?.delete(oldId);
+        if(party.members.size===0)parties.delete(party.id);
+        else{
+          if(party.leaderId===oldId)party.leaderId=[...party.members][0]||null;
+          emitPartyState(party.id);
+        }
+      }
+      p.partyId=null;
+    }
+    if(p?.factionId){const faction=factions.get(p.factionId);if(faction)emitFactionState(faction.id);}
+  }
+}
+function rememberTransientReconnectSession(p,token){
+  token=normalizeReconnectToken(token);if(!p||!token)return false;
+  expireTransientReconnectSessions();
+  transientReconnectSessions.set(token,{player:p,oldId:p.id,memberId:p.memberId?String(p.memberId):null,expiresAt:Date.now()+TRANSIENT_RECONNECT_TTL_MS});
+  return true;
+}
+function takeTransientReconnectSession(token,auth){
+  token=normalizeReconnectToken(token);if(!token)return null;
+  expireTransientReconnectSessions();
+  const entry=transientReconnectSessions.get(token);if(!entry)return null;
+  // Never use a short-lived reconnect token to switch between member accounts.
+  // A briefly expired Wix token is allowed to resume its own in-memory session;
+  // the reconnect token itself is random and never accepted as a long-term login.
+  if(entry.memberId&&auth?.memberId&&String(auth.memberId)!==entry.memberId)return null;
+  transientReconnectSessions.delete(token);
+  return entry;
+}
+function rebindTransientPlayerSession(p,oldId,newId,displayName){
+  if(!p)return;
+  p.id=newId;p.name=sanitizeName(displayName||p.name);p.lastSeen=Date.now();p.ping=0;p.pingTs=Date.now();
+  // Never carry a held key across a transport replacement.
+  p.input={rotLeft:false,rotRight:false,thrust:false,brake:false,shootX:null,shootY:null};
+  for(const st of ownedStations.values())if(st.ownerId===oldId){st.ownerId=newId;st.ownerName=p.name;}
+  for(const st of ownedStructures.values())if(st.ownerId===oldId){st.ownerId=newId;st.ownerName=p.name;}
+  for(const zone of civilizationZones.values())if(zone.ownerId===oldId){zone.ownerId=newId;zone.ownerName=p.name;}
+  if(p.partyId){const party=parties.get(p.partyId);if(party){party.members.delete(oldId);party.members.add(newId);if(party.leaderId===oldId)party.leaderId=newId;for(const [inviteId,invite] of party.invites){if(inviteId===oldId){party.invites.delete(inviteId);party.invites.set(newId,invite);}if(invite?.fromId===oldId)invite.fromId=newId;}}}
+  if(p.factionId){const faction=factions.get(p.factionId);if(faction){faction.members.delete(oldId);faction.members.add(newId);if(faction.leaderId===oldId)faction.leaderId=newId;if(faction.memberMeta?.[oldId]){faction.memberMeta[newId]=faction.memberMeta[oldId];delete faction.memberMeta[oldId];}for(const [inviteId,invite] of faction.invites||[]){if(inviteId===oldId){faction.invites.delete(inviteId);faction.invites.set(newId,invite);}if(invite?.fromId===oldId)invite.fromId=newId;}}}
+}
+const transientReconnectSweepTimer=setInterval(expireTransientReconnectSessions,30000);
+if(typeof transientReconnectSweepTimer.unref==="function")transientReconnectSweepTimer.unref();
 
 function defaultPlayer(id, name, x, y) {
   return {
@@ -2476,26 +2551,43 @@ function contributeFactionXp(p,amount,reason="XP"){
 io.on("connection",socket=>{
   if(players.size>=MAX_PLAYERS){socket.emit("serverFull");socket.disconnect(true);return;}
 
-  socket.on("join",async ({name,token,wixSnapshot})=>{
+  socket.on("join",async (joinPayload={})=>{
     if(players.has(socket.id))return;
+    const {name,token,wixSnapshot,resumeToken}=joinPayload||{};
     let auth=combineAuthWithClientSnapshot(verifyGameToken(token),wixSnapshot);
     auth=await enrichAuthWithPersistedSnapshot(auth,"join");
     if(players.has(socket.id)||!socket.connected)return;
-    const sp=computeSpawnPoint(),p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
-    applyAuthAccountToPlayer(p,auth);
+    const resumed=takeTransientReconnectSession(resumeToken,auth);
+    let p;
+    if(resumed){
+      p=resumed.player;
+      rebindTransientPlayerSession(p,resumed.oldId,socket.id,auth?.displayName||name||p.name);
+      // A guest can sign in while the reconnect is happening.  Existing
+      // member sessions keep their authoritative in-memory state instead of
+      // being overwritten by a delayed browser snapshot.
+      if(auth&&!p.memberId)applyAuthAccountToPlayer(p,auth);
+    }else{
+      const sp=computeSpawnPoint();p=defaultPlayer(socket.id,auth?.displayName||name,sp.x,sp.y);
+      applyAuthAccountToPlayer(p,auth);
+    }
+    p.connectionResumeToken=normalizeReconnectToken(resumeToken)||p.connectionResumeToken||"";
     players.set(socket.id,p);
+    // Socket rooms are connection-scoped. Restore a planetside pilot's room
+    // membership when the transient session is rebound, otherwise their world
+    // state keeps updating but they stop receiving planet events.
+    if(resumed&&p.mode==="planet"&&p.planetId)socket.join(`planet:${p.planetId}`);
     if(p.memberId){
       claimMemberSocket(p.memberId,socket.id);
       const cached=accountLastGoodSnapshots.get(String(p.memberId));
       if(cached&&inventoryPayloadHasItems(cached.invSlots)&&!inventoryPayloadHasItems(p.invSlots))applyPersistedSnapshotPreservingSession(p,cached);
     }
-    restorePersistentBuildingsForPlayer(p);
-    if(auth)maybeGrantAccountCreationBonus(p,auth,"join");
+    if(!resumed)restorePersistentBuildingsForPlayer(p);
+    if(auth&&!resumed)maybeGrantAccountCreationBonus(p,auth,"join");
     applyShipStats(p,false);
     socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),planetModules:normalizePlanetModules(p.planetModules||{}),moduleDefs:publicPlanetModuleDefs(),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),worldCosmetics:GLOBAL_WORLD_COSMETICS,worldPlanetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS,storyProgress:normalizeStoryProgress(p.storyProgress||{}),resourceDefs:SERVER_RESOURCE_PUBLIC_DEFS,resourceKeys:RES_KEYS,shopResourceKeys:SHOP_RESOURCE_KEYS,resourceCatalogVersion:2,spriteCosmeticRegistryVersion:1,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
     emitInventorySync(p,"login");sendPlanetModuleState(socket,p);
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
-    broadcastChat("Server",`${p.name} has entered the galaxy.`,"#78ff8a");
+    broadcastChat("Server",`${p.name} has ${resumed?"reconnected to":"entered"} the galaxy.`,"#78ff8a");
     broadcastLeaderboard();broadcastServerList();
     emitOwnedStationsList(socket);
     emitPlayerStructures(socket);
@@ -2592,14 +2684,16 @@ io.on("connection",socket=>{
     p.equippedWeapon="weapon_laser_mk1";p.weaponLevels=p.weaponLevels||{};p.weaponLevels.weapon_laser_mk1=weaponLevelFor(p,"weapon_laser_mk1");
     socket.emit("weaponEquipped",{weaponKey:p.equippedWeapon,weaponLevels:p.weaponLevels,equippedWeapon:p.equippedWeapon,unequipped:true});emitInventorySync(p,"unequip_weapon");persistPlayerSoon(p,"unequip_weapon");
   });
-  socket.on("equipAttachment",({attachmentKey})=>{
-    const p=players.get(socket.id);attachmentKey=String(attachmentKey||"");
-    const def=ATTACHMENT_DEFS[inventoryBaseType(attachmentKey)];
-    if(!p||!def){socket.emit("attachmentDenied",{reason:"Unknown attachment."});return;}
-    if(inventoryCount(p,attachmentKey)<=0){socket.emit("attachmentDenied",{reason:"You do not own that attachment."});return;}
-    p.equippedAttachments=normalizeAttachments(p.equippedAttachments||{});
-    p.equippedAttachments[def.slot]=attachmentKey;applyShipStats(p,false);
-    socket.emit("attachmentEquipped",{attachmentKey,slot:def.slot,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});emitInventorySync(p,"equip_attachment");persistPlayerSoon(p,"equip_attachment");
+  socket.on("equipAttachment",(payload={})=>{
+    try{
+      let attachmentKey=String(payload?.attachmentKey||""),p=players.get(socket.id);
+      const def=ATTACHMENT_DEFS[inventoryBaseType(attachmentKey)];
+      if(!p||!def){socket.emit("attachmentDenied",{reason:"Unknown attachment."});return;}
+      if(inventoryCount(p,attachmentKey)<=0){socket.emit("attachmentDenied",{reason:"You do not own that attachment."});return;}
+      p.equippedAttachments=normalizeAttachments(p.equippedAttachments||{});
+      p.equippedAttachments[def.slot]=attachmentKey;applyShipStats(p,false);
+      socket.emit("attachmentEquipped",{attachmentKey,slot:def.slot,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});emitInventorySync(p,"equip_attachment");persistPlayerSoon(p,"equip_attachment");
+    }catch(error){console.error("equipAttachment recovered",error);socket.emit("attachmentDenied",{reason:"Module equip could not be completed safely."});}
   });
   socket.on("unequipAttachment",({slot})=>{
     const p=players.get(socket.id);slot=String(slot||"");
@@ -2608,16 +2702,19 @@ io.on("connection",socket=>{
     const old=p.equippedAttachments[slot];p.equippedAttachments[slot]=null;applyShipStats(p,false);
     socket.emit("attachmentUnequipped",{attachmentKey:old,slot,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});emitInventorySync(p,"unequip_attachment");persistPlayerSoon(p,"unequip_attachment");
   });
-  socket.on("upgradeModuleItem",({itemKey})=>{
-    const p=players.get(socket.id),key=String(itemKey||""),m=moduleTierForKey(key);if(!p||!ATTACHMENT_DEFS[m.base]||m.level>=10){socket.emit("moduleUpgradeDenied",{reason:"That module cannot be upgraded further."});return;}
-    if(inventoryCount(p,key)<=0){socket.emit("moduleUpgradeDenied",{reason:"Module is no longer in your inventory."});return;}
-    const cost=moduleUpgradeCostFor(key);if((p.credits||0)<cost.credits||inventoryCount(p,cost.resource)<cost.amount){socket.emit("moduleUpgradeDenied",{reason:`Need ${cost.credits.toLocaleString()}cr and ${cost.amount} ${cost.resource.replace(/_/g," ")}.`});return;}
-    const next=moduleInstanceKey(m.base,m.level+1,m.bonus);if(!canReplaceInventoryItem(p,key,1,next,1)){socket.emit("moduleUpgradeDenied",{reason:"Inventory is full for the upgraded module."});return;}
-    p.credits-=cost.credits;removeInventory(p,cost.resource,cost.amount);removeInventory(p,key,1);addInventory(p,next,1);for(const slot of ATTACHMENT_SLOTS)if(p.equippedAttachments?.[slot]===key)p.equippedAttachments[slot]=next;applyShipStats(p,false);
-    socket.emit("moduleUpgradeResult",{itemKey:next,base:m.base,level:m.level+1,bonus:m.bonus,cost,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});syncAndPersist(p,"module_upgrade");
+  socket.on("upgradeModuleItem",(payload={})=>{
+    try{
+      const p=players.get(socket.id),key=String(payload?.itemKey||""),m=moduleTierForKey(key);if(!p||!ATTACHMENT_DEFS[m.base]||m.level>=10){socket.emit("moduleUpgradeDenied",{reason:"That module cannot be upgraded further."});return;}
+      if(inventoryCount(p,key)<=0){socket.emit("moduleUpgradeDenied",{reason:"Module is no longer in your inventory."});return;}
+      const cost=moduleUpgradeCostFor(key);if((p.credits||0)<cost.credits||inventoryCount(p,cost.resource)<cost.amount){socket.emit("moduleUpgradeDenied",{reason:`Need ${cost.credits.toLocaleString()}cr and ${cost.amount} ${cost.resource.replace(/_/g," ")}.`});return;}
+      const next=moduleInstanceKey(m.base,m.level+1,m.bonus);if(!canReplaceInventoryItem(p,key,1,next,1)){socket.emit("moduleUpgradeDenied",{reason:"Inventory is full for the upgraded module."});return;}
+      p.credits-=cost.credits;removeInventory(p,cost.resource,cost.amount);removeInventory(p,key,1);addInventory(p,next,1);for(const slot of ATTACHMENT_SLOTS)if(p.equippedAttachments?.[slot]===key)p.equippedAttachments[slot]=next;applyShipStats(p,false);
+      socket.emit("moduleUpgradeResult",{itemKey:next,base:m.base,level:m.level+1,bonus:m.bonus,cost,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});syncAndPersist(p,"module_upgrade");
+    }catch(error){console.error("upgradeModuleItem recovered",error);socket.emit("moduleUpgradeDenied",{reason:"Module upgrade recovered safely. Please try again."});}
   });
-  socket.on("convergeModuleItem",({itemKey,copies})=>{
-    const p=players.get(socket.id),key=String(itemKey||""),m=moduleTierForKey(key),use=Math.max(1,Math.min(10,Math.floor(Number(copies)||1)));if(!p||!ATTACHMENT_DEFS[m.base]){socket.emit("moduleUpgradeDenied",{reason:"Choose a ship module."});return;}
+  socket.on("convergeModuleItem",(payload={})=>{
+    try{
+    const p=players.get(socket.id),key=String(payload?.itemKey||""),m=moduleTierForKey(key),use=Math.max(1,Math.min(10,Math.floor(Number(payload?.copies)||1)));if(!p||!ATTACHMENT_DEFS[m.base]){socket.emit("moduleUpgradeDenied",{reason:"Choose a ship module."});return;}
     const pool=MODULE_CONVERGENCE_BONUSES.filter(b=>!m.bonuses.includes(b));
     if(!pool.length){socket.emit("moduleUpgradeDenied",{reason:"This module already has every convergence bonus."});return;}
     if(inventoryCount(p,key)<use){socket.emit("moduleUpgradeDenied",{reason:`Need ${use} matching module${use>1?"s":""}.`});return;}
@@ -2630,6 +2727,7 @@ io.on("connection",socket=>{
     else {addInventory(p,key,1);}
     applyShipStats(p,false);
     socket.emit("moduleConvergenceResult",{success,chance,result:success?result:key,base:m.base,level:m.level,bonus:success?nextBonus:m.bonus,addedBonus:success?addedBonus:null,maxBonuses:MODULE_CONVERGENCE_BONUSES.length,cost,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});syncAndPersist(p,"module_convergence");
+    }catch(error){console.error("convergeModuleItem recovered",error);socket.emit("moduleUpgradeDenied",{reason:"Module convergence recovered safely. Please try again."});}
   });
   socket.on("upgradeWeapon",({weaponKey})=>{
     const p=players.get(socket.id);weaponKey=String(weaponKey||"");
@@ -3605,10 +3703,13 @@ io.on("connection",socket=>{
     broadcastChat(p.name,message,p.color);
   });
 
-  socket.on("clientPing",()=>{
+  socket.on("clientPing",(payload={},ack)=>{
+    if(typeof payload==="function"){ack=payload;payload={};}
     const p=players.get(socket.id);if(!p)return;
     const now=Date.now();if(p.pingTs)p.ping=Math.min(999,now-p.pingTs);p.pingTs=now;
-    socket.emit("serverPong");
+    const pong={ok:true,serverNow:now,echo:Math.max(0,Math.floor(Number(payload?.seq)||0))};
+    socket.emit("serverPong",pong);
+    if(typeof ack==="function")ack(pong);
   });
 
   socket.on("requestLeaderboard",()=>socket.emit("leaderboard",buildLeaderboard(10)));
@@ -3617,9 +3718,10 @@ io.on("connection",socket=>{
 
   socket.on("disconnect",()=>{
     const p=players.get(socket.id);
+    const keepForReconnect=!!(p&&rememberTransientReconnectSession(p,p.connectionResumeToken));
     if(p){broadcastChat("Server",`${p.name} has left the galaxy.`,"#ff8888");socket.broadcast.emit("playerLeft",{id:socket.id});if(p.memberId){if(isCurrentAccountSocket(p)){persistPlayerNow(p,"disconnect");socketsByMemberId.delete(String(p.memberId));}else{cancelPersistTimerForPlayerId(p.id);}}else persistPlayerNow(p,"disconnect");}
     for(const ts of [...tradeSessions.values()])if(ts.a===socket.id||ts.b===socket.id)cancelTrade(ts,"Trade cancelled: player disconnected.");
-    if(p?.partyId)leaveParty(socket.id,"Disconnected from party.");
+    if(p?.partyId&&!keepForReconnect)leaveParty(socket.id,"Disconnected from party.");
     if(p?.factionId){const f=factions.get(p.factionId);if(f)emitFactionState(f.id);}
     players.delete(socket.id);broadcastLeaderboard();broadcastServerList();
   });
