@@ -4123,9 +4123,47 @@ function holdCivilizationShipFormation(ts,station,activeSpeed){
   if(d>5){const ang=angleToward(ts.x,ts.y,target.x,target.y);ts.vx=lerp(ts.vx,Math.cos(ang)*Math.min(activeSpeed*.62,Math.max(18,d*2.1)),.12);ts.vy=lerp(ts.vy,Math.sin(ang)*Math.min(activeSpeed*.62,Math.max(18,d*2.1)),.12);ts.angle=ang;}
   else {ts.vx*=.72;ts.vy*=.72;ts.angle=target.angle;}
 }
-function civilizationMineSecondsForShip(ts,planet){
-  const density=Math.max(0,Number(planet?.density)||0),densityMult=clamp(1+density*.05,.75,1.25),capacity=Math.max(1,Number(ts?.cargoCapacity)||8);
-  return clamp(2*(3.5+Math.sqrt(capacity)*1.55)/densityMult,6,56);
+function civilizationMineSecondsForShip(ts){
+  // Civilian holds fill in visible, discrete half-second pulls: one random
+  // resource item per tick until the ship's actual cargo capacity is reached.
+  return Math.max(.5,Math.floor(Math.max(1,Number(ts?.cargoCapacity)||8))*.5);
+}
+function civClientShipOwnsMiningRoute(station){return !!(station?.civIsOwn||stationBelongsToPlayerOwnedCivilization(station));}
+function civClientMiningRange(station){return Math.max(1500,(Number(civZoneRecord(station?.civilizationZoneId)?.radius)||420)*4);}
+function civClientStockpileFull(station){const zone=civZoneRecord(station?.civilizationZoneId),total=Object.values(zone?.stockpile||{}).reduce((sum,value)=>sum+Math.max(0,Number(value)||0),0),capacity=Math.max(0,Number(zone?.stockpileCapacity)||0);return !!zone&&capacity>0&&total>=capacity;}
+function civClientMiningCandidates(station,allPlanets){
+  const planets=Array.isArray(allPlanets)?allPlanets:[],owned=civClientShipOwnsMiningRoute(station),assigned=owned&&station?.civTask==="mine"?civAssignedMiningPlanet(station):null;
+  if(owned&&civClientStockpileFull(station))return [];
+  if(assigned)return [assigned];
+  const range=owned?civClientMiningRange(station):700;
+  return planets.filter(planet=>Number.isFinite(planet?.x)&&Number.isFinite(planet?.y)&&Array.isArray(planet?.resList||planet?.resources)&&(planet.resList||planet.resources).some(Boolean)&&dist(station.x,station.y,planet.x,planet.y)<=range).sort((a,b)=>dist(station.x,station.y,a.x,a.y)-dist(station.x,station.y,b.x,b.y)||String(a.id).localeCompare(String(b.id)));
+}
+function civClientSelectMiningPlanet(ts,station,allPlanets){
+  const candidates=civClientMiningCandidates(station,allPlanets);if(!candidates.length)return null;
+  // An assigned route remains exact; automatic fleets spread out over every
+  // nearby mineable planet instead of silently sitting at their station.
+  if(candidates.length===1)return candidates[0];
+  ts._mineTrip=Math.max(0,Number(ts._mineTrip)||0);
+  const key=`${ts?.civLogisticsKey||ts?.id||"ship"}|${ts._mineTrip}|${station?.id||"station"}`;
+  let hash=2166136261;for(let i=0;i<key.length;i++){hash^=key.charCodeAt(i);hash=Math.imul(hash,16777619);}return candidates[(hash>>>0)%candidates.length];
+}
+function civClientCargoTotal(ts){return Object.values(ts?.lootCarried||{}).reduce((sum,value)=>sum+Math.max(0,Math.floor(Number(value)||0)),0);}
+function civClientStartMining(ts,planet,now){
+  ts.targetPlanet=planet;ts.lootCarried={};ts._miningNextAt=now+500;ts._miningPlanetId=planet?.id||null;ts.state="mining";ts.stateTimer=civilizationMineSecondsForShip(ts);ts.vx=0;ts.vy=0;
+}
+function civClientMineOneCargoUnit(ts,now,station){
+  const planet=ts?.targetPlanet,resources=(planet?.resList||planet?.resources||[]).filter(Boolean),capacity=Math.max(1,Math.floor(Number(ts?.cargoCapacity)||8));
+  if(!resources.length){ts.state="return";ts.stateTimer=0;return;}
+  if(civClientShipOwnsMiningRoute(station)&&civClientStockpileFull(station)){if(civClientCargoTotal(ts)>0){ts.state="return";ts.stateTimer=0;}else{ts.state="idle";ts.stateTimer=.7;}return;}
+  if(!Number.isFinite(Number(ts._miningNextAt)))ts._miningNextAt=now+500;
+  let steps=0;
+  while(civClientCargoTotal(ts)<capacity&&now>=ts._miningNextAt&&steps<8){
+    const resource=resources[Math.floor(Math.random()*resources.length)];
+    if(resource)ts.lootCarried[resource]=(ts.lootCarried[resource]||0)+1;
+    ts._miningNextAt=Math.max(Number(ts._miningNextAt)||now,now-3500)+500;steps++;
+  }
+  ts.stateTimer=Math.max(0,(capacity-civClientCargoTotal(ts))*.5);
+  if(civClientCargoTotal(ts)>=capacity){ts.state="return";ts.stateTimer=0;}
 }
 function recoverNpcTradeShipTask(ts,station,allPlanets){
   if(!ts||!station||station.destroyed)return;
@@ -4142,8 +4180,7 @@ function recoverNpcTradeShipTask(ts,station,allPlanets){
     ts.state="idle";ts.stateTimer=999;holdCivilizationShipFormation(ts,station,ts.speed||80);return;
   }
   ts.mission="mine";
-  const assigned=station.civIsOwn?civAssignedMiningPlanet(station):null;
-  const fallback=assigned||allPlanets.filter(p=>Number.isFinite(p?.x)&&Number.isFinite(p?.y)&&dist(station.x,station.y,p.x,p.y)<700)[0]||null;
+  const fallback=civClientSelectMiningPlanet(ts,station,allPlanets);
   if(!fallback){ts.targetPlanet=null;ts.state="idle";ts.stateTimer=.45;ts.vx=0;ts.vy=0;return;}
   ts.targetPlanet=fallback;ts.state="travel";ts.stateTimer=0;
   const a=angleToward(ts.x,ts.y,fallback.x,fallback.y);
@@ -4158,7 +4195,7 @@ function updateTradeShip(ts,station,allPlanets,dt){
     setLocalStationTask(station);
     ts._taskRefreshAt=taskNow+1100;
     const assigned=civAssignedMiningPlanet(station);
-    if((station.civIsOwn||stationBelongsToPlayerOwnedCivilization(station))&&station.civTask==="mine"&&assigned&&!["combat","flee","return"].includes(ts.state)){
+    if(civClientShipOwnsMiningRoute(station)&&station.civTask==="mine"&&assigned&&["idle","travel"].includes(ts.state)){
       ts.targetPlanet=assigned;
       if(ts.state==="idle")ts.state="travel";
     }
@@ -4258,11 +4295,11 @@ function updateTradeShip(ts,station,allPlanets,dt){
     ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;return;
   }
   if(ts.state==="idle"&&isCivilizationIdle){holdCivilizationShipFormation(ts,station,activeSpeed);}
-  else if(ts.state==="idle"&&ts.stateTimer<=0){const assigned=(station.civIsOwn||stationBelongsToPlayerOwnedCivilization(station))&&station.civTask==="mine"?civAssignedMiningPlanet(station):null;const c=assigned?[assigned]:allPlanets.filter(p=>dist(ts.x,ts.y,p.x,p.y)<700);if(c.length>0){ts.targetPlanet=c[Math.floor(Math.random()*c.length)];ts.state="travel";}else{ts.stateTimer=.7;}}
+  else if(ts.state==="idle"&&ts.stateTimer<=0){const selected=civClientSelectMiningPlanet(ts,station,allPlanets);if(selected){ts.targetPlanet=selected;ts.state="travel";}else{ts.stateTimer=.7;}}
   if(ts.state==="travel"&&!ts.targetPlanet){recoverNpcTradeShipTask(ts,station,allPlanets);}
-  if(ts.state==="travel"&&ts.targetPlanet){const d=dist(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);if(d<ts.targetPlanet.radius+20){ts.state="mining";ts.stateTimer=civilizationMineSecondsForShip(ts,ts.targetPlanet);ts.vx=0;ts.vy=0;}else{const ang=angleToward(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);ts.vx=lerp(ts.vx,Math.cos(ang)*activeSpeed,0.12);ts.vy=lerp(ts.vy,Math.sin(ang)*activeSpeed,0.12);ts.angle=ang;}}
-  if(ts.state==="mining"&&ts.stateTimer<=0){if(ts.targetPlanet){const rl=(ts.targetPlanet.resList||ts.targetPlanet.resources||[]).filter(Boolean),col=Math.max(1,Math.floor(ts.cargoCapacity||8));ts.lootCarried={};const r=rl[Math.floor(Math.random()*rl.length)];if(r)ts.lootCarried[r]=col;}ts.state="return";ts.stateTimer=0;}
-  if(ts.state==="return"){const d=dist(ts.x,ts.y,station.x,station.y);if(station.destroyed){ts.state="combat";ts.stateTimer=999;}else if(d<station.r+15){if(!station.isOwnedCivStation||!station.civIsOwn){for(const[r,q]of Object.entries(ts.lootCarried)){const ex=station.buyStock.find(s=>s.type===r);if(ex)ex.qty=Math.min(ex.maxQty+20,ex.qty+q);}}ts.lootCarried={};ts.targetPlanet=null;ts.state="idle";ts.stateTimer=2+Math.random()*3;ts.vx=0;ts.vy=0;}else{const ang=angleToward(ts.x,ts.y,station.x,station.y);ts.vx=lerp(ts.vx,Math.cos(ang)*activeSpeed,0.12);ts.vy=lerp(ts.vy,Math.sin(ang)*activeSpeed,0.12);ts.angle=ang;}}
+  if(ts.state==="travel"&&ts.targetPlanet){const d=dist(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);if(d<ts.targetPlanet.radius+20){civClientStartMining(ts,ts.targetPlanet,taskNow);}else{const ang=angleToward(ts.x,ts.y,ts.targetPlanet.x,ts.targetPlanet.y);ts.vx=lerp(ts.vx,Math.cos(ang)*activeSpeed,0.12);ts.vy=lerp(ts.vy,Math.sin(ang)*activeSpeed,0.12);ts.angle=ang;}}
+  if(ts.state==="mining")civClientMineOneCargoUnit(ts,taskNow,station);
+  if(ts.state==="return"){const d=dist(ts.x,ts.y,station.x,station.y);if(station.destroyed){ts.state="combat";ts.stateTimer=999;}else if(d<station.r+15){if(!station.isOwnedCivStation||!station.civIsOwn){for(const[r,q]of Object.entries(ts.lootCarried)){const ex=station.buyStock.find(s=>s.type===r);if(ex)ex.qty=Math.min(ex.maxQty+20,ex.qty+q);}}ts.lootCarried={};ts.targetPlanet=null;ts._miningNextAt=0;ts._mineTrip=Math.max(0,Number(ts._mineTrip)||0)+1;ts.state="idle";ts.stateTimer=2+Math.random()*3;ts.vx=0;ts.vy=0;}else{const ang=angleToward(ts.x,ts.y,station.x,station.y);ts.vx=lerp(ts.vx,Math.cos(ang)*activeSpeed,0.12);ts.vy=lerp(ts.vy,Math.sin(ang)*activeSpeed,0.12);ts.angle=ang;}}
   ts.x+=ts.vx*dt;ts.y+=ts.vy*dt;ts.vx*=Math.pow(0.97,dt*60);ts.vy*=Math.pow(0.97,dt*60);
 }
 
@@ -6799,7 +6836,7 @@ socket.on("civilizationStationTaskSet",({zone,stationId,task,targetZoneId})=>{if
 socket.on("civilizationAllTasksSet",({zone,task,targetZoneId})=>{if(zone){civilizationZonesList=civilizationZonesList.filter(z=>z.zoneId!==zone.zoneId);civilizationZonesList.push(zone);syncCivilizationZones(civilizationZonesList);for(const st of visibleStations)if(st.civilizationZoneId===zone.zoneId){setLocalStationTask(st);for(const ts of st.tradeShips||[])recoverNpcTradeShipTask(ts,st,visiblePlanets||[]);}}const label=task==="attack"?"All zone fleets dispatched":task==="idle"?"All zone fleets recalled":"All zone fleets assigned to mine";showFT(label,ship.x,ship.y-26,task==="attack"?"#ff7777":task==="idle"?"#b9f3ff":"#78ff8a",10);});
 socket.on("civilizationShipsRecalled",({zoneId,zone}={})=>{if(zone){civilizationZonesList=civilizationZonesList.filter(z=>z.zoneId!==zone.zoneId);civilizationZonesList.push(zone);syncCivilizationZones(civilizationZonesList);}for(const st of visibleStations)if(st.civilizationZoneId===zoneId){setLocalStationTask(st);for(const ts of st.tradeShips||[])recoverNpcTradeShipTask(ts,st,visiblePlanets||[]);}showFT("Fleet recall complete — defense formation active",ship.x,ship.y-28,"#b9f3ff",10);});
 socket.on("civilizationLogisticsSync",({zone,reason})=>{if(zone){civilizationZonesList=civilizationZonesList.filter(z=>z.zoneId!==zone.zoneId);civilizationZonesList.push(zone);syncCivilizationZones(civilizationZonesList);}showFT(reason?"Civilization updated":"Civilization synced",ship.x,ship.y-24,"#78ff8a",9);updateHud();});
-socket.on("civilizationStockpileDeposit",({zoneId,stationId,shipId,resourceType,amount,capacity,stockpile,stockpileTotal,stockpileCapacity,resourceRates,lastMiningDepositAt}={})=>{
+socket.on("civilizationStockpileDeposit",({zoneId,stationId,shipId,resourceType,amount,items,capacity,stockpile,stockpileTotal,stockpileCapacity,resourceRates,lastMiningDepositAt}={})=>{
   const zone=civZoneRecord(zoneId);
   // A haul can finish while the player is crossing chunks. Ask the server for
   // the complete owned-zone record instead of dropping the update; otherwise
@@ -6810,14 +6847,16 @@ socket.on("civilizationStockpileDeposit",({zoneId,stationId,shipId,resourceType,
   zone.stockpileTotal=Number.isFinite(Number(stockpileTotal))?Number(stockpileTotal):Object.values(zone.stockpile).reduce((n,v)=>n+Math.max(0,Number(v)||0),0);
   if(Number.isFinite(Number(stockpileCapacity)))zone.stockpileCapacity=Math.max(0,Number(stockpileCapacity));
   zone.resourceRates={...(resourceRates||zone.resourceRates||{})};zone.lastMiningDepositAt=Number(lastMiningDepositAt||Date.now());
-  const rec=zone.superStation?.id===stationId?zone.superStation:[...(zone.baseStations||[]),...(zone.builtStations||[])].find(st=>st.id===stationId);if(rec&&resourceType)rec.lastDeposit={type:resourceType,amount:Number(amount)||0,shipId:shipId||null,at:Date.now()};
+  const delivered=Array.isArray(items)&&items.length?items.map(entry=>({type:String(entry?.type||""),amount:Math.max(0,Math.floor(Number(entry?.amount)||0))})).filter(entry=>entry.type&&entry.amount>0):resourceType?[{type:resourceType,amount:Math.max(0,Math.floor(Number(amount)||0))}]:[];
+  const rec=zone.superStation?.id===stationId?zone.superStation:[...(zone.baseStations||[]),...(zone.builtStations||[])].find(st=>st.id===stationId);if(rec&&delivered.length)rec.lastDeposit={items:delivered,amount:delivered.reduce((total,entry)=>total+entry.amount,0),shipId:shipId||null,at:Date.now()};
   // The currently drawn stockpile / trade panel reads from this live record on
   // every frame, so a completed ship haul appears immediately without a menu
   // close/reopen or a full station/fleet reconstruction.
   const depositNoticeAt=performance.now();
-  if(resourceType&&Number(amount)>0&&(!socket._lastCivDepositNoticeAt||depositNoticeAt-socket._lastCivDepositNoticeAt>1800)){
+  if(delivered.length&&(!socket._lastCivDepositNoticeAt||depositNoticeAt-socket._lastCivDepositNoticeAt>1800)){
     socket._lastCivDepositNoticeAt=depositNoticeAt;
-    showUiActionNotice(`${itemDefFor(resourceType)?.name||resourceType} +${Math.floor(Number(amount)||0)} delivered to stockpile`,"#78ff8a");
+    const label=delivered.slice(0,3).map(entry=>`${itemDefFor(entry.type)?.name||entry.type} +${entry.amount}`).join(" · ");
+    showUiActionNotice(`${label}${delivered.length>3?" · …":""} delivered to stockpile`,"#78ff8a");
   }
   updateHud();
 });
@@ -8212,8 +8251,8 @@ function drawOwnedCivilizationStationMenu(st){
   if(planets.length>8){const canUp=civStationPlanetScroll>0,canDown=civStationPlanetScroll<maxCivStationPlanetScroll(st);civDrawButton(px+209,py+253,19,14,"▲",canUp,"#bd7cff");civDrawButton(px+209,py+426,19,14,"▼",canDown,"#bd7cff");drawUiFittedText(`${civStationPlanetScroll+1}-${Math.min(planets.length,civStationPlanetScroll+8)}/${planets.length}`,px+16,py+442,212,"#879db5",uiFont(6),"center");}
   ctx.fillStyle="#111b29";ctx.fillRect(px+244,py+253,480,129);ctx.strokeStyle="#344d6b";ctx.strokeRect(px+244,py+253,480,129);drawUiFittedText(selected?`TARGET: ${selected.name||selected.type||selected.id}`:"Select a resource planet",px+256,py+269,448,"#d6e1ff",uiFont(8,true));
   drawUiFittedText(`Resources mined at this planet (each filled ship chooses one at random):`,px+256,py+282,448,"#8fa3cc",uiFont(7));res.slice(0,8).forEach((type,i)=>{const x=px+256+(i%4)*112,y=py+289+Math.floor(i/4)*28;drawItemIcon(ctx,type,x,y,18);drawUiFittedText(itemDefFor(type)?.name||type,x+22,y+13,84,"#d6e1ff",uiFont(6));});
-  drawUiFittedText(`Distance ${selected?Math.round(dist(st.x,st.y,selected.x,selected.y)):"—"} · range ${Math.max(1500,(z.radius||420)*4)} · current ${rec.resourceTarget?.name||"unassigned"}`,px+256,py+347,448,"#9fb0ca",uiFont(7));civDrawButton(px+256,py+354,300,22,"ASSIGN ALL STATION SHIPS TO MINE THIS PLANET",!!selected,"#78ff8a");civDrawButton(px+566,py+354,148,22,"OPEN STATION STORE",false,"#d8bcff");
-  drawUiFittedText("Every default and crafted NPC ship uses the assigned planet, returns only when its cargo hold is full, and deposits the server-authoritative haul into the super-station stockpile.",px+16,py+426,pw-32,"#7c8fa3",uiFont(7),"center");
+  drawUiFittedText(`Distance ${selected?Math.round(dist(st.x,st.y,selected.x,selected.y)):"—"} · range ${Math.max(1500,(z.radius||420)*4)} · current ${rec.resourceTarget?.name||"AUTO: nearby resource planets"}`,px+256,py+347,448,"#9fb0ca",uiFont(7));civDrawButton(px+256,py+354,300,22,"ASSIGN ALL STATION SHIPS TO MINE THIS PLANET",!!selected,"#78ff8a");civDrawButton(px+566,py+354,148,22,"OPEN STATION STORE",false,"#d8bcff");
+  drawUiFittedText("Every default and crafted NPC ship mines a manual target or auto-selects a nearby resource planet, adds one random listed resource every 0.5s, then returns a full mixed hold to the server-authoritative super-station stockpile.",px+16,py+426,pw-32,"#7c8fa3",uiFont(7),"center");
 }
 function handleOwnedCivilizationStationClick(st,mx,my){
   const data=civOwnedStationRecord(st),z=data.zone,rec=data.station;if(!z||!rec)return;const pw=740,ph=455,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,keys=Object.keys(CIV_CLIENT_SHIPS);
