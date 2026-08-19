@@ -2023,7 +2023,7 @@ function mobileScrollPanel(delta){
   else if(shopOpen&&nearStation?.isCivSuperStation)civCommandStationScroll=clamp(civCommandStationScroll+delta,0,maxCivCommandStationScroll());
   else if(shopOpen&&shopTab==="sell")shopInventoryScrollRows=clamp(shopInventoryScrollRows+delta,0,maxShopInventoryScrollRows());
 }
-function mobileToggleInventory(){inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
+function mobileToggleInventory(){setInventoryOpenSafe(!inventoryOpen);shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);}
 function mobileToggleAttributes(){attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);}
 function mobileToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;resetShopTransactions();}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
 function mobileLandTakeoff(){if(mode===MODE.SPACE){statsInc("landings",1);landOnNearestPlanet();return;}if(mode===MODE.PLANET){if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<42){statsInc("takeoffs",1);leavePlanet();}else showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
@@ -2067,7 +2067,7 @@ function mobileAction(action){
   }
 }
 
-function desktopToggleInventory(){inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
+function desktopToggleInventory(){setInventoryOpenSafe(!inventoryOpen);shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);}
 function desktopToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;resetShopTransactions();}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
 function desktopBuildOrTile(){if(mode===MODE.PLANET){placeBuildTileAt(mouse.x||canvas.width/2,mouse.y||canvas.height/2);return;}if(mode===MODE.SPACE)toggleBuildPanel();}
 function desktopInteract(){if(mode===MODE.SPACE&&(nearStation||shopOpen)){desktopToggleShop();return;}keys.add("e");setTimeout(()=>keys.delete("e"),90);}
@@ -2443,7 +2443,7 @@ function weaponDefFor(k){return WEAPON_DEFS[k]||WEAPON_DEFS.weapon_laser_mk1;}
 function defaultAttachmentSlots(){return {hull:null,shield:null,engine:null,utility:null,weapon:null};}
 function normalizeAttachments(raw={}){const out=defaultAttachmentSlots();if(raw&&typeof raw==="object"){for(const slot of ATTACHMENT_SLOTS){const key=String(raw[slot]||""),base=inventoryBaseType(key);if(key&&ATTACHMENT_DEFS[base]?.slot===slot)out[slot]=key;}}return out;}
 function attachmentEffects(){const fx={maxHpBonus:0,maxShieldBonus:0,thrustMult:1,damageMult:1,shieldRegenMult:1,gasEfficiencyMult:1,brakingMult:1,turnMult:1};const loadout=normalizeAttachments(player.equippedAttachments||{});for(const key of Object.values(loadout)){const m=moduleInstanceMeta(key),d=ATTACHMENT_DEFS[inventoryBaseType(key)];if(!d)continue;const lv=m?.level||0,boost=1+lv*.055,bonus=m?.bonus||"none";fx.maxHpBonus+=(Number(d.maxHpBonus)||0)*boost;fx.maxShieldBonus+=(Number(d.maxShieldBonus)||0)*boost;fx.thrustMult*=1+((Number(d.thrustMult)||1)-1)*boost;fx.damageMult*=1+((Number(d.damageMult)||1)-1)*boost;fx.shieldRegenMult*=1+((Number(d.shieldRegenMult)||1)-1)*boost;fx.gasEfficiencyMult*=1+((Number(d.gasEfficiencyMult)||1)-1)*boost;if(d.brakingMult)fx.brakingMult*=1+((Number(d.brakingMult)||1)-1)*boost;if(d.turnMult)fx.turnMult*=1+((Number(d.turnMult)||1)-1)*boost;if(bonus.includes("hull"))fx.maxHpBonus+=8+lv*2;if(bonus.includes("shield"))fx.maxShieldBonus+=8+lv*2;if(bonus.includes("damage"))fx.damageMult*=1.03+lv*.006;if(bonus.includes("thrust"))fx.thrustMult*=1.025+lv*.005;}return fx;}
-function attachmentBonusLine(key){const m=moduleInstanceMeta(key),d=ATTACHMENT_DEFS[inventoryBaseType(key)];if(!d)return "";const boost=1+(m?.level||0)*.055,bits=[];if(d.maxHpBonus)bits.push(`+${Math.round(d.maxHpBonus*boost)} HP`);if(d.maxShieldBonus)bits.push(`+${Math.round(d.maxShieldBonus*boost)} Shield`);if(d.thrustMult&&d.thrustMult!==1)bits.push(`Thrust x${(1+(d.thrustMult-1)*boost).toFixed(2)}`);if(d.damageMult&&d.damageMult!==1)bits.push(`Damage x${(1+(d.damageMult-1)*boost).toFixed(2)}`);if(d.shieldRegenMult&&d.shieldRegenMult!==1)bits.push(`Shield Regen x${(1+(d.shieldRegenMult-1)*boost).toFixed(2)}`);if(d.gasEfficiencyMult&&d.gasEfficiencyMult!==1)bits.push(`Efficiency x${(1+(d.gasEfficiencyMult-1)*boost).toFixed(2)}`);if(d.brakingMult&&d.brakingMult!==1)bits.push(`Braking x${(1+(d.brakingMult-1)*boost).toFixed(2)}`);if(d.turnMult&&d.turnMult!==1)bits.push(`Handling x${(1+(d.turnMult-1)*boost).toFixed(2)}`);if(m?.bonus!=="none")bits.push(`Converged ${m.bonus}`);return bits.join(" · ")||d.description||"Passive ship module";}
+function attachmentBonusLine(key){const m=moduleInstanceMeta(key),d=ATTACHMENT_DEFS[inventoryBaseType(key)];if(!d)return "";const boost=1+(m?.level||0)*.055,bonus=String(m?.bonus||"none"),bits=[];if(d.maxHpBonus)bits.push(`+${Math.round(d.maxHpBonus*boost)} HP`);if(d.maxShieldBonus)bits.push(`+${Math.round(d.maxShieldBonus*boost)} Shield`);if(d.thrustMult&&d.thrustMult!==1)bits.push(`Thrust x${(1+(d.thrustMult-1)*boost).toFixed(2)}`);if(d.damageMult&&d.damageMult!==1)bits.push(`Damage x${(1+(d.damageMult-1)*boost).toFixed(2)}`);if(d.shieldRegenMult&&d.shieldRegenMult!==1)bits.push(`Shield Regen x${(1+(d.shieldRegenMult-1)*boost).toFixed(2)}`);if(d.gasEfficiencyMult&&d.gasEfficiencyMult!==1)bits.push(`Efficiency x${(1+(d.gasEfficiencyMult-1)*boost).toFixed(2)}`);if(d.brakingMult&&d.brakingMult!==1)bits.push(`Braking x${(1+(d.brakingMult-1)*boost).toFixed(2)}`);if(d.turnMult&&d.turnMult!==1)bits.push(`Handling x${(1+(d.turnMult-1)*boost).toFixed(2)}`);if(bonus!=="none")bits.push(`Converged ${bonus.replace(/_/g," ")}`);return bits.join(" · ")||d.description||"Passive ship module";}
 function inventoryTotal(type){let n=0;for(const s of player.invSlots)if(s?.type===type)n+=s.count||0;return n;}
 function playerOwnsWeaponForEquip(key){return key==="weapon_laser_mk1"||inventoryTotal(key)>0;}
 function weaponLevel(key){return Math.max(1,Math.floor(player.weaponLevels?.[key]||1));}
@@ -7370,7 +7370,7 @@ function updateSpace(dt){
   if(!domLocked){
     if(!canvasPanelOpen()&&keys.has("l")){keys.delete("l");landOnNearestPlanet();}
     if(!canvasPanelOpen()&&keys.has("g")){keys.delete("g");useGasCanister();}
-    if(keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;shopOpen=false;attrOpen=false;characterOpen=false;shipStatusOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
+    if(keys.has("i")){keys.delete("i");setInventoryOpenSafe(!inventoryOpen);shopOpen=false;attrOpen=false;characterOpen=false;shipStatusOpen=false;}
     if(keys.has("p")){keys.delete("p");attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;shipStatusOpen=false;}
     if(keys.has("o")){keys.delete("o");if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;shipStatusOpen=false;clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;resetShopTransactions();}}}
   }
@@ -8762,9 +8762,14 @@ function drawInventoryDetail(slot,dx,dy,dw,dh){
     const eqX=dx+8,eqY=dy+101,upX=dx+70,btnH=20;ctx.fillStyle=equipped?"#3a3010":"#173a2a";ctx.fillRect(eqX,eqY,54,btnH);ctx.strokeStyle=equipped?"#ffdd44":"#4a8a6a";ctx.strokeRect(eqX,eqY,54,btnH);drawUiFittedText(equipped?"EQUIPPED":"EQUIP",eqX+27,eqY+13,50,equipped?"#ffdd44":"#78ff8a",uiFont(7,true),"center");
     const cost=weaponUpgradeCost(slot.type),can=player.credits>=cost;ctx.fillStyle=can?"#1a2e3a":"#25161a";ctx.fillRect(upX,eqY,62,btnH);ctx.strokeStyle=can?"#7be6ff":"#884444";ctx.strokeRect(upX,eqY,62,btnH);drawUiFittedText(`UP ${cost}cr`,upX+31,eqY+13,58,can?"#7be6ff":"#ff7777",uiFont(7,true),"center");drawUiFittedText(d.description||"",dx+8,dy+136,dw-16,"#8393a8",uiFont(6));
   }else if(isAttachmentKey(slot.type)){
-    const d=ATTACHMENT_DEFS[inventoryBaseType(slot.type)]||{name:"Unknown",slot:"module",description:"Ship module"},meta=moduleInstanceMeta(slot.type);
-    drawUiFittedText(`${d.name}${meta?` +${meta.level}`:""} · ${String(d.slot||"module").toUpperCase()} MODULE`,dx+8,dy+58,dw-16,"#ffdd44",uiFont(7,true));drawUiFittedText(attachmentBonusLine(slot.type),dx+8,dy+72,dw-16,"#d6e1ff",uiFont(7));drawUiWrappedText(`${d.description||"Ship attachment"}${meta?.bonus!=="none"?` · Convergence: ${meta.bonus}`:""}`,dx+8,dy+85,dw-16,8,2,"#9fb0ca",uiFont(7));
-    drawUiWrappedText("Use the MODULE LAB tab for safe equip, upgrade, and convergence actions.",dx+8,dy+124,dw-16,8,3,"#e2b7ff",uiFont(7));
+    // Base modules deliberately have no instance metadata.  Keep this card
+    // metadata-safe so merely inspecting a module can never interrupt a frame.
+    const d=ATTACHMENT_DEFS[inventoryBaseType(slot.type)]||{name:"Unknown",slot:"module",description:"Ship module"},meta=moduleInstanceMeta(slot.type),bonus=String(meta?.bonus||"none"),innerX=dx+8,innerW=dw-16;
+    drawUiFittedText(`${d.name}${meta?` +${meta.level}`:""} · ${String(d.slot||"module").toUpperCase()} MODULE`,innerX,dy+58,innerW,"#ffdd44",uiFont(7,true));
+    drawUiWrappedText(attachmentBonusLine(slot.type),innerX,dy+70,innerW,8,2,"#d6e1ff",uiFont(7));
+    const moduleDescription=`${d.description||"Ship attachment"}${bonus!=="none"?` · Convergence: ${bonus.replace(/_/g," ")}`:""}`;
+    drawUiWrappedText(moduleDescription,innerX,dy+91,innerW,8,2,"#9fb0ca",uiFont(7));
+    drawUiFittedText("MODULE LAB: equip, upgrade, converge",innerX,dy+131,innerW,"#e2b7ff",uiFont(6,true));
   }else{
     drawUiFittedText(`Value: ${price(slot.type)}cr`,dx+8,dy+58,dw-16,"#9fb0ca",uiFont(8));let text=itemDescription(slot.type);if(slot.type==="gas_canister")text="Use G in space to refill ship energy.";else if(slot.type==="oxygen_tank")text="Use E on a planet to refill oxygen.";else if(BUILDABLE_RES_TO_TILE[slot.type])text="Right-click the planet map to build with this resource.";drawUiWrappedText(text,dx+8,dy+74,dw-16,9,5,"#b5c3d4",uiFont(7));
   }
@@ -8782,7 +8787,16 @@ function handleInventoryWeaponButtons(mx,my,px,py){
 
 /* ── Inventory module upgrade / convergence lab ── */
 let moduleLabOpen=false,moduleLabItemKey=null,moduleLabCopies=1;
-let inventoryTab="items",inventoryModuleKey=null,inventoryModuleCopies=1;
+let inventoryTab="items",inventoryModuleKey=null,inventoryModuleCopies=1,moduleLabListScroll=0,moduleUiPendingAction="";
+function resetInventoryModuleView(){
+  moduleLabOpen=false;moduleLabItemKey=null;inventoryTab="items";inventoryModuleKey=null;inventoryModuleCopies=1;moduleLabListScroll=0;moduleUiPendingAction="";
+}
+function setInventoryOpenSafe(open,{preserveTab=false}={}){
+  const wasOpen=!!inventoryOpen;inventoryOpen=!!open;
+  if(inventoryOpen&&!wasOpen&&!preserveTab)resetInventoryModuleView();
+  if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;moduleLabOpen=false;moduleLabItemKey=null;}
+  clampPanelScrolls();return inventoryOpen;
+}
 function requestEquipAttachmentSafe(key){
   key=String(key||"");const def=ATTACHMENT_DEFS[inventoryBaseType(key)];
   if(!def||inventoryTotal(key)<=0){showFT("That module is unavailable",ship.x,ship.y-18,"#ff5544",9);return false;}
@@ -9094,7 +9108,7 @@ function handleShipStatusClick(mx,my){
 }
 
 function drawInventory(){
-  if(!inventoryOpen)return;beginReadableUi();clampPanelScrolls();if(inventoryTab==="modules"){try{drawInventoryModuleLabTab();}catch(error){console.error("Module Lab draw recovered",error);moduleUiPendingAction="";ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle="rgba(0,0,0,.80)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore();showFT("Module Lab recovered safely",ship.x,ship.y-18,"#ffcc44",9);}return;}ctx.fillStyle="rgba(0,0,0,0.75)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  if(!inventoryOpen)return;beginReadableUi();clampPanelScrolls();if(inventoryTab==="modules"){try{drawInventoryModuleLabTab();}catch(error){console.error("Module Lab draw failed; returning to Items",error);moduleUiPendingAction="";moduleLabOpen=false;moduleLabItemKey=null;inventoryTab="items";showUiActionNotice("Module Lab data refreshed — Items tab restored","#ffcc44");}return;}ctx.fillStyle="rgba(0,0,0,0.75)";ctx.fillRect(0,0,canvas.width,canvas.height);
   const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#1a1f2e";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#4a5f8a";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
   drawUiFittedText("INVENTORY",px+10,py+17,95,"#fff",uiFont(12,true));drawUiFittedText(`Slots ${filledSlotCount()}/${player.maxSlots}`,px+110,py+17,120,"#9fb0ca",uiFont(9));inventoryModuleTabs({x:px,y:py,w:pw,h:ph});
   const ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
@@ -9176,7 +9190,7 @@ function updatePlanet(dt){
       else if(addToInventory(it.kind,1)){showResourcePickupPopup(it.kind,1);drops.splice(i,1);}
     }
   }
-  if(!domLocked&&keys.has("i")){keys.delete("i");inventoryOpen=!inventoryOpen;characterOpen=false;clampPanelScrolls();if(!inventoryOpen){selectedSlot=null;inventoryScrollRows=0;}}
+  if(!domLocked&&keys.has("i")){keys.delete("i");setInventoryOpenSafe(!inventoryOpen);characterOpen=false;}
   updateHud();
 }
 function drawPlanet(){
@@ -9425,12 +9439,14 @@ const _handleShopClick_v405=handleShopClick;handleShopClick=function(mx,my){cons
 const _handleAttrClick_v405=handleAttrClick;handleAttrClick=function(mx,my){const p=largeCanvasMenuPoint("attributes",mx,my);return _handleAttrClick_v405(p.x,p.y);};
 const _handleCharacterClick_v405=handleCharacterClick;handleCharacterClick=function(mx,my){const p=largeCanvasMenuPoint("character",mx,my);return _handleCharacterClick_v405(p.x,p.y);};
 
-/* ── v4.1.8 module UI integrity layer ──────────────────────────────
+/* ── v4.1.9 module UI integrity layer ──────────────────────────────
    The old game accumulated both a nested Module Lab popup and an inventory
    tab.  They could race during a canvas redraw, leaving a transformed context
    or immediately changing the tab back.  This is the single authoritative
    module path used by inventory and the Z loadout panel. */
-let moduleLabListScroll=0,moduleUiPendingAction="";
+// State is declared with the primary inventory state so opening Inventory can
+// reliably reset a stale lab after it has been closed.
+moduleLabListScroll=0;moduleUiPendingAction="";
 function moduleLabEntriesSafe(){
   try{
     const counts=new Map();
@@ -9451,7 +9467,7 @@ function selectInventoryModuleSafe(key,{openLab=false}={}){
     if(!key||!isAttachmentKey(key)||inventoryTotal(key)<=0)return false;
     inventoryModuleKey=key;
     inventoryModuleCopies=1;
-    if(openLab){inventoryOpen=true;inventoryTab="modules";}
+    if(openLab){inventoryOpen=true;inventoryTab="modules";moduleLabOpen=false;moduleLabItemKey=null;moduleLabListScroll=0;}
     return true;
   }catch(error){console.warn("Module selection recovered",error);return false;}
 }
@@ -9487,7 +9503,9 @@ requestEquipAttachmentSafe=function(key){
 };
 openModuleLab=function(key){
   if(!selectInventoryModuleSafe(key,{openLab:true})){showFT("Select a ship module first",ship.x,ship.y-18,"#ffcc44",9);return false;}
-  moduleLabOpen=false;moduleLabItemKey=null;return true;
+  // This is an in-inventory tab, never a second modal.  Clearing the legacy
+  // popup flags prevents a delayed old callback from reopening it above Items.
+  moduleLabOpen=false;moduleLabItemKey=null;inventoryOpen=true;inventoryTab="modules";return true;
 };
 // Retire the obsolete popup API as well. A delayed legacy callback can only
 // redirect into the tab now; it can no longer render a competing overlay.
@@ -9552,11 +9570,11 @@ drawInventoryModuleLabTab=function(){
     drawUiFittedText(`${conv.credits.toLocaleString()}cr`,detailX+10,convY+66,82,"#ffdd44",uiFont(7,true));drawModuleLabCost(conv.resource,conv.amount,detailX+90,convY+54);
     const cvX=detailX+10,cvY=convY+cardH-24,cvW=cardW-20;drawModuleLabButton(cvX,cvY,cvW,19,available.length?(moduleUiPendingAction?"MODULE REQUEST PENDING":convergeReady?"CONVERGE MODULE":"CONVERGE — MISSING COST"):"ALL BONUSES MAXED",available.length>0&&convergeReady&&!moduleUiPendingAction,"#e8bcff");
   }catch(error){
-    console.error("Module Lab render recovered",error);
-    ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle="rgba(0,0,0,.80)";ctx.fillRect(0,0,canvas.width,canvas.height);
-    const r2=inventoryModuleLabRect();ctx.fillStyle="#111a2b";ctx.fillRect(r2.x,r2.y,r2.w,r2.h);ctx.strokeStyle="#ff7777";ctx.lineWidth=2;ctx.strokeRect(r2.x+1,r2.y+1,r2.w-2,r2.h-2);
-    drawUiFittedText("MODULE LAB RECOVERED",r2.x+r2.w/2,r2.y+60,r2.w-32,"#ff9999",uiFont(12,true),"center");
-    drawUiWrappedText("The module panel recovered without pausing the game. Return to ITEMS and reopen the lab; your inventory is unchanged.",r2.x+24,r2.y+96,r2.w-48,16,4,"#d6e1ff",uiFont(9));
+    // Do not replace the game with a recovery overlay.  Any future malformed
+    // saved item returns the player to the normal Items tab on the next frame.
+    console.error("Module Lab render failed; returning to Items",error);
+    moduleUiPendingAction="";moduleLabOpen=false;moduleLabItemKey=null;inventoryTab="items";
+    showUiActionNotice("Module Lab data refreshed — Items tab restored","#ffcc44");
   }finally{ctx.restore();}
 };
 handleInventoryModuleLabTabClick=function(mx,my){
@@ -9579,7 +9597,7 @@ const _drawInventoryDetail_v418=drawInventoryDetail;
 drawInventoryDetail=function(slot,dx,dy,dw,dh){
   ctx.save();
   try{return _drawInventoryDetail_v418(slot,dx,dy,dw,dh);}
-  catch(error){console.warn("Inventory item detail recovered",error);ctx.setTransform(1,0,0,1,0,0);drawUiFittedText("Item details recovered safely",dx+8,dy+22,dw-16,"#ffcc44",uiFont(8,true));drawUiFittedText(String(slot?.type||"Unknown item"),dx+8,dy+38,dw-16,"#d6e1ff",uiFont(7));}
+  catch(error){console.warn("Inventory item detail unavailable",error);const fallback=itemDefFor(slot?.type)||{name:String(slot?.type||"Unknown item"),description:"Details are unavailable for this item."};drawUiFittedText(fallback.name,dx+8,dy+22,dw-16,"#ffdd44",uiFont(8,true));drawUiWrappedText(fallback.description||"Details are unavailable for this item.",dx+8,dy+42,dw-16,8,3,"#9fb0ca",uiFont(7));}
   finally{ctx.restore();}
 };
 for(const ev of ["attachmentEquipped","attachmentUnequipped","attachmentDenied","moduleUpgradeResult","moduleConvergenceResult","moduleUpgradeDenied"]){socket.on(ev,()=>{moduleUiPendingAction="";});}
