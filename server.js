@@ -284,12 +284,49 @@ function safeCivZoneInput(raw={}){
   const zoneId=safeZoneId(raw.zoneId||raw.id);
   const x=Math.round(Number(raw.x)||0),y=Math.round(Number(raw.y)||0);
   const radius=Math.max(260,Math.min(900,Math.round(Number(raw.radius)||420)));
-  const baseStationCount=Math.max(2,Math.min(18,Math.floor(Number(raw.baseStationCount ?? raw.stationCount)||5)));
+  const baseStationCount=raw.playerFounded?0:Math.max(2,Math.min(18,Math.floor(Number(raw.baseStationCount ?? raw.stationCount)||5)));
   const name=safeText(raw.name||"Civilization Zone",48)||"Civilization Zone";
   const color=safeText(raw.color||"#ffdd44",16)||"#ffdd44";
   if(!zoneId||!Number.isFinite(x)||!Number.isFinite(y))return null;
   let h=0;for(const c of zoneId)h=(h*33+c.charCodeAt(0))>>>0;
   return {zoneId,x,y,radius,baseStationCount,name,color,superStationLevel:1+(h%4)};
+}
+// The browser's procedural civilization zones are generated from this same
+// seed.  Keep a small server-side mirror for placement validation: otherwise
+// a player could found a zone on top of an unowned procedural civilization
+// simply because that zone has not yet been purchased and therefore is not in
+// `civilizationZones`.
+const CLIENT_CIV_CHUNK_SIZE=1250;
+function proceduralCivilizationZoneAtChunk(cx,cy){
+  if(cx===0&&cy===0)return null;
+  const rng=makeRng(`${GALAXY_SEED}|civzone|${cx},${cy}`);
+  if(rng()>0.11)return null;
+  // Consume the colour draw as the browser does before calculating the
+  // position and radius.  The remaining sequence must stay byte-for-byte
+  // deterministic with `civilizationZoneForChunk` in public/index.html.
+  rng();
+  return {
+    zoneId:`civ_${cx},${cy}`,
+    x:cx*CLIENT_CIV_CHUNK_SIZE+(rng()-.5)*CLIENT_CIV_CHUNK_SIZE*.45,
+    y:cy*CLIENT_CIV_CHUNK_SIZE+(rng()-.5)*CLIENT_CIV_CHUNK_SIZE*.45,
+    radius:360+rng()*190
+  };
+}
+function civilizationRimPlacementConflict(x,y,radius){
+  const requested=Math.max(1,Number(radius)||420);
+  // Player-owned / previously bought zones are authoritative records.
+  for(const other of civilizationZones.values()){
+    if(Math.hypot(x-other.x,y-other.y)<=requested+Math.max(1,Number(other.radius)||420))return other;
+  }
+  // An unowned procedural zone can be at most 550 units in radius.  Two
+  // neighboring chunks plus the current chunk safely cover every rim that can
+  // touch a new 420-unit zone, including exact edge contact.
+  const baseX=Math.round(x/CLIENT_CIV_CHUNK_SIZE),baseY=Math.round(y/CLIENT_CIV_CHUNK_SIZE);
+  for(let cy=baseY-2;cy<=baseY+2;cy++)for(let cx=baseX-2;cx<=baseX+2;cx++){
+    const other=proceduralCivilizationZoneAtChunk(cx,cy);
+    if(other&&Math.hypot(x-other.x,y-other.y)<=requested+other.radius)return other;
+  }
+  return null;
 }
 function civilizationZonePurchaseCost(z){
   const level=Math.max(1,Math.min(10,Number(z.superStationLevel)||Number(z.zoneLevel)||1));
@@ -344,7 +381,7 @@ function publicCivilizationZone(zone,viewerId){
   ensureCivLogistics(zone);dedupeCivilizationBuiltStations(zone);zone.stationTasks=sanitizeStationTasks(zone.stationTasks||{});
   const tax=civilizationZoneTaxPerMinute(zone),isOwn=zone.ownerId===viewerId;
   return {
-    zoneId:zone.zoneId,name:zone.name,color:zone.color,x:zone.x,y:zone.y,radius:zone.radius,
+    zoneId:zone.zoneId,name:zone.name,color:zone.color,x:zone.x,y:zone.y,radius:zone.radius,playerFounded:!!zone.playerFounded,
     baseStationCount:zone.baseStationCount,stationCount:zone.baseStationCount+(zone.builtStations?.length||0),
     ownerName:zone.ownerName||null,owned:!!zone.ownerId||!!zone.ownerMemberId,isOwn,
     taxPerMinute:tax,pendingTax:isOwn?Math.floor(zone.pendingTax||0):0,
@@ -1057,14 +1094,14 @@ const ATTACHMENT_DEFS={
   maneuver_fins:{key:"maneuver_fins",slot:"utility",name:"Maneuver Fins",turnMult:1.28,brakingMult:1.12,description:"Improves turn handling and braking."}
 };
 const ATTACHMENT_SLOTS=["hull","shield","engine","utility","weapon"];
-function isAttachmentKey(k){return !!ATTACHMENT_DEFS[k];}
+function isAttachmentKey(k){return !!ATTACHMENT_DEFS[inventoryBaseType(k)];}
 function defaultAttachmentSlots(){return {hull:null,shield:null,engine:null,utility:null,weapon:null};}
 function normalizeAttachments(raw={}){
   const out=defaultAttachmentSlots();
   if(raw&&typeof raw==="object"){
     for(const slot of ATTACHMENT_SLOTS){
       const key=String(raw[slot]||"");
-      if(key&&ATTACHMENT_DEFS[key]?.slot===slot)out[slot]=key;
+      if(key&&ATTACHMENT_DEFS[inventoryBaseType(key)]?.slot===slot)out[slot]=key;
     }
   }
   return out;
@@ -1073,13 +1110,15 @@ function attachmentEffectsFor(p){
   const fx={maxHpBonus:0,maxShieldBonus:0,thrustMult:1,damageMult:1,shieldRegenMult:1,gasEfficiencyMult:1,brakingMult:1,turnMult:1};
   const loadout=normalizeAttachments(p?.equippedAttachments||{});
   for(const key of Object.values(loadout)){
-    const d=ATTACHMENT_DEFS[key];if(!d)continue;
-    fx.maxHpBonus+=Number(d.maxHpBonus)||0;
-    fx.maxShieldBonus+=Number(d.maxShieldBonus)||0;
-    fx.thrustMult*=Number(d.thrustMult)||1;
-    fx.damageMult*=Number(d.damageMult)||1;
-    fx.shieldRegenMult*=Number(d.shieldRegenMult)||1;
-    fx.gasEfficiencyMult*=Number(d.gasEfficiencyMult)||1;if(d.brakingMult)fx.brakingMult*=Number(d.brakingMult)||1;if(d.turnMult)fx.turnMult*=Number(d.turnMult)||1;
+    const meta=moduleInstanceMeta(key),d=ATTACHMENT_DEFS[inventoryBaseType(key)];if(!d)continue;
+    const lv=meta?.level||0,boost=1+lv*.055,bonus=String(meta?.bonus||"none");
+    fx.maxHpBonus+=(Number(d.maxHpBonus)||0)*boost;
+    fx.maxShieldBonus+=(Number(d.maxShieldBonus)||0)*boost;
+    fx.thrustMult*=1+((Number(d.thrustMult)||1)-1)*boost;
+    fx.damageMult*=1+((Number(d.damageMult)||1)-1)*boost;
+    fx.shieldRegenMult*=1+((Number(d.shieldRegenMult)||1)-1)*boost;
+    fx.gasEfficiencyMult*=1+((Number(d.gasEfficiencyMult)||1)-1)*boost;if(d.brakingMult)fx.brakingMult*=1+((Number(d.brakingMult)||1)-1)*boost;if(d.turnMult)fx.turnMult*=1+((Number(d.turnMult)||1)-1)*boost;
+    if(bonus.includes("hull"))fx.maxHpBonus+=8+lv*2;if(bonus.includes("shield"))fx.maxShieldBonus+=8+lv*2;if(bonus.includes("damage"))fx.damageMult*=1.03+lv*.006;if(bonus.includes("thrust"))fx.thrustMult*=1.025+lv*.005;
   }
   return fx;
 }
@@ -1174,16 +1213,41 @@ for(const key of [...SERVER_PROC_RESOURCE_KEYS,...CLIENT_PROC_RESOURCE_KEYS])if(
 Object.assign(SERVER_RESOURCE_PUBLIC_DEFS,SERVER_EXTRA_RESOURCE_PUBLIC_DEFS);
 const SHOP_RESOURCE_KEYS=[...Object.keys(SERVER_EXTRA_RESOURCE_DEFS),...CLIENT_PROC_RESOURCE_KEYS];
 const RES_KEY_SET=new Set(RES_KEYS);
-function isKnownResourceKey(key){return RES_KEY_SET.has(String(key||""));}
+// A module instance is intentionally encoded in its item key.  Equal base,
+// upgrade level and convergence bonuses yield the same key and can stack;
+// every other combination remains a separate inventory stack without needing
+// a second inventory table or weakening server authority during trades.
+const MODULE_INSTANCE_PREFIX="mod__";
+const MODULE_CONVERGENCE_BONUSES=["hull","shield","damage","thrust"];
+function normalizeModuleBonuses(raw){
+  const list=String(raw||"none").split("_").map(v=>v.trim().toLowerCase()).filter(v=>MODULE_CONVERGENCE_BONUSES.includes(v));
+  return [...new Set(list)].sort();
+}
+function moduleInstanceMeta(key){
+  key=String(key||"");if(!key.startsWith(MODULE_INSTANCE_PREFIX))return null;
+  const parts=key.split("__");if(parts.length<4)return null;
+  const base=String(parts[1]||""),level=Math.max(1,Math.min(10,Math.floor(Number(parts[2])||1))),rawBonus=String(parts.slice(3).join("__")||"none"),bonuses=normalizeModuleBonuses(rawBonus);
+  if(!ATTACHMENT_DEFS[base])return null;
+  // Reject forged metadata rather than silently converting it to a valid item.
+  if((rawBonus!=="none"&&bonuses.join("_")!==rawBonus)||bonuses.length>MODULE_CONVERGENCE_BONUSES.length)return null;
+  return {base,level,bonus:bonuses.length?bonuses.join("_"):"none",bonuses};
+}
+function moduleInstanceKey(base,level,bonus="none"){const bonuses=normalizeModuleBonuses(bonus);return `${MODULE_INSTANCE_PREFIX}${base}__${Math.max(1,Math.min(10,Math.floor(level||1)))}__${bonuses.length?bonuses.join("_"):"none"}`;}
+function moduleTierForKey(key){const meta=moduleInstanceMeta(key);return {base:meta?.base||String(key||""),level:meta?.level||0,bonus:meta?.bonus||"none",bonuses:meta?.bonuses||[]};}
+function moduleUpgradeCostFor(key){const m=moduleTierForKey(key),d=ATTACHMENT_DEFS[m.base]||{},statWeight=[d.maxHpBonus,d.maxShieldBonus,d.thrustMult&&d.thrustMult!==1,d.damageMult&&d.damageMult!==1,d.shieldRegenMult&&d.shieldRegenMult!==1,d.gasEfficiencyMult&&d.gasEfficiencyMult!==1,d.brakingMult&&d.brakingMult!==1,d.turnMult&&d.turnMult!==1].filter(Boolean).length||1,next=Math.min(10,m.level+1);return {credits:Math.floor((1800+statWeight*1100)*Math.pow(1.58,next-1)),resource:next<4?"iron":next<7?"crystal":"quantum_core",amount:Math.max(1,Math.ceil(next/3))};}
+function moduleConvergenceCostFor(key,copies){const m=moduleTierForKey(key),base=moduleUpgradeCostFor(key);return {credits:Math.floor(base.credits*(1.25+Math.max(0,copies-1)*.12+m.bonuses.length*.35)),resource:m.level<5?"dark_matter_shard":"obelisk_core",amount:Math.max(1,Math.ceil((m.level+1+m.bonuses.length)/3))};}
+function inventoryBaseType(key){return moduleInstanceMeta(key)?.base||String(key||"");}
+function isInventoryItemKey(key){return RES_KEY_SET.has(String(key||""))||!!moduleInstanceMeta(key);}
+function isKnownResourceKey(key){return isInventoryItemKey(key);}
 
 const econRng=makeRng(GALAXY_SEED+"|economy");
 const economy={
   drift:Object.fromEntries(RES_KEYS.map(k=>[k,1])),
   scarcity:Object.fromEntries(RES_KEYS.map(k=>[k,1])),
   tick(){for(const k of RES_KEYS){this.drift[k]=Math.max(0.6,Math.min(1.6,this.drift[k]+(econRng()-0.5)*0.02));this.scarcity[k]+=(1-this.scarcity[k])*0.002;}},
-  price(k){const b=RES_BASE[k]||1,r=RES_RARITY[k]||1,f=1+(r-1)*0.28;return Math.max(1,Math.round(b*f*this.drift[k]*this.scarcity[k]));},
-  sold(k,q){this.scarcity[k]=Math.max(0.5,Math.min(1.5,this.scarcity[k]-q*0.02));},
-  bought(k,q){this.scarcity[k]=Math.max(0.5,Math.min(1.5,this.scarcity[k]+q*0.02));},
+  price(k){const base=inventoryBaseType(k),meta=moduleInstanceMeta(k),b=(RES_BASE[base]||1)*(meta?(1+meta.level*.34+(meta.bonuses?.length||0)*.28):1),r=RES_RARITY[base]||1,f=1+(r-1)*0.28;return Math.max(1,Math.round(b*f*(this.drift[base]||1)*(this.scarcity[base]||1)));},
+  sold(k,q){k=inventoryBaseType(k);this.scarcity[k]=Math.max(0.5,Math.min(1.5,(this.scarcity[k]||1)-q*0.02));},
+  bought(k,q){k=inventoryBaseType(k);this.scarcity[k]=Math.max(0.5,Math.min(1.5,(this.scarcity[k]||1)+q*0.02));},
   snapshot(){const o={};for(const k of RES_KEYS)o[k]=this.price(k);return o;}
 };
 function isWeaponKey(k){return !!WEAPON_DEFS[k];}
@@ -1232,13 +1296,13 @@ function normalizeInventorySlots(slots,maxSlots=24){
   if(Array.isArray(slots)){
     for(let i=0;i<Math.min(slots.length,maxSlots);i++){
       const type=String(slots[i]?.type||"");const count=Math.max(0,Math.min(9999,Math.floor(Number(slots[i]?.count)||0)));
-      if(type&&RES_KEYS.includes(type)&&count>0)out[i]={type,count};
+      if(type&&isInventoryItemKey(type)&&count>0)out[i]={type,count};
     }
   }else if(slots&&typeof slots==="object"){
     let idx=0;
     for(const [type,val] of Object.entries(slots)){
       let count=Math.max(0,Math.min(9999,Math.floor(Number(val)||0)));
-      if(!RES_KEYS.includes(type)||count<=0)continue;
+      if(!isInventoryItemKey(type)||count<=0)continue;
       while(count>0&&idx<maxSlots){const put=Math.min(24,count);out[idx++]={type,count:put};count-=put;}
     }
   }
@@ -1253,9 +1317,9 @@ function getAuthInventoryPayload(auth){
 }
 function authHasInventoryPayload(auth){return getAuthInventoryPayload(auth)!==undefined;}
 function inventoryPayloadHasItems(payload){
-  if(Array.isArray(payload))return payload.some(s=>s&&RES_KEYS.includes(String(s.type||""))&&Math.floor(Number(s.count)||0)>0);
+  if(Array.isArray(payload))return payload.some(s=>s&&isInventoryItemKey(String(s.type||""))&&Math.floor(Number(s.count)||0)>0);
   if(payload&&typeof payload==="object"){
-    return Object.entries(payload).some(([type,val])=>RES_KEYS.includes(type)&&Math.floor(Number(val)||0)>0);
+    return Object.entries(payload).some(([type,val])=>isInventoryItemKey(type)&&Math.floor(Number(val)||0)>0);
   }
   return false;
 }
@@ -1345,7 +1409,7 @@ function slotCountNeededForInventoryPayload(payload){
   if(payload&&typeof payload==="object"){
     let stacks=0;
     for(const [type,val] of Object.entries(payload)){
-      if(!RES_KEYS.includes(type))continue;
+      if(!isInventoryItemKey(type))continue;
       const count=Math.max(0,Math.floor(Number(val)||0));
       if(count>0)stacks+=Math.ceil(count/24);
     }
@@ -1453,7 +1517,7 @@ function canFitInventory(p,type,amount){
   return false;
 }
 function addInventory(p,type,amount){
-  if(!RES_KEYS.includes(type))return false;
+  if(!isInventoryItemKey(type))return false;
   let rem=Math.max(0,Math.floor(Number(amount)||0));if(rem<=0)return true;
   if(!Array.isArray(p.invSlots))p.invSlots=emptySlots(p.maxSlots||24);
   for(let i=0;i<(p.maxSlots||24);i++){const s=p.invSlots[i];if(s?.type===type&&s.count<24){const add=Math.min(24-s.count,rem);s.count+=add;rem-=add;if(rem<=0)return true;}}
@@ -1465,6 +1529,18 @@ function removeInventory(p,type,amount){
   if(inventoryCount(p,type)<rem)return false;
   for(let i=(p.maxSlots||24)-1;i>=0;i--){const s=p.invSlots[i];if(s?.type===type){const rm=Math.min(s.count,rem);s.count-=rm;rem-=rm;if(s.count<=0)p.invSlots[i]={type:null,count:0};if(rem<=0)return true;}}
   return true;
+}
+// Upgrades replace an existing item stack.  Check capacity after the source
+// copies are removed so a completely full inventory can still transform a
+// module in-place rather than producing a misleading "inventory full" error.
+function canReplaceInventoryItem(p,from,removeAmount,to,addAmount=1){
+  const maxSlots=Math.max(24,Math.floor(Number(p?.maxSlots)||24));
+  const sim={maxSlots,invSlots:emptySlots(maxSlots)};
+  for(let i=0;i<maxSlots;i++){
+    const s=p?.invSlots?.[i];
+    if(s?.type&&s.count>0)sim.invSlots[i]={type:s.type,count:s.count};
+  }
+  return removeInventory(sim,from,removeAmount)&&canFitInventory(sim,to,addAmount);
 }
 function recipeItems(recipe){return Object.entries(recipe||{}).filter(([k,v])=>k!=="credits"&&RES_KEYS.includes(k)&&Math.floor(Number(v)||0)>0).map(([type,qty])=>({type,qty:Math.floor(Number(qty)||0)}));}
 function canCraftRecipe(p,recipe){
@@ -1486,7 +1562,7 @@ function grantRewardBundle(p,{credits=0,xp=0,items=[]}={},reason="reward"){
   credits=Math.max(0,Math.min(100000,Math.floor(Number(credits)||0)));
   xp=Math.max(0,Math.min(25000,Math.floor(Number(xp)||0)));
   const normalized=[];
-  for(const it of Array.isArray(items)?items:[]){const type=String(it.type||"");const qty=Math.max(1,Math.min(48,Math.floor(Number(it.qty)||0)));if(RES_KEYS.includes(type))normalized.push({type,qty});}
+  for(const it of Array.isArray(items)?items:[]){const type=String(it.type||"");const qty=Math.max(1,Math.min(48,Math.floor(Number(it.qty)||0)));if(isInventoryItemKey(type))normalized.push({type,qty});}
   for(const it of normalized){if(!canFitInventory(p,it.type,it.qty))return {ok:false,reason:"Inventory full for reward items."};}
   if(credits>0)p.credits=(p.credits||0)+credits;
   for(const it of normalized)addInventory(p,it.type,it.qty);
@@ -1494,7 +1570,7 @@ function grantRewardBundle(p,{credits=0,xp=0,items=[]}={},reason="reward"){
   return {ok:true,credits,xp,items:normalized};
 }
 function validateTradeItems(p,items){
-  const need={};for(const it of items||[]){const type=String(it.type||"");const q=Math.max(0,Math.floor(Number(it.quantity)||0));if(!RES_KEYS.includes(type)||q<=0)return false;need[type]=(need[type]||0)+q;}
+  const need={};for(const it of items||[]){const type=String(it.type||"");const q=Math.max(0,Math.floor(Number(it.quantity)||0));if(!isInventoryItemKey(type)||q<=0)return false;need[type]=(need[type]||0)+q;}
   return Object.entries(need).every(([type,q])=>inventoryCount(p,type)>=q);
 }
 function emitInventorySync(p,reason="sync"){
@@ -1611,7 +1687,9 @@ function applyPersistedSnapshotPreservingSession(p,auth){
   applyAuthAccountToPlayer(p,auth);
   for(const [type,count] of Object.entries(currentCounts)){
     if(count>0&&!addInventory(p,type,count)){
-      p.credits=(p.credits||0)+(RES_BASE[type]||1)*count;
+      // Module instances are inventory keys too; use their base item/economy
+      // value instead of treating an upgraded module as a 1-credit fallback.
+      p.credits=(p.credits||0)+Math.max(1,economy.price(type)||RES_BASE[inventoryBaseType(type)]||1)*count;
     }
   }
   if(sessionCreditDelta!==0)p.credits=Math.max(0,(p.credits||0)+sessionCreditDelta);
@@ -1684,17 +1762,18 @@ function normalizeStorageSlots(slots,maxSlots=24){
   if(Array.isArray(slots)){
     for(let i=0;i<Math.min(slots.length,maxSlots);i++){
       const type=String(slots[i]?.type||"");const count=Math.max(0,Math.min(9999,Math.floor(Number(slots[i]?.count)||0)));
-      if(type&&RES_KEYS.includes(type)&&count>0)out[i]={type,count};
+      if(type&&isInventoryItemKey(type)&&count>0)out[i]={type,count};
     }
   }
   return out;
 }
 function structureDefaultState(type){
   const def=PLAYER_STRUCTURE_TYPES[type]||PLAYER_STRUCTURE_TYPES.storage_facility;
-  return {hp:def.maxHp,maxHp:def.maxHp,shield:def.maxShield,maxShield:def.maxShield,shieldRegenTimer:0,damageLevel:1,shieldLevel:1,storageSlots:def.startSlots||24,invSlots:emptySlots(def.startSlots||24),destroyed:false,underAttackUntil:0};
+  return {hp:def.maxHp,maxHp:def.maxHp,shield:def.maxShield,maxShield:def.maxShield,shieldRegenTimer:0,damageLevel:1,shieldLevel:1,storageShieldLevel:1,storageSlots:def.startSlots||24,invSlots:emptySlots(def.startSlots||24),destroyed:false,underAttackUntil:0};
 }
 function structureUpgradeCost(st,kind){
   if(kind==="storage")return Math.floor(450+Math.max(0,(st.storageSlots||24)-24)*42);
+  if(kind==="storageShield")return Math.floor(1200*Math.pow(1.42,Math.max(0,(st.storageShieldLevel||1)-1)));
   const level=kind==="damage"?Math.max(1,st.damageLevel||1):Math.max(1,st.shieldLevel||1);
   return Math.floor((kind==="damage"?900:1050)*Math.pow(1.58,level-1));
 }
@@ -1703,7 +1782,7 @@ function publicStructure(st,viewerId){
     key:st.key,type:st.type,ownerId:st.ownerId,ownerName:st.ownerName,x:Math.round(st.x),y:Math.round(st.y),
     isOwn:st.ownerId===viewerId,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,
     destroyed:!!st.destroyed,storageSlots:st.storageSlots||0,storageUsed:Array.isArray(st.invSlots)?st.invSlots.filter(x=>x?.type&&x.count>0).length:0,
-    storage:st.ownerId===viewerId?st.invSlots:undefined,damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,
+    storage:st.ownerId===viewerId?st.invSlots:undefined,damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,storageShieldLevel:st.storageShieldLevel||1,
     damage:turretDamage(st),range:turretRange(st),storageUpgradeCost:st.type==="storage_facility"&&Number(st.storageSlots||24)<100?structureUpgradeCost(st,"storage"):0,turretCosmeticKey:st.turretCosmeticKey||null
   };
 }
@@ -1721,10 +1800,10 @@ function buildingSnapshotForPlayer(p){
     key:st.key,x:Math.round(st.x),y:Math.round(st.y),tier:st.tier,ownerName:st.ownerName,hiredShips:st.hiredShips||[],accumulatedGoods:st.accumulatedGoods||{},hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now(),turretCosmeticKey:st.turretCosmeticKey||null
   }));
   const structures=[...ownedStructures.values()].filter(st=>st.ownerId===p.id||(memberId&&st.ownerMemberId===memberId)).map(st=>({
-    key:st.key,type:st.type,x:Math.round(st.x),y:Math.round(st.y),ownerName:st.ownerName,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,storageSlots:st.storageSlots,invSlots:st.invSlots||[],damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now(),turretCosmeticKey:st.turretCosmeticKey||null
+    key:st.key,type:st.type,x:Math.round(st.x),y:Math.round(st.y),ownerName:st.ownerName,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,storageSlots:st.storageSlots,invSlots:st.invSlots||[],damageLevel:st.damageLevel||1,shieldLevel:st.shieldLevel||1,storageShieldLevel:st.storageShieldLevel||1,destroyed:!!st.destroyed,createdAt:st.createdAt||Date.now(),turretCosmeticKey:st.turretCosmeticKey||null
   }));
   const civilizationZonesOwned=[...civilizationZones.values()].filter(z=>z.ownerId===p.id||(memberId&&z.ownerMemberId===memberId)).map(z=>({
-    zoneId:z.zoneId,name:z.name,color:z.color,x:Math.round(z.x),y:Math.round(z.y),radius:z.radius,baseStationCount:z.baseStationCount,
+    zoneId:z.zoneId,name:z.name,color:z.color,x:Math.round(z.x),y:Math.round(z.y),radius:z.radius,baseStationCount:z.baseStationCount,playerFounded:!!z.playerFounded,
     ownerName:z.ownerName,purchasedAt:z.purchasedAt||Date.now(),baseStations:z.baseStations||[],builtStations:z.builtStations||[],factionId:z.factionId,factionName:z.factionName,factionBonus:z.factionBonus,zoneLevel:z.zoneLevel,superStationLevel:z.superStationLevel,stockpile:z.stockpile||{},stockpileItems:z.stockpileItems||{},stockpileCapacity:z.stockpileCapacity,bankCredits:z.bankCredits||0,contracts:z.contracts||[],relations:z.relations||{},turrets:z.turrets||[],stationTierCosmetics:{},npcshipCosmeticKey:null,turretCosmeticKey:null,pendingTax:Math.floor(z.pendingTax||0),totalTaxCollected:Math.floor(z.totalTaxCollected||0)
   }));
   return {stations,structures,civilizationZones:civilizationZonesOwned,zones:civilizationZonesOwned};
@@ -1738,7 +1817,7 @@ function restorePersistentBuildingsForPlayer(p){
   const b=p.savedBuildings||{};
   const savedZones=Array.isArray(b.civilizationZones)?b.civilizationZones:(Array.isArray(b.zones)?b.zones:[]);
   for(const rec of savedZones){
-    const input=safeCivZoneInput({zoneId:rec.zoneId||rec.id,name:rec.name,color:rec.color,x:rec.x,y:rec.y,radius:rec.radius,baseStationCount:rec.baseStationCount||rec.stationCount});
+    const input=safeCivZoneInput({zoneId:rec.zoneId||rec.id,name:rec.name,color:rec.color,x:rec.x,y:rec.y,radius:rec.radius,baseStationCount:rec.baseStationCount??rec.stationCount,playerFounded:!!rec.playerFounded});
     if(!input)continue;
     let zone=civilizationZones.get(input.zoneId);
     if(!zone||zone.ownerMemberId===p.memberId||zone.ownerId===p.id){
@@ -1777,6 +1856,8 @@ function restorePersistentBuildingsForPlayer(p){
       base.invSlots=normalizeStorageSlots(rec.invSlots,base.storageSlots);
       base.damageLevel=Math.max(1,Math.min(12,Math.floor(Number(rec.damageLevel)||1)));
       base.shieldLevel=Math.max(1,Math.min(12,Math.floor(Number(rec.shieldLevel)||1)));
+      base.storageShieldLevel=Math.max(1,Math.floor(Number(rec.storageShieldLevel)||1));
+      if(type==="storage_facility")base.maxShield=Math.floor(base.maxShield*Math.pow(1.18,base.storageShieldLevel-1));
       base.maxShield=Math.floor(base.maxShield*(1+0.32*(base.shieldLevel-1)));
       base.shield=Math.max(0,Math.min(base.maxShield,Number(rec.shield)||base.shield));base.hp=Math.max(0,Math.min(base.maxHp,Number(rec.hp)||base.hp));base.destroyed=!!rec.destroyed;
       ownedStructures.set(key,{...(st||{}),...base});
@@ -2211,7 +2292,7 @@ function sanitizeTradeOffer(offer,player){
   const seen=new Map();
   for(const it of (offer?.items||[])){
     const type=String(it.type||"");
-    if(!RES_KEYS.includes(type))continue;
+    if(!isInventoryItemKey(type))continue;
     const q=Math.max(0,Math.min(999,Math.floor(Number(it.quantity)||0)));
     if(q>0)seen.set(type,(seen.get(type)||0)+q);
   }
@@ -2222,7 +2303,7 @@ function tradeOfferKey(offer){
   const credits=Math.max(0,Math.floor(Number(offer?.credits)||0));
   const items=(offer?.items||[])
     .map(it=>({type:String(it.type||""),quantity:Math.max(0,Math.floor(Number(it.quantity)||0))}))
-    .filter(it=>RES_KEYS.includes(it.type)&&it.quantity>0)
+    .filter(it=>isInventoryItemKey(it.type)&&it.quantity>0)
     .sort((a,b)=>a.type.localeCompare(b.type));
   return `${credits}|${items.map(it=>`${it.type}:${it.quantity}`).join(",")}`;
 }
@@ -2234,7 +2315,7 @@ function cloneTradeInventory(p){
   for(let i=0;i<Math.min(src.length,maxSlots);i++){
     const type=String(src[i]?.type||"");
     const count=Math.max(0,Math.floor(Number(src[i]?.count)||0));
-    invSlots[i]=(type&&RES_KEYS.includes(type)&&count>0)?{type,count}:{type:null,count:0};
+    invSlots[i]=(type&&isInventoryItemKey(type)&&count>0)?{type,count}:{type:null,count:0};
   }
   return {maxSlots,invSlots};
 }
@@ -2495,7 +2576,7 @@ io.on("connection",socket=>{
   });
   socket.on("equipAttachment",({attachmentKey})=>{
     const p=players.get(socket.id);attachmentKey=String(attachmentKey||"");
-    const def=ATTACHMENT_DEFS[attachmentKey];
+    const def=ATTACHMENT_DEFS[inventoryBaseType(attachmentKey)];
     if(!p||!def){socket.emit("attachmentDenied",{reason:"Unknown attachment."});return;}
     if(inventoryCount(p,attachmentKey)<=0){socket.emit("attachmentDenied",{reason:"You do not own that attachment."});return;}
     p.equippedAttachments=normalizeAttachments(p.equippedAttachments||{});
@@ -2508,6 +2589,29 @@ io.on("connection",socket=>{
     p.equippedAttachments=normalizeAttachments(p.equippedAttachments||{});
     const old=p.equippedAttachments[slot];p.equippedAttachments[slot]=null;applyShipStats(p,false);
     socket.emit("attachmentUnequipped",{attachmentKey:old,slot,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});emitInventorySync(p,"unequip_attachment");persistPlayerSoon(p,"unequip_attachment");
+  });
+  socket.on("upgradeModuleItem",({itemKey})=>{
+    const p=players.get(socket.id),key=String(itemKey||""),m=moduleTierForKey(key);if(!p||!ATTACHMENT_DEFS[m.base]||m.level>=10){socket.emit("moduleUpgradeDenied",{reason:"That module cannot be upgraded further."});return;}
+    if(inventoryCount(p,key)<=0){socket.emit("moduleUpgradeDenied",{reason:"Module is no longer in your inventory."});return;}
+    const cost=moduleUpgradeCostFor(key);if((p.credits||0)<cost.credits||inventoryCount(p,cost.resource)<cost.amount){socket.emit("moduleUpgradeDenied",{reason:`Need ${cost.credits.toLocaleString()}cr and ${cost.amount} ${cost.resource.replace(/_/g," ")}.`});return;}
+    const next=moduleInstanceKey(m.base,m.level+1,m.bonus);if(!canReplaceInventoryItem(p,key,1,next,1)){socket.emit("moduleUpgradeDenied",{reason:"Inventory is full for the upgraded module."});return;}
+    p.credits-=cost.credits;removeInventory(p,cost.resource,cost.amount);removeInventory(p,key,1);addInventory(p,next,1);for(const slot of ATTACHMENT_SLOTS)if(p.equippedAttachments?.[slot]===key)p.equippedAttachments[slot]=next;applyShipStats(p,false);
+    socket.emit("moduleUpgradeResult",{itemKey:next,base:m.base,level:m.level+1,bonus:m.bonus,cost,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});syncAndPersist(p,"module_upgrade");
+  });
+  socket.on("convergeModuleItem",({itemKey,copies})=>{
+    const p=players.get(socket.id),key=String(itemKey||""),m=moduleTierForKey(key),use=Math.max(1,Math.min(10,Math.floor(Number(copies)||1)));if(!p||!ATTACHMENT_DEFS[m.base]){socket.emit("moduleUpgradeDenied",{reason:"Choose a ship module."});return;}
+    const pool=MODULE_CONVERGENCE_BONUSES.filter(b=>!m.bonuses.includes(b));
+    if(!pool.length){socket.emit("moduleUpgradeDenied",{reason:"This module already has every convergence bonus."});return;}
+    if(inventoryCount(p,key)<use){socket.emit("moduleUpgradeDenied",{reason:`Need ${use} matching module${use>1?"s":""}.`});return;}
+    const cost=moduleConvergenceCostFor(key,use);if((p.credits||0)<cost.credits||inventoryCount(p,cost.resource)<cost.amount){socket.emit("moduleUpgradeDenied",{reason:`Need ${cost.credits.toLocaleString()}cr and ${cost.amount} ${cost.resource.replace(/_/g," ")}.`});return;}
+    const chance=Math.min(.9,use*.10),roll=Math.random(),addedBonus=pool[Math.floor(Math.random()*pool.length)],nextBonus=[...m.bonuses,addedBonus].sort().join("_");
+    const result=moduleInstanceKey(m.base,Math.max(1,m.level),nextBonus);
+    if(roll<chance&&!canReplaceInventoryItem(p,key,use,result,1)){socket.emit("moduleUpgradeDenied",{reason:"Inventory full for convergence result."});return;}
+    p.credits-=cost.credits;removeInventory(p,cost.resource,cost.amount);removeInventory(p,key,use);let success=roll<chance;
+    if(success){addInventory(p,result,1);for(const slot of ATTACHMENT_SLOTS)if(p.equippedAttachments?.[slot]===key)p.equippedAttachments[slot]=result;}
+    else {addInventory(p,key,1);}
+    applyShipStats(p,false);
+    socket.emit("moduleConvergenceResult",{success,chance,result:success?result:key,base:m.base,level:m.level,bonus:success?nextBonus:m.bonus,addedBonus:success?addedBonus:null,maxBonuses:MODULE_CONVERGENCE_BONUSES.length,cost,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});syncAndPersist(p,"module_convergence");
   });
   socket.on("upgradeWeapon",({weaponKey})=>{
     const p=players.get(socket.id);weaponKey=String(weaponKey||"");
@@ -2575,6 +2679,17 @@ io.on("connection",socket=>{
     }
     socket.emit("civilizationStationTaskSet",{zone:publicCivilizationZone(zone,p.id),stationId,task,targetZoneId});broadcastCivilizationZonesList();persistPlayerSoon(p,"civilization_station_task");
   });
+  socket.on("setAllCivilizationStationTasks",({zoneId,task,targetZoneId,targetZone})=>{
+    const p=players.get(socket.id);zoneId=safeZoneId(zoneId);task=task==="attack"?"attack":"mine";targetZoneId=safeZoneId(targetZoneId);
+    const zone=civilizationZones.get(zoneId);if(!p||!zone||!playerOwnsCivilizationZone(p,zone)){socket.emit("civilizationTaskDenied",{reason:"You do not own that civilization zone."});return;}
+    if(Math.hypot(p.x-zone.x,p.y-zone.y)>660){socket.emit("civilizationTaskDenied",{reason:"Command fleets from the super station."});return;}
+    let target=null;if(task==="attack"){target=civilizationZones.get(targetZoneId)||targetZone;if(!targetZoneId||targetZoneId===zoneId||!target){socket.emit("civilizationTaskDenied",{reason:"Choose a nearby civilization target."});return;}}
+    ensureCivLogistics(zone);zone.stationTasks=zone.stationTasks||{};
+    for(const st of [...zone.baseStations,...zone.builtStations])zone.stationTasks[st.id]={task,targetZoneId:task==="attack"?targetZoneId:null,targetName:task==="attack"?(target.name||""):"",targetX:task==="attack"?Math.round(target.x||0):0,targetY:task==="attack"?Math.round(target.y||0):0,targetRadius:task==="attack"?Math.round(target.radius||0):0,targetColor:task==="attack"?(target.color||""):"",updatedAt:Date.now()};
+    if(task==="attack"){zone.relations[targetZoneId]="enemy";const defender=civilizationZones.get(targetZoneId);if(defender){ensureCivLogistics(defender);defender.relations[zoneId]="enemy";defender.stationTasks=defender.stationTasks||{};for(const st of [...defender.baseStations,...defender.builtStations])defender.stationTasks[st.id]={task:"attack",targetZoneId:zoneId,targetName:zone.name,targetX:zone.x,targetY:zone.y,targetRadius:zone.radius,targetColor:zone.color,updatedAt:Date.now(),war:true};}}
+    socket.emit("civilizationAllTasksSet",{zone:publicCivilizationZone(zone,p.id),task,targetZoneId});broadcastCivilizationZonesList();persistPlayerSoon(p,"civilization_all_station_tasks");
+  });
+  socket.on("refreshCivilizationShips",({zoneId})=>{const {p,zone}=ownCivZone({zoneId});if(!p||!zone)return;ensureCivLogistics(zone);for(const st of [...zone.baseStations,...zone.builtStations]){st.lastTaskHeartbeat=Date.now();for(const sh of st.shipRoster||[])if(sh.status!=="destroyed")sh.status="active";}socket.emit("civilizationShipsRefreshed",{zoneId:zone.zoneId,zone:publicCivilizationZone(zone,p.id)});civSync(p,zone,"civilization_ship_refresh");});
 
   socket.on("modeChange",({mode,planetId,x,y})=>{
     const p=players.get(socket.id);if(!p)return;
@@ -3085,6 +3200,24 @@ io.on("connection",socket=>{
     persistPlayerSoon(p,"buy_civilization_zone");
   });
 
+  // Player-founded zones deliberately have no inherited stations, turrets, or
+  // free ships.  They use the same authoritative logistics record as a bought
+  // zone, so every future station/turret/menu feature works without a second
+  // ownership system.
+  socket.on("buildCivilizationZone",raw=>{
+    const p=players.get(socket.id);if(!p||p.mode!=="space")return;
+    const x=Math.round(Number(raw?.x)),y=Math.round(Number(raw?.y));
+    if(!Number.isFinite(x)||!Number.isFinite(y)||Math.hypot(p.x-x,p.y-y)>260){socket.emit("civilizationZoneDenied",{reason:"Choose a build point near your ship."});return;}
+    const radius=420,cost=1000000;
+    if((p.credits||0)<cost){socket.emit("civilizationZoneDenied",{reason:"Need 1,000,000cr to found a civilization zone."});return;}
+    const rimConflict=civilizationRimPlacementConflict(x,y,radius);
+    if(rimConflict){socket.emit("civilizationZoneDenied",{reason:"A civilization rim would touch or overlap this location."});return;}
+    const zoneId=`playerciv_${String(p.memberId||p.id).replace(/[^a-zA-Z0-9]/g,"").slice(-18)}_${Date.now().toString(36)}`;
+    const faction=civFactionFor(zoneId),zone={...civZoneDefaults({zoneId,zoneLevel:6}),zoneId,name:`${p.name}'s Frontier`,color:faction.color,x,y,radius,baseStationCount:0,superStationLevel:6,zoneLevel:6,ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,purchasedAt:Date.now(),baseStations:[],builtStations:[],stationTasks:{},pendingTax:0,totalTaxCollected:0,playerFounded:true,stationTierCosmetics:{},npcshipCosmeticKey:null,turretCosmeticKey:null};
+    ensureCivLogistics(zone);p.credits-=cost;civilizationZones.set(zoneId,zone);addScore(p,5000,"Civilization Founded");
+    socket.emit("civilizationZoneBuilt",{zone:publicCivilizationZone(zone,p.id),credits:p.credits,cost});socket.emit("creditUpdate",{credits:p.credits});broadcastCivilizationZonesList();persistPlayerSoon(p,"build_civilization_zone");
+  });
+
   socket.on("buildCivilizationStation",(raw={})=>{
     let {zoneId,tier}=raw||{};
     const p=players.get(socket.id);if(!p||p.mode!=="space")return;
@@ -3128,6 +3261,7 @@ io.on("connection",socket=>{
   socket.on("upgradeCivilizationZone",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const lv=zone.zoneLevel||1;if(lv>=10){socket.emit("civilizationZoneDenied",{reason:"This civilization zone is already level 10."});return;}const cost=25000*lv,res=lv<4?"iron":lv<7?"crystal":"obelisk_core";if(p.credits<cost||inventoryCount(p,res)<lv){socket.emit("civilizationZoneDenied",{reason:`Need ${cost}cr and ${lv} ${res.replace(/_/g," ")}.`});return;}p.credits-=cost;removeInventory(p,res,lv);zone.zoneLevel=lv+1;zone.stockpileCapacity=Math.min(10000,1000+lv*1000);socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_zone_upgrade");});
   socket.on("buildCivilizationTurret",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const key=String(raw?.turretKey||"pulse"),def=CIV_TURRET_CATALOG[key];if(!def){socket.emit("civilizationZoneDenied",{reason:"Unknown turret design."});return;}const cap=Math.min(20,2+(zone.zoneLevel||1)),built=(zone.turrets||[]).length,scaledCredits=Math.round(def.credits*(1+built*.08));if(built>=cap){socket.emit("civilizationZoneDenied",{reason:"Turret capacity reached."});return;}const recipeCheck=civRecipeOk(p,def);if(p.credits<scaledCredits||!recipeCheck.ok){socket.emit("civilizationZoneDenied",{reason:recipeCheck.reason||`Need ${scaledCredits}cr.`});return;}p.credits-=scaledCredits;civConsumeRecipe(p,def);const stats=civFactionTurretStats(zone,def),a=((built*2.399)+.3)%6.283;zone.turrets.push({id:`${zone.zoneId}|turret|${Date.now()}`,x:Math.round(zone.x+Math.cos(a)*(zone.radius-40)),y:Math.round(zone.y+Math.sin(a)*(zone.radius-40)),turretType:key,name:def.name,sprite:def.sprite,effect:def.effect,slow:def.slow||0,burn:def.burn||0,burnSeconds:def.burnSeconds||0,pierce:def.pierce||0,shieldBreak:def.shieldBreak||0,range:stats.range,hp:stats.hp,shield:stats.shield,maxHp:stats.hp,maxShield:stats.shield,damage:stats.damage,fireRate:stats.fireRate,cooldown:0,color:zone.color});socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_turret_build");});
   socket.on("offerCivilizationContract",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const targetId=safeZoneId(raw?.targetZoneId);if(!targetId||targetId===zone.zoneId){socket.emit("civilizationZoneDenied",{reason:"Choose a nearby civilization zone."});return;}const target=civilizationZones.get(targetId);const credit=Math.max(0,Math.floor(Number(raw?.creditsPerMinute)||0)),giveType=String(raw?.giveType||""),giveAmount=Math.max(0,Math.floor(Number(raw?.giveAmount)||0));if(credit>zone.bankCredits||(giveType&&giveAmount>(zone.stockpile[giveType]||0))){socket.emit("civilizationZoneDenied",{reason:"Your super station cannot fund that contract."});return;}const fairness=Math.max(.1,Math.min(.95,.35+Math.min(.35,(credit+giveAmount*(RES_BASE[giveType]||1))/12000)+Math.min(.15,(zone.builtStations?.length||0)/30)));const contract={id:`contract_${Date.now()}`,targetZoneId:targetId,status:"pending",createdAt:Date.now(),decisionAt:Date.now()+120000,give:{credits:credit,type:giveType,amount:giveAmount},receive:{credits:Math.max(0,Math.floor(Number(raw?.receiveCredits)||0)),type:String(raw?.receiveType||""),amount:Math.max(0,Math.floor(Number(raw?.receiveAmount)||0))},fairness,deliveryCapacity:(zone.builtStations||[]).reduce((n,s)=>n+(s.shipRoster||[]).filter(x=>x.role==="trade").reduce((m,x)=>m+(x.stats?.capacity||0),0),0)};zone.contracts.push(contract);if(target){ensureCivLogistics(target);target.contracts.push({...contract,sourceZoneId:zone.zoneId,incoming:true});}civSync(p,zone,"civ_contract_offer");});
+  socket.on("cancelCivilizationContract",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const id=String(raw?.contractId||"").slice(0,100);const c=(zone.contracts||[]).find(x=>x.id===id&&!x.incoming);if(!c||c.status!=="pending"){socket.emit("civilizationZoneDenied",{reason:"Only a pending outgoing contract can be withdrawn."});return;}zone.contracts=zone.contracts.filter(x=>x.id!==id);const target=civilizationZones.get(c.targetZoneId);if(target)target.contracts=(target.contracts||[]).filter(x=>!(x.id===id&&x.sourceZoneId===zone.zoneId));civSync(p,zone,"civ_contract_cancel");});
   socket.on("setCivilizationRelation",raw=>{const {p,zone}=ownCivZone(raw);if(!p||!zone)return;const targetId=safeZoneId(raw?.targetZoneId),relation=raw?.relation==="enemy"?"enemy":"neutral";if(!targetId||targetId===zone.zoneId)return;zone.relations[targetId]=relation;if(relation==="enemy")for(const st of zone.builtStations||[])zone.stationTasks[st.id]={task:"attack",targetZoneId:targetId,updatedAt:Date.now()};civSync(p,zone,"civ_relation");});
 
   socket.on("buyStation",({x,y,tier})=>{
@@ -3264,7 +3398,7 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);if(!p)return;const st=ownedStructures.get(String(structureKey||""));
     resourceType=String(resourceType||"");quantity=Math.max(1,Math.min(999,Math.floor(Number(quantity)||1)));
     if(!st||st.ownerId!==p.id||st.type!=="storage_facility"||st.destroyed){socket.emit("storageDenied",{reason:"Storage unavailable."});return;}
-    if(!RES_KEYS.includes(resourceType)||inventoryCount(p,resourceType)<quantity){socket.emit("storageDenied",{reason:"You do not have that item."});return;}
+    if(!isInventoryItemKey(resourceType)||inventoryCount(p,resourceType)<quantity){socket.emit("storageDenied",{reason:"You do not have that item."});return;}
     if(!canFitStorage(st,resourceType,quantity)){socket.emit("storageDenied",{reason:"Storage slots full."});return;}
     removeInventory(p,resourceType,quantity);addStorage(st,resourceType,quantity);syncAndPersist(p,"storage_deposit");
     socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits,nextStorageUpgradeCost:Number(st.storageSlots||24)<100?structureUpgradeCost(st,"storage"):0});broadcastPlayerStructuresList();
@@ -3274,7 +3408,7 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);if(!p)return;const st=ownedStructures.get(String(structureKey||""));
     resourceType=String(resourceType||"");quantity=Math.max(1,Math.min(999,Math.floor(Number(quantity)||1)));
     if(!st||st.ownerId!==p.id||st.type!=="storage_facility"||st.destroyed){socket.emit("storageDenied",{reason:"Storage unavailable."});return;}
-    if(!RES_KEYS.includes(resourceType)||inventoryCount({invSlots:st.invSlots,maxSlots:st.storageSlots},resourceType)<quantity){socket.emit("storageDenied",{reason:"Storage does not have that item."});return;}
+    if(!isInventoryItemKey(resourceType)||inventoryCount({invSlots:st.invSlots,maxSlots:st.storageSlots},resourceType)<quantity){socket.emit("storageDenied",{reason:"Storage does not have that item."});return;}
     if(!canFitInventory(p,resourceType,quantity)){socket.emit("storageDenied",{reason:"Inventory slots full."});return;}
     removeStorage(st,resourceType,quantity);addInventory(p,resourceType,quantity);syncAndPersist(p,"storage_withdraw");
     socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits,nextStorageUpgradeCost:Number(st.storageSlots||24)<100?structureUpgradeCost(st,"storage"):0});broadcastPlayerStructuresList();
@@ -3287,6 +3421,14 @@ io.on("connection",socket=>{
     const cost=structureUpgradeCost(st,"storage");if((p.credits||0)<cost){socket.emit("storageDenied",{reason:`Need ${cost}cr.`});return;}
     p.credits-=cost;const old=st.storageSlots||24;st.storageSlots=Math.min(100,old+4);st.invSlots=normalizeStorageSlots(st.invSlots,st.storageSlots);
     syncAndPersist(p,"storage_upgrade");socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits,cost,nextStorageUpgradeCost:Number(st.storageSlots||24)<100?structureUpgradeCost(st,"storage"):0});broadcastPlayerStructuresList();
+  });
+
+  socket.on("upgradeStorageShield",({structureKey})=>{
+    const p=players.get(socket.id),st=ownedStructures.get(String(structureKey||""));
+    if(!p||!st||st.ownerId!==p.id||st.type!=="storage_facility"||st.destroyed){socket.emit("storageDenied",{reason:"Storage unavailable."});return;}
+    const cost=structureUpgradeCost(st,"storageShield");if((p.credits||0)<cost){socket.emit("storageDenied",{reason:`Need ${cost.toLocaleString()}cr.`});return;}
+    p.credits-=cost;st.storageShieldLevel=Math.max(1,(st.storageShieldLevel||1)+1);st.maxShield=Math.floor((PLAYER_STRUCTURE_TYPES.storage_facility.maxShield||650)*Math.pow(1.18,st.storageShieldLevel-1));st.shield=st.maxShield;
+    syncAndPersist(p,"storage_shield_upgrade");socket.emit("storageUpdate",{structure:publicStructure(st,p.id),credits:p.credits,cost,shieldUpgrade:true});broadcastPlayerStructuresList();
   });
 
   socket.on("upgradeTurret",({structureKey,kind})=>{
