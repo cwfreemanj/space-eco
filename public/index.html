@@ -3534,6 +3534,70 @@ function drawStationBars(x,y,w,hp,maxHp,shield,maxShield){
 const CHUNK_SIZE=1250,PLANETS_PER_CHUNK=2,CHUNK_RADIUS=2;
 const generatedPlanets=new Map(),generatedStations=new Map();
 let visiblePlanets=[],visibleStations=[];
+// Server-owned civilization fleets are rendered from this snapshot map. The
+// old browser-only simulation remains as a fallback for purely procedural
+// ambient traffic, but a purchased/founded civilization can no longer drift
+// into a different task or location on each connected client.
+const authoritativeNpcFleetByStation=new Map();
+let latestAuthoritativeNpcFleetSequence=0;
+const AUTHORITATIVE_NPC_FLEET_STALE_MS=3600;
+function authoritativeNpcFleetNow(){return performance.now();}
+function authoritativeNpcFleetCargo(entries){const out={};for(const entry of Array.isArray(entries)?entries:[]){const type=String(entry?.type||""),amount=Math.max(0,Math.floor(Number(entry?.amount)||0));if(type&&amount>0)out[type]=(out[type]||0)+amount;}return out;}
+function authoritativeNpcFleetTarget(raw){if(!raw?.id)return null;return {id:String(raw.id),name:raw.name||"Resource Planet",x:Number(raw.x)||0,y:Number(raw.y)||0,radius:Math.max(20,Number(raw.radius)||60),resList:Array.isArray(raw.resources)?raw.resources.slice(0,12):[]};}
+function applyAuthoritativeNpcFleetSnapshot(payload){
+  if(!payload||!Array.isArray(payload.stations))return false;
+  const sequence=Math.max(0,Number(payload.sequence)||0);if(sequence&&sequence<latestAuthoritativeNpcFleetSequence)return false;
+  if(sequence)latestAuthoritativeNpcFleetSequence=sequence;
+  const receivedAt=authoritativeNpcFleetNow();
+  for(const raw of payload.stations){
+    const stationId=String(raw?.stationId||"");if(!stationId)continue;
+    authoritativeNpcFleetByStation.set(stationId,{...raw,stationId,ships:Array.isArray(raw.ships)?raw.ships:[],receivedAt,serverTime:Number(payload.serverTime)||Date.now()});
+  }
+  applyAuthoritativeNpcFleetsToVisibleStations();
+  return true;
+}
+function applyAuthoritativeNpcFleetsToVisibleStations(){
+  const now=authoritativeNpcFleetNow();
+  for(const st of visibleStations||[]){
+    const snapshot=authoritativeNpcFleetByStation.get(String(st?.id||""));
+    if(!snapshot){if(st?._authoritativeNpcFleet&&now-Number(st._authoritativeNpcFleetAt||0)>AUTHORITATIVE_NPC_FLEET_STALE_MS)st._authoritativeNpcFleet=false;continue;}
+    if(now-Number(snapshot.receivedAt||0)>AUTHORITATIVE_NPC_FLEET_STALE_MS){st._authoritativeNpcFleet=false;continue;}
+    st._authoritativeNpcFleet=true;st._authoritativeNpcFleetAt=snapshot.receivedAt;st.civTask=snapshot.task||st.civTask||"mine";
+    if(snapshot.destroyed){st.tradeShips=[];st.tradeRespawns=[];continue;}
+    const existing=new Map();
+    for(const ts of st.tradeShips||[])existing.set(String(ts?.civLogisticsKey||ts?.id||""),ts);
+    const next=[];
+    for(const raw of snapshot.ships||[]){
+      if(raw?.status!=="active")continue;
+      const fleetId=String(raw.fleetId||raw.id||"");if(!fleetId)continue;
+      let ts=existing.get(fleetId);
+      if(!ts){
+        try{ts=createNpcTradeShip(st,Math.max(0,Math.floor(Number(raw.homeSlot)||0)));}catch(_){ts={id:fleetId,stationId:st.id,homeSlot:Math.max(0,Math.floor(Number(raw.homeSlot)||0)),x:st.x,y:st.y,vx:0,vy:0,angle:0,size:5,visualSize:5,lootCarried:{}};}
+      }
+      const sx=Number(raw.x),sy=Number(raw.y),isNew=!Number.isFinite(Number(ts.x))||!Number.isFinite(Number(ts.y)),far=!isNew&&Math.hypot(ts.x-sx,ts.y-sy)>950;
+      if(isNew||far){ts.x=Number.isFinite(sx)?sx:st.x;ts.y=Number.isFinite(sy)?sy:st.y;}
+      ts.id=String(raw.id||ts.id||fleetId);ts.stationId=st.id;ts.homeSlot=Math.max(0,Math.floor(Number(raw.homeSlot)||Number(ts.homeSlot)||0));ts.civLogisticsKey=fleetId;
+      ts.authoritativeNpc=true;ts.authoritativeReceivedAt=snapshot.receivedAt;ts._serverX=Number.isFinite(sx)?sx:ts.x;ts._serverY=Number.isFinite(sy)?sy:ts.y;ts._serverVx=Number(raw.vx)||0;ts._serverVy=Number(raw.vy)||0;ts._serverAngle=Number(raw.angle)||0;
+      ts.state=raw.state||"idle";ts.mission=raw.mission||raw.task||"mine";ts.targetPlanet=authoritativeNpcFleetTarget(raw.target);ts.lootCarried=authoritativeNpcFleetCargo(raw.cargoItems);
+      ts.hp=Math.max(0,Number(raw.hp)||0);ts.maxHp=Math.max(1,Number(raw.maxHp)||ts.maxHp||1);ts.shield=Math.max(0,Number(raw.shield)||0);ts.maxShield=Math.max(0,Number(raw.maxShield)||ts.maxShield||0);
+      ts.cargoCapacity=Math.max(1,Math.floor(Number(raw.cargoCapacity)||ts.cargoCapacity||1));ts.speed=Math.max(1,Number(raw.speed)||ts.speed||1);ts.damage=Math.max(0,Number(raw.damage)||ts.damage||0);
+      ts.shipSprite=Math.max(0,Math.floor(Number(raw.shipSprite)||0));ts.className=raw.className||ts.className||"Civilization Ship";ts.npcClass=raw.role==="defender"?"fighter":ts.npcClass||"basic";
+      if(ts.shipSprite&&typeof civilizationSpriteShipRenderSize==="function")ts.visualSize=Math.max(Number(ts.size)||3,civilizationSpriteShipRenderSize({role:raw.role||"trade"},{hp:ts.maxHp,capacity:ts.cargoCapacity},Number(ts.visualSize)||Number(ts.size)||4));
+      next.push(ts);
+    }
+    st.tradeShips=next;st.tradeRespawns=[];
+  }
+  for(const [stationId,snapshot] of authoritativeNpcFleetByStation)if(now-Number(snapshot?.receivedAt||0)>15000)authoritativeNpcFleetByStation.delete(stationId);
+}
+function updateAuthoritativeNpcFleetShip(ts,station,dt){
+  if(!ts?.authoritativeNpc)return false;
+  const now=authoritativeNpcFleetNow();
+  if(now-Number(ts.authoritativeReceivedAt||0)>AUTHORITATIVE_NPC_FLEET_STALE_MS){ts.authoritativeNpc=false;if(station)station._authoritativeNpcFleet=false;return false;}
+  const targetX=Number(ts._serverX),targetY=Number(ts._serverY),blend=clamp(Math.max(.16,Number(dt)||0)*10,0,1);
+  if(Number.isFinite(targetX)&&Number.isFinite(targetY)){if(Math.hypot(ts.x-targetX,ts.y-targetY)>500){ts.x=targetX;ts.y=targetY;}else{ts.x=lerp(ts.x,targetX,blend);ts.y=lerp(ts.y,targetY,blend);}}
+  ts.vx=Number(ts._serverVx)||0;ts.vy=Number(ts._serverVy)||0;ts.angle=Number.isFinite(Number(ts._serverAngle))?Number(ts._serverAngle):ts.angle;
+  return true;
+}
 GALAXY_SEED=GALAXY_SEED||"GALAXY-01";
 
 function chunkKey(cx,cy){return `${cx},${cy}`;}
@@ -3559,6 +3623,7 @@ function syncCivilizationZones(list){
   }
   for(const z of generatedCivZones.values())if(z)decorateCivilizationZone(z);
   applyCivilizationRecordsToGeneratedStations();
+  applyAuthoritativeNpcFleetsToVisibleStations();
 }
 function civZoneRecord(id){return civilizationZonesById.get(id)||null;}
 function applyCivilizationStationMarket(st,market={}){st.civMarket=market||{};st.buyStock=Object.entries(st.civMarket).filter(([,item])=>Number(item?.amount)>0&&Number(item?.price)>0).map(([type,item])=>({type,qty:Math.floor(item.amount),maxQty:Math.floor(item.amount),price:Math.floor(item.price),civilizationMarket:true}));}
@@ -3998,6 +4063,9 @@ function keepNpcTradeShipMission(ts,station,activeSpeed){
 }
 
 function updateNpcTradeShipRespawns(st,dt){
+  // Civilization fleet respawns now arrive in the authoritative server
+  // snapshot. Never synthesize a second client-only ship beside it.
+  if(st?._authoritativeNpcFleet){st.tradeRespawns=[];return;}
   if(st.destroyed){st.tradeRespawns=[];return;}
   if(!st.tradeRespawns)st.tradeRespawns=[];
   for(let i=st.tradeRespawns.length-1;i>=0;i--){
@@ -4189,6 +4257,9 @@ function recoverNpcTradeShipTask(ts,station,allPlanets){
   ts._lastPathX=ts.x;ts._lastPathY=ts.y;
 }
 function updateTradeShip(ts,station,allPlanets,dt){
+  // Do not allow local random timers or path recovery to overwrite a shared
+  // civilization mission. Interpolate the latest server position only.
+  if(updateAuthoritativeNpcFleetShip(ts,station,dt))return;
   const taskNow=performance.now();
   // A short heartbeat prevents ships from keeping an old idle/combat path when
   // a task or a resource target is changed while their station is off-screen.
@@ -5313,6 +5384,7 @@ function updateChunks(){
   for(const rec of civilizationZonesList||[])if(rec?.playerFounded){const key=`dynamic:${rec.zoneId}`,zone=generatedCivZones.get(key),stations=generatedStations.get(key)||[];if(zone&&Math.hypot(ship.x-zone.x,ship.y-zone.y)<CHUNK_SIZE*(CHUNK_RADIUS+1)){visibleCivZones.push(zone);for(const st of stations)pushVisibleStation(st);}}
   if(Array.isArray(randomEventStations))for(const st of randomEventStations)if(!st.expireAt||Date.now()<st.expireAt)pushVisibleStation(st);
   if(Array.isArray(specialEventPlanets))for(const p of specialEventPlanets)if(!p.expireAt||Date.now()<p.expireAt)visiblePlanets.push(p);
+  applyAuthoritativeNpcFleetsToVisibleStations();
 }
 
 /* ── Planet mode ── */
@@ -6774,7 +6846,7 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   if(!gameLoopStarted){gameLoopStarted=true;requestAnimationFrame(tick);}
 });
 
-socket.on("worldState",({self,others,pvpProjectiles:sp})=>{
+socket.on("worldState",({self,others,pvpProjectiles:sp,npcFleetState})=>{
   if(self){self={...self,x:finiteOr(self.x,ship.x),y:finiteOr(self.y,ship.y),vx:finiteOr(self.vx,0),vy:finiteOr(self.vy,0),angle:finiteOr(self.angle,ship.angle),hp:finiteOr(self.hp,ship.hp),maxHp:Math.max(1,finiteOr(self.maxHp,ship.maxHp)),shield:finiteOr(self.shield,ship.shield),maxShield:Math.max(0,finiteOr(self.maxShield,ship.maxShield))};
     const dx=self.x-ship.x,dy=self.y-ship.y;
     if(Math.hypot(dx,dy)>80){ship.x=self.x;ship.y=self.y;}else{ship.x=lerp(ship.x,self.x,0.3);ship.y=lerp(ship.y,self.y,0.3);}
@@ -6791,6 +6863,7 @@ socket.on("worldState",({self,others,pvpProjectiles:sp})=>{
   for(const raw of others){const s={...raw,x:finiteOr(raw?.x,0),y:finiteOr(raw?.y,0),vx:finiteOr(raw?.vx,0),vy:finiteOr(raw?.vy,0),angle:finiteOr(raw?.angle,0)};seen.add(s.id);if(!otherPlayers.has(s.id)){otherPlayers.set(s.id,{...s,renderX:s.x,renderY:s.y,renderAngle:s.angle,lastUpdate:now});}else{const op=otherPlayers.get(s.id);Object.assign(op,s);op.lastUpdate=now;}}
   for(const[id]of otherPlayers)if(!seen.has(id))otherPlayers.delete(id);
   pvpProjectiles.length=0;if(sp)for(const p of sp)pvpProjectiles.push(p);
+  if(npcFleetState)applyAuthoritativeNpcFleetSnapshot(npcFleetState);
 });
 
 socket.on("pvpProjectileSpawn",({projectile}={})=>{
