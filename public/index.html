@@ -3871,9 +3871,21 @@ const NPC_TRADE_SHIP_CLASSES={
   fighter:{name:"Fighter",speedMult:1.23,hpMult:1.28,damageMult:1.48,sizeMult:1.12,fireInterval:.68,bulletSpeed:265,bulletSize:3.25,combatRange:345,shape:"fighter"}
 };
 const NPC_TRADE_SHIP_CLASS_ORDER=["basic","skirmisher","juggernaut","fighter"];
+function civilizationSpriteShipRenderSize(roster,stats,fallback){
+  // Spliced ship art occupies much more transparent canvas than the procedural
+  // bodies.  A roster ship therefore needs a visual radius independent of the
+  // small simulation collision size, otherwise newly built ships look like dots.
+  const role=String(roster?.role||"").toLowerCase();
+  const hp=Math.max(0,Number(stats?.hp)||0),cargo=Math.max(0,Number(stats?.capacity)||0);
+  const tierBonus=hp>=900||cargo>=180?5:hp>=450||cargo>=80?3:0;
+  // The actual painted hull only fills part of each transparent sprite cell.
+  // Keep roster ships at a readable in-world size instead of scaling them to
+  // the tiny collision radius used by navigation and station avoidance.
+  return Math.max(Math.max(3,Number(fallback)||3),role==="defender"?18+tierBonus:17+tierBonus);
+}
 function createNpcTradeShip(st,slot){
-  const cfg=st.tierDef.shipConfig,total=Math.max(1,st.tierDef.shipCount),ang=Math.PI*2*(slot/total),roster=(st.civRoster||[])[Math.max(0,slot-(st.civBaseShipCount||0))],classKey=roster?.role==="defender"?"fighter":NPC_TRADE_SHIP_CLASS_ORDER[Math.abs(slot)%NPC_TRADE_SHIP_CLASS_ORDER.length],cls=NPC_TRADE_SHIP_CLASSES[classKey]||NPC_TRADE_SHIP_CLASSES.basic,rs=roster?.stats||{},hp=Math.max(12,Math.round(rs.hp||cfg.hp*cls.hpMult));
-  return {id:roster?.id||st.id+"|ship|"+slot,homeSlot:slot,stationId:st.id,faction:st.faction,factionColor:st.factionColor,x:st.x+Math.cos(ang)*60,y:st.y+Math.sin(ang)*60,vx:0,vy:0,angle:ang,hp,maxHp:hp,maxShield:rs.shield||0,shield:rs.shield||0,speed:rs.speed||cfg.speed*cls.speedMult,damage:rs.damage||cfg.damage*cls.damageMult,cargoCapacity:Math.max(4,Math.floor(rs.capacity||cfg.cargo||8)),size:Math.max(3,cfg.size*cls.sizeMult),tier:st.tier,npcClass:classKey,className:roster?.name||cls.name,shipShape:cls.shape,shipSprite:Number(roster?.sprite||CIV_CLIENT_SHIPS?.[roster?.shipKey]?.sprite||0),fireInterval:cls.fireInterval,bulletSpeed:cls.bulletSpeed,bulletSize:cls.bulletSize,combatRange:cls.combatRange,state:"idle",mission:"mine",stateTimer:1+Math.random()*2,targetPlanet:null,lootCarried:{},shootTimer:0,ownerType:"npc",playerPursuitCooldown:0,civRosterShipId:roster?.id||null,_lastPathX:st.x+Math.cos(ang)*60,_lastPathY:st.y+Math.sin(ang)*60,_stuckTime:0,_recoveryAttempts:0,_nextDefenseScan:0};
+  const cfg=st.tierDef.shipConfig,total=Math.max(1,st.tierDef.shipCount),ang=Math.PI*2*(slot/total),roster=(st.civRoster||[])[Math.max(0,slot-(st.civBaseShipCount||0))],classKey=roster?.role==="defender"?"fighter":NPC_TRADE_SHIP_CLASS_ORDER[Math.abs(slot)%NPC_TRADE_SHIP_CLASS_ORDER.length],cls=NPC_TRADE_SHIP_CLASSES[classKey]||NPC_TRADE_SHIP_CLASSES.basic,rs=roster?.stats||{},hp=Math.max(12,Math.round(rs.hp||cfg.hp*cls.hpMult)),shipSprite=Number(roster?.sprite||CIV_CLIENT_SHIPS?.[roster?.shipKey]?.sprite||0),simulationSize=Math.max(3,cfg.size*cls.sizeMult),renderSize=shipSprite?civilizationSpriteShipRenderSize(roster,rs,simulationSize):simulationSize;
+  return {id:roster?.id||st.id+"|ship|"+slot,homeSlot:slot,stationId:st.id,faction:st.faction,factionColor:st.factionColor,x:st.x+Math.cos(ang)*60,y:st.y+Math.sin(ang)*60,vx:0,vy:0,angle:ang,hp,maxHp:hp,maxShield:rs.shield||0,shield:rs.shield||0,speed:rs.speed||cfg.speed*cls.speedMult,damage:rs.damage||cfg.damage*cls.damageMult,cargoCapacity:Math.max(4,Math.floor(rs.capacity||cfg.cargo||8)),size:simulationSize,visualSize:renderSize,tier:st.tier,npcClass:classKey,className:roster?.name||cls.name,shipShape:cls.shape,shipSprite,fireInterval:cls.fireInterval,bulletSpeed:cls.bulletSpeed,bulletSize:cls.bulletSize,combatRange:cls.combatRange,state:"idle",mission:"mine",stateTimer:1+Math.random()*2,targetPlanet:null,lootCarried:{},shootTimer:0,ownerType:"npc",playerPursuitCooldown:0,civRosterShipId:roster?.id||null,_lastPathX:st.x+Math.cos(ang)*60,_lastPathY:st.y+Math.sin(ang)*60,_stuckTime:0,_recoveryAttempts:0,_nextDefenseScan:0};
 }
 function initTradeShips(st,localPlanets){
   st.tradeShips=[];st.tradeRespawns=[];
@@ -4718,6 +4730,16 @@ function startNpcShipSelfDefenseAgainstPlayer(ts,station){
   ts.combatTarget={type:"player",x:ship.x,y:ship.y,selfDefense:true,zoneId:station.civilizationZoneId||null};
   ts.shootTimer=Math.min(ts.shootTimer||0,0.12+Math.random()*0.12);
 }
+const CIV_PLAYER_RETALIATE_RANGE=1050;
+const CIV_PLAYER_RETALIATE_MS=12000;
+function markCivilizationPlayerRetaliation(ts,station,until=performance.now()+CIV_PLAYER_RETALIATE_MS){
+  if(!ts||!station||stationBelongsToPlayerOwnedCivilization(station))return false;
+  ts.playerAggroUntil=Math.max(Number(ts.playerAggroUntil)||0,Number(until)||0);
+  ts.playerAggroZoneId=station.civilizationZoneId||null;
+  ts.combatTarget={type:"player",x:ship.x,y:ship.y,targetZoneId:station.civilizationZoneId||null,playerAggroUntil:ts.playerAggroUntil,playerAggro:true};
+  ts.state="combat";ts.stateTimer=999;ts.shootTimer=Math.min(ts.shootTimer||0,0.12+Math.random()*0.12);
+  return true;
+}
 function civilizationZoneAtPoint(x,y,pad=0){
   for(const z of visibleCivZones){
     if(dist(Number(x),Number(y),z.x,z.y)<=(z.radius||430)+pad)return z;
@@ -4729,7 +4751,7 @@ function triggerNpcCivilizationZoneAggro(zoneId,label="intruder"){
   // Never call the whole player-owned civilization against its own owner.
   // Directly-hit ships handle their own self-defense separately.
   if(isPlayerOwnedCivilizationZone(zoneId))return 0;
-  return alertCivilizationZoneDefendersAgainstTarget(zoneId,{type:"player",x:ship.x,y:ship.y},label);
+  return alertCivilizationZoneDefendersAgainstTarget(zoneId,{type:"player",x:ship.x,y:ship.y,playerAggro:true,playerAggroUntil:performance.now()+CIV_PLAYER_RETALIATE_MS},label);
 }
 function tradeShipRawTarget(ts,station){return {type:"npcTradeShip",stationId:station?.id,shipId:ts?.id,x:ts?.x,y:ts?.y,sourceZoneId:stationZoneId(station)||null};}
 function npcStationRawTarget(st){return {type:"npcStation",stationId:st?.id,x:st?.x,y:st?.y,sourceZoneId:stationZoneId(st)||null};}
@@ -4832,7 +4854,7 @@ function alertCivilizationZoneDefendersAgainstTarget(zoneId,target,label="enemy 
   }
   if(raw.sourceZoneId&&raw.sourceZoneId!==zoneId)startCivilizationZoneWar(zoneId,raw.sourceZoneId);
   const z=visibleCivZoneById(zoneId);
-  const tx=Number(raw.x),ty=Number(raw.y);
+  const tx=Number(raw.x),ty=Number(raw.y),playerAggro=raw.type==="player"&&raw.playerAggro===true,playerAggroUntil=playerAggro?Math.max(performance.now()+2500,Number(raw.playerAggroUntil)||0):0;
   let called=0;
   for(const st of visibleStations){
     if(st.destroyed||stationZoneId(st)!==zoneId)continue;
@@ -4843,8 +4865,14 @@ function alertCivilizationZoneDefendersAgainstTarget(zoneId,target,label="enemy 
       const inZone=!z||dist(ts.x,ts.y,z.x,z.y)<=(z.radius||430)+260;
       const nearTarget=Number.isFinite(tx)&&Number.isFinite(ty)&&dist(ts.x,ts.y,tx,ty)<1700;
       const nearStation=dist(ts.x,ts.y,st.x,st.y)<(st.r||24)+780;
-      if(inZone&&(nearTarget||nearStation)){
-        ts.state="combat";ts.stateTimer=999;ts.combatTarget={...raw,zoneDefense:true,targetZoneId:zoneId};ts.shootTimer=Math.min(ts.shootTimer||0,0.16+Math.random()*0.18);called++;
+      // A player who has just fired on a defender takes priority over an
+      // ongoing NPC-vs-NPC war, but only for nearby defenders.  This prevents
+      // every zone ship from abandoning its own battle across the map.
+      const playerInRetaliationRange=playerAggro&&dist(ts.x,ts.y,ship.x,ship.y)<=Math.max(CIV_PLAYER_RETALIATE_RANGE,(ts.combatRange||320)*3);
+      if(inZone&&(playerAggro?playerInRetaliationRange:(nearTarget||nearStation))){
+        if(playerAggro)markCivilizationPlayerRetaliation(ts,st,playerAggroUntil);
+        else{ts.state="combat";ts.stateTimer=999;ts.combatTarget={...raw,zoneDefense:true,targetZoneId:zoneId};ts.shootTimer=Math.min(ts.shootTimer||0,0.16+Math.random()*0.18);}
+        called++;
       }
     }
   }
@@ -4887,7 +4915,7 @@ function normalizeCivDefenseTarget(target){
   if(target.type==="civTurret")return {type:"civTurret",zoneId:target.zoneId||target.zone?.id||target.zone?.zoneId,turretId:target.turretId||target.obj?.id,x:target.x,y:target.y,sourceZoneId:target.zoneId||target.zone?.id||target.zone?.zoneId};
   if(target.type==="ownedTradeShip")return {type:"ownedTradeShip",stationKey:target.stationKey||target.station?.key,shipId:target.shipId||target.obj?.id,x:target.x,y:target.y};
   if(target.type==="ownedStation")return {type:"ownedStation",stationKey:target.stationKey||target.station?.key||target.obj?.key,x:target.x,y:target.y};
-  if(target.type==="player")return {type:"player",x:target.x||ship.x,y:target.y||ship.y};
+  if(target.type==="player")return {type:"player",x:target.x||ship.x,y:target.y||ship.y,playerAggro:target.playerAggro===true,playerAggroUntil:Number(target.playerAggroUntil)||0};
   return null;
 }
 function alertOwnedCivilizationZoneDefenders(target,label="attacker"){
@@ -4921,6 +4949,20 @@ function alertOwnedCivilizationZoneDefenders(target,label="attacker"){
 function resolveNpcTradeShipCombatTarget(ts,station){
   const defendingOwnedCiv=stationInActiveOwnedCivZone(station);
   const ownCivilizationStation=stationBelongsToPlayerOwnedCivilization(station);
+  const now=performance.now();
+  // Player retaliation is deliberately evaluated before a standing NPC war
+  // target.  A defender that was just hit must turn on the attacking pilot
+  // while that pilot remains close enough to be a credible threat.
+  if(!ownCivilizationStation&&Number(ts.playerAggroUntil||0)>now){
+    const zoneId=ts.playerAggroZoneId||station.civilizationZoneId||null;
+    const playerRange=Math.max(CIV_PLAYER_RETALIATE_RANGE,(ts.combatRange||320)*3);
+    const playerInZone=!zoneId||pointInsideCivilizationZone(zoneId,ship.x,ship.y,CIV_PLAYER_DEFENSE_LEASH);
+    if(!gameOver&&ship.hp>0&&playerInZone&&dist(ts.x,ts.y,ship.x,ship.y)<=playerRange){
+      ts.combatTarget={type:"player",x:ship.x,y:ship.y,targetZoneId:zoneId,playerAggro:true,playerAggroUntil:ts.playerAggroUntil};
+      return {type:"player",x:ship.x,y:ship.y,obj:ship};
+    }
+    if(!playerInZone||dist(ts.x,ts.y,ship.x,ship.y)>playerRange*1.2)ts.playerAggroUntil=0;
+  }
   if(ts.combatTarget?.type==="otherPlayer"){
     if(!defendingOwnedCiv){ts.combatTarget=null;return null;}
     const op=otherPlayers.get(ts.combatTarget.playerId);
@@ -6491,13 +6533,17 @@ catch(e){
    All players share the same lobby when every deployed copy points at the same SERVER_URL. */
 const socket = io(SERVER_URL, {
   path: "/socket.io",
-  transports: ["polling", "websocket"],
+  // Prefer WebSocket but keep polling as a fallback for embedded browsers.
+  transports: ["websocket", "polling"],
   reconnection: true,
   reconnectionAttempts: Infinity,
-  reconnectionDelay: 600,
-  reconnectionDelayMax: 5000,
-  timeout: 15000,
-  forceNew: true
+  reconnectionDelay: 750,
+  reconnectionDelayMax: 7000,
+  randomizationFactor: .4,
+  timeout: 20000,
+  forceNew: false,
+  upgrade: true,
+  rememberUpgrade: true
 });
 
 let joined=false;
@@ -6505,7 +6551,35 @@ let launchedOnce=false;
 let lastJoinPayload=null;
 let gameLoopStarted=false;
 let pingTimer=null;
+let lastServerPongAt=Date.now(),connectionRecovering=false,connectionLostAt=0,lastConnectionRecoveryAttemptAt=0,connectionHeartbeatSeq=0;
+const CLIENT_RESUME_TOKEN_KEY="spaceEcoTransientResumeToken_v1";
 const joinStatusEl=document.getElementById("join-status"),joinScreen=document.getElementById("join-screen"),gameWrap=document.getElementById("wrap");
+
+function clientResumeToken(){
+  try{
+    let token=localStorage.getItem(CLIENT_RESUME_TOKEN_KEY)||"";
+    if(!/^[A-Za-z0-9_-]{24,128}$/.test(token)){
+      token=(globalThis.crypto?.randomUUID?.()||`${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g,"");
+      if(token.length<24)token+=("x".repeat(24-token.length));
+      localStorage.setItem(CLIENT_RESUME_TOKEN_KEY,token.slice(0,128));
+    }
+    return token;
+  }catch(_){return `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`.slice(0,128);}
+}
+function connectionHealthPulse(){
+  if(!socket.connected)return;
+  const now=Date.now(),seq=++connectionHeartbeatSeq;
+  socket.emit("clientPing",{seq,clientNow:now},pong=>{if(pong?.ok)lastServerPongAt=Date.now();});
+  // A connected transport with no confirmed server heartbeat is treated as a
+  // stalled connection. Reconnect once rather than leaving the pilot in a
+  // silently dead session.
+  if(joined&&now-lastServerPongAt>45000&&now-lastConnectionRecoveryAttemptAt>20000){
+    lastConnectionRecoveryAttemptAt=now;connectionRecovering=true;connectionLostAt=now;
+    setJoinStatus("Connection health check timed out. Recovering your pilot session…","#ffcc44");
+    try{socket.disconnect();socket.connect();}catch(_){try{socket.connect();}catch(__){}}
+  }
+}
+function ensureConnectionHealthLoop(){if(!pingTimer)pingTimer=setInterval(connectionHealthPulse,2500);}
 
 function setJoinStatus(text,color="#8fa3cc"){
   if(joinStatusEl){joinStatusEl.textContent=text;joinStatusEl.style.color=color;}
@@ -6513,7 +6587,7 @@ function setJoinStatus(text,color="#8fa3cc"){
 function buildJoinPayload(){
   const name=document.getElementById("join-name").value.trim()||"Pilot";
   player.name=name;
-  return {name,token:wixGameToken,wixSnapshot:wixAuthSnapshot};
+  return {name,token:wixGameToken,wixSnapshot:wixAuthSnapshot,resumeToken:clientResumeToken()};
 }
 function emitJoinPayload(reason="launch"){
   if(!socket.connected){setJoinStatus("Connecting to global Space Eco server at " + SERVER_URL + "…","#ffcc44");return false;}
@@ -6525,24 +6599,34 @@ function emitJoinPayload(reason="launch"){
 }
 
 socket.on("connect",()=>{
+  lastServerPongAt=Date.now();
   if(launchedOnce && lastJoinPayload && !joined){emitJoinPayload("reconnect");}
   else setJoinStatus("Connected to global Space Eco server. Enter your name and launch.","#78ff8a");
 });
 socket.on("disconnect",(reason)=>{
-  joined=false;resetShopTransactions();
+  const wasLive=joined||launchedOnce;joined=false;resetShopTransactions();connectionRecovering=wasLive;connectionLostAt=Date.now();
   if(launchedOnce){
     setJoinStatus("Connection lost ("+reason+"). Reconnecting to the global galaxy…","#ffcc44");
   }else{
     setJoinStatus("Disconnected. Reconnecting to the global Space Eco server…","#ffcc44");
   }
-  joinScreen.style.display="flex";
-  gameWrap.style.display="none";
-  document.getElementById("chat-wrap").style.display="none";
-  pcEl.style.display="none";
+  // Keep the last authoritative scene visible while Socket.IO retries. The
+  // previous behavior hid the game and made a short network blip feel like a
+  // full game crash.
+  if(wasLive){
+    joinScreen.style.display="none";gameWrap.style.display="flex";
+    document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
+  }else{
+    joinScreen.style.display="flex";gameWrap.style.display="none";
+    document.getElementById("chat-wrap").style.display="none";pcEl.style.display="none";
+  }
 });
 socket.on("connect_error",(err)=>{setJoinStatus("Cannot reach global server: " + SERVER_URL + (err?.message?(" — "+err.message):""),"#ff4422");});
-socket.on("reconnect_attempt",()=>{setJoinStatus("Reconnecting to global Space Eco server…","#ffcc44");});
+socket.io.on("reconnect_attempt",()=>{connectionRecovering=true;setJoinStatus("Reconnecting to global Space Eco server…","#ffcc44");});
+socket.io.on("reconnect_error",()=>{setJoinStatus("Reconnect retrying — your pilot session is being held…","#ffcc44");});
+socket.io.on("reconnect_failed",()=>{setJoinStatus("Reconnect paused. Check your connection, then launch to retry.","#ff7777");});
 socket.on("serverFull",()=>{setJoinStatus("Server full. Try again later.","#ffcc44");});
+socket.on("serverPong",()=>{lastServerPongAt=Date.now();});
 
 socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons,worldCosmetics,stationTierCosmetics:serverStationTierCosmetics,planetTypeCosmetics:serverPlanetTypeCosmetics,worldPlanetTypeCosmetics,storyProgress:serverStoryProgress,resourceDefs:serverResourceDefs,resourceKeys:serverResourceKeys,shopResourceKeys:serverShopResourceKeys,resourceCatalogVersion:serverResourceCatalogVersion,spriteCosmeticRegistryVersion})=>{
   player.id=id;player.color=color;serverAccountPersistenceLoaded=!!persistenceLoaded;accountInventoryPendingLoad=!!(serverMemberId&&!serverAccountPersistenceLoaded);if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken&&serverAccountPersistenceLoaded)wixLinkedToken=wixSnapshotKey();}
@@ -6560,13 +6644,13 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   cosmeticInventory=normalizeCosmeticInventory(serverCosmeticInventory||{});equippedCosmetics=normalizeEquippedCosmetics(serverEquippedCosmetics||{});stationTierCosmetics=normalizeStationTierCosmetics(serverStationTierCosmetics||{});planetTypeCosmetics=normalizePlanetTypeCosmetics(serverPlanetTypeCosmetics||{});globalPlanetTypeCosmetics=normalizePlanetTypeCosmetics(worldPlanetTypeCosmetics||{});redeemedCoupons=normalizeRedeemedCoupons(serverRedeemedCoupons||{});if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);mergeLocalCosmeticState();player.equippedCosmetics=equippedCosmetics;applyLocalCouponBonusIfNeeded();
   const localBootSnap=readLocalGameState();
   if(localSnapshotHasProgress(localBootSnap)&&(Number(localBootSnap.credits||0)>Number(player.credits||0)||clientInventoryPayloadHasItems(localBootSnap.invSlots))){applyLocalGameSnapshot(localBootSnap,"welcome_local_first");socket.emit("clientLocalSaveSync",{snapshot:makeLocalGameSnapshot("client_local_bootstrap")});setCreditPayStatus("Local credits loaded. Syncing local save to Railway...","#7be6ff");}
-  ship.x=x;ship.y=y;joined=true;
+  ship.x=x;ship.y=y;joined=true;connectionRecovering=false;connectionLostAt=0;lastServerPongAt=Date.now();last=performance.now();
   joinScreen.style.display="none";gameWrap.style.display="flex";
   document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
   pcEl.textContent=`👥 ${playerCount}`;
   socket.emit("requestCivilizationZones");syncStoryProgressSoon();maybeLinkWixAccount();updateChunks();updateHud();scheduleCreditShopTip();
-  // Start one ping loop and one animation loop only, even after reconnect/rejoin.
-  if(!pingTimer)pingTimer=setInterval(()=>{if(socket.connected)socket.emit("clientPing");},2000);
+  // Start one heartbeat loop and one animation loop only, even after reconnect/rejoin.
+  ensureConnectionHealthLoop();
   if(!gameLoopStarted){gameLoopStarted=true;requestAnimationFrame(tick);}
 });
 
@@ -7081,7 +7165,7 @@ function updateSpace(dt){
             showFT("SELF DEF -"+Math.round(p.damage),ts.x,ts.y,"#ffcc44",9);
           }else{
             aggroNpcStation(st);
-            ts.combatTarget={type:"player",x:ship.x,y:ship.y,targetZoneId:st.civilizationZoneId||null};
+            markCivilizationPlayerRetaliation(ts,st);
             showFT("-"+Math.round(p.damage),ts.x,ts.y,"#ff4422",9);
             if(st.civilizationZoneId)triggerNpcCivilizationZoneAggro(st.civilizationZoneId,"hostile pilot");
           }
@@ -7471,22 +7555,29 @@ function drawSpace(){
   // NPC Trade ships (separate pass — no station culling)
   for(const st of visibleStations){
     for(const ts of st.tradeShips){
-      const tsx=ts.x-camX,tsy=ts.y-camY;
-      if(tsx<-(ts.size+30)||tsy<-(ts.size+30)||tsx>canvas.width+(ts.size+30)||tsy>canvas.height+(ts.size+30))continue;
+      const tsx=ts.x-camX,tsy=ts.y-camY,shipVisualSize=Math.max(ts.size||3,Number(ts.visualSize)||0);
+      if(tsx<-(shipVisualSize+30)||tsy<-(shipVisualSize+30)||tsx>canvas.width+(shipVisualSize+30)||tsy>canvas.height+(shipVisualSize+30))continue;
       ctx.globalAlpha=1;
       if(ts.state==="travel"&&ts.targetPlanet){const tpx=ts.targetPlanet.x-camX,tpy=ts.targetPlanet.y-camY;ctx.save();ctx.globalAlpha=0.18;ctx.strokeStyle=ts.factionColor;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(tpx,tpy);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
       else if(ts.state==="return"){const stx=st.x-camX,sty=st.y-camY;ctx.save();ctx.globalAlpha=0.18;ctx.strokeStyle=ts.factionColor;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(stx,sty);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
       else if(ts.state==="combat"||ts.state==="flee"){ctx.save();ctx.globalAlpha=ts.state==="combat"?0.35:0.15;ctx.strokeStyle=ts.state==="combat"?"#ff4422":"#ff8844";ctx.lineWidth=1;ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(canvas.width/2,canvas.height/2);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
-      ctx.save();ctx.globalAlpha=1;ctx.translate(tsx,tsy);ctx.rotate(ts.angle);
+      ctx.save();ctx.globalAlpha=1;ctx.translate(tsx,tsy);
       const npcCos=npcShipCosmeticDefForStation(st),npcColor=ts.state==="combat"?"#ff4422":ts.state==="flee"?"#ff8844":safeColor(npcCos?.color||ts.factionColor,ts.factionColor),npcAccent=safeColor(npcCos?.accent||"#fff0a8","#fff0a8");
       const builtSprite=Number(ts.shipSprite||0);
-      if(builtSprite)drawSpriteImageFit(`assets/spliced_ships/sprite_${String(builtSprite).padStart(2,"0")}.png`,-ts.size*1.55,-ts.size*1.55,ts.size*3.1,ts.size*3.1);
-      else drawShipBody(npcCos?.shape||ts.shipShape||"hauler",npcColor,npcAccent,npcCos||{shape:ts.shipShape||"hauler",accent:npcAccent},ts.state==="travel"||ts.state==="return"||ts.state==="combat");
+      // The spliced sheet ships are authored nose-up; procedural ships are
+      // authored nose-right.  Rotate the art by +90° only for real roster
+      // sprites so both types face their actual movement vector.
+      ctx.rotate((Number(ts.angle)||0)+(builtSprite?Math.PI/2:0));
+      const drewBuiltSprite=builtSprite&&drawSpriteImageFit(`assets/spliced_ships/sprite_${String(builtSprite).padStart(2,"0")}.png`,-shipVisualSize*1.55,-shipVisualSize*1.55,shipVisualSize*3.1,shipVisualSize*3.1);
+      // Loading or a missing art file should never make a newly-built ship
+      // disappear.  Retain the same correctly-rotated procedural hull until
+      // the matching faction sprite is ready.
+      if(!drewBuiltSprite)drawShipBody(npcCos?.shape||ts.shipShape||"hauler",npcColor,npcAccent,npcCos||{shape:ts.shipShape||"hauler",accent:npcAccent},ts.state==="travel"||ts.state==="return"||ts.state==="combat");
       ctx.restore();ctx.globalAlpha=1;
-      const hpPct=ts.hp/ts.maxHp,bw=ts.size*3,bh=2,bx=tsx-bw/2,by=tsy-ts.size-5;
+      const hpPct=ts.hp/ts.maxHp,bw=shipVisualSize*3,bh=2,bx=tsx-bw/2,by=tsy-shipVisualSize-5;
       ctx.fillStyle="#300";ctx.fillRect(bx,by,bw,bh);ctx.fillStyle=hpPct>0.5?"#3f3":"#f80";ctx.fillRect(bx,by,bw*hpPct,bh);
-      ctx.save();ctx.globalAlpha=0.7;ctx.fillStyle=ts.state==="combat"?"#ff6644":ts.factionColor;ctx.font="6px monospace";ctx.textAlign="center";ctx.fillText(`${ts.className||"NPC"} · ${ts.state}`,tsx,tsy+ts.size+8);ctx.restore();ctx.globalAlpha=1;
-      if(Object.keys(ts.lootCarried).length>0){ctx.fillStyle="#ffcc44";ctx.font="7px monospace";ctx.textAlign="center";ctx.fillText("▲",tsx,tsy-ts.size-7);ctx.textAlign="left";}
+      ctx.save();ctx.globalAlpha=0.7;ctx.fillStyle=ts.state==="combat"?"#ff6644":ts.factionColor;ctx.font="6px monospace";ctx.textAlign="center";ctx.fillText(`${ts.className||"NPC"} · ${ts.state}`,tsx,tsy+shipVisualSize+8);ctx.restore();ctx.globalAlpha=1;
+      if(Object.keys(ts.lootCarried).length>0){ctx.fillStyle="#ffcc44";ctx.font="7px monospace";ctx.textAlign="center";ctx.fillText("▲",tsx,tsy-shipVisualSize-7);ctx.textAlign="left";}
     }
   }
 
@@ -7600,7 +7691,7 @@ function setInspectionTarget(next){
   return inspectionTarget;
 }
 function inspectionPanelRect(){
-  const w=Math.max(390,Math.min(560,Math.round(canvas.width*.31))),h=154;
+  const w=Math.max(420,Math.min(620,Math.round(canvas.width*.34))),h=204;
   // Keep the panel beyond the Control Keys lane rather than merely beside its
   // left edge. The earlier safe lane could still sit under the desktop hotkeys.
   const safeLeft=Math.max(470,Math.round(canvas.width*.56)),safeRight=Math.max(safeLeft+w+12,canvas.width-172);
@@ -7610,9 +7701,31 @@ function inspectionPanelRect(){
 function inspectionSpritePath(t){
   if(t?.spritePath)return t.spritePath;
   const src=t?.source||{};
-  if(src.type==="npcTradeShip"){const st=visibleStations.find(s=>s.id===src.stationId),ts=st?.tradeShips?.find(s=>s.id===src.shipId),n=Number(ts?.shipSprite||0);if(n)return `assets/spliced_ships/sprite_${String(n).padStart(2,"0")}.png`;}
-  if(src.type==="npcStation"){const st=visibleStations.find(s=>s.id===src.stationId),def=st&&stationCosmeticDefForStation(st);if(def?.spritePath)return def.spritePath;}
+  if(src.type==="npcTradeShip"){
+    const st=visibleStations.find(s=>s.id===src.stationId),ts=st?.tradeShips?.find(s=>s.id===src.shipId),n=Number(ts?.shipSprite||0);
+    if(n)return `assets/spliced_ships/sprite_${String(n).padStart(2,"0")}.png`;
+    // Default faction escorts have a fixed faction hull too; do not collapse
+    // their inspection card to a generic colored square.
+    return npcShipCosmeticDefForStation(st)?.spritePath||null;
+  }
+  if(src.type==="npcStation"){
+    const st=visibleStations.find(s=>s.id===src.stationId),def=st&&stationCosmeticDefForStation(st);
+    if(def?.spritePath)return def.spritePath;
+    // Non-civilization stations also receive a deterministic imported station
+    // card, so the inspector always mirrors visible station art.
+    const tierIndex={outpost:1,standard:2,advanced:3,capital:4,wandering_exchange:5};
+    const n=tierIndex[stationVisualTierFor(st)]||2;
+    return `assets/spliced_stations/whitey.png_auto_${n}.png`;
+  }
   if(src.type==="planet"){const p=visiblePlanets.find(p=>p.id===src.id),def=p&&planetCosmeticDefForPlanet(p);if(def?.spritePath)return def.spritePath;}
+  if(src.type==="planetBlock"){
+    const tile=tileAt(src.tx,src.ty),item=tile?resForTile(activePlanet,tile,src.ty,planetMap?.H||0,src.tx):null;
+    if(item&&RESOURCE_TILE_ART[item])return RESOURCE_TILE_ART[item];
+  }
+  if(src.type==="pirate")return worldCosmeticDef("enemy")?.spritePath||null;
+  if(src.type==="otherPlayer"){
+    const op=otherPlayers.get(src.playerId);return activeCosmeticDef("ship",op?.equippedCosmetics)?.spritePath||null;
+  }
   if(src.type==="playerStructure"){
     const ps=playerStructuresList.find(s=>s.key===src.structureKey);
     if(ps?.type==="defense_turret")return turretCosmeticDefForEntity(ps)?.spritePath||"assets/spliced_turrets/Turrets.png_auto_1.png";
@@ -7620,54 +7733,95 @@ function inspectionSpritePath(t){
   }
   return null;
 }
+function inspectionStatLines(t){
+  const stats=Array.isArray(t?.stats)?t.stats:[];
+  return stats.filter(s=>Array.isArray(s)&&s.length>=2).map(([label,value])=>`${String(label).toUpperCase()}: ${value}`);
+}
+function drawInspectionFallbackIcon(t,x,y,size){
+  const cx=x+size/2,cy=y+size/2,kind=String(t?.kind||"").toUpperCase(),src=t?.source||{};
+  ctx.save();
+  if(kind.includes("SHIP")||kind.includes("RAIDER")||kind.includes("NPC")){
+    ctx.translate(cx,cy);ctx.rotate(Number(t?.angle)||0);
+    const hostile=kind.includes("RAIDER"),color=t?.color||(hostile?"#ff5544":"#73d6ff"),accent=hostile?"#ffe0a0":"#f0f7ff";
+    drawShipBody(t?.shipShape||src.shipShape||"fighter",color,accent,{shape:t?.shipShape||src.shipShape||"fighter",accent},true);
+  }else if(kind.includes("STATION")||kind.includes("STORAGE")){
+    const tier=t?.tier||src.tier||"standard",def=STATION_TIERS[tier]||STATION_TIERS.standard;
+    drawStationDesign(cx,cy,Math.max(10,Math.min(20,size*.28)),tier,false,t?.color||def.color,"#ffffff55",null);
+  }else if(kind.includes("PLANET")){
+    const pal=PLANET_PALETTES[t?.planetType||src.planetType]||PLANET_PALETTES.lush||{a:"#5cc9ff",b:"#183d78"};
+    const r=Math.max(12,size*.30),g=ctx.createRadialGradient(cx-r*.35,cy-r*.35,2,cx,cy,r);g.addColorStop(0,pal.a||"#7be6ff");g.addColorStop(1,pal.b||"#17385c");ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#dff7ff";ctx.lineWidth=2;ctx.stroke();
+  }else if(kind.includes("TURRET")){
+    ctx.fillStyle=t?.color||"#ffcc44";ctx.beginPath();ctx.arc(cx,cy,Math.max(12,size*.27),0,Math.PI*2);ctx.fill();ctx.fillStyle="#111a27";ctx.fillRect(cx-3,cy-size*.30,6,size*.34);
+  }else{
+    ctx.fillStyle=t?.color||"#d9a6ff";ctx.fillRect(x+size*.18,y+size*.18,size*.64,size*.64);ctx.strokeStyle="#d6e1ff";ctx.lineWidth=2;ctx.strokeRect(x+size*.18,y+size*.18,size*.64,size*.64);
+  }
+  ctx.restore();
+}
+function drawInspectionEntityIcon(t,x,y,size=68){
+  const sprite=inspectionSpritePath(t);
+  if(sprite){
+    const isShip=String(t?.kind||"").toUpperCase().includes("SHIP")||String(t?.kind||"").toUpperCase().includes("RAIDER");
+    ctx.save();
+    if(isShip){ctx.translate(x+size/2,y+size/2);ctx.rotate((Number(t?.angle)||0)+Math.PI/2);if(drawSpriteImageFit(sprite,-size*.48,-size*.48,size*.96,size*.96)){ctx.restore();return true;}}
+    else if(drawSpriteImageFit(sprite,x,y,size,size)){ctx.restore();return true;}
+    ctx.restore();
+  }
+  if(t?.itemKey){drawItemIcon(ctx,t.itemKey,x,y,size);return true;}
+  drawInspectionFallbackIcon(t,x,y,size);return true;
+}
 function inspectionTargetFromRaw(raw){
   if(!raw)return null;
   if(raw.type==="npcTradeShip"){
     const st=visibleStations.find(s=>s.id===raw.stationId),ts=st?.tradeShips?.find(s=>s.id===raw.shipId);
-    return ts?{kind:"NPC SHIP",name:ts.className||"Station Ship",x:ts.x,y:ts.y,r:14,hp:ts.hp,maxHp:ts.maxHp,shield:ts.shield,maxShield:ts.maxShield,detail:`${ts.state||"idle"} · Cargo ${ts.cargoCapacity||0} · Speed ${Math.round(ts.speed||0)}`,source:{type:"npcTradeShip",stationId:st.id,shipId:ts.id}}:null;
+    return ts?{kind:"NPC SHIP",name:ts.className||"Station Ship",x:ts.x,y:ts.y,r:Math.max(14,Number(ts.visualSize)||0),hp:ts.hp,maxHp:ts.maxHp,shield:ts.shield,maxShield:ts.maxShield,angle:ts.angle,shipShape:ts.shipShape||"fighter",color:ts.factionColor||st?.factionColor||"#73d6ff",tier:st?.tier,stats:[["Damage",Math.round(ts.damage||0)],["Speed",Math.round(ts.speed||0)],["Cargo",Math.round(ts.cargoCapacity||0)],["Range",Math.round(ts.combatRange||0)]],detail:`${String(ts.state||"idle").toUpperCase()} · ${ts.mission||"station task"}${ts.playerAggroUntil>performance.now()?" · retaliating against pilot":""}`,source:{type:"npcTradeShip",stationId:st.id,shipId:ts.id,shipShape:ts.shipShape||"fighter"}}:null;
   }
   if(raw.type==="npcStation"){
     const st=visibleStations.find(s=>s.id===raw.stationId);
-    return st?{kind:st.isCivSuperStation?"SUPER STATION":"STATION",name:st.faction||st.tierDef?.name||"Station",x:st.x,y:st.y,r:st.r||22,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,detail:`Ships: ${(st.tradeShips||[]).length} · ${st.civTask||"idle"}`,source:{type:"npcStation",stationId:st.id}}:null;
+    return st?{kind:st.isCivSuperStation?"SUPER STATION":"STATION",name:st.faction||st.tierDef?.name||"Station",x:st.x,y:st.y,r:st.r||22,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,tier:st.tier,color:st.factionColor||st.tierDef?.color||"#73d6ff",stats:[["Fleet",(st.tradeShips||[]).filter(s=>s.hp>0).length],["Task",String(st.civTask||"idle").toUpperCase()],["Tier",String(st.tier||"station").toUpperCase()],["Radius",Math.round(st.r||0)]],detail:`${st.destroyed?"DESTROYED · ":""}${st.civilizationZoneName||st.faction||"Independent"}`,source:{type:"npcStation",stationId:st.id,tier:st.tier}}:null;
   }
   if(raw.type==="pirate"){
     const ep=eventPirates.find(p=>p.id===raw.pirateId);
-    return ep?{kind:"RAIDER",name:"Hostile Raider",x:ep.x,y:ep.y,r:16,hp:ep.hp,maxHp:ep.maxHp,detail:`Damage ${Math.round(ep.damage||0)} · Speed ${Math.round(ep.speed||0)}`,source:{type:"pirate",pirateId:ep.id}}:null;
+    return ep?{kind:"RAIDER",name:ep.name||"Hostile Raider",x:ep.x,y:ep.y,r:16,hp:ep.hp,maxHp:ep.maxHp,angle:ep.angle,shipShape:ep.shipShape||"fighter",color:"#ff5544",stats:[["Damage",Math.round(ep.damage||0)],["Speed",Math.round(ep.speed||0)],["Range",Math.round(ep.range||280)],["Threat",ep.target?"ENGAGED":"ROAMING"]],detail:`${ep.target?"Target acquired":"Searching for targets"}`,source:{type:"pirate",pirateId:ep.id,shipShape:ep.shipShape||"fighter"}}:null;
+  }
+  if(raw.type==="otherPlayer"){
+    const op=otherPlayers.get(raw.playerId||raw.obj?.id);
+    return op?{kind:"PILOT SHIP",name:op.name||"Pilot",x:op.renderX||op.x,y:op.renderY||op.y,r:16,hp:op.hp,maxHp:op.maxHp,shield:op.shield,maxShield:op.maxShield,angle:op.renderAngle||op.angle,shipShape:op.shipType||"fighter",color:op.color||"#73d6ff",stats:[["Level",op.level||1],["Score",Math.round(op.score||0)],["Speed",Math.round(Math.hypot(op.vx||0,op.vy||0))],["State",String(op.mode||"space").toUpperCase()]],detail:"Another pilot in the shared galaxy",source:{type:"otherPlayer",playerId:op.id}}:null;
   }
   if(raw.type==="ownedTradeShip"){
     const os=ownedTradeShips.get(raw.shipId),st=ownedStationsList.find(s=>s.key===raw.stationKey);
-    return os?{kind:"TRADE SHIP",name:st?.isOwn?"Owned Trade Ship":"Station Trade Ship",x:os.x,y:os.y,r:14,hp:os.hp,maxHp:os.maxHp,shield:os.shield,maxShield:os.maxShield,detail:`${os.state||"idle"} · Cargo ${os.cargoCapacity||0}`,source:{type:"ownedTradeShip",stationKey:raw.stationKey,shipId:raw.shipId}}:null;
+    return os?{kind:"TRADE SHIP",name:st?.isOwn?"Owned Trade Ship":"Station Trade Ship",x:os.x,y:os.y,r:14,hp:os.hp,maxHp:os.maxHp,shield:os.shield,maxShield:os.maxShield,angle:os.angle,shipShape:"hauler",color:st?.isOwn?"#78ff8a":"#73d6ff",stats:[["Damage",Math.round(os.damage||0)],["Speed",Math.round(os.speed||0)],["Cargo",Math.round(os.cargoCapacity||0)],["Task",String(os.state||"idle").toUpperCase()]],detail:`Station: ${st?.ownerName||"unassigned"}`,source:{type:"ownedTradeShip",stationKey:raw.stationKey,shipId:raw.shipId,shipShape:"hauler"}}:null;
   }
   if(raw.type==="ownedStation"){
     const st=ownedStationsList.find(s=>s.key===raw.stationKey);
-    return st?{kind:"PLAYER STATION",name:st.ownerName||"Player Station",x:st.x,y:st.y,r:24,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,detail:`Ships: ${st.shipCount||0} · ${st.tier||"station"}`,source:{type:"ownedStation",stationKey:st.key}}:null;
+    return st?{kind:"PLAYER STATION",name:st.ownerName||"Player Station",x:st.x,y:st.y,r:24,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,tier:st.tier,color:st.isOwn?"#78ff8a":"#d6e1ff",stats:[["Ships",st.shipCount||0],["Tier",String(st.tier||"station").toUpperCase()],["Store",st.storeStock?.length||0],["Owner",st.isOwn?"YOU":st.ownerName||"PLAYER"]],detail:`${st.destroyed?"DESTROYED":"Operational station"}`,source:{type:"ownedStation",stationKey:st.key,tier:st.tier}}:null;
   }
   if(raw.type==="playerStructure"){
     const ps=playerStructuresList.find(s=>s.key===raw.structureKey);
-    return ps?{kind:ps.type==="defense_turret"?"TURRET":"STORAGE",name:ps.type==="defense_turret"?"Defense Turret":"Storage Facility",x:ps.x,y:ps.y,r:22,hp:ps.hp,maxHp:ps.maxHp,shield:ps.shield,maxShield:ps.maxShield,detail:ps.type==="defense_turret"?`Damage ${ps.damage||0} · Range ${ps.range||0}`:`${ps.storageUsed||0}/${ps.storageSlots||0} slots`,source:{type:"playerStructure",structureKey:ps.key}}:null;
+    return ps?{kind:ps.type==="defense_turret"?"TURRET":"STORAGE",name:ps.type==="defense_turret"?"Defense Turret":"Storage Facility",x:ps.x,y:ps.y,r:22,hp:ps.hp,maxHp:ps.maxHp,shield:ps.shield,maxShield:ps.maxShield,color:ps.isOwn?"#78ff8a":"#ffcc44",stats:ps.type==="defense_turret"?[["Damage",Math.round(ps.damage||0)],["Range",Math.round(ps.range||0)],["Rate",Math.round((ps.fireRate||1)*100)/100],["Effect",String(ps.effect||"standard").toUpperCase()]]:[["Stored",`${ps.storageUsed||0}/${ps.storageSlots||0}`],["Shield Lv",ps.storageShieldLevel||1],["Owner",ps.isOwn?"YOU":ps.ownerName||"PLAYER"],["Type","STORAGE"]],detail:ps.type==="defense_turret"?"Defensive perimeter system":`Storage at ${Math.round(ps.x)}, ${Math.round(ps.y)}`,source:{type:"playerStructure",structureKey:ps.key}}:null;
   }
   if(raw.type==="planet"){
     const p=visiblePlanets.find(p=>p.id===raw.planetId);
-    return p?{kind:"PLANET",name:p.name||p.type||"Resource Planet",x:p.x,y:p.y,r:p.radius||30,detail:`Resources: ${(p.resList||p.resources||[]).join(", ")||"scanning"}`,source:{type:"planet",id:p.id}}:null;
+    const resources=p&&(p.resList||p.resources||[]);
+    return p?{kind:"PLANET",name:p.name||p.type||"Resource Planet",x:p.x,y:p.y,r:p.radius||30,planetType:p.type,color:p.pal?.a||"#78d6ff",stats:[["Resources",resources.length||0],["Radius",Math.round(p.radius||0)],["Density",Math.round(Number(p.resourceDensity||p.density||0)*10)/10],["Landing",p.landable===false?"NO":"YES"]],detail:`Resources: ${resources.join(", ")||"scanning"}`,source:{type:"planet",id:p.id,planetType:p.type}}:null;
   }
   return null;
 }
 function refreshInspectionTarget(){
   const t=inspectionTarget,src=t?.source;if(!t||!src)return t;
   if(Number(t.expiresAt||0)>0&&performance.now()>=t.expiresAt){inspectionTarget=null;return null;}
-  if(src.type==="npcTradeShip"||src.type==="npcStation"||src.type==="pirate"||src.type==="ownedTradeShip"||src.type==="ownedStation"||src.type==="playerStructure"){
+  if(src.type==="npcTradeShip"||src.type==="npcStation"||src.type==="pirate"||src.type==="otherPlayer"||src.type==="ownedTradeShip"||src.type==="ownedStation"||src.type==="playerStructure"){
     const next=inspectionTargetFromRaw(src);if(next){inspectionTarget={...t,...next};return inspectionTarget;}
   }else if(src.type==="planetNpc"){
-    const e=planetEnemies.find(n=>n.id===src.id);if(e){Object.assign(t,{x:e.x,y:e.y,hp:e.hp,maxHp:e.maxHp,detail:`${e.type} · Damage ${Math.round(e.damage||0)} · Speed ${Math.round(Math.abs(e.vx||0))}`});}
+    const e=planetEnemies.find(n=>n.id===src.id);if(e){Object.assign(t,{x:e.x,y:e.y,hp:e.hp,maxHp:e.maxHp,angle:e.angle||0,shipShape:e.shipShape||"fighter",color:e.color||"#ff6655",stats:[["Damage",Math.round(e.damage||0)],["Speed",Math.round(Math.hypot(e.vx||0,e.vy||0))],["Range",Math.round(e.range||48)],["State",String(e.state||"hostile").toUpperCase()]],detail:`${e.type||"Surface enemy"} · hostile`,source:{...src,shipShape:e.shipShape||"fighter"}});}
   }else if(src.type==="spaceLoot"){
     const d=spaceDrops.find(n=>n===src.ref);if(d){const def=itemDefFor(d.type)||{};Object.assign(t,{x:d.x,y:d.y,name:def.name||d.type,detail:itemDescription(d.type),itemKey:d.type});}
   }else if(src.type==="planetLoot"){
     const d=drops.find(n=>n===src.ref);if(d){const def=itemDefFor(d.kind)||{};Object.assign(t,{x:d.x,y:d.y,name:def.name||d.kind,detail:itemDescription(d.kind),itemKey:d.kind});}
   }else if(src.type==="planet"){
-    const p=visiblePlanets.find(p=>p.id===src.id);if(p)Object.assign(t,{x:p.x,y:p.y,name:p.name||p.type||"Resource Planet",detail:`Resources: ${(p.resList||p.resources||[]).join(", ")||"scanning"}`});
+    const p=visiblePlanets.find(p=>p.id===src.id);if(p){const resources=p.resList||p.resources||[];Object.assign(t,{x:p.x,y:p.y,name:p.name||p.type||"Resource Planet",planetType:p.type,color:p.pal?.a||"#78d6ff",stats:[["Resources",resources.length||0],["Radius",Math.round(p.radius||0)],["Density",Math.round(Number(p.resourceDensity||p.density||0)*10)/10],["Landing",p.landable===false?"NO":"YES"]],detail:`Resources: ${resources.join(", ")||"scanning"}`});}
   }else if(src.type==="planetBlock"){
     const tile=tileAt(src.tx,src.ty);if(!tile){inspectionTarget=null;return null;}const item=resForTile(activePlanet,tile,src.ty,planetMap?.H||0,src.tx),tileName=Object.keys(TILE).find(k=>TILE[k]===tile)||"BLOCK";
-    Object.assign(t,{kind:"SURFACE BLOCK",name:tileName.replace(/_/g," "),x:src.tx*16+8,y:src.ty*16+8,hp:tileHP(src.tx,src.ty),maxHp:Math.max(tileHP(src.tx,src.ty),BUILD_TILE_HP[tile]||0),detail:`${itemDefFor(item)?.name||item} · Tile ${src.tx}, ${src.ty}`,itemKey:item});
+    Object.assign(t,{kind:"SURFACE BLOCK",name:tileName.replace(/_/g," "),x:src.tx*16+8,y:src.ty*16+8,hp:tileHP(src.tx,src.ty),maxHp:Math.max(tileHP(src.tx,src.ty),BUILD_TILE_HP[tile]||0),stats:[["Material",itemDefFor(item)?.name||item],["Tile",`${src.tx}, ${src.ty}`],["Hardness",Math.round(BUILD_TILE_HP[tile]||tileHP(src.tx,src.ty)||0)],["Mode",planetTool||"mining"]],detail:itemDescription(item),itemKey:item});
   }
   return t;
 }
@@ -7686,6 +7840,7 @@ function toggleInspectionAt(mx,my){
   }
   const wx=mx+ship.x-canvas.width/2,wy=my+ship.y-canvas.height/2;
   for(const p of visiblePlanets||[])candidates.push({kind:"PLANET",name:p.name||p.type||"Resource Planet",x:p.x,y:p.y,r:p.radius||30,detail:`Resources: ${(p.resList||p.resources||[]).join(", ")||"scanning"}`,source:{type:"planet",id:p.id}});
+  for(const [,op] of otherPlayers||[])if(op?.mode==="space")candidates.push({kind:"PILOT SHIP",name:op.name||"Pilot",x:op.renderX||op.x,y:op.renderY||op.y,r:16,hp:op.hp,maxHp:op.maxHp,shield:op.shield,maxShield:op.maxShield,detail:"Another pilot in the shared galaxy",source:{type:"otherPlayer",playerId:op.id}});
   for(const st of visibleStations||[])candidates.push({kind:st.isCivSuperStation?"SUPER STATION":"STATION",name:st.faction||st.tierDef?.name||"Station",x:st.x,y:st.y,r:st.r||22,hp:st.hp,maxHp:st.maxHp,shield:st.shield,maxShield:st.maxShield,detail:`Ships: ${(st.tradeShips||[]).length} · ${st.civTask||"idle"}`,source:{type:"npcStation",stationId:st.id}});
   for(const st of visibleStations||[])for(const ts of st.tradeShips||[])candidates.push({kind:"NPC SHIP",name:ts.className||"Station Ship",x:ts.x,y:ts.y,r:14,hp:ts.hp,maxHp:ts.maxHp,shield:ts.shield,maxShield:ts.maxShield,detail:`${ts.state||"idle"} · Cargo ${ts.cargoCapacity||0}`,source:{type:"npcTradeShip",stationId:st.id,shipId:ts.id}});
   for(const d of spaceDrops||[]){const def=itemDefFor(d.type)||{};candidates.push({kind:"LOOT",name:def.name||d.type,x:d.x,y:d.y,r:14,detail:itemDescription(d.type),itemKey:d.type,source:{type:"spaceLoot",ref:d}});}
@@ -7693,11 +7848,15 @@ function toggleInspectionAt(mx,my){
   let best=null,bd=Infinity;for(const c of candidates){const d=Math.hypot(wx-c.x,wy-c.y);if(d<(c.r+24)&&d<bd){best=c;bd=d;}}if(!best)return false;setInspectionTarget(best);return true;
 }
 function drawInspectionPanel(){
-  const t=refreshInspectionTarget();if(!t)return;const {x,y,w,h}=inspectionPanelRect(),remaining=Math.max(0,Math.ceil((Number(t.expiresAt||performance.now())-performance.now())/1000));ctx.save();ctx.fillStyle="rgba(7,14,27,.96)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#7be6ff";ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,w-2,h-2);
-  const sprite=inspectionSpritePath(t);if(sprite)drawSpriteImageFit(sprite,x+15,y+40,56,56);else if(t.itemKey)drawItemIcon(ctx,t.itemKey,x+15,y+42,52);else{ctx.fillStyle=t.kind.includes("RAIDER")?"#ff5544":t.kind.includes("PLANET")?"#78d6ff":"#d9a6ff";ctx.fillRect(x+18,y+47,46,46);ctx.strokeStyle="#d6e1ff";ctx.lineWidth=2;ctx.strokeRect(x+19,y+48,44,44);}
-  drawUiFittedText(`${t.kind}: ${t.name}`,x+82,y+28,w-142,"#e9f5ff",uiFont(16,true));drawUiFittedText("×",x+w-27,y+27,26,"#ff8d8d",uiFont(20,true),"center");drawUiFittedText(`${remaining}s`,x+w-74,y+53,52,"#718ca9",uiFont(9),"right");
-  const hasVitals=Number.isFinite(Number(t.hp))&&Number.isFinite(Number(t.maxHp));const stats=hasVitals?`HP ${Math.round(t.hp)}/${Math.round(t.maxHp)}  ·  SH ${Math.round(t.shield||0)}/${Math.round(t.maxShield||0)}`:`Position ${Math.round(t.x)}, ${Math.round(t.y)}`;
-  drawUiFittedText(stats,x+82,y+60,w-100,"#8be4ff",uiFont(12));drawUiWrappedText(t.detail||"",x+82,y+86,w-100,17,3,"#d5e4f6",uiFont(11));drawUiFittedText("Right-click × to close",x+15,y+h-12,150,"#7890aa",uiFont(8));ctx.restore();
+  const t=refreshInspectionTarget();if(!t)return;const {x,y,w,h}=inspectionPanelRect(),remaining=Math.max(0,Math.ceil((Number(t.expiresAt||performance.now())-performance.now())/1000));ctx.save();ctx.fillStyle="rgba(7,14,27,.97)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#7be6ff";ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,w-2,h-2);
+  drawInspectionEntityIcon(t,x+16,y+45,72);
+  drawUiFittedText(`${t.kind}: ${t.name}`,x+103,y+30,w-166,"#e9f5ff",uiFont(17,true));drawUiFittedText("×",x+w-28,y+29,26,"#ff8d8d",uiFont(21,true),"center");drawUiFittedText(`${remaining}s`,x+w-80,y+56,56,"#718ca9",uiFont(9),"right");
+  const hasVitals=Number.isFinite(Number(t.hp))&&Number.isFinite(Number(t.maxHp));const vitals=hasVitals?`HP ${Math.round(t.hp)}/${Math.round(t.maxHp)}   ·   SH ${Math.round(t.shield||0)}/${Math.round(t.maxShield||0)}`:`POSITION ${Math.round(t.x)}, ${Math.round(t.y)}`;
+  drawUiFittedText(vitals,x+103,y+62,w-125,"#8be4ff",uiFont(12,true));
+  const statLines=inspectionStatLines(t),statsY=y+128,half=Math.floor((w-40)/2);
+  for(let i=0;i<Math.min(4,statLines.length);i++){const col=i%2,row=Math.floor(i/2),sx=x+17+col*(half+8),sy=statsY+row*22;ctx.fillStyle="rgba(95,160,210,.10)";ctx.fillRect(sx,sy,half,18);ctx.strokeStyle="#29496b";ctx.lineWidth=1;ctx.strokeRect(sx+.5,sy+.5,half-1,17);drawUiFittedText(statLines[i],sx+8,sy+13,half-16,"#c7dbf3",uiFont(9,true));}
+  drawUiWrappedText(t.detail||"",x+17,y+106,w-34,15,1,"#d5e4f6",uiFont(10));
+  drawUiFittedText("Right-click × to close · live values update automatically",x+17,y+h-13,w-34,"#7890aa",uiFont(8));ctx.restore();
 }
 
 /* ── Shop (same structure as before, wired to server) ── */
@@ -8337,7 +8496,7 @@ function drawInventoryManageButtons(px,py){const labels=[["COMPACT","compact"],[
 function handleInventoryManageClick(mx,my,px,py){const labels=[["compact","compact"],["type","type"],["value","value"],["rarity","rarity"],["name","name"]];for(let i=0;i<labels.length;i++){const mode=labels[i][1],bx=px+10+i*45,by=py+174,bw=41,bh=17;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){if(mode==="compact")compactInventory();else sortInventory(mode);return true;}}return false;}
 function startInventoryScrollDrag(mx,my){const r=inventoryScrollbarRectBase();if(maxInventoryScrollRows()<=0)return false;if(mx>=r.x-3&&mx<=r.x+r.w+5&&my>=r.y&&my<=r.y+r.h){inventoryScrollDrag={y:r.y,h:r.h};setInventoryScrollFromY(my);return true;}return false;}
 function setInventoryScrollFromY(my){if(!inventoryScrollDrag)return;const max=maxInventoryScrollRows();const t=clamp((my-inventoryScrollDrag.y)/Math.max(1,inventoryScrollDrag.h),0,1);inventoryScrollRows=clamp(Math.round(t*max),0,max);}
-function inventoryMappedCanvasPoint(mx,my){try{if(typeof largeCanvasMenuPoint==="function")return largeCanvasMenuPoint("inventory",mx,my);}catch(_){ }return {x:mx,y:my};}
+function inventoryMappedCanvasPoint(mx,my){try{if(inventoryTab!=="modules"&&typeof largeCanvasMenuPoint==="function")return largeCanvasMenuPoint("inventory",mx,my);}catch(_){ }return {x:mx,y:my};}
 function updateInventoryScrollDragFromCanvas(mx,my){if(!inventoryScrollDrag)return;const p=inventoryMappedCanvasPoint(mx,my);setInventoryScrollFromY(p.y);}
 function endInventoryScrollDrag(){inventoryScrollDrag=null;}
 function itemDescription(type){const m=moduleInstanceMeta(type),d=itemDefFor(type)||{};const bits=[];if(d.description)bits.push(d.description);if(isWeaponKey(type))bits.push(`${WEAPON_DEFS[type].class} weapon`);if(isAttachmentKey(type))bits.push(`${ATTACHMENT_DEFS[inventoryBaseType(type)].slot} attachment`);if(m)bits.push(`Upgrade +${m.level}/10${m.bonus!=="none"?` · Convergence: ${m.bonus}`:""}`);if(d.stats)bits.push(Object.entries(d.stats).map(([k,v])=>`${k}+${v}`).join(" "));if(type==="gas_canister")bits.push("Refuels ship energy.");if(type==="oxygen_tank")bits.push("Restores oxygen planetside.");return bits.join(" · ")||"Trade, sell, craft, or turn in for station contracts.";}
@@ -8429,7 +8588,7 @@ let uiItemTooltip=null;
 function uiItemTooltipEnabled(){return !!(inventoryOpen||shopOpen||attrOpen||characterOpen||questLogOpen||badgeLogOpen);}
 function uiItemTooltipPointer(){
   if(shopOpen)return largeCanvasMenuPoint("shop",mouse.x,mouse.y);
-  if(inventoryOpen)return largeCanvasMenuPoint("inventory",mouse.x,mouse.y);
+  if(inventoryOpen)return inventoryTab==="modules"?{x:mouse.x,y:mouse.y}:largeCanvasMenuPoint("inventory",mouse.x,mouse.y);
   if(attrOpen)return largeCanvasMenuPoint("attributes",mouse.x,mouse.y);
   if(characterOpen)return largeCanvasMenuPoint("character",mouse.x,mouse.y);
   if(questLogOpen)return largeCanvasMenuPoint("quest",mouse.x,mouse.y);
@@ -8473,9 +8632,10 @@ function handleInventoryWeaponButtons(mx,my,px,py){
 let moduleLabOpen=false,moduleLabItemKey=null,moduleLabCopies=1;
 let inventoryTab="items",inventoryModuleKey=null,inventoryModuleCopies=1;
 function requestEquipAttachmentSafe(key){
-  const def=ATTACHMENT_DEFS[inventoryBaseType(key)];
+  key=String(key||"");const def=ATTACHMENT_DEFS[inventoryBaseType(key)];
   if(!def||inventoryTotal(key)<=0){showFT("That module is unavailable",ship.x,ship.y-18,"#ff5544",9);return false;}
-  try{socket.emit("equipAttachment",{attachmentKey:key});showFT(`Equip request: ${def.name}`,ship.x,ship.y-18,"#78ff8a",9);return true;}catch(error){console.warn("Module equip request skipped",error);showFT("Module equip could not be sent",ship.x,ship.y-18,"#ff5544",9);return false;}
+  if(!socket?.connected){showFT("Connection recovering — module action queued after reconnect",ship.x,ship.y-18,"#ffcc44",9);showUiActionNotice("Reconnect before equipping a module","#ffcc44");return false;}
+  try{socket.emit("equipAttachment",{attachmentKey:key});showFT(`Equip request: ${def.name}`,ship.x,ship.y-18,"#78ff8a",9);showUiActionNotice(`${def.name} equip request sent`,"#78ff8a");return true;}catch(error){console.warn("Module equip request skipped",error);showFT("Module equip could not be sent",ship.x,ship.y-18,"#ff5544",9);showUiActionNotice("Module equip failed safely","#ff7777");return false;}
 }
 function openModuleLab(key){
   if(!isAttachmentKey(key)){showFT("Select a ship module first",ship.x,ship.y-18,"#ffcc44",9);return;}
@@ -8516,7 +8676,10 @@ function drawInventoryModuleLabTab(){
   // always derived from inventory, preventing malformed/legacy modules from
   // trapping the render loop after a click.
   const r=inventoryModuleLabRect(),entries=inventoryModuleEntries(),selected=ensureInventoryModuleSelection(entries);
-  ctx.save();ctx.fillStyle="rgba(0,0,0,.78)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Always restore the canvas context, even if a malformed legacy module
+  // arrives from an old save.  A skipped restore was what left the game zoomed
+  // and made subsequent input appear frozen.
+  ctx.save();try{ctx.fillStyle="rgba(0,0,0,.78)";ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle="#111a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#b978ff";ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
   drawUiFittedText("INVENTORY",r.x+14,r.y+21,100,"#e7f2ff",uiFont(13,true));inventoryModuleTabs(r);
   drawUiFittedText("MODULE LAB",r.x+14,r.y+43,r.w-28,"#e7bcff",uiFont(12,true));
@@ -8533,7 +8696,7 @@ function drawInventoryModuleLabTab(){
   });
   if(entries.length>8)drawUiFittedText(`+${entries.length-8} more module stacks`,listX+10,listY+listH-9,listW-20,"#879db5",uiFont(6));
   const detailX=listX+listW+12,detailW=r.x+r.w-detailX-12;
-  if(!selected){drawUiFittedText("Select a module to see its upgrade path.",detailX+12,listY+34,detailW-24,"#9fb0ca",uiFont(9));ctx.restore();return;}
+  if(!selected){drawUiFittedText("Select a module to see its upgrade path.",detailX+12,listY+34,detailW-24,"#9fb0ca",uiFont(9));return;}
   const key=selected.key,m=selected.meta,d=selected.def,next=moduleUpgradeCostClient(key),available=MODULE_CONVERGENCE_BONUSES.filter(b=>!m.bonuses.includes(b)),copies=inventoryModuleCopies,conv=moduleConvergenceCostClient(key,copies),upgradeReady=m.level<10&&player.credits>=next.credits&&inventoryTotal(next.resource)>=next.amount,convReady=available.length>0&&player.credits>=conv.credits&&inventoryTotal(conv.resource)>=conv.amount&&selected.count>=copies;
   ctx.fillStyle="#0b1424";ctx.fillRect(detailX,listY,detailW,72);ctx.strokeStyle="#345170";ctx.strokeRect(detailX+.5,listY+.5,detailW-1,71);
   drawItemIcon(ctx,key,detailX+11,listY+11,44);drawUiFittedText(`${d.name||key}${m.level?` +${m.level}`:""}`,detailX+64,listY+23,detailW-76,"#fff",uiFont(11,true));drawUiFittedText(`${String(d.slot||"module").toUpperCase()} SLOT · ${selected.count} available`,detailX+64,listY+38,detailW-76,"#ffdd88",uiFont(7,true));drawUiWrappedText(attachmentBonusLine(key)||d.description||"Passive ship module",detailX+64,listY+51,detailW-76,9,2,"#c9d8eb",uiFont(7));
@@ -8543,7 +8706,7 @@ function drawInventoryModuleLabTab(){
   const convY=cardY+cardH+cardGap;ctx.fillStyle="#21152c";ctx.fillRect(detailX,convY,cardW,cardH);ctx.strokeStyle="#b978ff";ctx.strokeRect(detailX+.5,convY+.5,cardW-1,cardH-1);drawUiFittedText("CONVERGENCE",detailX+10,convY+15,cardW-20,"#e8bcff",uiFont(8,true));drawUiFittedText(available.length?`Available: ${available.join(", ")}`:"All bonus types unlocked",detailX+10,convY+29,cardW-20,"#d6e1ff",uiFont(7));
   const minusX=detailX+10,controlY=convY+36;for(const [label,bx] of [["−",minusX],["+",minusX+110]]){ctx.fillStyle="#15263a";ctx.fillRect(bx,controlY,24,18);ctx.strokeStyle="#506f92";ctx.strokeRect(bx+.5,controlY+.5,23,17);drawUiFittedText(label,bx+12,controlY+13,18,"#d6e1ff",uiFont(10,true),"center");}ctx.fillStyle="#0b1220";ctx.fillRect(minusX+28,controlY,78,18);ctx.strokeStyle="#506f92";ctx.strokeRect(minusX+28.5,controlY+.5,77,17);drawUiFittedText(`${copies} ${copies===1?"copy":"copies"}`,minusX+67,controlY+13,72,"#fff",uiFont(7,true),"center");drawUiFittedText(`${Math.min(90,copies*10)}% chance`,minusX+146,controlY+13,cardW-156,"#ffdd44",uiFont(8,true));drawUiFittedText(`${conv.credits.toLocaleString()}cr`,detailX+10,convY+66,82,"#ffdd44",uiFont(7,true));drawModuleLabCost(conv.resource,conv.amount,detailX+90,convY+54);
   const cvX=detailX+10,cvY=convY+cardH-24,cvW=cardW-20;ctx.fillStyle=convReady?"#35224d":"#2b1a20";ctx.fillRect(cvX,cvY,cvW,19);ctx.strokeStyle=convReady?"#e6bcff":"#8a4d58";ctx.strokeRect(cvX+.5,cvY+.5,cvW-1,18);drawUiFittedText(available.length?(convReady?"CONVERGE MODULE":"CONVERGE — MISSING COST"):"ALL BONUSES MAXED",cvX+cvW/2,cvY+13,cvW-10,convReady?"#e8bcff":"#ff9b9b",uiFont(7,true),"center");
-  ctx.restore();
+  }finally{ctx.restore();}
 }
 function handleInventoryModuleLabTabClick(mx,my){
   const r=inventoryModuleLabRect(),entries=inventoryModuleEntries(),selected=ensureInventoryModuleSelection(entries),tabY=r.y+7;
@@ -8770,7 +8933,7 @@ function drawShipStatusPanel(){
   ctx.restore();
 }
 function handleShipStatusClick(mx,my){
-  for(const b of shipStatusButtons){if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){if(b.enabled&&typeof b.action==="function")b.action();return;}}
+  for(const b of shipStatusButtons){if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){if(b.enabled&&typeof b.action==="function"){try{b.action();}catch(error){console.error("Ship menu action recovered",error);showFT("Ship module action could not be completed",ship.x,ship.y-20,"#ff5544",10);showUiActionNotice("Ship module action failed safely","#ff7777");}}return;}}
   const r=shipStatusPanelRect.w?shipStatusPanelRect:shipStatusLayout();
   if(mx<r.x||mx>r.x+r.w||my<r.y||my>r.y+r.h)setShipStatusOpen(false);
 }
@@ -9081,19 +9244,28 @@ function largeCanvasMenuScale(kind){
 }
 function withLargeCanvasMenu(kind,drawFn){
   const s=largeCanvasMenuScale(kind);if(s<=1.02){drawFn();return;}
-  const cx=canvas.width/2,cy=canvas.height/2;ctx.save();ctx.translate(cx,cy);ctx.scale(s,s);ctx.translate(-cx,-cy);drawFn();ctx.restore();
+  const cx=canvas.width/2,cy=canvas.height/2;ctx.save();
+  // Never leave a transformed context behind if a menu renderer encounters a
+  // bad item/save record.  This was the visual "zoom/freeze" after modules.
+  try{ctx.translate(cx,cy);ctx.scale(s,s);ctx.translate(-cx,-cy);drawFn();}
+  finally{ctx.restore();}
 }
 function largeCanvasMenuPoint(kind,x,y){
   const s=largeCanvasMenuScale(kind);if(s<=1.02)return {x,y};
   const cx=canvas.width/2,cy=canvas.height/2;return {x:cx+(x-cx)/s,y:cy+(y-cy)/s};
 }
-const _drawInventory_v405=drawInventory;drawInventory=function(){withLargeCanvasMenu("inventory",_drawInventory_v405);};
+const _drawInventory_v405=drawInventory;drawInventory=function(){
+  // The Module Lab is already a responsive full-screen inventory tab. Scaling
+  // it a second time made its panel and hitboxes diverge on desktop browsers.
+  if(inventoryTab==="modules"){_drawInventory_v405();return;}
+  withLargeCanvasMenu("inventory",_drawInventory_v405);
+};
 const _drawShop_v405=drawShop;drawShop=function(st){withLargeCanvasMenu("shop",()=>_drawShop_v405(st));};
 const _drawAttrScreen_v405=drawAttrScreen;drawAttrScreen=function(){withLargeCanvasMenu("attributes",_drawAttrScreen_v405);};
 const _drawCharacterPanel_v405=drawCharacterPanel;drawCharacterPanel=function(){withLargeCanvasMenu("character",_drawCharacterPanel_v405);};
 const _drawQuestLogPanel_v405=drawQuestLogPanel;drawQuestLogPanel=function(){withLargeCanvasMenu("quest",_drawQuestLogPanel_v405);};
 const _drawBadgeLogPanel_v405=drawBadgeLogPanel;drawBadgeLogPanel=function(){withLargeCanvasMenu("badge",_drawBadgeLogPanel_v405);};
-const _handleInventoryClick_v405=handleInventoryClick;handleInventoryClick=function(mx,my){const p=largeCanvasMenuPoint("inventory",mx,my);return _handleInventoryClick_v405(p.x,p.y);};
+const _handleInventoryClick_v405=handleInventoryClick;handleInventoryClick=function(mx,my){const p=inventoryTab==="modules"?{x:mx,y:my}:largeCanvasMenuPoint("inventory",mx,my);return _handleInventoryClick_v405(p.x,p.y);};
 const _handleShopClick_v405=handleShopClick;handleShopClick=function(mx,my){const p=largeCanvasMenuPoint("shop",mx,my);return _handleShopClick_v405(p.x,p.y);};
 const _handleAttrClick_v405=handleAttrClick;handleAttrClick=function(mx,my){const p=largeCanvasMenuPoint("attributes",mx,my);return _handleAttrClick_v405(p.x,p.y);};
 const _handleCharacterClick_v405=handleCharacterClick;handleCharacterClick=function(mx,my){const p=largeCanvasMenuPoint("character",mx,my);return _handleCharacterClick_v405(p.x,p.y);};
@@ -9124,7 +9296,7 @@ function normalizeStationForRender(st){
   st.x=Number(st.x);st.y=Number(st.y);const fallback=STATION_TIERS[st.tier]||STATION_TIERS.standard||{name:"Station",size:18,color:"#66ccaa",glowColor:"rgba(80,200,160,.3)",factionColor:"#66ccaa",shipCount:0};
   st.tierDef={...fallback,...(st.tierDef||{})};st.tierDef.size=finiteOr(st.tierDef.size,18);st.r=finiteOr(st.r,st.tierDef.size+6);st.factionColor=st.factionColor||st.tierDef.factionColor||"#66ccaa";
   st.hp=finiteOr(st.hp,st.maxHp||1);st.maxHp=Math.max(1,finiteOr(st.maxHp,st.hp||1));st.shield=finiteOr(st.shield,0);st.maxShield=Math.max(0,finiteOr(st.maxShield,0));st.tradeShips=Array.isArray(st.tradeShips)?st.tradeShips:[];
-  st.tradeShips=st.tradeShips.filter(Boolean).map(ts=>{ts.x=finiteOr(ts.x,st.x);ts.y=finiteOr(ts.y,st.y);ts.vx=finiteOr(ts.vx,0);ts.vy=finiteOr(ts.vy,0);ts.angle=finiteOr(ts.angle,0);ts.size=Math.max(2,finiteOr(ts.size,5));ts.hp=finiteOr(ts.hp,1);ts.maxHp=Math.max(1,finiteOr(ts.maxHp,ts.hp));ts.state=ts.state||"idle";ts.lootCarried=ts.lootCarried&&typeof ts.lootCarried==="object"?ts.lootCarried:{};return ts;});
+  st.tradeShips=st.tradeShips.filter(Boolean).map(ts=>{ts.x=finiteOr(ts.x,st.x);ts.y=finiteOr(ts.y,st.y);ts.vx=finiteOr(ts.vx,0);ts.vy=finiteOr(ts.vy,0);ts.angle=finiteOr(ts.angle,0);ts.size=Math.max(2,finiteOr(ts.size,5));ts.hp=finiteOr(ts.hp,1);ts.maxHp=Math.max(1,finiteOr(ts.maxHp,ts.hp));const builtSprite=Number(ts.shipSprite||0);ts.visualSize=builtSprite?Math.max(ts.size,civilizationSpriteShipRenderSize({role:ts.npcClass==="fighter"?"defender":"trade"},{hp:ts.maxHp,capacity:ts.cargoCapacity},finiteOr(ts.visualSize,ts.size))):Math.max(ts.size,finiteOr(ts.visualSize,ts.size));ts.state=ts.state||"idle";ts.lootCarried=ts.lootCarried&&typeof ts.lootCarried==="object"?ts.lootCarried:{};return ts;});
   return st;
 }
 function sanitizeWorldRenderState(){
@@ -9152,8 +9324,25 @@ function handleFrameRuntimeError(error){
    MAIN LOOP
 ══════════════════════════════════════ */
 let last=performance.now();
+function drawConnectionRecoveryOverlay(){
+  if(!connectionRecovering)return;
+  const w=Math.min(Math.max(320,canvas.width*.34),520),h=72,x=(canvas.width-w)/2,y=Math.max(12,canvas.height*.08);
+  const elapsed=Math.max(0,Math.floor((Date.now()-connectionLostAt)/1000));
+  ctx.save();ctx.fillStyle="rgba(7,13,27,.92)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#ffcc44";ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,w-2,h-2);
+  drawUiFittedText("CONNECTION RECOVERY",x+w/2,y+25,w-32,"#ffdd44",uiFont(11,true),"center");
+  drawUiFittedText(`Reconnecting safely… ${elapsed}s · your world is held locally`,x+w/2,y+49,w-32,"#c9d9ec",uiFont(8),"center");ctx.restore();
+}
 function tick(now){
-  if(!joined){requestAnimationFrame(tick);return;}
+  if(!joined){
+    if(connectionRecovering){
+      try{
+        resizeGameCanvasToDisplay();syncMobileTouchUI();syncDesktopPanelState();sanitizeWorldRenderState();
+        if(mode===MODE.PLANET&&planetMap)drawPlanet();else drawSpace();
+        drawConnectionRecoveryOverlay();
+      }catch(error){drawEmergencySpaceFrame(error);drawConnectionRecoveryOverlay();}
+    }
+    requestAnimationFrame(tick);return;
+  }
   try{
     uiItemTooltip=null;
     resizeGameCanvasToDisplay();syncMobileTouchUI();syncDesktopPanelState();
