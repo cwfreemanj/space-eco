@@ -271,12 +271,12 @@ const CIV_FACTIONS=[
   {id:"nocturne",name:"Nocturne Syndicate",bonus:"+15% turret fire rate",color:"#ff586f"}
 ];
 const CIV_SHIP_CATALOG={
-  hauler_i:{name:"Courier Hauler I",role:"trade",sprite:2,credits:9000,capacity:35,hp:180,shield:60,speed:92,recipe:{iron:12,fuel:6}},
-  hauler_ii:{name:"Freight Hauler II",role:"trade",sprite:8,credits:28000,capacity:100,hp:420,shield:160,speed:105,recipe:{iron:28,crystal:8,engine_core:2}},
-  hauler_iii:{name:"Atlas Hauler III",role:"trade",sprite:15,credits:76000,capacity:260,hp:900,shield:380,speed:112,recipe:{gold:18,crystal:22,cargo_pod:5,engine_core:5}},
-  fighter_i:{name:"Patrol Fighter I",role:"defender",sprite:22,credits:12000,capacity:8,hp:260,shield:100,speed:150,damage:16,recipe:{iron:14,weapon_array:2,fuel:8}},
-  fighter_ii:{name:"Aegis Fighter II",role:"defender",sprite:29,credits:42000,capacity:12,hp:620,shield:300,speed:165,damage:38,recipe:{gold:14,shield_matrix:4,weapon_array:6}},
-  fighter_iii:{name:"Vanguard Fighter III",role:"defender",sprite:36,credits:120000,capacity:18,hp:1300,shield:720,speed:180,damage:82,recipe:{crystal:30,shield_matrix:12,weapon_array:15,obelisk_core:1}}
+  hauler_i:{name:"Courier Hauler I",role:"trade",sprite:2,credits:9000,capacity:18,hp:180,shield:60,speed:92,recipe:{iron:12,fuel:6}},
+  hauler_ii:{name:"Freight Hauler II",role:"trade",sprite:8,credits:28000,capacity:50,hp:420,shield:160,speed:105,recipe:{iron:28,crystal:8,engine_core:2}},
+  hauler_iii:{name:"Atlas Hauler III",role:"trade",sprite:15,credits:76000,capacity:130,hp:900,shield:380,speed:112,recipe:{gold:18,crystal:22,cargo_pod:5,engine_core:5}},
+  fighter_i:{name:"Patrol Fighter I",role:"defender",sprite:22,credits:12000,capacity:4,hp:260,shield:100,speed:150,damage:16,recipe:{iron:14,weapon_array:2,fuel:8}},
+  fighter_ii:{name:"Aegis Fighter II",role:"defender",sprite:29,credits:42000,capacity:6,hp:620,shield:300,speed:165,damage:38,recipe:{gold:14,shield_matrix:4,weapon_array:6}},
+  fighter_iii:{name:"Vanguard Fighter III",role:"defender",sprite:36,credits:120000,capacity:9,hp:1300,shield:720,speed:180,damage:82,recipe:{crystal:30,shield_matrix:12,weapon_array:15,obelisk_core:1}}
 };
 // Turrets are deliberately data-driven so the client can present the same
 // catalogue, costs, effects, and sprite slot without a browser prompt.
@@ -300,6 +300,9 @@ const CIV_NPC_BASE_RESPAWN_MS=7500;
 const CIV_LOGISTICS_TICK_MS=1000;
 const CIV_LOGISTICS_MINING_BASE_SECONDS=3.5;
 const CIV_LOGISTICS_MINING_CAPACITY_SCALE=1.55;
+// Version marker lets existing roster ships receive the same cargo rebalance
+// as newly crafted ships exactly once, without quartering them after reloads.
+const CIV_CARGO_BALANCE_VERSION=2;
 const CIV_LOGISTICS_MIN_RETURN_SECONDS=2.2;
 const CIV_LOGISTICS_MAX_RETURN_SECONDS=22;
 function civStationRespawnDelay(st){const level=Math.max(0,Math.floor(Number(st?.respawnLevel)||0));return Math.max(3000,Math.round(CIV_NPC_BASE_RESPAWN_MS*Math.pow(.9,level)));}
@@ -338,7 +341,16 @@ function ensureCivLogistics(zone){
   if(!zone.superStation||zone.superStation.id!==superDefaults.id)zone.superStation=superDefaults;
   else for(const[k,v]of Object.entries(superDefaults))if(zone.superStation[k]===undefined||zone.superStation[k]===null)zone.superStation[k]=v;
   zone.superStation.x=Math.round(Number(zone.x)||zone.superStation.x||0);zone.superStation.y=Math.round(Number(zone.y)||zone.superStation.y||0);zone.superStation.tier="capital";zone.superStation.isSuperStation=true;
-  for(const st of [...zone.builtStations,...zone.baseStations]){const sd=civStationDefaults(st);for(const[k,v]of Object.entries(sd))if(st[k]===undefined||st[k]===null)st[k]=v;}
+  for(const st of civAllStations(zone)){
+    const sd=civStationDefaults(st);for(const[k,v]of Object.entries(sd))if(st[k]===undefined||st[k]===null)st[k]=v;
+    for(const roster of st.shipRoster||[]){
+      if(!roster||roster.cargoBalanceVersion===CIV_CARGO_BALANCE_VERSION)continue;
+      const fallback=CIV_SHIP_CATALOG[roster.shipKey]?.capacity||(roster.role==="defender"?4:8);
+      roster.stats=roster.stats||{};
+      roster.stats.capacity=Math.max(1,Math.ceil(Math.max(1,Number(roster.stats.capacity)||fallback*2)/2));
+      roster.cargoBalanceVersion=CIV_CARGO_BALANCE_VERSION;
+    }
+  }
   return zone;
 }
 function civRecipeOk(p,def){for(const[k,n]of Object.entries(def.recipe||{}))if(inventoryCount(p,k)<n)return {ok:false,reason:`Need ${n} ${k.replace(/_/g," ")}.`};return {ok:true};}
@@ -346,7 +358,7 @@ function civConsumeRecipe(p,def){for(const[k,n]of Object.entries(def.recipe||{})
 function civFactionShipStats(zone,def){const f=zone.factionId||civFactionFor(zone.zoneId).id,s={capacity:def.capacity,hp:def.hp,shield:def.shield,speed:def.speed,damage:def.damage||0};if(f==="aurora")s.shield=Math.round(s.shield*1.15);if(f==="verdant")s.capacity=Math.round(s.capacity*1.2);if(f==="ember")s.damage=Math.round(s.damage*1.12);if(f==="aegis")s.hp=Math.round(s.hp*1.2);if(f==="nocturne")s.speed=Math.round(s.speed*1.1);return s;}
 function civFactionTurretStats(zone,def){const s={range:def.range,damage:def.damage,fireRate:def.fireRate,hp:def.hp,shield:def.shield};if(zone.factionId==="nocturne")s.fireRate=Number((s.fireRate*1.15).toFixed(2));if(zone.factionId==="ember")s.damage=Math.round(s.damage*1.12);if(zone.factionId==="aegis")s.hp=Math.round(s.hp*1.2);if(zone.factionId==="violet")s.shield=Math.round(s.shield*1.18);return s;}
 function civDefaultShipCount(tier){return ({outpost:3,standard:4,advanced:5,capital:7}[tier]||4);}
-function civDefaultShipCapacity(tier){return ({outpost:8,standard:14,advanced:22,capital:36}[tier]||12);}
+function civDefaultShipCapacity(tier){return ({outpost:4,standard:7,advanced:11,capital:18}[tier]||6);}
 function civDefaultShipSpeed(tier){return ({outpost:82,standard:94,advanced:108,capital:118}[tier]||90);}
 function civStationMiningFleet(st){
   if(st?.destroyed)return [];
@@ -574,7 +586,7 @@ function tickCivilizationTaxes(){
 }
 function civCargoMineSeconds(capacity,density=0){
   const densityMult=Math.max(.75,Math.min(1.25,1+Math.max(0,Number(density)||0)*.05));
-  return Math.max(3,Math.min(28,(CIV_LOGISTICS_MINING_BASE_SECONDS+Math.sqrt(Math.max(1,capacity))*CIV_LOGISTICS_MINING_CAPACITY_SCALE)/densityMult));
+  return Math.max(6,Math.min(56,2*(CIV_LOGISTICS_MINING_BASE_SECONDS+Math.sqrt(Math.max(1,capacity))*CIV_LOGISTICS_MINING_CAPACITY_SCALE)/densityMult));
 }
 function civCargoReturnSeconds(st,target,craft){
   const distance=target?Math.hypot((Number(target.x)||st.x)-st.x,(Number(target.y)||st.y)-st.y):0;
@@ -1358,6 +1370,25 @@ const ATTACHMENT_DEFS={
   maneuver_fins:{key:"maneuver_fins",slot:"utility",name:"Maneuver Fins",turnMult:1.28,brakingMult:1.12,description:"Improves turn handling and braking."}
 };
 const ATTACHMENT_SLOTS=["hull","shield","engine","utility","weapon"];
+// Ship modules can now be manufactured from the loadout screen.  Crafted
+// modules deliberately enter as their plain base item; upgrades/convergence
+// create the individually keyed versions used by inventory, trade, and shops.
+const MODULE_CRAFT_RECIPES={
+  hull_plate:{credits:4200,iron:24,titanium:3},
+  shield_matrix:{credits:6200,crystal:16,cobalt:8,circuit_board:3},
+  engine_core:{credits:5900,copper:26,fuel:12,nano_fiber:3},
+  nav_chip:{credits:7200,silicon:24,circuit_board:6,stardust:2},
+  cargo_pod:{credits:4600,iron:18,copper:14,alloy_frame:2},
+  weapon_array:{credits:8200,iron:22,plasma_cell:5,circuit_board:4},
+  brake_servo:{credits:5600,cobalt:14,alloy_frame:3,fuel:7},
+  gyroscope_array:{credits:7600,silicon:18,crystal:10,circuit_board:5},
+  overdrive_thruster:{credits:12500,fuel:24,nano_fiber:8,engine_core:1},
+  combat_predictor:{credits:14500,crystal:18,circuit_board:8,weapon_array:1},
+  shield_capacitor:{credits:13200,crystal:22,cobalt:12,shield_matrix:1},
+  regen_coil:{credits:11500,copper:20,crystal:16,plasma_cell:4},
+  reinforced_bulkhead:{credits:15500,titanium:20,alloy_frame:7,hull_plate:1},
+  maneuver_fins:{credits:7800,cobalt:16,nano_fiber:5,brake_servo:1}
+};
 function isAttachmentKey(k){return !!ATTACHMENT_DEFS[inventoryBaseType(k)];}
 function defaultAttachmentSlots(){return {hull:null,shield:null,engine:null,utility:null,weapon:null};}
 function normalizeAttachments(raw={}){
@@ -2897,15 +2928,38 @@ io.on("connection",socket=>{
     if(!pool.length){socket.emit("moduleUpgradeDenied",{reason:"This module already has every convergence bonus."});return;}
     if(inventoryCount(p,key)<use){socket.emit("moduleUpgradeDenied",{reason:`Need ${use} matching module${use>1?"s":""}.`});return;}
     const cost=moduleConvergenceCostFor(key,use);if((p.credits||0)<cost.credits||inventoryCount(p,cost.resource)<cost.amount){socket.emit("moduleUpgradeDenied",{reason:`Need ${cost.credits.toLocaleString()}cr and ${cost.amount} ${cost.resource.replace(/_/g," ")}.`});return;}
-    const chance=Math.min(.9,use*.10),roll=Math.random(),addedBonus=pool[Math.floor(Math.random()*pool.length)],nextBonus=[...m.bonuses,addedBonus].sort().join("_");
+    // Each selected matching module adds a full ten percentage points; ten
+    // copies therefore guarantees the convergence result the UI advertises.
+    const chance=Math.min(1,use*.10),roll=Math.random(),addedBonus=pool[Math.floor(Math.random()*pool.length)],nextBonus=[...m.bonuses,addedBonus].sort().join("_");
     const result=moduleInstanceKey(m.base,Math.max(1,m.level),nextBonus);
     if(roll<chance&&!canReplaceInventoryItem(p,key,use,result,1)){socket.emit("moduleUpgradeDenied",{reason:"Inventory full for convergence result."});return;}
+    // Convergence is a deliberate gamble: every selected matching module is
+    // consumed on either result. The success result carries a unique encoded
+    // convergence bonus, so it only stacks with an identical stat line.
     p.credits-=cost.credits;removeInventory(p,cost.resource,cost.amount);removeInventory(p,key,use);let success=roll<chance;
-    if(success){addInventory(p,result,1);for(const slot of ATTACHMENT_SLOTS)if(p.equippedAttachments?.[slot]===key)p.equippedAttachments[slot]=result;}
-    else {addInventory(p,key,1);}
+    if(success){
+      addInventory(p,result,1);
+      for(const slot of ATTACHMENT_SLOTS)if(p.equippedAttachments?.[slot]===key)p.equippedAttachments[slot]=result;
+    }else if(inventoryCount(p,key)<=0){
+      // A failed convergence still consumes every selected copy.  Never leave
+      // a ghost attachment equipped after its final matching module is gone.
+      for(const slot of ATTACHMENT_SLOTS)if(p.equippedAttachments?.[slot]===key)p.equippedAttachments[slot]=null;
+    }
     applyShipStats(p,false);
-    socket.emit("moduleConvergenceResult",{success,chance,result:success?result:key,base:m.base,level:m.level,bonus:success?nextBonus:m.bonus,addedBonus:success?addedBonus:null,maxBonuses:MODULE_CONVERGENCE_BONUSES.length,cost,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});syncAndPersist(p,"module_convergence");
+    socket.emit("moduleConvergenceResult",{success,chance,result:success?result:key,base:m.base,level:m.level,bonus:success?nextBonus:m.bonus,addedBonus:success?addedBonus:null,copies:use,consumed:use,maxBonuses:MODULE_CONVERGENCE_BONUSES.length,cost,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});syncAndPersist(p,"module_convergence");
     }catch(error){console.error("convergeModuleItem recovered",error);socket.emit("moduleUpgradeDenied",{reason:"Module convergence recovered safely. Please try again."});}
+  });
+  socket.on("craftAttachmentModule",({moduleKey}={})=>{
+    try{
+      const p=players.get(socket.id),key=String(moduleKey||""),def=ATTACHMENT_DEFS[key],recipe=MODULE_CRAFT_RECIPES[key];
+      if(!p||!def||!recipe){socket.emit("moduleCraftDenied",{reason:"Unknown ship module recipe."});return;}
+      const check=canCraftRecipe(p,recipe);
+      if(!check.ok){socket.emit("moduleCraftDenied",{reason:check.reason||"Missing module crafting materials."});return;}
+      if(!canFitInventory(p,key,1)){socket.emit("moduleCraftDenied",{reason:"Inventory full for this module."});return;}
+      consumeCraftRecipe(p,recipe);addInventory(p,key,1);applyShipStats(p,false);
+      socket.emit("moduleCraftResult",{moduleKey:key,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});
+      syncAndPersist(p,"craft_attachment_module");
+    }catch(error){console.error("craftAttachmentModule recovered",error);socket.emit("moduleCraftDenied",{reason:"Module craft recovered safely. Please try again."});}
   });
   socket.on("upgradeWeapon",({weaponKey})=>{
     const p=players.get(socket.id);weaponKey=String(weaponKey||"");
@@ -3565,7 +3619,7 @@ io.on("connection",socket=>{
   function civStation(zone,id){const key=safeZoneId(id);return civAllStations(zone).find(s=>s.id===key)||null;}
   function civSync(p,zone,reason){socket.emit("civilizationLogisticsSync",{zone:publicCivilizationZone(zone,p.id),reason});emitInventorySync(p,"requested");broadcastCivilizationZonesList();persistPlayerSoon(p,reason);}
   socket.on("requestCivilizationLogistics",raw=>{const {p,zone}=ownCivZone(raw);if(p&&zone)civSync(p,zone,"civ_logistics_view");});
-  socket.on("buyCivilizationRosterShip",raw=>{const {p,zone}=ownCivZone(raw),st=zone&&civStation(zone,raw?.stationId),def=CIV_SHIP_CATALOG[String(raw?.shipKey||"")];if(!p||!zone||!st||!def){socket.emit("civilizationZoneDenied",{reason:"Invalid station ship request."});return;}if(st.destroyed){socket.emit("civilizationZoneDenied",{reason:"Destroyed stations cannot build ships."});return;}if((st.shipRoster||[]).length>=st.shipCapacity){socket.emit("civilizationZoneDenied",{reason:"This station has reached its ship capacity."});return;}const buildCost=Math.round(def.credits*(zone.factionId==="frontier"?.88:1)),check=civRecipeOk(p,def);if(!check.ok||p.credits<buildCost){socket.emit("civilizationZoneDenied",{reason:check.reason||`Need ${buildCost}cr.`});return;}p.credits-=buildCost;civConsumeRecipe(p,def);st.shipRoster.push({id:`${st.id}|${raw.shipKey}|${Date.now()}`,shipKey:raw.shipKey,name:def.name,role:def.role,sprite:def.sprite,status:"respawning",builtAt:Date.now(),respawnAt:Date.now()+civStationRespawnDelay(st),stats:civFactionShipStats(zone,def)});socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_ship_built");});
+  socket.on("buyCivilizationRosterShip",raw=>{const {p,zone}=ownCivZone(raw),st=zone&&civStation(zone,raw?.stationId),def=CIV_SHIP_CATALOG[String(raw?.shipKey||"")];if(!p||!zone||!st||!def){socket.emit("civilizationZoneDenied",{reason:"Invalid station ship request."});return;}if(st.destroyed){socket.emit("civilizationZoneDenied",{reason:"Destroyed stations cannot build ships."});return;}if((st.shipRoster||[]).length>=st.shipCapacity){socket.emit("civilizationZoneDenied",{reason:"This station has reached its ship capacity."});return;}const buildCost=Math.round(def.credits*(zone.factionId==="frontier"?.88:1)),check=civRecipeOk(p,def);if(!check.ok||p.credits<buildCost){socket.emit("civilizationZoneDenied",{reason:check.reason||`Need ${buildCost}cr.`});return;}p.credits-=buildCost;civConsumeRecipe(p,def);st.shipRoster.push({id:`${st.id}|${raw.shipKey}|${Date.now()}`,shipKey:raw.shipKey,name:def.name,role:def.role,sprite:def.sprite,status:"respawning",builtAt:Date.now(),respawnAt:Date.now()+civStationRespawnDelay(st),cargoBalanceVersion:CIV_CARGO_BALANCE_VERSION,stats:civFactionShipStats(zone,def)});socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_ship_built");});
   socket.on("upgradeCivilizationStation",raw=>{const {p,zone}=ownCivZone(raw),st=zone&&civStation(zone,raw?.stationId),stat=String(raw?.stat||"");if(!p||!st||!["capacity","health","shield","respawn"].includes(stat)){socket.emit("civilizationZoneDenied",{reason:"Invalid station upgrade."});return;}if(st.destroyed){socket.emit("civilizationZoneDenied",{reason:"Destroyed stations cannot be upgraded."});return;}const respawn=stat==="respawn",lv=respawn?Math.max(1,Number(st.respawnLevel||0)+1):Math.max(1,Number(st.level)||1),cost=(respawn?12000:8000)*lv,res=respawn?"engine_core":stat==="capacity"?"cargo_pod":stat==="health"?"hull_plate":"shield_matrix";if(p.credits<cost||inventoryCount(p,res)<lv){socket.emit("civilizationZoneDenied",{reason:`Need ${cost}cr and ${lv} ${res.replace(/_/g," ")}.`});return;}p.credits-=cost;removeInventory(p,res,lv);if(respawn)st.respawnLevel=Math.min(10,Number(st.respawnLevel||0)+1);else{st.level=lv+1;if(stat==="capacity")st.shipCapacity+=2;if(stat==="health"){st.maxHp+=650;st.hp=st.maxHp;}if(stat==="shield"){st.maxShield+=360;st.shield=st.maxShield;}}socket.emit("creditUpdate",{credits:p.credits});civSync(p,zone,"civ_station_upgrade");});
   socket.on("setCivilizationResourceTarget",raw=>{const {p,zone}=ownCivZone(raw),st=zone&&civStation(zone,raw?.stationId);if(!p||!st)return;if(st.destroyed){socket.emit("civilizationZoneDenied",{reason:"Destroyed stations cannot receive a mining assignment."});return;}const target=raw?.planet||{};const d=Math.hypot((Number(target.x)||0)-st.x,(Number(target.y)||0)-st.y);if(!target.id||d>Math.max(1500,zone.radius*4)){socket.emit("civilizationZoneDenied",{reason:"That resource planet is outside this station's logistics range."});return;}const assignment={id:String(target.id).slice(0,80),name:safeText(target.name||"Resource Planet",48),x:Math.round(target.x),y:Math.round(target.y),resources:Array.isArray(target.resources)?target.resources.slice(0,12):[],density:Math.max(0,Number(target.density)||0)};st.resourceTarget=assignment;zone.stationTasks[st.id]=civMineTask();if(!st.isSuperStation&&!zone.superStation?.resourceTarget)zone.superStation.resourceTarget={...assignment};civSync(p,zone,"civ_resource_target");});
   socket.on("civilizationRosterShipDestroyed",raw=>{const {p,zone}=ownCivZone(raw),st=zone&&civStation(zone,raw?.stationId),shipId=safeZoneId(raw?.shipId);if(!p||!st||st.destroyed||!shipId)return;const roster=(st.shipRoster||[]).find(sh=>sh.id===shipId);if(!roster||roster.status==="destroyed")return;roster.status="respawning";roster.respawnAt=Date.now()+civStationRespawnDelay(st);roster.destroyedAt=Date.now();civSync(p,zone,"civ_roster_ship_respawning");});
