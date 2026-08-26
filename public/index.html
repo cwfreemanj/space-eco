@@ -1778,6 +1778,9 @@ window.addEventListener("keydown",e=>{
   if(pendingTradeRequest&&(key==="y"||key==="n")){respondToTradeRequest(key==="y");e.preventDefault();return;}
 
   keys.add(key);
+  if(e.code==="ShiftLeft"&&mode===MODE.SPACE&&!canvasPanelOpen()){
+    e.preventDefault();useEquippedAbility();return;
+  }
   if([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(key))e.preventDefault();
   if(key==="t"){openChat();e.preventDefault();return;}
   if(key==="v"){toggleQuestLog();e.preventDefault();return;}
@@ -2278,6 +2281,17 @@ Object.assign(RES,{
   maneuver_fins:{name:"Maneuver Fins",rarity:4,color:"#b9f3ff",base:130}
 });
 
+// v4.2.4 consumables and active abilities.  These are normal inventory items,
+// so the same icon, tooltip, shop, storage and trade plumbing applies to them.
+const REPAIR_ITEM_DEFS={
+  repair_hull_patch_1:{name:"Hull Patch I",kind:"hull",amount:45,rarity:2,color:"#8dff9c",description:"Repairs 45 hull integrity.",recipe:{credits:180,dirt:16,stone:8,grass_tuft:6}},repair_hull_patch_2:{name:"Hull Patch II",kind:"hull",amount:120,rarity:4,color:"#68e7a0",description:"Repairs 120 hull integrity.",recipe:{credits:950,iron:16,copper:12,ice_block:10}},repair_hull_patch_3:{name:"Hull Patch III",kind:"hull",amount:280,rarity:6,color:"#34ffc0",description:"Repairs 280 hull integrity.",recipe:{credits:5200,titanium:14,alloy_frame:4,nano_fiber:6}},
+  repair_shield_cell_1:{name:"Shield Cell I",kind:"shield",amount:40,rarity:2,color:"#70c9ff",description:"Restores 40 shield energy.",recipe:{credits:180,sand:14,copper:8,ice_block:8}},repair_shield_cell_2:{name:"Shield Cell II",kind:"shield",amount:110,rarity:4,color:"#58a6ff",description:"Restores 110 shield energy.",recipe:{credits:1050,cobalt:14,crystal:8,circuit_board:2}},repair_shield_cell_3:{name:"Shield Cell III",kind:"shield",amount:260,rarity:6,color:"#a58bff",description:"Restores 260 shield energy.",recipe:{credits:5600,prism_ore:10,shield_matrix:1,plasma_cell:6}}
+};
+const ABILITY_DEFS={
+  ability_aegis_burst:{name:"Aegis Burst",kind:"overshield",cooldown:26,rarity:5,color:"#67c8ff",description:"Temporarily doubles maximum shield and restores it.",recipe:{credits:18000,crystal:32,cobalt:18,shield_matrix:2,plasma_cell:8}},ability_hull_surge:{name:"Hull Surge",kind:"health",cooldown:34,rarity:5,color:"#78ff9b",description:"Repairs hull and grants a short reinforced-hull boost.",recipe:{credits:16000,iron:36,titanium:16,hull_plate:2,nano_fiber:8}},ability_combat_focus:{name:"Combat Focus",kind:"damage",cooldown:29,rarity:6,color:"#ff6f8e",description:"Temporarily increases weapon damage and fire intensity.",recipe:{credits:26000,copper:34,crystal:22,weapon_array:2,ember_quartz:8}},ability_kinetic_drive:{name:"Kinetic Drive",kind:"speed",cooldown:24,rarity:5,color:"#ffb25a",description:"Doubles ship speed for a brief overdrive.",recipe:{credits:21000,fuel:42,engine_core:2,nano_fiber:12,circuit_board:6}},ability_sentinel_matrix:{name:"Sentinel Matrix",kind:"defense",cooldown:31,rarity:6,color:"#be9bff",description:"Boosts armor, shielding, and shield regeneration briefly.",recipe:{credits:30000,prism_ore:16,shield_capacitor:1,regen_coil:1,quantum_core:2}},ability_mega_laser:{name:"Mega Laser",kind:"mega_laser",cooldown:42,rarity:7,color:"#fff07a",description:"Fires a massive piercing laser at the current aim direction.",recipe:{credits:48000,gold:36,crystal:30,weapon_array:3,quantum_core:4}}
+};
+for(const [key,def] of Object.entries({...REPAIR_ITEM_DEFS,...ABILITY_DEFS}))RES[key]={name:def.name,rarity:def.rarity,color:def.color,base:Math.max(1,Math.floor((def.recipe?.credits||100)/15)),description:def.description,craftable:true,kind:def.kind};
+
 
 // v4.0.10 hotfix: these globals must exist before optional/generated systems register.
 var GALAXY_SEED="GALAXY-01";
@@ -2441,35 +2455,45 @@ const ATTACHMENT_DEFS={
   maneuver_fins:{key:"maneuver_fins",slot:"utility",name:"Maneuver Fins",turnMult:1.28,brakingMult:1.12,description:"Improves turn handling and braking."}
 };
 const ATTACHMENT_SLOTS=["hull","shield","engine","utility","weapon"];
-function isWeaponKey(k){return !!WEAPON_DEFS[k];}
+const WEAPON_INSTANCE_PREFIX="wpn__";
+function weaponInstanceMeta(key){const raw=String(key||"");if(!raw.startsWith(WEAPON_INSTANCE_PREFIX))return null;const p=raw.split("__"),base=String(p[1]||"");if(p.length!==3||!WEAPON_DEFS[base])return null;return {base,level:Math.max(1,Math.min(99,Math.floor(Number(p[2])||1)))};}
+function weaponInstanceKey(base,level){return `${WEAPON_INSTANCE_PREFIX}${String(base||"")}__${Math.max(1,Math.min(99,Math.floor(Number(level)||1)))}`;}
+function isWeaponKey(k){return !!WEAPON_DEFS[inventoryBaseType(k)];}
 const MODULE_INSTANCE_PREFIX="mod__";
 const MODULE_CONVERGENCE_BONUSES=["hull","shield","damage","thrust"];
 function normalizeModuleBonuses(raw){return [...new Set(String(raw||"none").split("_").map(v=>v.trim().toLowerCase()).filter(v=>MODULE_CONVERGENCE_BONUSES.includes(v)))].sort();}
 function moduleInstanceMeta(key){const raw=String(key||"");if(!raw.startsWith(MODULE_INSTANCE_PREFIX))return null;const p=raw.split("__");if(p.length<4||!ATTACHMENT_DEFS[p[1]])return null;const rawBonus=String(p.slice(3).join("__")||"none"),bonuses=normalizeModuleBonuses(rawBonus);if(rawBonus!=="none"&&bonuses.join("_")!==rawBonus)return null;return {base:p[1],level:Math.max(1,Math.min(10,Math.floor(Number(p[2])||1))),bonus:bonuses.length?bonuses.join("_"):"none",bonuses};}
-function inventoryBaseType(key){return moduleInstanceMeta(key)?.base||String(key||"");}
+function inventoryBaseType(key){return moduleInstanceMeta(key)?.base||weaponInstanceMeta(key)?.base||String(key||"");}
 function moduleTierForClient(key){const m=moduleInstanceMeta(key);return {base:m?.base||String(key||""),level:m?.level||0,bonus:m?.bonus||"none",bonuses:m?.bonuses||[]};}
 function moduleUpgradeCostClient(key){const m=moduleTierForClient(key),d=ATTACHMENT_DEFS[m.base]||{},weight=[d.maxHpBonus,d.maxShieldBonus,d.thrustMult&&d.thrustMult!==1,d.damageMult&&d.damageMult!==1,d.shieldRegenMult&&d.shieldRegenMult!==1,d.gasEfficiencyMult&&d.gasEfficiencyMult!==1,d.brakingMult&&d.brakingMult!==1,d.turnMult&&d.turnMult!==1].filter(Boolean).length||1,next=Math.min(10,m.level+1);return {credits:Math.floor((1800+weight*1100)*Math.pow(1.58,next-1)),resource:next<4?"iron":next<7?"crystal":"quantum_core",amount:Math.max(1,Math.ceil(next/3))};}
 function moduleConvergenceCostClient(key,copies){const m=moduleTierForClient(key),base=moduleUpgradeCostClient(key);return {credits:Math.floor(base.credits*(1.25+Math.max(0,copies-1)*.12+m.bonuses.length*.35)),resource:m.level<5?"dark_matter_shard":"obelisk_core",amount:Math.max(1,Math.ceil((m.level+1+m.bonuses.length)/3))};}
-function itemDefFor(key){const base=inventoryBaseType(key),d=RES[base]||{};const m=moduleInstanceMeta(key);return m?{...d,name:`${d.name||base} +${m.level}`,description:`${d.description||"Ship module"} ${m.bonus!=="none"?`· Converged ${m.bonus.replace(/_/g,", ")} bonus`:""}`}:d;}
+function itemDefFor(key){const base=inventoryBaseType(key),d=RES[base]||WEAPON_DEFS[base]||{};const m=moduleInstanceMeta(key),w=weaponInstanceMeta(key);if(m)return {...d,name:`${d.name||base} +${m.level}`,description:`${d.description||"Ship module"} ${m.bonus!=="none"?`· Converged ${m.bonus.replace(/_/g,", ")} bonus`:""}`};if(w)return {...d,name:`${d.name||base} +${w.level}`,description:`${d.description||"Weapon"} · Fused weapon, damage increased.`};return d;}
 function isAttachmentKey(k){return !!ATTACHMENT_DEFS[inventoryBaseType(k)];}
-function weaponDefFor(k){return WEAPON_DEFS[k]||WEAPON_DEFS.weapon_laser_mk1;}
+function weaponDefFor(k){return WEAPON_DEFS[inventoryBaseType(k)]||WEAPON_DEFS.weapon_laser_mk1;}
 function defaultAttachmentSlots(){return {hull:null,shield:null,engine:null,utility:null,weapon:null};}
 function normalizeAttachments(raw={}){const out=defaultAttachmentSlots();if(raw&&typeof raw==="object"){for(const slot of ATTACHMENT_SLOTS){const key=String(raw[slot]||""),base=inventoryBaseType(key);if(key&&ATTACHMENT_DEFS[base]?.slot===slot)out[slot]=key;}}return out;}
 function attachmentEffects(){const fx={maxHpBonus:0,maxShieldBonus:0,thrustMult:1,damageMult:1,shieldRegenMult:1,gasEfficiencyMult:1,brakingMult:1,turnMult:1};const loadout=normalizeAttachments(player.equippedAttachments||{});for(const key of Object.values(loadout)){const m=moduleInstanceMeta(key),d=ATTACHMENT_DEFS[inventoryBaseType(key)];if(!d)continue;const lv=m?.level||0,boost=1+lv*.055,bonus=m?.bonus||"none";fx.maxHpBonus+=(Number(d.maxHpBonus)||0)*boost;fx.maxShieldBonus+=(Number(d.maxShieldBonus)||0)*boost;fx.thrustMult*=1+((Number(d.thrustMult)||1)-1)*boost;fx.damageMult*=1+((Number(d.damageMult)||1)-1)*boost;fx.shieldRegenMult*=1+((Number(d.shieldRegenMult)||1)-1)*boost;fx.gasEfficiencyMult*=1+((Number(d.gasEfficiencyMult)||1)-1)*boost;if(d.brakingMult)fx.brakingMult*=1+((Number(d.brakingMult)||1)-1)*boost;if(d.turnMult)fx.turnMult*=1+((Number(d.turnMult)||1)-1)*boost;if(bonus.includes("hull"))fx.maxHpBonus+=8+lv*2;if(bonus.includes("shield"))fx.maxShieldBonus+=8+lv*2;if(bonus.includes("damage"))fx.damageMult*=1.03+lv*.006;if(bonus.includes("thrust"))fx.thrustMult*=1.025+lv*.005;}return fx;}
 function attachmentBonusLine(key){const m=moduleInstanceMeta(key),d=ATTACHMENT_DEFS[inventoryBaseType(key)];if(!d)return "";const boost=1+(m?.level||0)*.055,bonus=String(m?.bonus||"none"),bits=[];if(d.maxHpBonus)bits.push(`+${Math.round(d.maxHpBonus*boost)} HP`);if(d.maxShieldBonus)bits.push(`+${Math.round(d.maxShieldBonus*boost)} Shield`);if(d.thrustMult&&d.thrustMult!==1)bits.push(`Thrust x${(1+(d.thrustMult-1)*boost).toFixed(2)}`);if(d.damageMult&&d.damageMult!==1)bits.push(`Damage x${(1+(d.damageMult-1)*boost).toFixed(2)}`);if(d.shieldRegenMult&&d.shieldRegenMult!==1)bits.push(`Shield Regen x${(1+(d.shieldRegenMult-1)*boost).toFixed(2)}`);if(d.gasEfficiencyMult&&d.gasEfficiencyMult!==1)bits.push(`Efficiency x${(1+(d.gasEfficiencyMult-1)*boost).toFixed(2)}`);if(d.brakingMult&&d.brakingMult!==1)bits.push(`Braking x${(1+(d.brakingMult-1)*boost).toFixed(2)}`);if(d.turnMult&&d.turnMult!==1)bits.push(`Handling x${(1+(d.turnMult-1)*boost).toFixed(2)}`);if(bonus!=="none")bits.push(`Converged ${bonus.replace(/_/g," ")}`);return bits.join(" · ")||d.description||"Passive ship module";}
 function inventoryTotal(type){let n=0;for(const s of player.invSlots)if(s?.type===type)n+=s.count||0;return n;}
 function playerOwnsWeaponForEquip(key){return key==="weapon_laser_mk1"||inventoryTotal(key)>0;}
-function weaponLevel(key){return Math.max(1,Math.floor(player.weaponLevels?.[key]||1));}
+function weaponLevel(key){const fused=weaponInstanceMeta(key);return fused?.level||Math.max(1,Math.floor(player.weaponLevels?.[inventoryBaseType(key)]||1));}
 function equippedWeaponKey(){return (player.equippedWeapon&&isWeaponKey(player.equippedWeapon)&&playerOwnsWeaponForEquip(player.equippedWeapon))?player.equippedWeapon:"weapon_laser_mk1";}
 function equippedWeaponDef(){return weaponDefFor(equippedWeaponKey());}
 function weaponDamage(key){const d=weaponDefFor(key),lvl=weaponLevel(key);return d.damage*Math.pow(d.upgradeMult||1.15,lvl-1)*ship.damageStat;}
 function weaponUpgradeCost(key){const d=weaponDefFor(key),lvl=weaponLevel(key);return Math.ceil((price(key)||d.damage*20)*(0.65+lvl*0.85)*Math.pow(1.42,lvl-1));}
-function weaponLine(){const d=equippedWeaponDef();return `${d.name} Lv${weaponLevel(d.key)}`;}
+function weaponLine(){const d=equippedWeaponDef(),key=equippedWeaponKey();return `${d.name} Lv${weaponLevel(key)}`;}
+function useEquippedAbility(){
+  const key=player.equippedAbility,def=ABILITY_DEFS[key];
+  if(!def){showFT("No active ability equipped",ship.x,ship.y-20,"#ffcc44",9);return;}
+  const remain=Math.max(0,Number(player.ability?.cooldownRemaining||0));
+  if(remain>0){showFT(`${def.name}: ${remain.toFixed(1)}s cooldown`,ship.x,ship.y-20,"#ffcc44",9);return;}
+  socket.emit("useAbility",{angle:ship.angle||0});
+}
 function addWeaponMuzzleParticles(x,y,ang,d){
   for(let i=0;i<5;i++)particles.push({x,y,vx:Math.cos(ang+(Math.random()-.5)*.7)*(35+Math.random()*70),vy:Math.sin(ang+(Math.random()-.5)*.7)*(35+Math.random()*70),life:.22+Math.random()*.22,maxLife:.44,color:cosmeticParticleColor(d.color),size:1+Math.random()*2});
 }
 function fireWeaponLocal(ang){statsInc("shotsFired",1);
-  const d=equippedWeaponDef(),shots=d.shots||1,baseSpread=d.spread||0,damage=weaponDamage(d.key),now=performance.now();
+  const d=equippedWeaponDef(),shots=d.shots||1,baseSpread=d.spread||0,damage=weaponDamage(equippedWeaponKey()),now=performance.now();
   for(let i=0;i<shots;i++){
     const offset=shots===1?0:(i-(shots-1)/2)*(baseSpread/Math.max(1,shots-1));
     const jitter=(d.mode==="swarm"?(Math.random()-.5)*baseSpread*.35:0);
@@ -3470,7 +3494,7 @@ function aggroNpcStation(st){
     return;
   }
   st.playerRep="hostile";st.underAttackTimer=Math.max(st.underAttackTimer||0,45);
-  for(const ts of st.tradeShips){ts.playerPursuitCooldown=0;ts.state="combat";ts.stateTimer=999;ts.shootTimer=Math.min(ts.shootTimer||0,0.3);}
+  for(const ts of st.tradeShips){ts.playerPursuitCooldown=0;ts.state="combat";ts.stateTimer=999;ts.combatTarget={type:"player",x:ship.x,y:ship.y,stationAggro:true,playerAggroUntil:performance.now()+CIV_PLAYER_RETALIATE_MS};ts.shootTimer=Math.min(ts.shootTimer||0,0.3);}
   if(st.tradeRespawns){for(const r of st.tradeRespawns)r.timer=Math.min(r.timer,5+Math.random()*3);}
 }
 function updateNpcStationDefense(st,dt){
@@ -3563,6 +3587,9 @@ function applyAuthoritativeNpcFleetsToVisibleStations(){
     if(!snapshot){if(st?._authoritativeNpcFleet&&now-Number(st._authoritativeNpcFleetAt||0)>AUTHORITATIVE_NPC_FLEET_STALE_MS)st._authoritativeNpcFleet=false;continue;}
     if(now-Number(snapshot.receivedAt||0)>AUTHORITATIVE_NPC_FLEET_STALE_MS){st._authoritativeNpcFleet=false;continue;}
     st._authoritativeNpcFleet=true;st._authoritativeNpcFleetAt=snapshot.receivedAt;st.civTask=snapshot.task||st.civTask||"mine";
+    st._authoritativeCivTask=snapshot.task||"mine";
+    const attackLead=(snapshot.ships||[]).find(ship=>ship?.target&&ship?.task==="attack")||null;
+    st._authoritativeCivTarget=attackLead?.target||null;
     if(snapshot.destroyed){st.tradeShips=[];st.tradeRespawns=[];continue;}
     const existing=new Map();
     for(const ts of st.tradeShips||[])existing.set(String(ts?.civLogisticsKey||ts?.id||""),ts);
@@ -3574,11 +3601,18 @@ function applyAuthoritativeNpcFleetsToVisibleStations(){
       if(!ts){
         try{ts=createNpcTradeShip(st,Math.max(0,Math.floor(Number(raw.homeSlot)||0)));}catch(_){ts={id:fleetId,stationId:st.id,homeSlot:Math.max(0,Math.floor(Number(raw.homeSlot)||0)),x:st.x,y:st.y,vx:0,vy:0,angle:0,size:5,visualSize:5,lootCarried:{}};}
       }
+      // Mining/idle formation positions are server-authoritative.  A raid is
+      // different: the browser owns the final target acquisition because it
+      // has the streamed defender ships, turrets, and procedural stations.
+      // Applying the server's zone-centre waypoint every snapshot was making
+      // an attacking fleet fly through every defender and pile onto the
+      // Super Station without ever entering the combat branch.
+      const clientRaid=raw.task==="attack"||snapshot.task==="attack";
       const sx=Number(raw.x),sy=Number(raw.y),isNew=!Number.isFinite(Number(ts.x))||!Number.isFinite(Number(ts.y)),far=!isNew&&Math.hypot(ts.x-sx,ts.y-sy)>950;
-      if(isNew||far){ts.x=Number.isFinite(sx)?sx:st.x;ts.y=Number.isFinite(sy)?sy:st.y;}
+      if(isNew||(!clientRaid&&far)){ts.x=Number.isFinite(sx)?sx:st.x;ts.y=Number.isFinite(sy)?sy:st.y;}
       ts.id=String(raw.id||ts.id||fleetId);ts.stationId=st.id;ts.homeSlot=Math.max(0,Math.floor(Number(raw.homeSlot)||Number(ts.homeSlot)||0));ts.civLogisticsKey=fleetId;
-      ts.authoritativeNpc=true;ts.authoritativeReceivedAt=snapshot.receivedAt;ts._serverX=Number.isFinite(sx)?sx:ts.x;ts._serverY=Number.isFinite(sy)?sy:ts.y;ts._serverVx=Number(raw.vx)||0;ts._serverVy=Number(raw.vy)||0;ts._serverAngle=Number(raw.angle)||0;
-      ts.state=raw.state||"idle";ts.mission=raw.mission||raw.task||"mine";ts.targetPlanet=authoritativeNpcFleetTarget(raw.target);ts.lootCarried=authoritativeNpcFleetCargo(raw.cargoItems);
+      ts.authoritativeNpc=!clientRaid;ts.authoritativeReceivedAt=snapshot.receivedAt;ts._serverX=Number.isFinite(sx)?sx:ts.x;ts._serverY=Number.isFinite(sy)?sy:ts.y;ts._serverVx=Number(raw.vx)||0;ts._serverVy=Number(raw.vy)||0;ts._serverAngle=Number(raw.angle)||0;
+      if(!clientRaid){ts.state=raw.state||"idle";ts.mission=raw.mission||raw.task||"mine";ts.targetPlanet=authoritativeNpcFleetTarget(raw.target);ts.lootCarried=authoritativeNpcFleetCargo(raw.cargoItems);}else{ts.mission="raid";if(ts.state!=="combat")ts.state="raid";}
       ts.hp=Math.max(0,Number(raw.hp)||0);ts.maxHp=Math.max(1,Number(raw.maxHp)||ts.maxHp||1);ts.shield=Math.max(0,Number(raw.shield)||0);ts.maxShield=Math.max(0,Number(raw.maxShield)||ts.maxShield||0);
       ts.cargoCapacity=Math.max(1,Math.floor(Number(raw.cargoCapacity)||ts.cargoCapacity||1));ts.speed=Math.max(1,Number(raw.speed)||ts.speed||1);ts.damage=Math.max(0,Number(raw.damage)||ts.damage||0);
       ts.shipSprite=Math.max(0,Math.floor(Number(raw.shipSprite)||0));ts.className=raw.className||ts.className||"Civilization Ship";ts.npcClass=raw.role==="defender"?"fighter":ts.npcClass||"basic";
@@ -3650,6 +3684,15 @@ function civAssignedMiningPlanet(st){
 function setLocalStationTask(st){
   if(!st||!st.civilizationZoneId)return st;
   const t=civStationTask(st.civilizationZoneId,st.id);
+  const serverRaid=st._authoritativeCivTask==="attack"&&st._authoritativeCivTarget;
+  // Non-owned zones do not expose their private task map to the viewer. Keep
+  // their server-issued retaliation order intact instead of replacing it with
+  // the public mine fallback during the next local task heartbeat.
+  if(serverRaid&&!civZoneRecord(st.civilizationZoneId)?.isOwn){
+    const target=st._authoritativeCivTarget;
+    st.civTask="attack";st.civAttackTargetZoneId=target.id||null;st.civAttackTargetX=Number(target.x)||0;st.civAttackTargetY=Number(target.y)||0;st.civAttackTargetRadius=Number(target.radius)||430;st.civAttackTargetName=target.name||"Enemy civilization";st.civAttackTargetColor="#ff5544";
+    return st;
+  }
   if(st.civWarTargetZoneId){
     const enemy=visibleCivZoneById(st.civWarTargetZoneId);
     // A purchase can turn both sides of a previously automatic war into the
@@ -3958,7 +4001,14 @@ function refreshBuyStock(st){
   const tier=st.tierDef,rng=makeRng(GALAXY_SEED+"|stock|"+st.id+"|"+Math.floor(Date.now()/300000));
   st.buyStock=[];
   const pool=[...new Set([...(tier.itemPool||[]),...EXTRA_RESOURCE_KEYS.filter((_,i)=>i%2===0)])].filter(k=>RES[k]&&resourceServerSupported(k)),count=Math.min(pool.length,randInt(rng,8,13));
-  for(let i=0;i<count;i++){const idx=randInt(rng,0,pool.length-1),rk=pool.splice(idx,1)[0],qty=randInt(rng,tier.stockMin,tier.stockMax),bp=stationBuyPrice(st,rk,rng);st.buyStock.push({type:rk,qty,maxQty:qty,price:bp});}
+  // Common materials should form the reliable backbone of every NPC shop;
+  // rare components still appear, but as scarce premium finds rather than
+  // filling an entire stock refresh with high-tier drops.
+  for(let i=0;i<count;i++){
+    const total=pool.reduce((n,k)=>n+Math.max(1,11-(RES[k]?.rarity||1)),0);let roll=rng()*total,idx=0;
+    for(;idx<pool.length-1;idx++){roll-=Math.max(1,11-(RES[pool[idx]]?.rarity||1));if(roll<=0)break;}
+    const rk=pool.splice(idx,1)[0],rarity=Math.max(1,RES[rk]?.rarity||1),baseQty=randInt(rng,tier.stockMin,tier.stockMax),qty=Math.max(1,Math.round(baseQty*Math.max(.18,1-(rarity-1)*.10))),bp=stationBuyPrice(st,rk,rng);st.buyStock.push({type:rk,qty,maxQty:qty,price:bp});
+  }
 }
 
 /* ── Trade ships ── */
@@ -4087,12 +4137,16 @@ function civRaidTargetRaw(target){
 }
 function civRaidRemainingTargets(targetZoneId){
   const out=[];
-  for(const est of visibleStations){
-    if(est.destroyed||est.civilizationZoneId!==targetZoneId)continue;
-    out.push({type:"npcStation",station:est,obj:est,x:est.x,y:est.y,weight:1.08});
-    for(const ets of est.tradeShips||[])if(ets.hp>0)out.push({type:"npcTradeShip",station:est,obj:ets,x:ets.x,y:ets.y,weight:0.82});
-  }
   const z=visibleCivZoneById(targetZoneId);
+  // Dynamic/procedural zones can be represented by an equivalent visual zone
+  // id while their generated stations carry a chunk id.  Spatial membership
+  // prevents that harmless naming difference from leaving a raid targetless.
+  const isTargetStation=st=>stationZoneId(st)===targetZoneId||!!(z&&pointInsideCivilizationZone(targetZoneId,st.x,st.y,20));
+  for(const est of visibleStations){
+    if(est.destroyed||!isTargetStation(est))continue;
+    out.push({type:"npcStation",station:est,obj:est,x:est.x,y:est.y,weight:1.12});
+    for(const ets of est.tradeShips||[])if(ets.hp>0)out.push({type:"npcTradeShip",station:est,obj:ets,x:ets.x,y:ets.y,weight:0.58});
+  }
   if(z){
     for(const t of z.turrets||[]){
       ensureCivilizationTurretState(t,z);
@@ -4104,8 +4158,13 @@ function civRaidRemainingTargets(targetZoneId){
 function findCivilizationRaidTargetForShip(ts,station,targetZoneId,targetZone){
   const targets=civRaidRemainingTargets(targetZoneId);
   if(!targets.length)return null;
+  // Clear defenders first when they are within combat acquisition range.
+  // Stations remain valid objectives, but are no longer a magnet that causes
+  // every raider to ignore the battle in front of it.
+  const nearbyDefenders=targets.filter(t=>t.type==="npcTradeShip"&&dist(ts.x,ts.y,t.x,t.y)<=Math.max(980,(ts.combatRange||360)*3));
+  const candidates=nearbyDefenders.length?nearbyDefenders:targets;
   let best=null,bs=Infinity;
-  for(const t of targets){
+  for(const t of candidates){
     if((t.type==="npcTradeShip"||t.type==="npcStation")&&isFriendlyNpcTarget(station,t.station))continue;
     if(t.type==="civTurret"&&isFriendlyNpcTarget(station,t.zone))continue;
     let score=dist(ts.x,ts.y,t.x,t.y)*(t.weight||1);
@@ -4558,8 +4617,8 @@ function spawnDiscoveryEvent(){
   // If the player cannot find anything, favor discoverable locations and the new named events.
   if(nearby<2){
     if(roll<0.20)spawnShipRuin();
-    else if(roll<0.215){if(!spawnTradeConvoyEvent())spawnSpecialPlanet();}
-    else if(roll<0.42)spawnSpecialPlanet();
+    else if(roll<0.215){if(!spawnTradeConvoyEvent())spawnShipRuin();}
+    else if(roll<0.245)spawnSpecialPlanet();
     else if(roll<0.60)spawnAsteroidField();
     else if(roll<0.80)spawnSupplyDrop();
     else spawnNamedSpaceEvent();
@@ -4569,8 +4628,8 @@ function spawnDiscoveryEvent(){
   if(roll<0.22)spawnNamedSpaceEvent();
   else if(roll<0.235){if(!spawnTradeConvoyEvent())spawnShipRuin();}
   else if(roll<0.48)spawnShipRuin();
-  else if(roll<0.68)spawnSpecialPlanet();
-  else if(roll<0.85)spawnAsteroidField();
+  else if(roll<0.505)spawnSpecialPlanet();
+  else if(roll<0.82)spawnAsteroidField();
   else spawnSupplyDrop();
 }
 function updateRandomEvents(dt){
@@ -6093,7 +6152,7 @@ function drawOwnedTradeShips(camX,camY){
     const x=os.x-camX,y=os.y-camY;if(x<-50||y<-50||x>canvas.width+50||y>canvas.height+50)continue;
     if(os.state==="travel"&&os.targetPlanet){ctx.save();ctx.globalAlpha=0.16;ctx.strokeStyle=os.color;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(os.targetPlanet.x-camX,os.targetPlanet.y-camY);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
     else if(os.state==="return"){ctx.save();ctx.globalAlpha=0.16;ctx.strokeStyle=os.color;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(st.x-camX,st.y-camY);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
-    else if(os.state==="combat"){ctx.save();ctx.globalAlpha=0.35;ctx.strokeStyle="#ff4422";ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(canvas.width/2,canvas.height/2);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
+    else if(os.state==="combat"){const t=resolveOwnedAssistTarget(os.assistTarget||os.target);if(t){ctx.save();ctx.globalAlpha=0.35;ctx.strokeStyle="#ff4422";ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(t.x-camX,t.y-camY);ctx.stroke();ctx.setLineDash([]);ctx.restore();}}
     else if(os.state==="assist"&&os.assistTarget){const t=resolveOwnedAssistTarget(os.assistTarget);if(t){ctx.save();ctx.globalAlpha=0.35;ctx.strokeStyle="#ffee88";ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(t.x-camX,t.y-camY);ctx.stroke();ctx.setLineDash([]);ctx.restore();}}
     ctx.save();ctx.translate(x,y);ctx.rotate(os.angle);ctx.fillStyle=os.state==="combat"?"#ff4422":os.state==="assist"?"#ffee88":os.color;ctx.beginPath();ctx.moveTo(os.size+2,0);ctx.lineTo(-os.size,-os.size*0.7);ctx.lineTo(-os.size,os.size*0.7);ctx.closePath();ctx.fill();ctx.restore();
     const hpPct=clamp(os.hp/os.maxHp,0,1),bw=os.size*4;ctx.fillStyle="#300";ctx.fillRect(x-bw/2,y-os.size-6,bw,2);ctx.fillStyle=hpPct>0.5?"#3f3":"#f80";ctx.fillRect(x-bw/2,y-os.size-6,bw*hpPct,2);
@@ -6311,6 +6370,8 @@ function applyAuthoritativeInventory(payload){
   if(payload.attrs&&typeof payload.attrs==="object")player.attrs={...player.attrs,...payload.attrs}; if(!player.attrs.braking)player.attrs.braking=1;
   if(payload.equippedWeapon)player.equippedWeapon=payload.equippedWeapon;
   if(payload.weaponLevels&&typeof payload.weaponLevels==="object")player.weaponLevels={...player.weaponLevels,...payload.weaponLevels};
+  if(typeof payload.equippedAbility==="string"||payload.equippedAbility===null)player.equippedAbility=payload.equippedAbility||null;
+  if(payload.ability&&typeof payload.ability==="object")player.ability={...player.ability,...payload.ability};
   if(payload.equippedAttachments&&typeof payload.equippedAttachments==="object")player.equippedAttachments=normalizeAttachments(payload.equippedAttachments);
   if(payload.planetModules&&typeof payload.planetModules==="object"){player.planetModules=normalizePlanetModules(payload.planetModules);applyPlanetModuleEffects();}
   if(payload.attachmentDefs&&typeof payload.attachmentDefs==="object")for(const[k,v]of Object.entries(payload.attachmentDefs))ATTACHMENT_DEFS[k]={...(ATTACHMENT_DEFS[k]||{}),...v,key:k};
@@ -6820,15 +6881,16 @@ socket.io.on("reconnect_failed",()=>{setJoinStatus("Reconnect paused. Check your
 socket.on("serverFull",()=>{setJoinStatus("Server full. Try again later.","#ffcc44");});
 socket.on("serverPong",()=>{lastServerPongAt=Date.now();});
 
-socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,weaponDefs,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons,worldCosmetics,stationTierCosmetics:serverStationTierCosmetics,planetTypeCosmetics:serverPlanetTypeCosmetics,worldPlanetTypeCosmetics,storyProgress:serverStoryProgress,resourceDefs:serverResourceDefs,resourceKeys:serverResourceKeys,shopResourceKeys:serverShopResourceKeys,resourceCatalogVersion:serverResourceCatalogVersion,spriteCosmeticRegistryVersion})=>{
+socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,ownedStationTiers,structureTypes,serverName,credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,activeMercs:serverMercs,persistenceLoaded,equippedWeapon,weaponLevels,equippedAbility,ability,weaponDefs,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,cosmeticDefs,cosmeticInventory:serverCosmeticInventory,equippedCosmetics:serverEquippedCosmetics,redeemedCoupons:serverRedeemedCoupons,worldCosmetics,stationTierCosmetics:serverStationTierCosmetics,planetTypeCosmetics:serverPlanetTypeCosmetics,worldPlanetTypeCosmetics,storyProgress:serverStoryProgress,resourceDefs:serverResourceDefs,resourceKeys:serverResourceKeys,shopResourceKeys:serverShopResourceKeys,resourceCatalogVersion:serverResourceCatalogVersion,spriteCosmeticRegistryVersion})=>{
   player.id=id;player.color=color;serverAccountPersistenceLoaded=!!persistenceLoaded;accountInventoryPendingLoad=!!(serverMemberId&&!serverAccountPersistenceLoaded);if(serverMemberId){wixMemberId=serverMemberId;if(wixGameToken&&serverAccountPersistenceLoaded)wixLinkedToken=wixSnapshotKey();}
-  applyAuthoritativeInventory({credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,persistenceLoaded,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,reason:"login"});GALAXY_SEED=seed;applyAuthoritativeResourceCatalog(serverResourceDefs,serverResourceKeys,serverShopResourceKeys,serverResourceCatalogVersion);if(serverModuleDefs&&typeof serverModuleDefs==="object")for(const[k,v]of Object.entries(serverModuleDefs))if(PLANET_MODULE_DEFS[k])PLANET_MODULE_DEFS[k]={...PLANET_MODULE_DEFS[k],...v,key:k};serverPrices=prices||{};
+  applyAuthoritativeInventory({credits:serverCredits,maxSlots:serverMaxSlots,invSlots:serverInvSlots,memberId:serverMemberId,persistenceLoaded,level:serverLevel,xp:serverXp,xpToNext:serverXpToNext,attrPoints:serverAttrPoints,attrs:serverAttrs,equippedWeapon,weaponLevels,equippedAbility,ability,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,reason:"login"});GALAXY_SEED=seed;applyAuthoritativeResourceCatalog(serverResourceDefs,serverResourceKeys,serverShopResourceKeys,serverResourceCatalogVersion);if(serverModuleDefs&&typeof serverModuleDefs==="object")for(const[k,v]of Object.entries(serverModuleDefs))if(PLANET_MODULE_DEFS[k])PLANET_MODULE_DEFS[k]={...PLANET_MODULE_DEFS[k],...v,key:k};serverPrices=prices||{};
   if(shipTypes)SHIP_TYPES=shipTypes;if(worldCosmetics)globalWorldCosmetics=normalizeEquippedCosmetics(worldCosmetics);
   if(ownedStationTiers)OWNED_STATION_TIERS=ownedStationTiers;
   if(structureTypes)STRUCTURE_TYPES=structureTypes;
   if(Array.isArray(serverMercs))activeMercShips=serverMercs.map(normalizeClientMerc);
   if(equippedWeapon)player.equippedWeapon=equippedWeapon;
   if(weaponLevels&&typeof weaponLevels==="object")player.weaponLevels={...player.weaponLevels,...weaponLevels};
+  if(equippedAbility)player.equippedAbility=equippedAbility;if(ability)player.ability={...player.ability,...ability};
   if(weaponDefs&&typeof weaponDefs==="object")for(const[k,v]of Object.entries(weaponDefs))WEAPON_DEFS[k]={...(WEAPON_DEFS[k]||{}),...v,key:k};
   if(attachmentDefs&&typeof attachmentDefs==="object")for(const[k,v]of Object.entries(attachmentDefs))ATTACHMENT_DEFS[k]={...(ATTACHMENT_DEFS[k]||{}),...v,key:k};
   cosmeticBackendSupported=!!(cosmeticDefs&&typeof cosmeticDefs==="object");
@@ -6972,8 +7034,8 @@ socket.on("accountCreationBonusGranted",({creditsAdded,credits})=>{
   if(joined)showFT(`+${Number(creditsAdded||100000).toLocaleString()} Account Bonus`,ship.x,ship.y-36,"#ffdd44",13);
 });
 socket.on("accountCreationBonusPending",({reason})=>setAccountBonusStatus(reason||"Account linked. Waiting for Wix save status before welcome bonus.","#ffcc44"));
-socket.on("inventorySync",({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,storyProgress:serverStoryProgress})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);if(persistenceLoaded!==undefined)serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded)accountInventoryPendingLoad=false;applyAuthoritativeInventory({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs});});
-socket.on("accountLinked",({memberId,credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,storyProgress:serverStoryProgress,alreadyLinked,persistenceLoaded,signupCreditBonusGranted})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);syncStoryProgressSoon();if(memberId)wixMemberId=memberId;serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded){accountInventoryPendingLoad=false;wixLinkedToken=wixSnapshotKey();}wixLinkInFlightToken=null;const applied=applyAuthoritativeInventory({credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,memberId,persistenceLoaded,reason:"accountLinked"});if(applied&&!wixSyncedNoticeShown&&!alreadyLinked&&persistenceLoaded!==false){showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);wixSyncedNoticeShown=true;}if(signupCreditBonusGranted)setAccountBonusStatus("Welcome reward secured on this account. Progress saving is active.","#78ff8a");setCreditPayStatus(persistenceLoaded===false?"Wix account linked. Waiting for saved inventory snapshot before saving.":"Wix account synced with the game server.",persistenceLoaded===false?"#ffcc44":"#78ff8a");});
+socket.on("inventorySync",({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAbility,ability,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,storyProgress:serverStoryProgress})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);if(persistenceLoaded!==undefined)serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded)accountInventoryPendingLoad=false;applyAuthoritativeInventory({credits,maxSlots,invSlots,reason,persistenceLoaded,memberId,level,xp,xpToNext,attrPoints,attrs,equippedWeapon,weaponLevels,equippedAbility,ability,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs});});
+socket.on("accountLinked",({memberId,credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAbility,ability,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,storyProgress:serverStoryProgress,alreadyLinked,persistenceLoaded,signupCreditBonusGranted})=>{if(serverStoryProgress)mergeStoryProgress(serverStoryProgress);syncStoryProgressSoon();if(memberId)wixMemberId=memberId;serverAccountPersistenceLoaded=!!persistenceLoaded;if(serverAccountPersistenceLoaded){accountInventoryPendingLoad=false;wixLinkedToken=wixSnapshotKey();}wixLinkInFlightToken=null;const applied=applyAuthoritativeInventory({credits,maxSlots,invSlots,equippedWeapon,weaponLevels,equippedAbility,ability,equippedAttachments,attachmentDefs,planetModules:serverPlanetModules,moduleDefs:serverModuleDefs,memberId,persistenceLoaded,reason:"accountLinked"});if(applied&&!wixSyncedNoticeShown&&!alreadyLinked&&persistenceLoaded!==false){showFT("Wix inventory synced",ship.x,ship.y-20,"#78ff8a",10);wixSyncedNoticeShown=true;}if(signupCreditBonusGranted)setAccountBonusStatus("Welcome reward secured on this account. Progress saving is active.","#78ff8a");setCreditPayStatus(persistenceLoaded===false?"Wix account linked. Waiting for saved inventory snapshot before saving.":"Wix account synced with the game server.",persistenceLoaded===false?"#ffcc44":"#78ff8a");});
 socket.on("storyProgressSync",({storyProgress:serverStoryProgress})=>{if(serverStoryProgress){mergeStoryProgress(serverStoryProgress);renderStoryPanel();}});
 socket.on("accountSyncPending",({reason})=>setCreditPayStatus(reason||"Waiting for Wix inventory snapshot before saving.","#ffcc44"));
 socket.on("accountSuperseded",({reason})=>{setCreditPayStatus(reason||"This account is open in another game session.","#ffcc44");});
@@ -7138,6 +7200,14 @@ socket.on("craftShipConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield,inv
 socket.on("craftShipDenied",({reason})=>{showFT(reason||"Craft denied",ship.x,ship.y-15,"#ff5544");});
 socket.on("craftWeaponConfirm",({weaponKey,credits,invSlots,maxSlots})=>{player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}incrementBadgeCounter("crafted",1);showFT(`Crafted weapon: ${WEAPON_DEFS[weaponKey]?.name||weaponKey}!`,ship.x,ship.y-18,"#7be6ff",13);updateHud();renderWeaponCraftList();});
 socket.on("craftWeaponDenied",({reason})=>{showFT(reason||"Weapon craft denied",ship.x,ship.y-15,"#ff5544");});
+socket.on("repairItemCrafted",payload=>{applyAuthoritativeInventory(payload||{});showUiActionNotice("Repair item crafted","#78ff9b");});
+socket.on("repairItemUsed",payload=>{applyAuthoritativeInventory(payload||{});if(typeof payload?.hp==="number")ship.hp=payload.hp;if(typeof payload?.shield==="number")ship.shield=payload.shield;showFT("Repair applied",ship.x,ship.y-22,"#78ff9b",11);showUiActionNotice("Repair applied","#78ff9b");});
+socket.on("abilityCrafted",payload=>{applyAuthoritativeInventory(payload||{});showUiActionNotice("Ability crafted","#78d7ff");});
+socket.on("abilityEquipped",payload=>{applyAuthoritativeInventory(payload||{});showUiActionNotice("Ability equipped: Left Shift","#78d7ff");});
+socket.on("abilityUsed",payload=>{applyAuthoritativeInventory(payload||{});const def=ABILITY_DEFS[payload?.abilityKey]||{};showFT(def.name||"Ability activated",ship.x,ship.y-30,def.color||"#fff07a",13);for(let i=0;i<18;i++){const a=Math.random()*Math.PI*2,s=40+Math.random()*90;particles.push({x:ship.x,y:ship.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.35+Math.random()*.25,maxLife:.6,color:def.color||"#fff07a",size:2+Math.random()*3});}showUiActionNotice(`${def.name||"Ability"} activated`,def.color||"#fff07a");});
+socket.on("abilityDenied",({reason}={})=>showUiActionNotice(reason||"Ability unavailable","#ff7777"));
+socket.on("weaponFusionResult",payload=>{applyAuthoritativeInventory(payload||{});const d=WEAPON_DEFS[inventoryBaseType(payload?.weaponKey)]||{};showUiActionNotice(payload?.success?`${d.name||"Weapon"} fusion succeeded!`:`${d.name||"Weapon"} fusion failed`,payload?.success?"#78ff9b":"#ff7777");});
+socket.on("weaponFusionDenied",({reason}={})=>showUiActionNotice(reason||"Fusion denied","#ff7777"));
 socket.on("stationQuestRewardConfirm",({questId,credits,invSlots,maxSlots,reward})=>{if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}const q=questById(questId);if(q){awardBadge("first_quest","First Contract","Turn in your first station quest.");incrementBadgeCounter("quests",1);removeQuestFromLog(questId);}updateHud();addChat("Quest",`Quest turned in: +${reward?.credits||0}cr +${reward?.xp||0}xp`,"#78ff8a");showFT("QUEST TURNED IN",ship.x,ship.y-24,"#78ff8a",11);});
 socket.on("stationQuestRewardDenied",({questId,reason})=>{const q=questById(questId);if(q)q.pendingTurnIn=false;saveQuestState();addChat("Quest",reason||"Quest reward denied.","#ff5544");});
 socket.on("shipPartRewardConfirm",({credits,invSlots,maxSlots,reward,reason})=>{if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}updateHud();addChat("Reward",`${reason||"Salvage"}: +${reward?.credits||0}cr, items secured.`,"#ffdd44");});
@@ -7769,7 +7839,7 @@ function drawSpace(){
       ctx.globalAlpha=1;
       if(ts.state==="travel"&&ts.targetPlanet){const tpx=ts.targetPlanet.x-camX,tpy=ts.targetPlanet.y-camY;ctx.save();ctx.globalAlpha=0.18;ctx.strokeStyle=ts.factionColor;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(tpx,tpy);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
       else if(ts.state==="return"){const stx=st.x-camX,sty=st.y-camY;ctx.save();ctx.globalAlpha=0.18;ctx.strokeStyle=ts.factionColor;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(stx,sty);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
-      else if(ts.state==="combat"||ts.state==="flee"){ctx.save();ctx.globalAlpha=ts.state==="combat"?0.35:0.15;ctx.strokeStyle=ts.state==="combat"?"#ff4422":"#ff8844";ctx.lineWidth=1;ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(canvas.width/2,canvas.height/2);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}
+      else if(ts.state==="combat"||ts.state==="flee"){const target=resolveNpcCombatTargetRaw(ts.combatTarget,st);if(target){ctx.save();ctx.globalAlpha=ts.state==="combat"?0.35:0.15;ctx.strokeStyle=ts.state==="combat"?"#ff4422":"#ff8844";ctx.lineWidth=1;ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(tsx,tsy);ctx.lineTo(target.x-camX,target.y-camY);ctx.stroke();ctx.setLineDash([]);ctx.restore();ctx.globalAlpha=1;}}
       ctx.save();ctx.globalAlpha=1;ctx.translate(tsx,tsy);
       const npcCos=npcShipCosmeticDefForStation(st),npcColor=ts.state==="combat"?"#ff4422":ts.state==="flee"?"#ff8844":safeColor(npcCos?.color||ts.factionColor,ts.factionColor),npcAccent=safeColor(npcCos?.accent||"#fff0a8","#fff0a8");
       const builtSprite=Number(ts.shipSprite||0);
@@ -8893,7 +8963,7 @@ function bindDomItemTooltips(){
 bindDomItemTooltips();
 function uiItemTooltipPointer(){
   if(shopOpen)return largeCanvasMenuPoint("shop",mouse.x,mouse.y);
-  if(inventoryOpen)return inventoryTab==="modules"?{x:mouse.x,y:mouse.y}:largeCanvasMenuPoint("inventory",mouse.x,mouse.y);
+  if(inventoryOpen)return ["modules","craft","fusion"].includes(inventoryTab)?{x:mouse.x,y:mouse.y}:largeCanvasMenuPoint("inventory",mouse.x,mouse.y);
   if(attrOpen)return largeCanvasMenuPoint("attributes",mouse.x,mouse.y);
   if(characterOpen)return largeCanvasMenuPoint("character",mouse.x,mouse.y);
   if(questLogOpen)return largeCanvasMenuPoint("quest",mouse.x,mouse.y);
@@ -8926,6 +8996,11 @@ function drawInventoryDetail(slot,dx,dy,dw,dh){
     const moduleDescription=`${d.description||"Ship attachment"}${bonus!=="none"?` · Convergence: ${bonus.replace(/_/g," ")}`:""}`;
     drawUiWrappedText(moduleDescription,innerX,dy+91,innerW,8,2,"#9fb0ca",uiFont(7));
     drawUiFittedText("MODULE LAB: equip, upgrade, converge",innerX,dy+131,innerW,"#e2b7ff",uiFont(6,true));
+  }else if(REPAIR_ITEM_DEFS[slot.type]){
+    const d=REPAIR_ITEM_DEFS[slot.type],label=d.kind==="hull"?"USE REPAIR SHIP":"USE REPAIR SHIELD",bx=dx+8,by=dy+112,bw=dw-16;
+    drawUiFittedText(`${d.kind==="hull"?"Hull":"Shield"} restore: ${d.amount}`,dx+8,dy+58,dw-16,d.color,uiFont(8,true));
+    drawUiWrappedText(d.description,dx+8,dy+74,dw-16,9,3,"#c8d7e8",uiFont(7));
+    ctx.fillStyle="#173a2a";ctx.fillRect(bx,by,bw,20);ctx.strokeStyle=d.color;ctx.strokeRect(bx+.5,by+.5,bw-1,19);drawUiFittedText(label,bx+bw/2,by+13,bw-10,d.color,uiFont(7,true),"center");
   }else{
     drawUiFittedText(`Value: ${price(slot.type)}cr`,dx+8,dy+58,dw-16,"#9fb0ca",uiFont(8));let text=itemDescription(slot.type);if(slot.type==="gas_canister")text="Use G in space to refill ship energy.";else if(slot.type==="oxygen_tank")text="Use E on a planet to refill oxygen.";else if(BUILDABLE_RES_TO_TILE[slot.type])text="Right-click the planet map to build with this resource.";drawUiWrappedText(text,dx+8,dy+74,dw-16,9,5,"#b5c3d4",uiFont(7));
   }
@@ -8937,6 +9012,10 @@ function handleInventoryWeaponButtons(mx,my,px,py){
     const eqY=dy+101;
     if(mx>=eqX&&mx<=eqX+54&&my>=eqY&&my<=eqY+20){socket.emit("equipWeapon",{weaponKey:key});showFT(`Equipping ${RES[key]?.name||key}`,ship.x,ship.y-18,"#78ff8a",10);return true;}
     if(mx>=upX&&mx<=upX+62&&my>=eqY&&my<=eqY+20){socket.emit("upgradeWeapon",{weaponKey:key});showFT(`Upgrading ${RES[key]?.name||key}`,ship.x,ship.y-18,"#7be6ff",10);return true;}
+  }
+  if(REPAIR_ITEM_DEFS[key]){
+    const bx=dx+8,by=dy+112,bw=140;
+    if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+20){socket.emit("useRepairItem",{itemKey:key});return true;}
   }
   return false;
 }
@@ -8990,8 +9069,11 @@ function inventoryTabButton(label,x,y,w,active){
   drawUiFittedText(label,x+w/2,y+12,w-7,active?"#f0c4ff":"#9eb6d5",uiFont(6,true),"center");
 }
 function inventoryModuleTabs(r){
-  inventoryTabButton("ITEMS",r.x+r.w-158,r.y+7,66,inventoryTab==="items");
-  inventoryTabButton("MODULE LAB",r.x+r.w-88,r.y+7,78,inventoryTab==="modules");
+  const x=r.x+r.w-278;
+  inventoryTabButton("ITEMS",x,r.y+7,58,inventoryTab==="items");
+  inventoryTabButton("MODULES",x+62,r.y+7,62,inventoryTab==="modules");
+  inventoryTabButton("CRAFT",x+128,r.y+7,62,inventoryTab==="craft");
+  inventoryTabButton("FUSION",x+194,r.y+7,74,inventoryTab==="fusion");
 }
 function drawInventoryModuleLabTab(){
   // A single tab panel replaces the old nested module overlay. Its state is
@@ -9081,7 +9163,7 @@ function handleInventoryClick(mx,my){
     try{handleInventoryModuleLabTabClick(mx,my);}catch(error){console.error("Module Lab recovered",error);moduleUiPendingAction="";showFT("Module Lab recovered safely",ship.x,ship.y-18,"#ffcc44",9);showUiActionNotice("Module Lab stayed open after a safe recovery","#ffcc44");}return;
   }
   const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
-  if(my>=py+7&&my<=py+24){if(mx>=px+pw-158&&mx<=px+pw-92){setInventoryModuleTab?.("items");return;}if(mx>=px+pw-88&&mx<=px+pw-10){setInventoryModuleTab?.("modules");return;}}
+  if(my>=py+7&&my<=py+24){const tx=px+pw-278;if(mx>=tx&&mx<=tx+58){setInventoryModuleTab?.("items");return;}if(mx>=tx+62&&mx<=tx+124){setInventoryModuleTab?.("modules");return;}if(mx>=tx+128&&mx<=tx+190){setInventoryModuleTab?.("craft");return;}if(mx>=tx+194&&mx<=tx+268){setInventoryModuleTab?.("fusion");return;}}
   if(handleInventoryManageClick(mx,my,px,py))return;
   if(startInventoryScrollDrag(mx,my))return;
   for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg);if(mx>=bx&&mx<=bx+ss&&my>=by&&my<=by+ss){const slot=player.invSlots[i];selectedSlot=(slot.type&&slot.count)?i:null;if(selectedSlot!==null&&BUILDABLE_RES_TO_TILE[slot.type])buildSlotIndex=selectedSlot;if(selectedSlot!==null&&isAttachmentKey(slot.type))inventoryModuleKey=slot.type;return;}}
@@ -9615,7 +9697,7 @@ const _drawAttrScreen_v405=drawAttrScreen;drawAttrScreen=function(){withLargeCan
 const _drawCharacterPanel_v405=drawCharacterPanel;drawCharacterPanel=function(){withLargeCanvasMenu("character",_drawCharacterPanel_v405);};
 const _drawQuestLogPanel_v405=drawQuestLogPanel;drawQuestLogPanel=function(){withLargeCanvasMenu("quest",_drawQuestLogPanel_v405);};
 const _drawBadgeLogPanel_v405=drawBadgeLogPanel;drawBadgeLogPanel=function(){withLargeCanvasMenu("badge",_drawBadgeLogPanel_v405);};
-const _handleInventoryClick_v405=handleInventoryClick;handleInventoryClick=function(mx,my){const p=inventoryTab==="modules"?{x:mx,y:my}:largeCanvasMenuPoint("inventory",mx,my);return _handleInventoryClick_v405(p.x,p.y);};
+const _handleInventoryClick_v405=handleInventoryClick;handleInventoryClick=function(mx,my){const p=["modules","craft","fusion"].includes(inventoryTab)?{x:mx,y:my}:largeCanvasMenuPoint("inventory",mx,my);return _handleInventoryClick_v405(p.x,p.y);};
 const _handleShopClick_v405=handleShopClick;handleShopClick=function(mx,my){const p=largeCanvasMenuPoint("shop",mx,my);return _handleShopClick_v405(p.x,p.y);};
 const _handleAttrClick_v405=handleAttrClick;handleAttrClick=function(mx,my){const p=largeCanvasMenuPoint("attributes",mx,my);return _handleAttrClick_v405(p.x,p.y);};
 const _handleCharacterClick_v405=handleCharacterClick;handleCharacterClick=function(mx,my){const p=largeCanvasMenuPoint("character",mx,my);return _handleCharacterClick_v405(p.x,p.y);};
@@ -9653,7 +9735,7 @@ function selectInventoryModuleSafe(key,{openLab=false}={}){
   }catch(error){console.warn("Module selection recovered",error);return false;}
 }
 function setInventoryModuleTab(tab){
-  inventoryTab=tab==="modules"?"modules":"items";
+  inventoryTab=["modules","craft","fusion"].includes(tab)?tab:"items";
   if(inventoryTab==="modules"){
     const entries=moduleLabEntriesSafe();
     if(!entries.some(entry=>entry.key===inventoryModuleKey))inventoryModuleKey=entries[0]?.key||null;
@@ -9995,6 +10077,95 @@ function tick(now){
   try{updateHud();}catch(error){console.warn("HUD recovery:",error);}
   requestAnimationFrame(tick);
 }
+/* ── v4.2.4 inventory crafting + weapon fusion tabs ─────────────── */
+let inventoryCraftHitboxes=[],inventoryFusionHitboxes=[],weaponFusionKey=null,weaponFusionCopies=2;
+const drawInventoryV424Base=drawInventory,handleInventoryClickV424Base=handleInventoryClick;
+function drawCraftRecipeInline(recipe,x,y,w){
+  const parts=[`${Number(recipe?.credits||0).toLocaleString()}cr`,...Object.entries(recipe||{}).filter(([k])=>k!=="credits").map(([k,v])=>`${itemDefFor(k)?.name||k} ${inventoryTotal(k)}/${v}`)];
+  drawUiWrappedText(parts.join(" · "),x,y,w,9,2,"#c9d8eb",uiFont(7));
+}
+function drawInventoryCraftTab(){
+  const r=inventoryModuleLabRect();inventoryCraftHitboxes=[];ctx.save();ctx.fillStyle="rgba(0,0,0,.8)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#111a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#62d5ff";ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
+  drawUiFittedText("INVENTORY",r.x+14,r.y+21,110,"#e7f2ff",uiFont(13,true));inventoryModuleTabs(r);drawUiFittedText("FIELD CRAFTING",r.x+14,r.y+43,r.w-28,"#74dfff",uiFont(11,true));drawUiFittedText("Craft repair supplies and one active ability. Press Left Shift in space to activate the equipped ability.",r.x+14,r.y+57,r.w-28,"#aebfd2",uiFont(7));
+  const entries=[...Object.entries(REPAIR_ITEM_DEFS).map(([key,def])=>({key,def,group:"repair"})),...Object.entries(ABILITY_DEFS).map(([key,def])=>({key,def,group:"ability"}))],cols=2,gap=8,cardW=Math.floor((r.w-36-gap)/2),cardH=57,startX=r.x+14,startY=r.y+70;
+  entries.forEach((entry,i)=>{const col=i%cols,row=Math.floor(i/cols),x=startX+col*(cardW+gap),y=startY+row*(cardH+gap),def=entry.def,owned=inventoryTotal(entry.key),recipe=def.recipe||{},can=(player.credits||0)>=Number(recipe.credits||0)&&Object.entries(recipe).filter(([k])=>k!=="credits").every(([k,v])=>inventoryTotal(k)>=v);ctx.fillStyle=entry.group==="repair"?"#102b27":"#201738";ctx.fillRect(x,y,cardW,cardH);ctx.strokeStyle=def.color;ctx.strokeRect(x+.5,y+.5,cardW-1,cardH-1);drawItemIcon(ctx,entry.key,x+7,y+7,26);drawUiFittedText(def.name,x+39,y+16,cardW-115,"#fff",uiFont(8,true));drawUiFittedText(`${owned} owned · ${entry.group==="ability"?`${def.cooldown}s CD`:def.description}`,x+39,y+29,cardW-45,"#c8d8e9",uiFont(6));drawCraftRecipeInline(recipe,x+7,y+39,cardW-90);const bx=x+cardW-78,by=y+7;ctx.fillStyle=can?"#173a2a":"#2a1a20";ctx.fillRect(bx,by,70,18);ctx.strokeStyle=can?"#78ff9b":"#844654";ctx.strokeRect(bx+.5,by+.5,69,17);drawUiFittedText("CRAFT",bx+35,by+12,64,can?"#78ff9b":"#ff9b9b",uiFont(6,true),"center");inventoryCraftHitboxes.push({x:bx,y:by,w:70,h:18,action:"craft",entry});if(entry.group==="ability"){const ex=x+cardW-78,ey=y+29,equipped=player.equippedAbility===entry.key,canEquip=owned>0;ctx.fillStyle=equipped?"#3a3010":"#15263a";ctx.fillRect(ex,ey,70,18);ctx.strokeStyle=equipped?"#ffdd44":"#6386ac";ctx.strokeRect(ex+.5,ey+.5,69,17);drawUiFittedText(equipped?"EQUIPPED":"EQUIP",ex+35,ey+12,64,equipped?"#ffdd44":"#9be9ff",uiFont(6,true),"center");inventoryCraftHitboxes.push({x:ex,y:ey,w:70,h:18,action:"equip",entry,canEquip});}});
+  const active=ABILITY_DEFS[player.equippedAbility];drawUiFittedText(active?`ACTIVE ABILITY: ${active.name} · Left Shift · ${Math.max(0,Number(player.ability?.cooldownRemaining||0)).toFixed(1)}s cooldown`:`ACTIVE ABILITY: none equipped`,r.x+14,r.y+r.h-11,r.w-28,active?active.color:"#9fb0ca",uiFont(7,true));ctx.restore();
+}
+function weaponFusionEntries(){const map=new Map();for(const s of player.invSlots||[]){const key=String(s?.type||""),n=Math.max(0,Number(s?.count)||0);if(n&&isWeaponKey(key))map.set(key,(map.get(key)||0)+n);}return [...map.entries()].map(([key,count])=>({key,count,def:weaponDefFor(key),level:weaponLevel(key)})).sort((a,b)=>a.def.name.localeCompare(b.def.name)||a.level-b.level);}
+function drawInventoryFusionTab(){
+  const r=inventoryModuleLabRect(),entries=weaponFusionEntries();if(!entries.some(e=>e.key===weaponFusionKey))weaponFusionKey=entries[0]?.key||null;const selected=entries.find(e=>e.key===weaponFusionKey)||null;weaponFusionCopies=Math.max(2,Math.min(10,Math.floor(weaponFusionCopies||2),selected?.count||2));inventoryFusionHitboxes=[];ctx.save();ctx.fillStyle="rgba(0,0,0,.8)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#111a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#ffb95a";ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);drawUiFittedText("INVENTORY",r.x+14,r.y+21,110,"#e7f2ff",uiFont(13,true));inventoryModuleTabs(r);drawUiFittedText("WEAPON FUSION",r.x+14,r.y+43,r.w-28,"#ffca73",uiFont(11,true));drawUiFittedText("Fuse 2–10 identical weapons. Every copy is consumed; each copy supplies 10% success chance.",r.x+14,r.y+57,r.w-28,"#aebfd2",uiFont(7));
+  const lx=r.x+12,ly=r.y+69,lw=Math.floor(r.w*.36),rowH=28;ctx.fillStyle="#0a1220";ctx.fillRect(lx,ly,lw,r.h-82);ctx.strokeStyle="#465c79";ctx.strokeRect(lx+.5,ly+.5,lw-1,r.h-83);entries.slice(0,7).forEach((e,i)=>{const y=ly+7+i*rowH,active=e.key===weaponFusionKey;ctx.fillStyle=active?"#3a3020":"#101a2a";ctx.fillRect(lx+6,y,lw-12,23);ctx.strokeStyle=active?"#ffca73":"#263e61";ctx.strokeRect(lx+6.5,y+.5,lw-13,22);drawItemIcon(ctx,e.key,lx+10,y+3,16);drawUiFittedText(`${e.def.name} +${e.level}`,lx+31,y+10,lw-72,active?"#fff":"#d6e1ff",uiFont(7,true));drawUiFittedText(`x${e.count}`,lx+lw-10,y+16,34,"#8be4ff",uiFont(7),"right");inventoryFusionHitboxes.push({x:lx+6,y,w:lw-12,h:23,action:"select",entry:e});});
+  const dx=lx+lw+14,dw=r.x+r.w-dx-12;if(selected){drawItemIcon(ctx,selected.key,dx+12,ly+12,42);drawUiFittedText(`${selected.def.name} +${selected.level}`,dx+64,ly+25,dw-76,"#fff",uiFont(11,true));drawUiWrappedText(`${selected.def.description||"Weapon"} · Successful fusion creates a unique +${selected.level+1} weapon.`,dx+64,ly+39,dw-76,9,2,"#c9d8eb",uiFont(7));const cy=ly+86;drawUiFittedText(`MATCHING WEAPONS: ${selected.count}`,dx+12,cy,dw-24,"#ffca73",uiFont(8,true));for(let n=2;n<=10;n++){const col=(n-2)%3,row=Math.floor((n-2)/3),x=dx+12+col*70,y=cy+13+row*25,active=n===weaponFusionCopies,enabled=n<=selected.count;ctx.fillStyle=active?"#3a3010":"#15263a";ctx.fillRect(x,y,65,19);ctx.strokeStyle=active?"#ffdd44":enabled?"#6386ac":"#523740";ctx.strokeRect(x+.5,y+.5,64,18);drawUiFittedText(`${n} · ${n*10}%`,x+32,y+13,59,enabled?"#d6e1ff":"#7a6670",uiFont(6,true),"center");inventoryFusionHitboxes.push({x,y,w:65,h:19,action:"copies",copies:n,enabled});}const fy=cy+95,can=selected.count>=weaponFusionCopies;ctx.fillStyle=can?"#3a2810":"#2a1a20";ctx.fillRect(dx+12,fy,dw-24,25);ctx.strokeStyle=can?"#ffca73":"#844654";ctx.strokeRect(dx+12.5,fy+.5,dw-25,24);drawUiFittedText(`FUSE ${weaponFusionCopies} WEAPONS — ${weaponFusionCopies*10}% SUCCESS`,dx+dw/2,fy+16,dw-38,can?"#ffdc92":"#ff9b9b",uiFont(8,true),"center");inventoryFusionHitboxes.push({x:dx+12,y:fy,w:dw-24,h:25,action:"fuse",entry:selected,enabled:can});}else drawUiFittedText("You need two matching weapons to start a fusion.",dx+12,ly+44,dw-24,"#9fb0ca",uiFont(9));ctx.restore();
+}
+drawInventory=function(){if(inventoryTab==="craft"){drawInventoryCraftTab();return;}if(inventoryTab==="fusion"){drawInventoryFusionTab();return;}drawInventoryV424Base();};
+handleInventoryClick=function(mx,my){
+  if(inventoryTab==="craft"){const w=Math.min(960,Math.max(650,canvas.width-42)),h=Math.min(570,Math.max(410,canvas.height-34)),r={x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h};if(my>=r.y+7&&my<=r.y+25){const x=r.x+r.w-278;if(mx>=x&&mx<=x+58){setInventoryModuleTab("items");return;}if(mx>=x+62&&mx<=x+124){setInventoryModuleTab("modules");return;}if(mx>=x+194&&mx<=x+268){setInventoryModuleTab("fusion");return;}}for(const h of inventoryCraftHitboxes){if(mx<h.x||mx>h.x+h.w||my<h.y||my>h.y+h.h)continue;if(h.action==="section")inventoryCraftSection=h.section;else if(h.action==="craft")socket.emit(h.entry.group==="repair"?"craftRepairItem":"craftAbility",h.entry.group==="repair"?{itemKey:h.entry.key}:{abilityKey:h.entry.key});else if(h.canEquip)socket.emit("equipAbility",{abilityKey:h.entry.key});return;}return;}
+  if(inventoryTab==="fusion"){const w=Math.min(900,Math.max(620,canvas.width-42)),h=Math.min(500,Math.max(350,canvas.height-34)),r={x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h};if(my>=r.y+7&&my<=r.y+25){const x=r.x+r.w-278;if(mx>=x&&mx<=x+58){setInventoryModuleTab("items");return;}if(mx>=x+62&&mx<=x+124){setInventoryModuleTab("modules");return;}if(mx>=x+128&&mx<=x+190){setInventoryModuleTab("craft");return;}}for(const h of inventoryFusionHitboxes){if(mx<h.x||mx>h.x+h.w||my<h.y||my>h.y+h.h)continue;if(h.action==="select")weaponFusionKey=h.entry.key;else if(h.action==="copies"&&h.enabled)weaponFusionCopies=h.copies;else if(h.action==="fuse"&&h.enabled)socket.emit("fuseWeaponItems",{weaponKey:h.entry.key,copies:weaponFusionCopies});return;}return;}
+  return handleInventoryClickV424Base(mx,my);
+};
+/* Compact v4.2.5 refinement: render material chips at readable scale and
+   keep crafting choices grouped by purpose rather than one long card list. */
+function weaponFusionCostClient(entry,copies){const level=Math.max(1,Number(entry?.level)||1),use=Math.max(2,Math.min(10,Math.floor(Number(copies)||2)));return {credits:Math.floor(300*use*(1+level*.45)),dirt:use*(3+level),stone:use*(2+level),copper:Math.max(1,Math.ceil(use*(.5+level*.25)))};}
+function fusionCostReady(cost){return (player.credits||0)>=Number(cost.credits||0)&&Object.entries(cost).filter(([k])=>k!=="credits").every(([k,v])=>inventoryTotal(k)>=v);}
+function drawReadableRecipeChips(recipe,x,y,maxW,accent="#d6e1ff"){
+  let cx=x;const entries=Object.entries(recipe||{});for(const [type,amount] of entries){const label=type==="credits"?`${Number(amount).toLocaleString()}cr`:`${inventoryTotal(type)}/${amount}`,w=Math.max(40,Math.min(72,10+label.length*5));if(cx+w>x+maxW)break;if(type!=="credits")drawItemIcon(ctx,type,cx,y,18);ctx.fillStyle="#0b1420";ctx.fillRect(cx+(type==="credits"?0:20),y,w-(type==="credits"?0:20),18);ctx.strokeStyle=type==="credits"?"#c79c35":(inventoryTotal(type)>=amount?"#4d8e68":"#814653");ctx.strokeRect(cx+(type==="credits"?0:20)+.5,y+.5,w-(type==="credits"?0:20)-1,17);drawUiFittedText(label,cx+(type==="credits"?0:20)+(w-(type==="credits"?0:20))/2,y+12,w-(type==="credits"?0:20)-4,type==="credits"?"#ffdd44":(inventoryTotal(type)>=amount?accent:"#ff9b9b"),uiFont(7,true),"center");cx+=w+5;}
+}
+drawInventoryCraftTab=function(){
+  const w=Math.min(530,Math.max(410,canvas.width-30)),h=Math.min(310,Math.max(250,canvas.height-26)),r={x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h};inventoryCraftHitboxes=[];ctx.save();ctx.fillStyle="rgba(0,0,0,.82)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#62d5ff";ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);drawUiFittedText("INVENTORY",r.x+14,r.y+21,110,"#e7f2ff",uiFont(13,true));inventoryModuleTabs(r);drawUiFittedText("FIELD CRAFTING",r.x+14,r.y+42,r.w-28,"#74dfff",uiFont(11,true));drawUiFittedText("Repair supplies are single-use. Active abilities equip one at a time and activate with Left Shift.",r.x+14,r.y+56,r.w-28,"#b9cadb",uiFont(7));
+  const section=(title,subtitle,y,color)=>{ctx.fillStyle="#0a1420";ctx.fillRect(r.x+12,y,r.w-24,20);ctx.strokeStyle=color;ctx.strokeRect(r.x+12.5,y+.5,r.w-25,19);drawUiFittedText(title,r.x+21,y+14,160,color,uiFont(8,true));drawUiFittedText(subtitle,r.x+180,y+14,r.w-205,"#aebfd2",uiFont(6));};
+  const drawCard=(entry,x,y,cardW,cardH)=>{const def=entry.def,recipe=def.recipe||{},owned=inventoryTotal(entry.key),ready=fusionCostReady(recipe),isAbility=entry.group==="ability";ctx.fillStyle=isAbility?"#1b1530":"#102923";ctx.fillRect(x,y,cardW,cardH);ctx.strokeStyle=def.color;ctx.strokeRect(x+.5,y+.5,cardW-1,cardH-1);drawItemIcon(ctx,entry.key,x+8,y+9,28);drawUiFittedText(def.name,x+43,y+18,cardW-122,"#fff",uiFont(8,true));drawUiFittedText(isAbility?`${owned} owned · ${def.cooldown}s cooldown`:`${owned} owned · ${def.amount} ${def.kind} repair`,x+43,y+31,cardW-122,"#c8d8e9",uiFont(6));drawReadableRecipeChips(recipe,x+8,y+42,cardW-16);const bx=x+cardW-70,by=y+9;ctx.fillStyle=ready?"#173a2a":"#2a1a20";ctx.fillRect(bx,by,62,18);ctx.strokeStyle=ready?"#78ff9b":"#844654";ctx.strokeRect(bx+.5,by+.5,61,17);drawUiFittedText("CRAFT",bx+31,by+12,56,ready?"#78ff9b":"#ff9b9b",uiFont(6,true),"center");inventoryCraftHitboxes.push({x:bx,y:by,w:62,h:18,action:"craft",entry});if(isAbility){const ey=y+30,equipped=player.equippedAbility===entry.key;ctx.fillStyle=equipped?"#3a3010":"#15263a";ctx.fillRect(bx,ey,62,18);ctx.strokeStyle=equipped?"#ffdd44":"#6386ac";ctx.strokeRect(bx+.5,ey+.5,61,17);drawUiFittedText(equipped?"EQUIPPED":"EQUIP",bx+31,ey+12,56,equipped?"#ffdd44":"#9be9ff",uiFont(6,true),"center");inventoryCraftHitboxes.push({x:bx,y:ey,w:62,h:18,action:"equip",entry,canEquip:owned>0});}};
+  const left=r.x+12,gap=7,cardW=Math.floor((r.w-31)/2);section("REPAIR & SHIELD SUPPLIES","Six crafted field repairs",r.y+64,"#78ff9b");const repairs=Object.entries(REPAIR_ITEM_DEFS).map(([key,def])=>({key,def,group:"repair"}));repairs.forEach((entry,i)=>drawCard(entry,left+(i%2)*(cardW+gap),r.y+87+Math.floor(i/2)*64,cardW,57));section("ACTIVE ABILITIES","Craft · equip one · Left Shift to activate",r.y+220,"#c79cff");const abilities=Object.entries(ABILITY_DEFS).map(([key,def])=>({key,def,group:"ability"}));abilities.slice(0,2).forEach((entry,i)=>drawCard(entry,left+i*(cardW+gap),r.y+243,cardW,57));const active=ABILITY_DEFS[player.equippedAbility];drawUiFittedText(active?`Equipped: ${active.name} · ${Math.max(0,Number(player.ability?.cooldownRemaining||0)).toFixed(1)}s cooldown`:`No active ability equipped`,r.x+14,r.y+r.h-9,r.w-28,active?.color||"#aebfd2",uiFont(7,true));ctx.restore();
+};
+drawInventoryFusionTab=function(){
+  const w=Math.min(470,Math.max(380,canvas.width-34)),h=Math.min(245,Math.max(205,canvas.height-28)),r={x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h},entries=weaponFusionEntries();if(!entries.some(e=>e.key===weaponFusionKey))weaponFusionKey=entries[0]?.key||null;const selected=entries.find(e=>e.key===weaponFusionKey)||null;weaponFusionCopies=Math.max(2,Math.min(10,Math.floor(weaponFusionCopies||2),selected?.count||2));inventoryFusionHitboxes=[];ctx.save();ctx.fillStyle="rgba(0,0,0,.82)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#111a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#ffb95a";ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);drawUiFittedText("INVENTORY",r.x+14,r.y+21,110,"#e7f2ff",uiFont(13,true));inventoryModuleTabs(r);drawUiFittedText("WEAPON FUSION",r.x+14,r.y+42,r.w-28,"#ffca73",uiFont(11,true));drawUiFittedText("All selected weapons and listed materials are consumed whether fusion succeeds or fails.",r.x+14,r.y+56,r.w-28,"#b9cadb",uiFont(7));
+  const lx=r.x+12,ly=r.y+69,lw=158,rowH=35;ctx.fillStyle="#09111d";ctx.fillRect(lx,ly,lw,r.h-82);ctx.strokeStyle="#465c79";ctx.strokeRect(lx+.5,ly+.5,lw-1,r.h-83);entries.slice(0,4).forEach((e,i)=>{const y=ly+7+i*rowH,active=e.key===weaponFusionKey;ctx.fillStyle=active?"#3a3020":"#101a2a";ctx.fillRect(lx+6,y,lw-12,30);ctx.strokeStyle=active?"#ffca73":"#263e61";ctx.strokeRect(lx+6.5,y+.5,lw-13,29);drawItemIcon(ctx,e.key,lx+10,y+2,26);drawUiFittedText(`${e.def.name} +${e.level}`,lx+41,y+13,lw-78,active?"#fff":"#d6e1ff",uiFont(8,true));drawUiFittedText(`x${e.count}`,lx+lw-9,y+22,30,"#8be4ff",uiFont(7),"right");inventoryFusionHitboxes.push({x:lx+6,y,w:lw-12,h:30,action:"select",entry:e});});
+  const dx=lx+lw+12,dw=r.x+r.w-dx-12;if(selected){const cost=weaponFusionCostClient(selected,weaponFusionCopies),ready=selected.count>=weaponFusionCopies&&fusionCostReady(cost);drawItemIcon(ctx,selected.key,dx+9,ly+6,42);drawUiFittedText(`${selected.def.name} +${selected.level}`,dx+59,ly+18,dw-66,"#fff",uiFont(10,true));drawUiFittedText(`${selected.count} matching copies available`,dx+59,ly+32,dw-66,"#ffca73",uiFont(7));drawUiFittedText("SELECT FUSION COUNT",dx+9,ly+57,dw-18,"#ffca73",uiFont(8,true));for(let n=2;n<=10;n++){const col=(n-2)%3,row=Math.floor((n-2)/3),x=dx+9+col*72,y=ly+67+row*24,active=n===weaponFusionCopies,enabled=n<=selected.count;ctx.fillStyle=active?"#3a3010":"#15263a";ctx.fillRect(x,y,68,19);ctx.strokeStyle=active?"#ffdd44":enabled?"#6386ac":"#523740";ctx.strokeRect(x+.5,y+.5,67,18);drawUiFittedText(`${n} · ${n*10}%`,x+34,y+13,62,enabled?"#d6e1ff":"#7a6670",uiFont(7,true),"center");inventoryFusionHitboxes.push({x,y,w:68,h:19,action:"copies",copies:n,enabled});}drawUiFittedText("FUSION MATERIALS",dx+9,ly+143,dw-18,"#ffca73",uiFont(8,true));drawReadableRecipeChips(cost,dx+9,ly+151,dw-18,"#c9e8ff");const fy=ly+179;ctx.fillStyle=ready?"#3a2810":"#2a1a20";ctx.fillRect(dx+9,fy,dw-18,24);ctx.strokeStyle=ready?"#ffca73":"#844654";ctx.strokeRect(dx+9.5,fy+.5,dw-19,23);drawUiFittedText(`FUSE ${weaponFusionCopies} WEAPONS · ${weaponFusionCopies*10}% SUCCESS`,dx+dw/2,fy+16,dw-30,ready?"#ffdc92":"#ff9b9b",uiFont(8,true),"center");inventoryFusionHitboxes.push({x:dx+9,y:fy,w:dw-18,h:24,action:"fuse",entry:selected,enabled:ready});}else drawUiFittedText("Collect at least two matching weapons to fuse.",dx+9,ly+42,dw-18,"#9fb0ca",uiFont(8));ctx.restore();
+};
+let inventoryCraftSection="repairs";
+drawInventoryCraftTab=function(){
+  const w=Math.min(500,Math.max(390,canvas.width-30)),h=Math.min(305,Math.max(245,canvas.height-26)),r={x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h};inventoryCraftHitboxes=[];ctx.save();ctx.fillStyle="rgba(0,0,0,.82)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#62d5ff";ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);drawUiFittedText("INVENTORY",r.x+14,r.y+21,110,"#e7f2ff",uiFont(13,true));inventoryModuleTabs(r);drawUiFittedText("FIELD CRAFTING",r.x+14,r.y+42,r.w-28,"#74dfff",uiFont(11,true));drawUiFittedText("Choose a crafting category. Resource icons can be hovered for full item tooltips.",r.x+14,r.y+56,r.w-28,"#b9cadb",uiFont(7));
+  const tx=r.x+12,ty=r.y+67,tw=(r.w-31)/2;for(const [section,label,color] of [["repairs","REPAIR & SHIELD SUPPLIES","#78ff9b"],["abilities","ACTIVE ABILITIES","#c79cff"]]){const x=section==="repairs"?tx:tx+tw+7,active=inventoryCraftSection===section;ctx.fillStyle=active?"#24364a":"#101923";ctx.fillRect(x,ty,tw,22);ctx.strokeStyle=active?color:"#35506e";ctx.strokeRect(x+.5,ty+.5,tw-1,21);drawUiFittedText(label,x+tw/2,ty+15,tw-8,active?color:"#9eb6d5",uiFont(7,true),"center");inventoryCraftHitboxes.push({x,y:ty,w:tw,h:22,action:"section",section});}
+  const isAbility=inventoryCraftSection==="abilities",entries=Object.entries(isAbility?ABILITY_DEFS:REPAIR_ITEM_DEFS).map(([key,def])=>({key,def,group:isAbility?"ability":"repair"})),gap=7,cardW=Math.floor((r.w-31)/2),startX=r.x+12,startY=r.y+97;
+  entries.forEach((entry,i)=>{const x=startX+(i%2)*(cardW+gap),y=startY+Math.floor(i/2)*62,def=entry.def,recipe=def.recipe||{},owned=inventoryTotal(entry.key),ready=fusionCostReady(recipe),bx=x+cardW-66;ctx.fillStyle=isAbility?"#1b1530":"#102923";ctx.fillRect(x,y,cardW,55);ctx.strokeStyle=def.color;ctx.strokeRect(x+.5,y+.5,cardW-1,54);drawItemIcon(ctx,entry.key,x+7,y+6,32);drawUiFittedText(def.name,x+44,y+17,cardW-116,"#fff",uiFont(9,true));drawUiFittedText(isAbility?`${owned} owned · ${def.cooldown}s cooldown`:`${owned} owned · ${def.amount} ${def.kind} restore`,x+44,y+30,cardW-116,"#c8d8e9",uiFont(6));drawReadableRecipeChips(recipe,x+7,y+39,cardW-14);ctx.fillStyle=ready?"#173a2a":"#2a1a20";ctx.fillRect(bx,y+8,58,18);ctx.strokeStyle=ready?"#78ff9b":"#844654";ctx.strokeRect(bx+.5,y+8.5,57,17);drawUiFittedText("CRAFT",bx+29,y+20,52,ready?"#78ff9b":"#ff9b9b",uiFont(6,true),"center");inventoryCraftHitboxes.push({x:bx,y:y+8,w:58,h:18,action:"craft",entry});if(isAbility){const equipped=player.equippedAbility===entry.key;ctx.fillStyle=equipped?"#3a3010":"#15263a";ctx.fillRect(bx,y+29,58,18);ctx.strokeStyle=equipped?"#ffdd44":"#6386ac";ctx.strokeRect(bx+.5,y+29.5,57,17);drawUiFittedText(equipped?"EQUIPPED":"EQUIP",bx+29,y+41,52,equipped?"#ffdd44":"#9be9ff",uiFont(6,true),"center");inventoryCraftHitboxes.push({x:bx,y:y+29,w:58,h:18,action:"equip",entry,canEquip:owned>0});}});
+  const active=ABILITY_DEFS[player.equippedAbility];drawUiFittedText(isAbility?(active?`Equipped: ${active.name} · press Left Shift in space`:`Equip one owned ability to activate with Left Shift`):"Repairs restore the current ship immediately from the Inventory Items tab.",r.x+14,r.y+r.h-9,r.w-28,active?.color||"#aebfd2",uiFont(7,true));ctx.restore();
+};
+// v4.2.6 readability pass: full-size crafting and fusion panels.  These
+// layouts deliberately use their own coordinates (and hitboxes) so scaling
+// remains crisp on a 1080p canvas instead of stretching the entire HUD.
+function drawLargeRecipeChips(recipe,x,y,maxW,accent="#d6e1ff"){
+  let cx=x;
+  for(const [type,amount] of Object.entries(recipe||{})){
+    const credits=type==="credits",label=credits?`${Number(amount).toLocaleString()}cr`:`${inventoryTotal(type)}/${amount}`;
+    const iconW=credits?0:30,chipW=Math.max(58,Math.min(108,iconW+16+label.length*8));
+    if(cx+chipW>x+maxW)break;
+    if(!credits)drawItemIcon(ctx,type,cx,y,28);
+    const bx=cx+iconW;
+    ctx.fillStyle="#0a1420";ctx.fillRect(bx,y,chipW-iconW,28);
+    ctx.strokeStyle=credits?"#c79c35":inventoryTotal(type)>=amount?"#4d9d68":"#8d4655";ctx.strokeRect(bx+.5,y+.5,chipW-iconW-1,27);
+    drawUiFittedText(label,bx+(chipW-iconW)/2,y+19,chipW-iconW-5,credits?"#ffdd44":inventoryTotal(type)>=amount?accent:"#ff9b9b",uiFont(10,true),"center");
+    cx+=chipW+8;
+  }
+}
+drawInventoryCraftTab=function(){
+  const w=Math.min(960,Math.max(650,canvas.width-42)),h=Math.min(570,Math.max(410,canvas.height-34)),r={x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h};
+  inventoryCraftHitboxes=[];ctx.save();ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#101a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#62d5ff";ctx.lineWidth=3;ctx.strokeRect(r.x+1.5,r.y+1.5,r.w-3,r.h-3);
+  drawUiFittedText("INVENTORY",r.x+20,r.y+31,190,"#e7f2ff",uiFont(20,true));inventoryModuleTabs(r);drawUiFittedText("FIELD CRAFTING",r.x+20,r.y+62,r.w-40,"#74dfff",uiFont(17,true));drawUiFittedText("Craft field repairs or active abilities. Hover every material icon for its full tooltip.",r.x+20,r.y+84,r.w-40,"#b9cadb",uiFont(10));
+  const tabY=r.y+102,tabW=(r.w-54)/2;
+  for(const [section,label,color] of [["repairs","REPAIR & SHIELD SUPPLIES","#78ff9b"],["abilities","ACTIVE ABILITIES","#c79cff"]]){const x=section==="repairs"?r.x+18:r.x+36+tabW,active=inventoryCraftSection===section;ctx.fillStyle=active?"#263b4e":"#101923";ctx.fillRect(x,tabY,tabW,38);ctx.strokeStyle=active?color:"#35506e";ctx.lineWidth=2;ctx.strokeRect(x+1,tabY+1,tabW-2,36);drawUiFittedText(label,x+tabW/2,tabY+25,tabW-18,active?color:"#9eb6d5",uiFont(12,true),"center");inventoryCraftHitboxes.push({x,y:tabY,w:tabW,h:38,action:"section",section});}
+  const isAbility=inventoryCraftSection==="abilities",entries=Object.entries(isAbility?ABILITY_DEFS:REPAIR_ITEM_DEFS).map(([key,def])=>({key,def,group:isAbility?"ability":"repair"}));
+  const gap=14,cardW=Math.floor((r.w-54)/2),cardH=112,startX=r.x+18,startY=r.y+158;
+  entries.forEach((entry,i)=>{const x=startX+(i%2)*(cardW+gap),y=startY+Math.floor(i/2)*126,def=entry.def,recipe=def.recipe||{},owned=inventoryTotal(entry.key),ready=fusionCostReady(recipe),buttonX=x+cardW-112;ctx.fillStyle=isAbility?"#1b1530":"#102d27";ctx.fillRect(x,y,cardW,cardH);ctx.strokeStyle=def.color;ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,cardW-2,cardH-2);drawItemIcon(ctx,entry.key,x+13,y+15,50);drawUiFittedText(def.name,x+76,y+28,cardW-202,"#fff",uiFont(14,true));drawUiFittedText(isAbility?`${owned} owned · ${def.cooldown}s cooldown`:`${owned} owned · restores ${def.amount} ${def.kind}`,x+76,y+49,cardW-202,"#c8d8e9",uiFont(10));drawLargeRecipeChips(recipe,x+13,y+72,cardW-26);
+    ctx.fillStyle=ready?"#173f2d":"#2a1a20";ctx.fillRect(buttonX,y+15,96,31);ctx.strokeStyle=ready?"#78ff9b":"#844654";ctx.strokeRect(buttonX+1,y+16,94,29);drawUiFittedText("CRAFT",buttonX+48,y+36,86,ready?"#78ff9b":"#ff9b9b",uiFont(10,true),"center");inventoryCraftHitboxes.push({x:buttonX,y:y+15,w:96,h:31,action:"craft",entry});
+    if(isAbility){const equipped=player.equippedAbility===entry.key;ctx.fillStyle=equipped?"#3a3010":"#15263a";ctx.fillRect(buttonX,y+53,96,31);ctx.strokeStyle=equipped?"#ffdd44":"#6386ac";ctx.strokeRect(buttonX+1,y+54,94,29);drawUiFittedText(equipped?"EQUIPPED":"EQUIP",buttonX+48,y+74,86,equipped?"#ffdd44":"#9be9ff",uiFont(10,true),"center");inventoryCraftHitboxes.push({x:buttonX,y:y+53,w:96,h:31,action:"equip",entry,canEquip:owned>0});}});
+  const active=ABILITY_DEFS[player.equippedAbility];drawUiFittedText(isAbility?(active?`EQUIPPED: ${active.name} · Press Left Shift in space`:`Select an owned ability, then press Left Shift in space`):"Repairs are used from the Items tab or the Repair Hull / Repair Shield buttons.",r.x+20,r.y+r.h-16,r.w-40,active?.color||"#aebfd2",uiFont(10,true));ctx.restore();
+};
+drawInventoryFusionTab=function(){
+  const w=Math.min(900,Math.max(620,canvas.width-42)),h=Math.min(500,Math.max(350,canvas.height-34)),r={x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h},entries=weaponFusionEntries();
+  if(!entries.some(e=>e.key===weaponFusionKey))weaponFusionKey=entries[0]?.key||null;const selected=entries.find(e=>e.key===weaponFusionKey)||null;weaponFusionCopies=Math.max(2,Math.min(10,Math.floor(weaponFusionCopies||2),selected?.count||2));inventoryFusionHitboxes=[];ctx.save();ctx.fillStyle="rgba(0,0,0,.84)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#111a2b";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#ffb95a";ctx.lineWidth=3;ctx.strokeRect(r.x+1.5,r.y+1.5,r.w-3,r.h-3);
+  drawUiFittedText("INVENTORY",r.x+20,r.y+31,190,"#e7f2ff",uiFont(20,true));inventoryModuleTabs(r);drawUiFittedText("WEAPON FUSION",r.x+20,r.y+62,r.w-40,"#ffca73",uiFont(17,true));drawUiFittedText("Weapons and listed low-tier materials are consumed on both success and failure.",r.x+20,r.y+84,r.w-40,"#b9cadb",uiFont(10));
+  const lx=r.x+18,ly=r.y+105,lw=284,rowH=76;ctx.fillStyle="#09111d";ctx.fillRect(lx,ly,lw,r.h-123);ctx.strokeStyle="#465c79";ctx.strokeRect(lx+1,ly+1,lw-2,r.h-125);entries.slice(0,4).forEach((e,i)=>{const y=ly+10+i*rowH,active=e.key===weaponFusionKey;ctx.fillStyle=active?"#3a3020":"#101a2a";ctx.fillRect(lx+10,y,lw-20,64);ctx.strokeStyle=active?"#ffca73":"#263e61";ctx.lineWidth=2;ctx.strokeRect(lx+11,y+1,lw-22,62);drawItemIcon(ctx,e.key,lx+19,y+8,48);drawUiFittedText(`${e.def.name} +${e.level}`,lx+78,y+27,lw-120,active?"#fff":"#d6e1ff",uiFont(13,true));drawUiFittedText(`${e.count} matching copies`,lx+78,y+48,lw-120,"#8be4ff",uiFont(10));inventoryFusionHitboxes.push({x:lx+10,y,w:lw-20,h:64,action:"select",entry:e});});
+  const dx=lx+lw+22,dw=r.x+r.w-dx-18;if(selected){const cost=weaponFusionCostClient(selected,weaponFusionCopies),ready=selected.count>=weaponFusionCopies&&fusionCostReady(cost);drawItemIcon(ctx,selected.key,dx+12,ly+12,68);drawUiFittedText(`${selected.def.name} +${selected.level}`,dx+94,ly+33,dw-106,"#fff",uiFont(16,true));drawUiFittedText(`${selected.count} matching copies available`,dx+94,ly+56,dw-106,"#ffca73",uiFont(11));drawUiFittedText("SELECT FUSION COUNT",dx+12,ly+103,dw-24,"#ffca73",uiFont(12,true));for(let n=2;n<=10;n++){const col=(n-2)%3,row=Math.floor((n-2)/3),x=dx+12+col*126,y=ly+117+row*43,active=n===weaponFusionCopies,enabled=n<=selected.count;ctx.fillStyle=active?"#3a3010":"#15263a";ctx.fillRect(x,y,116,34);ctx.strokeStyle=active?"#ffdd44":enabled?"#6386ac":"#523740";ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,114,32);drawUiFittedText(`${n} · ${n*10}%`,x+58,y+23,106,enabled?"#d6e1ff":"#7a6670",uiFont(10,true),"center");inventoryFusionHitboxes.push({x,y,w:116,h:34,action:"copies",copies:n,enabled});}drawUiFittedText("FUSION MATERIALS",dx+12,ly+262,dw-24,"#ffca73",uiFont(12,true));drawLargeRecipeChips(cost,dx+12,ly+276,dw-24,"#c9e8ff");const fy=ly+324;ctx.fillStyle=ready?"#3a2810":"#2a1a20";ctx.fillRect(dx+12,fy,dw-24,38);ctx.strokeStyle=ready?"#ffca73":"#844654";ctx.lineWidth=2;ctx.strokeRect(dx+13,fy+1,dw-26,36);drawUiFittedText(`FUSE ${weaponFusionCopies} WEAPONS · ${weaponFusionCopies*10}% SUCCESS`,dx+dw/2,fy+25,dw-44,ready?"#ffdc92":"#ff9b9b",uiFont(12,true),"center");inventoryFusionHitboxes.push({x:dx+12,y:fy,w:dw-24,h:38,action:"fuse",entry:selected,enabled:ready});}else drawUiFittedText("Collect at least two matching weapons to start a fusion.",dx+12,ly+50,dw-24,"#9fb0ca",uiFont(12));ctx.restore();
+};
 }; // end _socketScript.onload
 
 document.head.appendChild(_socketScript);
