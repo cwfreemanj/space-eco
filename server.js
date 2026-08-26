@@ -409,7 +409,7 @@ function civFleetMoveToward(runtime,target,speed,dt){
   runtime.vx=dx/d*desired;runtime.vy=dy/d*desired;runtime.x+=dx/d*step;runtime.y+=dy/d*step;runtime.angle=Math.atan2(dy,dx);
 }
 function civFleetSnapshotShip(zone,st,craft,runtime,task){
-  const stats=civFleetRuntimeStats(st,craft),cargo=st?.miningCargo?.[craft.id]||{},cargoTarget=cargo?.target||null,target=cargoTarget||(task?.task==="attack"?{id:task.targetZoneId||"attack_target",name:task.targetName||"Target Zone",x:task.targetX,y:task.targetY,radius:task.targetRadius||0,resources:[]}:null),runtimeHp=Number(runtime?.hp),runtimeShield=Number(runtime?.shield);
+  const stats=civFleetRuntimeStats(st,craft),cargo=st?.miningCargo?.[craft.id]||{},cargoTarget=cargo?.target||null,target=runtime?.combatTarget||cargoTarget||(task?.task==="attack"?{id:task.targetZoneId||"attack_target",name:task.targetName||"Target Zone",x:task.targetX,y:task.targetY,radius:task.targetRadius||0,resources:[]}:null),runtimeHp=Number(runtime?.hp),runtimeShield=Number(runtime?.shield);
   const respawning=runtime?.state==="respawning";
   return {id:craft.id,fleetId:craft.id,homeSlot:Math.max(0,Math.floor(Number(craft.homeSlot)||0)),status:respawning?"respawning":"active",task:task?.task||"mine",state:runtime?.state||"idle",mission:runtime?.mission||task?.task||"mine",x:Math.round(Number(runtime?.x)||0),y:Math.round(Number(runtime?.y)||0),vx:Number((Number(runtime?.vx)||0).toFixed(2)),vy:Number((Number(runtime?.vy)||0).toFixed(2)),angle:Number((Number(runtime?.angle)||0).toFixed(4)),hp:Math.max(0,Math.round(Number.isFinite(runtimeHp)?runtimeHp:stats.maxHp)),maxHp:stats.maxHp,shield:Math.max(0,Math.round(Number.isFinite(runtimeShield)?runtimeShield:stats.maxShield)),maxShield:stats.maxShield,cargoCapacity:stats.capacity,cargoAmount:Math.max(0,Math.floor(Number(cargo?.amount)||0)),cargoItems:civCargoManifestEntries(cargo?.items).map(entry=>({type:entry.type,amount:entry.amount})),speed:stats.speed,damage:stats.damage,role:stats.role,className:stats.className,shipSprite:stats.shipSprite,respawnAt:respawning?Number(runtime.respawnAt)||0:0,target:target?{id:target.id,name:target.name,x:Math.round(Number(target.x)||0),y:Math.round(Number(target.y)||0),radius:Math.max(20,Math.round(Number(target.radius)||60)),resources:Array.isArray(target.resources)?target.resources.slice(0,12):[]}:null};
 }
@@ -459,7 +459,7 @@ function tickCivilizationFleetRuntime(dt){
   for(const [key] of civilizationFleetRuntime)if(!activeKeys.has(key))civilizationFleetRuntime.delete(key);
 }
 function civilizationFleetSnapshotForPlayer(p){
-  const now=Date.now(),stations=[];
+  const now=Date.now(),stations=[],assets=[];
   for(const zone of civilizationZones.values()){
     ensureCivLogistics(zone);zone.stationTasks=zone.stationTasks||{};
     for(const st of civAllStations(zone)){
@@ -474,8 +474,11 @@ function civilizationFleetSnapshotForPlayer(p){
       }
       stations.push({zoneId:zone.zoneId,stationId:st.id,destroyed:!!st.destroyed,task:task.task||"mine",updatedAt:now,ships});
     }
+    if(Math.hypot((zone.x||0)-(p?.x||0),(zone.y||0)-(p?.y||0))<=CIVILIZATION_FLEET_SYNC_RANGE){
+      for(const turret of zone.turrets||[])if(turret)assets.push({kind:"turret",id:turret.id,zoneId:zone.zoneId,x:Math.round(Number(turret.x)||0),y:Math.round(Number(turret.y)||0),hp:Math.max(0,Number(turret.hp)||0),maxHp:Math.max(1,Number(turret.maxHp)||1),shield:Math.max(0,Number(turret.shield)||0),maxShield:Math.max(0,Number(turret.maxShield)||0),destroyed:!!turret.destroyed});
+    }
   }
-  return {sequence:++civilizationFleetSnapshotSequence,serverTime:now,stations};
+  return {sequence:++civilizationFleetSnapshotSequence,serverTime:now,stations,assets};
 }
 // Civilization combat is intentionally evaluated here, beside the authoritative
 // fleet runtime. Browsers render this result but never decide who was hit.
@@ -488,7 +491,16 @@ function civRuntimeEntries(){
   } return out;
 }
 function civHostile(a,b){return !!(a&&b&&a.zone.zoneId!==b.zone.zoneId&&!(a.zone.ownerId&&a.zone.ownerId===b.zone.ownerId));}
-function civCombatTargetFor(entry,all,reservations){
+function civCombatAssets(){
+  const assets=[];
+  for(const zone of civilizationZones.values()){
+    for(const st of civAllStations(zone))if(!st.destroyed){const pos=civResolvedStationPosition(zone,st);assets.push({kind:"station",id:st.id,zone,st,r:st,x:pos.x,y:pos.y});}
+    for(const turret of zone.turrets||[])if(turret&&!turret.destroyed&&Number(turret.hp)>0)assets.push({kind:"turret",id:turret.id,zone,turret,r:turret,x:Number(turret.x)||zone.x,y:Number(turret.y)||zone.y});
+  }
+  return assets;
+}
+function civTargetReservationKey(target){return target?.kind==="asset"?`asset|${target.id}`:`ship|${target?.r?.zoneId||""}|${target?.r?.stationId||""}|${target?.r?.fleetId||""}`;}
+function civCombatTargetFor(entry,all,assets,reservations){
   const {zone,st,r,task}=entry,home=civResolvedStationPosition(zone,st);
   const direct=all.find(x=>x.r.fleetId===r.lastAttackerId&&civHostile(entry,x)&&x.r.state!=="respawning");
   if(direct)return direct;
@@ -500,20 +512,35 @@ function civCombatTargetFor(entry,all,reservations){
     return Math.hypot(x.r.x-home.x,x.r.y-home.y)<=Math.max(Number(zone.radius)||0,CIV_DEFENSE_LEASH)+CIV_DEFENSE_LEASH && d<=CIV_DEFENSE_LEASH;
   });
   valid.sort((a,b)=>{
-    const ar=reservations.get(a.r.zoneId+"|"+a.r.stationId+"|"+a.r.fleetId)||0,br=reservations.get(b.r.zoneId+"|"+b.r.stationId+"|"+b.r.fleetId)||0;
+    const ar=reservations.get(civTargetReservationKey(a))||0,br=reservations.get(civTargetReservationKey(b))||0;
     return ar-br||Math.hypot(a.r.x-r.x,a.r.y-r.y)-Math.hypot(b.r.x-r.x,b.r.y-r.y);
   });
-  return valid[0]||null;
+  if(valid[0])return valid[0];
+  // After nearby defender ships are cleared, raiders progress to the closest
+  // live turret or station in the target zone.  Assets are never used for a
+  // defense chase, so idle/mining fleets still stay home once invaders leave.
+  if(task.task!=="attack")return null;
+  const structures=assets.filter(a=>a.zone.zoneId===task.targetZoneId&&Number(a.r.hp)>0).sort((a,b)=>{
+    const ar=reservations.get(civTargetReservationKey(a))||0,br=reservations.get(civTargetReservationKey(b))||0;
+    return ar-br||Math.hypot(a.x-r.x,a.y-r.y)-Math.hypot(b.x-r.x,b.y-r.y);
+  });
+  return structures[0]?{...structures[0],kind:"asset"}:null;
 }
 function tickCivilizationCombat(dt){
-  const now=Date.now(),all=civRuntimeEntries(),reservations=new Map();
-  for(const e of all){if(e.r.state==="respawning")continue;const t=civCombatTargetFor(e,all,reservations);if(t)reservations.set(t.r.zoneId+"|"+t.r.stationId+"|"+t.r.fleetId,(reservations.get(t.r.zoneId+"|"+t.r.stationId+"|"+t.r.fleetId)||0)+1);e._target=t;}
-  for(const e of all){const t=e._target,r=e.r;if(r.state==="respawning")continue;if(!t){r.targetId=null;continue;}r.targetId=t.r.fleetId;r.targetZoneId=t.zone.zoneId;r.state="combat";const d=Math.hypot(t.r.x-r.x,t.r.y-r.y);if(d>CIV_COMBAT_RANGE*.82)civFleetMoveToward(r,t.r,e.stats.speed*1.08,dt);else{r.vx=0;r.vy=0;r.angle=Math.atan2(t.r.y-r.y,t.r.x-r.x);}
+  const now=Date.now(),all=civRuntimeEntries(),assets=civCombatAssets(),reservations=new Map();
+  for(const e of all){if(e.r.state==="respawning")continue;const t=civCombatTargetFor(e,all,assets,reservations);if(t)reservations.set(civTargetReservationKey(t),(reservations.get(civTargetReservationKey(t))||0)+1);e._target=t;}
+  for(const e of all){const t=e._target,r=e.r;if(r.state==="respawning")continue;if(!t){r.targetId=null;r.combatTarget=null;continue;}const tx=t.kind==="asset"?t.x:t.r.x,ty=t.kind==="asset"?t.y:t.r.y;r.targetId=t.kind==="asset"?t.id:t.r.fleetId;r.targetZoneId=t.zone.zoneId;r.combatTarget={id:r.targetId,name:t.kind==="asset"?(t.kind==="turret"?"Hostile Turret":"Hostile Station"):(t.stats?.className||"Hostile Ship"),x:tx,y:ty,radius:t.kind==="asset"?56:18};r.state="combat";const d=Math.hypot(tx-r.x,ty-r.y);if(d>CIV_COMBAT_RANGE*.82)civFleetMoveToward(r,{x:tx,y:ty},e.stats.speed*1.08,dt);else{r.vx=0;r.vy=0;r.angle=Math.atan2(ty-r.y,tx-r.x);}
     if(d<=CIV_COMBAT_RANGE&&now>=Number(r.nextFireAt||0)){
       r.nextFireAt=now+CIV_FIRE_MS;let damage=Math.max(1,e.stats.damage);const absorbed=Math.min(Math.max(0,t.r.shield),damage);t.r.shield-=absorbed;damage-=absorbed;t.r.hp=Math.max(0,t.r.hp-damage);t.r.lastAttackerId=r.fleetId;t.r.lastAttackedAt=now;
-      if(t.r.hp<=0){t.r.state="respawning";t.r.respawnAt=now+civStationRespawnDelay(t.st);t.r.vx=0;t.r.vy=0;t.r.targetId=null;t.r.lastAttackerId=null;}
+      if(t.r.hp<=0){
+        if(t.kind==="asset"){t.r.destroyed=true;t.r.destroyedAt=now;t.r.shield=0;if(t.st){for(const roster of t.st.shipRoster||[])roster.status="destroyed";}}
+        else {t.r.state="respawning";t.r.respawnAt=now+civStationRespawnDelay(t.st);t.r.vx=0;t.r.vy=0;t.r.targetId=null;t.r.lastAttackerId=null;}
+      }
     }
   }
+  // Turrets independently protect their own zone.  This makes entering a
+  // procedural or player-owned civilization a real defensive engagement.
+  for(const asset of assets){if(asset.kind!=="turret"||asset.r.destroyed)continue;const target=all.filter(e=>civHostile({zone:asset.zone},e)&&e.r.state!=="respawning").filter(e=>Math.hypot(e.r.x-asset.x,e.r.y-asset.y)<=Math.max(120,Number(asset.r.range)||550)).sort((a,b)=>Math.hypot(a.r.x-asset.x,a.r.y-asset.y)-Math.hypot(b.r.x-asset.x,b.r.y-asset.y))[0];if(!target)continue;const delay=1000/Math.max(.25,Number(asset.r.fireRate)||1);if(now<Number(asset.r.nextFireAt||0))continue;asset.r.nextFireAt=now+delay;let damage=Math.max(1,Number(asset.r.damage)||12),absorbed=Math.min(Math.max(0,target.r.shield),damage);target.r.shield-=absorbed;damage-=absorbed;target.r.hp=Math.max(0,target.r.hp-damage);target.r.lastAttackerId=asset.id;target.r.lastAttackedAt=now;if(target.r.hp<=0){target.r.state="respawning";target.r.respawnAt=now+civStationRespawnDelay(target.st);target.r.vx=0;target.r.vy=0;target.r.targetId=null;}}
 }
 function civAddInventoryAny(p,type,amount){let rem=Math.max(0,Math.floor(Number(amount)||0));if(!rem)return true;if(!Array.isArray(p.invSlots))p.invSlots=emptySlots(p.maxSlots||24);for(let i=0;i<(p.maxSlots||24);i++){const s=p.invSlots[i];if(s?.type===type&&s.count<24){const n=Math.min(24-s.count,rem);s.count+=n;rem-=n;if(!rem)return true;}}for(let i=0;i<(p.maxSlots||24);i++){const s=p.invSlots[i];if(!s?.type){const n=Math.min(24,rem);p.invSlots[i]={type,count:n};rem-=n;if(!rem)return true;}}return false;}
 const civilizationDefenderShotCooldowns = new Map();
@@ -699,6 +726,38 @@ function makeCivilizationZoneRecord(input,p){
   const zone={...civZoneDefaults({zoneId:input.zoneId,zoneLevel:superStationLevel}),zoneId:input.zoneId,name:input.name,color:input.color,x:input.x,y:input.y,radius:input.radius,baseStationCount:input.baseStationCount,superStationLevel,
     ownerId:p.id,ownerMemberId:p.memberId||null,ownerName:p.name,purchasedAt:Date.now(),baseStations,builtStations:[],stationTasks:{},pendingTax:0,totalTaxCollected:0,stationTierCosmetics:{},npcshipCosmeticKey:null,turretCosmeticKey:null};
   ensureCivLogistics(zone);
+  return zone;
+}
+// Procedural civilizations used to exist only in the browser until purchased.
+// That was harmless while browsers also ran combat, but an authority server
+// cannot fight a zone it has never materialized.  Promote an attacked,
+// verified procedural zone into a non-player NPC record with the same stable
+// station ids used by the client.  It remains unowned and can still be bought.
+function ensureProceduralCivilizationDefense(input){
+  if(!input?.zoneId)return null;
+  let zone=civilizationZones.get(input.zoneId);if(zone)return zone;
+  const match=/^civ_(-?\d+),(-?\d+)$/.exec(String(input.zoneId));
+  if(!match)return null;
+  const canonical=proceduralCivilizationZoneAtChunk(Number(match[1]),Number(match[2]));
+  if(!canonical||Math.hypot(canonical.x-input.x,canonical.y-input.y)>36)return null;
+  const zoneKey=`${match[1]},${match[2]}`,rng=makeRng(`${GALAXY_SEED}|civstations|${zoneKey}`),count=2+Math.floor(rng()*3),tiers=["standard","standard","advanced","outpost","capital"],baseStations=[];
+  for(let i=0;i<count;i++){
+    const tier=tiers[Math.floor(rng()*tiers.length)],st={...civStationDefaults({tier}),id:`${input.zoneId}|civst|${i}`,tier,ownerName:input.name,createdAt:Date.now()};
+    // A procedural civilization starts with actual defensive craft, not merely
+    // visual ambient traffic.  Their ids are stable across reconnects.
+    const fighterKey=i%3===2?"fighter_ii":"fighter_i",def=CIV_SHIP_CATALOG[fighterKey];
+    st.shipRoster=[0,1].map(slot=>({id:`${st.id}|npc_${fighterKey}_${slot}`,shipKey:fighterKey,name:def.name,role:def.role,sprite:def.sprite,status:"active",stats:civFactionShipStats({zoneId:input.zoneId,factionId:civFactionFor(input.zoneId).id},def),cargoBalanceVersion:CIV_CARGO_BALANCE_VERSION}));
+    baseStations.push(st);
+  }
+  zone={...civZoneDefaults({zoneId:input.zoneId,zoneLevel:input.superStationLevel||1}),zoneId:input.zoneId,name:input.name,color:input.color,x:canonical.x,y:canonical.y,radius:canonical.radius,baseStationCount:count,superStationLevel:input.superStationLevel||1,ownerId:null,ownerMemberId:null,ownerName:null,npcProcedural:true,createdAt:Date.now(),baseStations,builtStations:[],stationTasks:{},pendingTax:0,totalTaxCollected:0,stationTierCosmetics:{},npcshipCosmeticKey:null,turretCosmeticKey:null};
+  ensureCivLogistics(zone);
+  // The browser's native rim defenses are visual; these are their authoritative
+  // combat counterparts.  They are deliberately modest so ships remain the
+  // first and most common raid target.
+  const turretRng=makeRng(`${GALAXY_SEED}|npc-civ-turrets|${zone.zoneId}`),turretCount=4+Math.floor(turretRng()*3);
+  zone.turrets=[];
+  for(let i=0;i<turretCount;i++){const a=Math.PI*2*i/turretCount+turretRng()*.34,r=zone.radius*(.72+turretRng()*.18),def=CIV_TURRET_CATALOG[["pulse","rail","inferno","prism","cryo"][i%5]],stats=civFactionTurretStats(zone,def);zone.turrets.push({id:`${zone.zoneId}|native_turret|${i}`,x:Math.round(zone.x+Math.cos(a)*r),y:Math.round(zone.y+Math.sin(a)*r),name:def.name,turretType:["pulse","rail","inferno","prism","cryo"][i%5],sprite:def.sprite,range:stats.range,hp:stats.hp,shield:stats.shield,maxHp:stats.hp,maxShield:stats.shield,damage:stats.damage,fireRate:stats.fireRate,destroyed:false,color:zone.color});}
+  civilizationZones.set(zone.zoneId,zone);
   return zone;
 }
 function randomPointInZone(zone,seedExtra=""){
@@ -3332,6 +3391,7 @@ io.on("connection",socket=>{
         const generatedTarget=safeCivZoneInput(targetZone||{});
         if(!generatedTarget||generatedTarget.zoneId!==targetZoneId){socket.emit("civilizationTaskDenied",{reason:"Target zone data was missing. Reopen the super station menu and choose a target zone again."});return;}
         targetInfo=generatedTarget;
+        if(!ensureProceduralCivilizationDefense(targetInfo)){socket.emit("civilizationTaskDenied",{reason:"That procedural civilization could not be verified by the server."});return;}
       }
       const targetDist=Math.hypot((targetInfo.x||0)-zone.x,(targetInfo.y||0)-zone.y);
       if(!Number.isFinite(targetDist)||targetDist>8000){socket.emit("civilizationTaskDenied",{reason:"That civilization zone is too far from this command station."});return;}
@@ -3363,7 +3423,7 @@ io.on("connection",socket=>{
     const p=players.get(socket.id);zoneId=safeZoneId(zoneId);task=task==="attack"?"attack":task==="idle"?"idle":"mine";targetZoneId=safeZoneId(targetZoneId);
     const zone=civilizationZones.get(zoneId);if(!p||!zone||!playerOwnsCivilizationZone(p,zone)){socket.emit("civilizationTaskDenied",{reason:"You do not own that civilization zone."});return;}
     if(Math.hypot(p.x-zone.x,p.y-zone.y)>660){socket.emit("civilizationTaskDenied",{reason:"Command fleets from the super station."});return;}
-    let target=null;if(task==="attack"){target=civilizationZones.get(targetZoneId)||targetZone;if(!targetZoneId||targetZoneId===zoneId||!target){socket.emit("civilizationTaskDenied",{reason:"Choose a nearby civilization target."});return;}}
+    let target=null;if(task==="attack"){target=civilizationZones.get(targetZoneId)||safeCivZoneInput(targetZone||{});if(!targetZoneId||targetZoneId===zoneId||!target){socket.emit("civilizationTaskDenied",{reason:"Choose a nearby civilization target."});return;}if(!civilizationZones.get(targetZoneId)&&!ensureProceduralCivilizationDefense(target)){socket.emit("civilizationTaskDenied",{reason:"That procedural civilization could not be verified by the server."});return;}}
     ensureCivLogistics(zone);zone.stationTasks=zone.stationTasks||{};
     for(const st of civAllStations(zone))zone.stationTasks[st.id]=task==="attack"?civAttackTask(target,false):task==="idle"?civIdleTask():civMineTask();
     if(task==="attack"){zone.relations[targetZoneId]="enemy";const defender=civilizationZones.get(targetZoneId);if(defender&&!playerOwnsCivilizationZone(p,defender)){ensureCivLogistics(defender);defender.relations[zoneId]="enemy";}}
