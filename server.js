@@ -318,7 +318,7 @@ function civStationDefaults(st={}){const cap=CIV_TIER_CAPACITY[st.tier]||6;retur
 function civZoneDefaults(zone){const faction=civFactionFor(zone.zoneId);return {factionId:faction.id,factionName:faction.name,factionBonus:faction.bonus,zoneLevel:Math.max(1,Math.min(10,Number(zone.zoneLevel)||1)),stockpile:{},stockpileItems:{},bankCredits:0,contracts:[],relations:{},turrets:[],resourceRates:{},resourceDensity:0,lastMiningDepositAt:0,stockpileCapacity:Math.min(10000,1000+(Math.max(1,Number(zone.zoneLevel)||1)-1)*1000)};}
 function civSuperStationDefaults(zone){
   const base=civStationDefaults({tier:"capital"});
-  return {...base,id:`${zone.zoneId}|super`,x:Math.round(Number(zone.x)||0),y:Math.round(Number(zone.y)||0),tier:"capital",isSuperStation:true,defaultFleetCount:zone.playerFounded?0:civDefaultShipCount("capital")};
+  return {...base,id:`${zone.zoneId}|super`,x:Math.round(Number(zone.x)||0),y:Math.round(Number(zone.y)||0),tier:"capital",isSuperStation:true,defaultFleetCount:civDefaultShipCount("capital")};
 }
 function civAllStations(zone){return [zone?.superStation,...(zone?.builtStations||[]),...(zone?.baseStations||[])].filter(Boolean);}
 function normalizeCivStockpile(zone){
@@ -348,6 +348,10 @@ function ensureCivLogistics(zone){
   if(!zone.superStation||zone.superStation.id!==superDefaults.id)zone.superStation=superDefaults;
   else for(const[k,v]of Object.entries(superDefaults))if(zone.superStation[k]===undefined||zone.superStation[k]===null)zone.superStation[k]=v;
   zone.superStation.x=Math.round(Number(zone.x)||zone.superStation.x||0);zone.superStation.y=Math.round(Number(zone.y)||zone.superStation.y||0);zone.superStation.tier="capital";zone.superStation.isSuperStation=true;
+  // Player-founded zones in older saves were initialized with an empty super-
+  // station fleet. Migrate that one legacy value once so attack-all orders
+  // always have a real default patrol wing to mobilize.
+  if(Math.max(0,Number(zone.defaultFleetBalanceVersion)||0)<2){if(Number(zone.superStation.defaultFleetCount)===0)zone.superStation.defaultFleetCount=civDefaultShipCount("capital");zone.defaultFleetBalanceVersion=2;}
   for(const st of civAllStations(zone)){
     const sd=civStationDefaults(st);for(const[k,v]of Object.entries(sd))if(st[k]===undefined||st[k]===null)st[k]=v;
     // Older purchased zones saved their base-station identity but not the
@@ -374,6 +378,12 @@ function civFactionTurretStats(zone,def){const s={range:def.range,damage:def.dam
 function civDefaultShipCount(tier){return ({outpost:3,standard:4,advanced:5,capital:7}[tier]||4);}
 function civDefaultShipCapacity(tier){return ({outpost:4,standard:7,advanced:11,capital:18}[tier]||6);}
 function civDefaultShipSpeed(tier){return ({outpost:82,standard:94,advanced:108,capital:118}[tier]||90);}
+const CIV_DEFAULT_SHIP_STATS={
+  outpost:{hp:180,shield:40,speed:82,damage:8},
+  standard:{hp:240,shield:60,speed:94,damage:11},
+  advanced:{hp:330,shield:90,speed:108,damage:15},
+  capital:{hp:460,shield:130,speed:118,damage:21}
+};
 function civStationMiningFleet(st){
   if(st?.destroyed)return [];
   const fleet=[];
@@ -400,9 +410,10 @@ function civFleetFormationPoint(zone,st,craft,total){
 }
 function civFleetRuntimeStats(st,craft){
   const roster=civFleetRosterFor(st,craft),role=roster?.role||craft?.role||"trade",capacity=Math.max(1,Math.floor(Number(craft?.capacity)||1));
-  const maxHp=Math.max(70,Math.floor(Number(roster?.stats?.hp)||110+capacity*18+(role==="defender"?90:0)));
-  const maxShield=Math.max(0,Math.floor(Number(roster?.stats?.shield)||20+capacity*5+(role==="defender"?45:0)));
-  return {role,className:roster?.name||(role==="defender"?"Civilization Defender":"Civilization Hauler"),shipSprite:Math.max(0,Math.floor(Number(roster?.sprite)||0)),capacity,speed:Math.max(40,Number(craft?.speed)||civDefaultShipSpeed(st?.tier)),damage:Math.max(0,Math.floor(Number(roster?.stats?.damage)||((role==="defender"?10:4)+Math.max(0,capacity-4)*.35))),maxHp,maxShield};
+  const baseline=CIV_DEFAULT_SHIP_STATS[st?.tier]||CIV_DEFAULT_SHIP_STATS.standard,isDefault=!roster;
+  const maxHp=Math.max(70,Math.floor(Number(roster?.stats?.hp)||(isDefault?baseline.hp:110+capacity*18+(role==="defender"?90:0))));
+  const maxShield=Math.max(0,Math.floor(Number(roster?.stats?.shield)||(isDefault?baseline.shield:20+capacity*5+(role==="defender"?45:0))));
+  return {role,className:roster?.name||(isDefault?"Civilization Patrol":role==="defender"?"Civilization Defender":"Civilization Hauler"),shipSprite:Math.max(0,Math.floor(Number(roster?.sprite)||0)),capacity,speed:Math.max(40,Number(roster?.stats?.speed)||(isDefault?baseline.speed:Number(craft?.speed)||civDefaultShipSpeed(st?.tier))),damage:Math.max(0,Math.floor(Number(roster?.stats?.damage)||(isDefault?baseline.damage:(role==="defender"?10:4)+Math.max(0,capacity-4)*.35))),maxHp,maxShield};
 }
 function civFleetMoveToward(runtime,target,speed,dt){
   if(!runtime||!target)return;
@@ -1537,6 +1548,7 @@ function defaultPlayer(id, name, x, y) {
     badgeRewards:{},storyProgress:normalizeStoryProgress({}),
     cosmeticInventory:{}, equippedCosmetics:{ship:null,bullet:null,enemy:null,npcship:null,particle:null,trail:null,station:null,planet:null,turret:null,engine:null,shield:null,suit:null,laser:null}, stationTierCosmetics:normalizeStationTierCosmetics({}), planetTypeCosmetics:normalizePlanetTypeCosmetics({}), redeemedCoupons:{},
     equippedWeapon:"weapon_laser_mk1",weaponLevels:{weapon_laser_mk1:1},
+    equippedAbility:null,abilityCooldownEndsAt:0,abilityEffectKind:null,abilityEffectEndsAt:0,
     equippedAttachments:defaultAttachmentSlots(),
     planetModules:defaultPlanetModules(),
   };
@@ -1696,14 +1708,32 @@ function finiteOrFallback(value,fallback){
   const n=Number(value);
   return Number.isFinite(n)?n:fallback;
 }
+const SERVER_REPAIR_ITEM_DEFS={
+  repair_hull_patch_1:{name:"Hull Patch I",kind:"hull",amount:45,rarity:2,color:"#8dff9c",description:"Repairs 45 hull integrity.",recipe:{credits:180,dirt:16,stone:8,grass_tuft:6}},repair_hull_patch_2:{name:"Hull Patch II",kind:"hull",amount:120,rarity:4,color:"#68e7a0",description:"Repairs 120 hull integrity.",recipe:{credits:950,iron:16,copper:12,ice_block:10}},repair_hull_patch_3:{name:"Hull Patch III",kind:"hull",amount:280,rarity:6,color:"#34ffc0",description:"Repairs 280 hull integrity.",recipe:{credits:5200,titanium:14,alloy_frame:4,nano_fiber:6}},
+  repair_shield_cell_1:{name:"Shield Cell I",kind:"shield",amount:40,rarity:2,color:"#70c9ff",description:"Restores 40 shield energy.",recipe:{credits:180,sand:14,copper:8,ice_block:8}},repair_shield_cell_2:{name:"Shield Cell II",kind:"shield",amount:110,rarity:4,color:"#58a6ff",description:"Restores 110 shield energy.",recipe:{credits:1050,cobalt:14,crystal:8,circuit_board:2}},repair_shield_cell_3:{name:"Shield Cell III",kind:"shield",amount:260,rarity:6,color:"#a58bff",description:"Restores 260 shield energy.",recipe:{credits:5600,prism_ore:10,shield_matrix:1,plasma_cell:6}}
+};
+const SERVER_ABILITY_DEFS={
+  ability_aegis_burst:{name:"Aegis Burst",kind:"overshield",cooldown:12,duration:8,rarity:5,color:"#67c8ff",description:"Temporarily doubles maximum shield and restores it.",recipe:{credits:18000,crystal:32,cobalt:18,shield_matrix:2,plasma_cell:8}},
+  ability_hull_surge:{name:"Hull Surge",kind:"health",cooldown:15,duration:8,rarity:5,color:"#78ff9b",description:"Repairs hull and grants a short reinforced-hull boost.",recipe:{credits:16000,iron:36,titanium:16,hull_plate:2,nano_fiber:8}},
+  ability_combat_focus:{name:"Combat Focus",kind:"damage",cooldown:13,duration:8,rarity:6,color:"#ff6f8e",description:"Temporarily increases weapon damage and fire intensity.",recipe:{credits:26000,copper:34,crystal:22,weapon_array:2,ember_quartz:8}},
+  ability_kinetic_drive:{name:"Kinetic Drive",kind:"speed",cooldown:11,duration:7,rarity:5,color:"#ffb25a",description:"Doubles ship speed for a brief overdrive.",recipe:{credits:21000,fuel:42,engine_core:2,nano_fiber:12,circuit_board:6}},
+  ability_sentinel_matrix:{name:"Sentinel Matrix",kind:"defense",cooldown:14,duration:9,rarity:6,color:"#be9bff",description:"Boosts armor, shielding, and shield regeneration briefly.",recipe:{credits:30000,prism_ore:16,shield_capacitor:1,regen_coil:1,quantum_core:2}},
+  ability_mega_laser:{name:"Mega Laser",kind:"mega_laser",cooldown:19,duration:0,rarity:7,color:"#fff07a",description:"Fires a high-damage piercing beam through every enemy in a finite 1,350-unit path.",recipe:{credits:48000,gold:36,crystal:30,weapon_array:3,quantum_core:4}}
+};
+function activeAbilityKind(p,now=Date.now()){return p?.abilityEffectEndsAt>now?String(p.abilityEffectKind||""):"";}
+function abilityEffectMultipliers(p,now=Date.now()){
+  const kind=activeAbilityKind(p,now);
+  return {kind,maxHpMult:kind==="health"?1.65:1,maxShieldMult:kind==="overshield"?2:kind==="defense"?1.45:1,damageMult:kind==="damage"?1.85:1,speedMult:kind==="speed"?2:1,shieldRegenMult:kind==="defense"?2.25:1,damageTakenMult:kind==="defense"?0.58:1};
+}
+function publicAbilityState(p,now=Date.now()){return {cooldownRemaining:Math.max(0,(Number(p?.abilityCooldownEndsAt)||0)-now)/1000,activeKind:activeAbilityKind(p,now)||null,effectRemaining:Math.max(0,(Number(p?.abilityEffectEndsAt)||0)-now)/1000};}
 function applyShipStats(p,refill=false){
   if(!p)return attachmentEffectsFor(p);
   p.equippedAttachments=normalizeAttachments(p.equippedAttachments||{});
-  const def=SHIP_TYPES[p.shipType]||SHIP_TYPES.scout,fx=attachmentEffectsFor(p);
+  const def=SHIP_TYPES[p.shipType]||SHIP_TYPES.scout,fx=attachmentEffectsFor(p),abilityFx=abilityEffectMultipliers(p);
   const planetSuitBonus=p.mode==="planet"?planetModuleEffects(p).suitHpBonus:0;
-  p.maxHp=Math.max(1,Math.floor((def.maxHp||100)+fx.maxHpBonus+planetSuitBonus));
+  p.maxHp=Math.max(1,Math.floor(((def.maxHp||100)+fx.maxHpBonus+planetSuitBonus)*abilityFx.maxHpMult));
   p._planetSuitBonus=planetSuitBonus;
-  p.maxShield=Math.max(0,Math.floor((def.maxShield||60)+fx.maxShieldBonus));
+  p.maxShield=Math.max(0,Math.floor(((def.maxShield||60)+fx.maxShieldBonus)*abilityFx.maxShieldMult));
   if(refill){p.hp=p.maxHp;p.shield=p.maxShield;}
   else{
     // Preserve valid 0 values. The old `Number(value) || max` pattern treated a depleted
@@ -1713,9 +1743,10 @@ function applyShipStats(p,refill=false){
   }
   return fx;
 }
-const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft","hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip","obelisk_core",...WEAPON_KEYS];
+const RES_KEYS=["dirt","stone","copper","iron","gold","crystal","fuel","gas_canister","oxygen_tank","ice_block","lava_rock","magma_core","toxic_sludge","sand","grass_tuft","hull_plate","engine_core","shield_matrix","weapon_array","cargo_pod","nav_chip","obelisk_core",...WEAPON_KEYS,...Object.keys(SERVER_REPAIR_ITEM_DEFS),...Object.keys(SERVER_ABILITY_DEFS)];
 const RES_BASE={dirt:1,stone:3,copper:9,iron:10,gold:40,crystal:60,fuel:25,gas_canister:30,oxygen_tank:35,ice_block:4,lava_rock:12,magma_core:22,toxic_sludge:8,sand:2,grass_tuft:1,hull_plate:85,engine_core:140,shield_matrix:170,weapon_array:190,cargo_pod:95,nav_chip:155,obelisk_core:800,weapon_laser_mk1:260,weapon_scatter_blaster:520,weapon_ion_lance:900,weapon_plasma_orb:1450,weapon_rail_cannon:2400,weapon_meteor_swarm:4200};
 const RES_RARITY={dirt:1,stone:2,copper:3,iron:3,gold:5,crystal:6,fuel:4,gas_canister:2,oxygen_tank:2,ice_block:2,lava_rock:3,magma_core:4,toxic_sludge:3,sand:1,grass_tuft:1,hull_plate:5,engine_core:6,shield_matrix:6,weapon_array:6,cargo_pod:5,nav_chip:6,obelisk_core:8,weapon_laser_mk1:3,weapon_scatter_blaster:4,weapon_ion_lance:5,weapon_plasma_orb:6,weapon_rail_cannon:7,weapon_meteor_swarm:8};
+for(const [key,def] of Object.entries({...SERVER_REPAIR_ITEM_DEFS,...SERVER_ABILITY_DEFS})){RES_BASE[key]=Math.max(1,Math.floor((def.recipe?.credits||100)/15));RES_RARITY[key]=def.rarity||1;}
 Object.assign(RES_BASE,{brake_servo:115,gyroscope_array:150,overdrive_thruster:220,combat_predictor:240,shield_capacitor:185,regen_coil:165,reinforced_bulkhead:175,maneuver_fins:130,titanium:70,cobalt:55,silicon:18,nano_fiber:95,circuit_board:80,plasma_cell:120,dark_matter_shard:260,stardust:145,alloy_frame:180,quantum_core:320,weapon_arc_pulser:1150,weapon_frost_shard:1280,weapon_sunflare_cannon:2100,weapon_graviton_burst:3200,weapon_bio_sprayer:1850,weapon_void_spinner:5200});
 Object.assign(RES_RARITY,{brake_servo:4,gyroscope_array:5,overdrive_thruster:6,combat_predictor:6,shield_capacitor:5,regen_coil:5,reinforced_bulkhead:5,maneuver_fins:4,titanium:5,cobalt:4,silicon:3,nano_fiber:5,circuit_board:4,plasma_cell:5,dark_matter_shard:7,stardust:6,alloy_frame:6,quantum_core:7,weapon_arc_pulser:5,weapon_frost_shard:5,weapon_sunflare_cannon:6,weapon_graviton_burst:7,weapon_bio_sprayer:6,weapon_void_spinner:8});
 RES_KEYS.push("brake_servo","gyroscope_array","overdrive_thruster","combat_predictor","shield_capacitor","regen_coil","reinforced_bulkhead","maneuver_fins","titanium","cobalt","silicon","nano_fiber","circuit_board","plasma_cell","dark_matter_shard","stardust","alloy_frame","quantum_core","weapon_arc_pulser","weapon_frost_shard","weapon_sunflare_cannon","weapon_graviton_burst","weapon_bio_sprayer","weapon_void_spinner");
@@ -1727,6 +1758,7 @@ const SERVER_EXTRA_RESOURCE_DEFS={
 const SERVER_PROC_RESOURCE_KEYS=[];
 const CLIENT_PROC_RESOURCE_KEYS=[];
 const SERVER_RESOURCE_PUBLIC_DEFS={};
+for(const [key,def] of Object.entries({...SERVER_REPAIR_ITEM_DEFS,...SERVER_ABILITY_DEFS}))SERVER_RESOURCE_PUBLIC_DEFS[key]={name:def.name,rarity:def.rarity,color:def.color,base:RES_BASE[key],description:def.description,craftable:true,kind:def.kind};
 const SERVER_EXTRA_RESOURCE_PUBLIC_DEFS={
   dark_obsidian:{name:"Dark Obsidian",rarity:6,color:"#07070b",base:210,description:"Glass-black volcanic stone used in heavy hulls and void quests."},
   purple_miasma:{name:"Purple Miasma",rarity:5,color:"#9b42ff",base:145,description:"Violet vapor-block mineral used for exotic reactors and miasma contracts."},
@@ -2005,6 +2037,7 @@ function authHasNonDefaultProgress(auth){
   if(auth.attrs&&typeof auth.attrs==="object"&&Object.entries(auth.attrs).some(([_,v])=>Number(v)>1))return true;
   if(auth.weaponLevels&&typeof auth.weaponLevels==="object"&&Object.entries(auth.weaponLevels).some(([k,v])=>isWeaponKey(k)&&Number(v)>1))return true;
   if(auth.equippedWeapon&&auth.equippedWeapon!=="weapon_laser_mk1")return true;
+  if(auth.equippedAbility&&SERVER_ABILITY_DEFS[auth.equippedAbility])return true;
   if(objectHasAnyValue(auth.cosmeticInventory)||objectHasAnyValue(auth.redeemedCoupons)||Object.values(auth.equippedCosmetics||{}).some(Boolean))return true;
   return false;
 }
@@ -2044,12 +2077,13 @@ function playerHasSaveWorthyProgress(p){
   if(p.weaponLevels&&Object.entries(p.weaponLevels).some(([k,v])=>isWeaponKey(k)&&Number(v)>1))return true;
   if(Object.values(normalizePlanetModules(p.planetModules||{})).some(v=>v>0))return true;
   if(p.equippedWeapon&&p.equippedWeapon!=="weapon_laser_mk1")return true;
+  if(p.equippedAbility&&SERVER_ABILITY_DEFS[p.equippedAbility])return true;
   if(objectHasAnyValue(p.cosmeticInventory)||objectHasAnyValue(p.redeemedCoupons)||Object.values(p.equippedCosmetics||{}).some(Boolean))return true;
   return false;
 }
 function trustedSnapshotForPlayer(p,reason="cache"){
   if(!p?.memberId)return null;
-  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},storyProgress:normalizeStoryProgress(p.storyProgress||{}),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),planetModules:normalizePlanetModules(p.planetModules||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
+  return {memberId:String(p.memberId),displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:normalizeInventorySlots(p.invSlots||emptySlots(p.maxSlots||24),p.maxSlots||24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},storyProgress:normalizeStoryProgress(p.storyProgress||{}),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAbility:p.equippedAbility||null,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),planetModules:normalizePlanetModules(p.planetModules||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,persistenceLoaded:true,savedGameReady:true,reason,updatedAt:Date.now()};
 }
 function rememberTrustedSnapshot(p,reason="update"){
   if(!p?.memberId||!p.persistenceLoaded)return;
@@ -2102,6 +2136,7 @@ function cleanClientWixSnapshot(snapshot,memberId){
   if(snapshot.storyProgress&&typeof snapshot.storyProgress==="object")out.storyProgress=normalizeStoryProgress(snapshot.storyProgress);
   if(typeof snapshot.equippedWeapon==="string"&&isWeaponKey(snapshot.equippedWeapon))out.equippedWeapon=snapshot.equippedWeapon;
   if(snapshot.weaponLevels&&typeof snapshot.weaponLevels==="object")out.weaponLevels=snapshot.weaponLevels;
+  if(typeof snapshot.equippedAbility==="string"&&SERVER_ABILITY_DEFS[snapshot.equippedAbility])out.equippedAbility=snapshot.equippedAbility;
   if(snapshot.equippedAttachments&&typeof snapshot.equippedAttachments==="object")out.equippedAttachments=normalizeAttachments(snapshot.equippedAttachments);
   if(snapshot.planetModules&&typeof snapshot.planetModules==="object")out.planetModules=normalizePlanetModules(snapshot.planetModules);
   if(Array.isArray(snapshot.activeMercs))out.activeMercs=snapshot.activeMercs;
@@ -2133,7 +2168,7 @@ function combineAuthWithClientSnapshot(auth,snapshot){
   const out={...auth};
   // Signed token data wins when it contains a value. The snapshot fills gaps when
   // Wix sends member auth separately from the persisted inventory payload.
-  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","storyProgress","equippedAttachments","planetModules","activeMercs","buildings","cosmeticInventory","equippedCosmetics","stationTierCosmetics","planetTypeCosmetics","redeemedCoupons","signupCreditBonusGranted","signupCreditBonusEligible","isNewMember","newMember","noSavedGame","savedGameMissing","freshAccount","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
+  for(const k of ["displayName","credits","maxSlots","shipType","level","xp","attrs","badgeRewards","storyProgress","equippedAbility","equippedAttachments","planetModules","activeMercs","buildings","cosmeticInventory","equippedCosmetics","stationTierCosmetics","planetTypeCosmetics","redeemedCoupons","signupCreditBonusGranted","signupCreditBonusEligible","isNewMember","newMember","noSavedGame","savedGameMissing","freshAccount","accountCreatedAt","persistenceLoaded","savedGameReady","snapshotReady","inventoryReady","allowEmptyInventory"]){
     if(out[k]===undefined&&snap[k]!==undefined)out[k]=snap[k];
   }
   if(!authHasInventoryPayload(out)&&authHasInventoryPayload(snap)){
@@ -2246,6 +2281,7 @@ function emitInventorySync(p,reason="sync"){
     credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),inventory:inventoryCounts(p),
     level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},
     equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},
+    equippedAbility:p.equippedAbility||null,ability:publicAbilityState(p),
     equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),attachmentDefs:ATTACHMENT_DEFS,planetModules:normalizePlanetModules(p.planetModules||{}),moduleDefs:publicPlanetModuleDefs(),storyProgress:normalizeStoryProgress(p.storyProgress||{}),reason,
     persistenceLoaded:!!p.persistenceLoaded,accountLoaded:!!p.accountLoaded,memberId:p.memberId||null
   });
@@ -2256,7 +2292,7 @@ async function persistPlayerNow(p,reason="update"){
   if(!p.persistenceLoaded){console.warn("Wix persistence skipped: account inventory snapshot not loaded yet", p?.id, p?.memberId, reason);return;}
   if(!playerHasSaveWorthyProgress(p)&&!p.signupCreditBonusGranted){console.warn("Wix persistence skipped: refusing to save empty/default account snapshot", p?.id, p?.memberId, reason);return;}
   if(!WIX_PERSIST_URL||!WIX_PERSIST_SECRET){console.warn("Wix persistence skipped: missing WIX_PERSIST_URL or WIX_PERSIST_SECRET", {hasUrl:!!WIX_PERSIST_URL,hasSecret:!!WIX_PERSIST_SECRET});return;}
-  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},storyProgress:normalizeStoryProgress(p.storyProgress||{}),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),planetModules:normalizePlanetModules(p.planetModules||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,reason,updatedAt:Date.now()};
+  const payload={memberId:p.memberId,displayName:p.name,credits:p.credits||0,maxSlots:p.maxSlots||24,invSlots:p.invSlots||emptySlots(24),level:p.level||1,xp:p.xp||0,shipType:p.shipType||"scout",attrs:p.attrs||{},badgeRewards:p.badgeRewards||{},storyProgress:normalizeStoryProgress(p.storyProgress||{}),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAbility:p.equippedAbility||null,equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),planetModules:normalizePlanetModules(p.planetModules||{}),activeMercs:(p.activeMercs||[]).map(publicMerc),buildings:buildingSnapshotForPlayer(p),cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),signupCreditBonusGranted:!!p.signupCreditBonusGranted,reason,updatedAt:Date.now()};
   try{
     const res = await fetch(WIX_PERSIST_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${WIX_PERSIST_SECRET}`},body:JSON.stringify(payload)});
     if(!res.ok){
@@ -2336,6 +2372,7 @@ function applyAuthAccountToPlayer(p,auth){
   if(auth.storyProgress&&typeof auth.storyProgress==="object"){const incoming=normalizeStoryProgress(auth.storyProgress),cur=normalizeStoryProgress(p.storyProgress||{});p.storyProgress=normalizeStoryProgress({completed:Math.max(cur.completed,incoming.completed),startedAt:Math.min(cur.startedAt,incoming.startedAt),updatedAt:Math.max(cur.updatedAt,incoming.updatedAt)});}
   if(auth.weaponLevels&&typeof auth.weaponLevels==="object"){p.weaponLevels={...(p.weaponLevels||{})};for(const [k,v] of Object.entries(auth.weaponLevels)){if(isWeaponKey(k)){const lvl=Math.max(1,Math.min(20,Math.floor(Number(v)||1)));p.weaponLevels[k]=lvl;}}}
   if(typeof auth.equippedWeapon==="string"&&isWeaponKey(auth.equippedWeapon))p.equippedWeapon=auth.equippedWeapon;
+  if(typeof auth.equippedAbility==="string"&&SERVER_ABILITY_DEFS[auth.equippedAbility])p.equippedAbility=auth.equippedAbility;
   if(auth.equippedAttachments&&typeof auth.equippedAttachments==="object")p.equippedAttachments=normalizeAttachments(auth.equippedAttachments);
   if(auth.planetModules&&typeof auth.planetModules==="object")p.planetModules=normalizePlanetModules(auth.planetModules);
   applyShipStats(p,false);
@@ -2686,7 +2723,8 @@ function applyShieldHullDamageToPlayer(target, rawDamage, useArmor=true){
   const raw=Math.max(0,Math.min(220,Number(rawDamage)||0));
   if(raw<=0)return {damage:0,hpDamage:0,shieldDamage:0,killed:false};
   const armor=useArmor ? Math.max(0.2,1+((((target.attrs||{}).armor)||1)-1)*0.2) : 1;
-  let dmg=raw/armor,shieldDamage=0,hpDamage=0;
+  const abilityFx=abilityEffectMultipliers(target);
+  let dmg=raw/armor*abilityFx.damageTakenMult,shieldDamage=0,hpDamage=0;
   // Keep an actual 0 shield as 0. Never use `shield || maxShield` here.
   target.maxShield=Math.max(0,Number.isFinite(Number(target.maxShield))?Number(target.maxShield):0);
   target.shield=Math.max(0,Math.min(Number.isFinite(Number(target.shield))?Number(target.shield):0,target.maxShield));
@@ -2837,11 +2875,12 @@ function tickPlayers(dt){
     if(p.mode!=="space")continue;
     const ship=SHIP_TYPES[p.shipType]||SHIP_TYPES.scout;
     const fx=applyShipStats(p,false);
-    const speedStat=(1+((p.attrs.speed-1)*0.3))*ship.thrustMult*fx.thrustMult;
+    const abilityFx=abilityEffectMultipliers(p);
+    const speedStat=(1+((p.attrs.speed-1)*0.3))*ship.thrustMult*fx.thrustMult*abilityFx.speedMult;
     const brakingStat=(1+(((p.attrs.braking||1)-1)*0.22))*Math.max(0.35,(ship.brakingMult||1))*fx.brakingMult;
     const turnStat=Math.max(0.55,(ship.turnMult||1))*fx.turnMult;
     const gasEff=(1/Math.max(0.3,1+((p.attrs.gasEfficiency-1)*0.15)))/Math.max(0.35,fx.gasEfficiencyMult);
-    const shRegen=3*(1+((p.attrs.shieldRegen-1)*0.4))*ship.shieldRegenMult*fx.shieldRegenMult;
+    const shRegen=3*(1+((p.attrs.shieldRegen-1)*0.4))*ship.shieldRegenMult*fx.shieldRegenMult*abilityFx.shieldRegenMult;
     const inp=p.input;
     if(inp.rotLeft)p.angle-=ROT_SPEED*turnStat*dt;
     if(inp.rotRight)p.angle+=ROT_SPEED*turnStat*dt;
@@ -2859,7 +2898,7 @@ function tickPlayers(dt){
     if(p.shieldRegenTimer<=0&&p.shield<p.maxShield)p.shield=Math.min(p.maxShield,p.shield+shRegen*dt);
     if(inp.shootX!==null&&p.shootCooldown<=0&&p.hp>0){
       const ang=Math.atan2(inp.shootY-p.y,inp.shootX-p.x);
-      const dmgStat=(1+((p.attrs.damage-1)*0.4))*ship.damageMult*fx.damageMult;
+      const dmgStat=(1+((p.attrs.damage-1)*0.4))*ship.damageMult*fx.damageMult*abilityFx.damageMult;
       p.shootCooldown=spawnWeaponProjectiles(p,ang,dmgStat);inp.shootX=null;inp.shootY=null;
     }
     if(p.shootCooldown>0)p.shootCooldown=Math.max(0,p.shootCooldown-dt);
@@ -3247,7 +3286,7 @@ io.on("connection",socket=>{
     if(!resumed)restorePersistentBuildingsForPlayer(p);
     if(auth&&!resumed)maybeGrantAccountCreationBonus(p,auth,"join");
     applyShipStats(p,false);
-    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),planetModules:normalizePlanetModules(p.planetModules||{}),moduleDefs:publicPlanetModuleDefs(),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),worldCosmetics:GLOBAL_WORLD_COSMETICS,worldPlanetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS,storyProgress:normalizeStoryProgress(p.storyProgress||{}),resourceDefs:SERVER_RESOURCE_PUBLIC_DEFS,resourceKeys:RES_KEYS,shopResourceKeys:SHOP_RESOURCE_KEYS,resourceCatalogVersion:2,spriteCosmeticRegistryVersion:1,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
+    socket.emit("welcome",{id:socket.id,memberId:p.memberId||null,x:p.x,y:p.y,color:p.color,galaxySeed:GALAXY_SEED,prices:economy.snapshot(),playerCount:players.size,shipTypes:SHIP_TYPES,ownedStationTiers:OWNED_STATION_TIERS,structureTypes:PLAYER_STRUCTURE_TYPES,serverName:SERVER_NAME,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,level:p.level||1,xp:p.xp||0,xpToNext:playerXpNeeded(p.level||1),attrPoints:p.attrPoints||0,attrs:p.attrs||{},activeMercs:(p.activeMercs||[]).map(publicMerc),equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAbility:p.equippedAbility||null,ability:publicAbilityState(p),equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),planetModules:normalizePlanetModules(p.planetModules||{}),moduleDefs:publicPlanetModuleDefs(),weaponDefs:WEAPON_DEFS,attachmentDefs:ATTACHMENT_DEFS,cosmeticDefs:COSMETIC_DEFS,cosmeticInventory:normalizeCosmeticInventory(p.cosmeticInventory||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{}),stationTierCosmetics:normalizeStationTierCosmetics(p.stationTierCosmetics||{}),planetTypeCosmetics:normalizePlanetTypeCosmetics(p.planetTypeCosmetics||{}),redeemedCoupons:normalizeRedeemedCoupons(p.redeemedCoupons||{}),worldCosmetics:GLOBAL_WORLD_COSMETICS,worldPlanetTypeCosmetics:GLOBAL_PLANET_TYPE_COSMETICS,storyProgress:normalizeStoryProgress(p.storyProgress||{}),resourceDefs:SERVER_RESOURCE_PUBLIC_DEFS,resourceKeys:RES_KEYS,shopResourceKeys:SHOP_RESOURCE_KEYS,resourceCatalogVersion:2,spriteCosmeticRegistryVersion:1,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
     emitInventorySync(p,"login");sendPlanetModuleState(socket,p);
     socket.broadcast.emit("playerJoined",{id:p.id,name:p.name,color:p.color});
     broadcastChat("Server",`${p.name} has ${resumed?"reconnected to":"entered"} the galaxy.`,"#78ff8a");
@@ -3281,7 +3320,7 @@ io.on("connection",socket=>{
     }
     if(!linkResult.alreadyLinked)restorePersistentBuildingsForPlayer(p);
     maybeGrantAccountCreationBonus(p,auth,"link_account");
-    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),attachmentDefs:ATTACHMENT_DEFS,planetModules:normalizePlanetModules(p.planetModules||{}),moduleDefs:publicPlanetModuleDefs(),storyProgress:normalizeStoryProgress(p.storyProgress||{}),alreadyLinked:!!linkResult.alreadyLinked,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
+    socket.emit("accountLinked",{memberId:p.memberId,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",weaponLevels:p.weaponLevels||{weapon_laser_mk1:1},equippedAbility:p.equippedAbility||null,ability:publicAbilityState(p),equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),attachmentDefs:ATTACHMENT_DEFS,planetModules:normalizePlanetModules(p.planetModules||{}),moduleDefs:publicPlanetModuleDefs(),storyProgress:normalizeStoryProgress(p.storyProgress||{}),alreadyLinked:!!linkResult.alreadyLinked,persistenceLoaded:!!p.persistenceLoaded,signupCreditBonusGranted:!!p.signupCreditBonusGranted});
     emitInventorySync(p,linkResult.alreadyLinked?"account_link_confirmed":"account_linked");
     if(!p.persistenceLoaded)socket.emit("accountSyncPending",{reason:"Waiting for Wix inventory snapshot before saving."});
     if(!linkResult.alreadyLinked&&p.persistenceLoaded)persistPlayerSoon(p,"account_linked");
@@ -3437,6 +3476,51 @@ io.on("connection",socket=>{
     socket.emit("craftWeaponConfirm",{weaponKey,credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,weaponLevels:p.weaponLevels});
     syncAndPersist(p,"craft_weapon");
   });
+  socket.on("craftRepairItem",({itemKey}={})=>{
+    const p=players.get(socket.id),key=String(itemKey||""),def=SERVER_REPAIR_ITEM_DEFS[key];
+    if(!p||!def){socket.emit("abilityDenied",{reason:"Unknown repair recipe."});return;}
+    const check=canCraftRecipe(p,def.recipe);if(!check.ok){socket.emit("abilityDenied",{reason:check.reason||"Missing repair materials."});return;}
+    if(!canFitInventory(p,key,1)){socket.emit("abilityDenied",{reason:"Inventory full."});return;}
+    consumeCraftRecipe(p,def.recipe);addInventory(p,key,1);
+    socket.emit("repairItemCrafted",{itemKey:key,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots});syncAndPersist(p,"craft_repair_item");
+  });
+  socket.on("useRepairItem",({itemKey}={})=>{
+    const p=players.get(socket.id),key=String(itemKey||""),def=SERVER_REPAIR_ITEM_DEFS[key];
+    if(!p||!def||inventoryCount(p,key)<=0){socket.emit("abilityDenied",{reason:"That repair item is not available."});return;}
+    applyShipStats(p,false);const current=def.kind==="shield"?p.shield:p.hp,maximum=def.kind==="shield"?p.maxShield:p.maxHp;
+    if(current>=maximum){socket.emit("abilityDenied",{reason:`${def.kind==="shield"?"Shield":"Hull"} is already full.`});return;}
+    removeInventory(p,key,1);if(def.kind==="shield")p.shield=Math.min(p.maxShield,p.shield+def.amount);else p.hp=Math.min(p.maxHp,p.hp+def.amount);
+    socket.emit("repairItemUsed",{itemKey:key,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});syncAndPersist(p,"use_repair_item");
+  });
+  socket.on("craftAbility",({abilityKey}={})=>{
+    const p=players.get(socket.id),key=String(abilityKey||""),def=SERVER_ABILITY_DEFS[key];
+    if(!p||!def){socket.emit("abilityDenied",{reason:"Unknown ability recipe."});return;}
+    const check=canCraftRecipe(p,def.recipe);if(!check.ok){socket.emit("abilityDenied",{reason:check.reason||"Missing ability materials."});return;}
+    if(!canFitInventory(p,key,1)){socket.emit("abilityDenied",{reason:"Inventory full."});return;}
+    consumeCraftRecipe(p,def.recipe);addInventory(p,key,1);
+    socket.emit("abilityCrafted",{abilityKey:key,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,equippedAbility:p.equippedAbility||null,ability:publicAbilityState(p)});syncAndPersist(p,"craft_ability");
+  });
+  socket.on("equipAbility",({abilityKey}={})=>{
+    const p=players.get(socket.id),key=String(abilityKey||"");
+    if(!p||!SERVER_ABILITY_DEFS[key]||inventoryCount(p,key)<=0){socket.emit("abilityDenied",{reason:"You do not own that ability."});return;}
+    p.equippedAbility=key;socket.emit("abilityEquipped",{abilityKey:key,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,equippedAbility:key,ability:publicAbilityState(p)});syncAndPersist(p,"equip_ability");
+  });
+  socket.on("useAbility",({angle}={})=>{
+    const p=players.get(socket.id),key=String(p?.equippedAbility||""),def=SERVER_ABILITY_DEFS[key],now=Date.now();
+    if(!p||p.mode!=="space"||p.hp<=0){socket.emit("abilityDenied",{reason:"Abilities require a living ship in space."});return;}
+    if(!def||inventoryCount(p,key)<=0){socket.emit("abilityDenied",{reason:"Equip an owned ability first."});return;}
+    if(now<Number(p.abilityCooldownEndsAt||0)){socket.emit("abilityDenied",{reason:`${def.name} recharges in ${((p.abilityCooldownEndsAt-now)/1000).toFixed(1)}s.`});return;}
+    const safeAngle=Number.isFinite(Number(angle))?Number(angle):p.angle||0;p.abilityCooldownEndsAt=now+def.cooldown*1000;
+    p.abilityEffectKind=def.duration>0?def.kind:null;p.abilityEffectEndsAt=def.duration>0?now+def.duration*1000:0;applyShipStats(p,false);
+    if(def.kind==="overshield"||def.kind==="defense")p.shield=p.maxShield;
+    if(def.kind==="health")p.hp=p.maxHp;
+    if(def.kind==="mega_laser"){
+      const range=1350,width=30,damage=Math.min(250,Math.max(220,Math.round(240*(1+((p.attrs.damage-1)*.4))*(SHIP_TYPES[p.shipType]?.damageMult||1)*attachmentEffectsFor(p).damageMult))),endX=p.x+Math.cos(safeAngle)*range,endY=p.y+Math.sin(safeAngle)*range;
+      const beam={ownerId:p.id,x:p.x,y:p.y,endX,endY,range,width,damage,color:def.color,abilityKey:key};io.emit("megaLaserFired",beam);
+      for(const [targetId,target] of players){if(targetId===p.id||target.mode!=="space"||target.hp<=0||areAllied(p,target))continue;if(pointSegmentDistance(target.x,target.y,p.x,p.y,endX,endY)>shipHitRadiusFor(target)+width*.5)continue;const result=applyShieldHullDamageToPlayer(target,damage,true);io.to(targetId).emit("hit",{damage:result.damage,hp:target.hp,shield:target.shield,by:p.id,source:def.name});io.to(p.id).emit("hitConfirm",{targetId,damage:result.damage,weaponKey:key,color:def.color});if(result.killed)handlePlayerKill(targetId,p.id);}
+    }
+    const state=publicAbilityState(p);socket.emit("abilityUsed",{abilityKey:key,credits:p.credits,maxSlots:p.maxSlots,invSlots:p.invSlots,equippedAbility:key,ability:state,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield});syncAndPersist(p,"use_ability");
+  });
   socket.on("setCivilizationStationTask",({zoneId,stationId,task,targetZoneId,targetZone})=>{
     const p=players.get(socket.id);if(!p||p.mode!=="space")return;
     zoneId=safeZoneId(zoneId);stationId=safeZoneId(stationId);task=task==="attack"?"attack":task==="idle"?"idle":"mine";targetZoneId=safeZoneId(targetZoneId);
@@ -3486,9 +3570,9 @@ io.on("connection",socket=>{
   });
   socket.on("setAllCivilizationStationTasks",({zoneId,task,targetZoneId,targetZone})=>{
     const p=players.get(socket.id);zoneId=safeZoneId(zoneId);task=task==="attack"?"attack":task==="idle"?"idle":"mine";targetZoneId=safeZoneId(targetZoneId);
-    const zone=civilizationZones.get(zoneId);if(!p||!zone||!playerOwnsCivilizationZone(p,zone)){socket.emit("civilizationTaskDenied",{reason:"You do not own that civilization zone."});return;}
+    const zone=civilizationZones.get(zoneId);if(!p||p.mode!=="space"||!zone||!playerOwnsCivilizationZone(p,zone)){socket.emit("civilizationTaskDenied",{reason:"You do not own that civilization zone."});return;}
     if(Math.hypot(p.x-zone.x,p.y-zone.y)>660){socket.emit("civilizationTaskDenied",{reason:"Command fleets from the super station."});return;}
-    let target=null;if(task==="attack"){target=civilizationZones.get(targetZoneId)||targetZone;if(!targetZoneId||targetZoneId===zoneId||!target){socket.emit("civilizationTaskDenied",{reason:"Choose a nearby civilization target."});return;}}
+    let target=null;if(task==="attack"){target=civilizationZones.get(targetZoneId)||safeCivZoneInput(targetZone||{});if(!targetZoneId||targetZoneId===zoneId||!target||safeZoneId(target.zoneId||target.id)!==targetZoneId){socket.emit("civilizationTaskDenied",{reason:"Choose a nearby civilization target."});return;}const targetDist=Math.hypot((Number(target.x)||0)-zone.x,(Number(target.y)||0)-zone.y);if(!Number.isFinite(targetDist)||targetDist>8000){socket.emit("civilizationTaskDenied",{reason:"That civilization zone is too far from this command station."});return;}}
     ensureCivLogistics(zone);zone.stationTasks=zone.stationTasks||{};
     for(const st of civAllStations(zone))zone.stationTasks[st.id]=task==="attack"?civAttackTask(target,false):task==="idle"?civIdleTask():civMineTask();
     if(task==="attack"){zone.relations[targetZoneId]="enemy";const defender=civilizationZones.get(targetZoneId);if(defender&&!playerOwnsCivilizationZone(p,defender)){ensureCivLogistics(defender);defender.relations[zoneId]="enemy";defender.stationTasks=defender.stationTasks||{};for(const st of civAllStations(defender))defender.stationTasks[st.id]=civAttackTask(zone,true);}}
@@ -4356,12 +4440,12 @@ io.on("connection",socket=>{
     broadcastOwnedStationsList();
   });
 
-  socket.on("damageOwnedStation",({stationKey,damage})=>{
+  socket.on("damageOwnedStation",({stationKey,damage,source})=>{
     const p=players.get(socket.id);if(!p||p.mode!=="space")return;
     const st=ownedStations.get(stationKey);if(!st||st.destroyed)return;
     if(st.ownerId===p.id){socket.emit("stationDamageDenied",{stationKey,reason:"You cannot attack your own station."});return;}
     const owner=players.get(st.ownerId);if(owner&&areAllied(p,owner)){socket.emit("stationDamageDenied",{stationKey,reason:"Friendly faction/party station."});return;}
-    if(Math.hypot(p.x-st.x,p.y-st.y)>1200)return;
+    const stationAttackRange=source==="Mega Laser"?1450:1200;if(Math.hypot(p.x-st.x,p.y-st.y)>stationAttackRange)return;
     const result=applyStationDamage(st,damage);
     for(const sh of st.hiredShips){
       if(sh.state==="respawning")sh.respawnAt=Math.min(sh.respawnAt||Infinity,Date.now()+5000);
