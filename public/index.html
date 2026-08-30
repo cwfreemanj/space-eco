@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Space Eco — Desktop Browser v4.0.20</title>
+<title>Space Eco — Desktop Browser v4.0.21</title>
 <style>
 html,body{margin:0;height:100%;background:#05060a;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial;overflow:hidden}
 #wrap{display:flex;flex-direction:column;height:100%}
@@ -1106,6 +1106,19 @@ body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
 #galaxy-map-canvas{display:block;width:100%;height:auto;aspect-ratio:16/9;background:#03050b;border:2px solid #275b83;border-radius:8px;image-rendering:auto;cursor:crosshair;box-sizing:border-box}
 .galaxy-map-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;color:#91acd0;font:9px monospace}
 .galaxy-map-legend span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--legend,#7be6ff)}
+.galaxy-waypoint-editor{display:grid;grid-template-columns:minmax(150px,1fr) 110px 110px auto;gap:7px;align-items:center;margin:9px 0;padding:9px;border:1px solid #294e70;border-radius:8px;background:#081321}
+.galaxy-waypoint-editor input{box-sizing:border-box;min-width:0;height:32px;padding:5px 8px;border:1px solid #355c7d;border-radius:5px;background:#050b15;color:#eaf7ff;font:700 10px monospace;outline:none}
+.galaxy-waypoint-editor input:focus{border-color:#ffdd44;box-shadow:0 0 9px rgba(255,221,68,.18)}
+.galaxy-waypoint-editor button,.galaxy-waypoint-row button{border:1px solid #3d7198;border-radius:5px;background:#10243a;color:#d8f2ff;font:700 9px monospace;cursor:pointer}
+.galaxy-waypoint-editor button{height:32px;padding:5px 11px}
+.galaxy-waypoint-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:7px;margin:8px 0 10px;max-height:126px;overflow:auto}
+.galaxy-waypoint-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:5px;align-items:center;padding:7px 8px;border:1px solid #294e70;border-radius:7px;background:#091625;color:#bfeaff;font:9px monospace}
+.galaxy-waypoint-row strong{display:block;color:#ffdd44;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.galaxy-waypoint-row small{display:block;color:#8fa3cc;margin-top:2px}
+.galaxy-waypoint-row button{height:26px;padding:3px 7px}
+.galaxy-waypoint-row button.danger{border-color:#824651;color:#ff9b9b;background:#2a151c}
+.galaxy-waypoint-empty{padding:9px;border:1px dashed #294e70;border-radius:7px;color:#718aa7;font:9px monospace;text-align:center}
+@media (max-width:720px){.galaxy-waypoint-editor{grid-template-columns:1fr 1fr}.galaxy-waypoint-editor input:first-child{grid-column:1/-1}.galaxy-waypoint-list{grid-template-columns:1fr}}
 
 </style>
 </head>
@@ -1369,8 +1382,15 @@ body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
       <button type="button" data-map-range="7000" class="active">Sector</button>
       <button type="button" data-map-range="14000">Wide</button>
       <button type="button" id="galaxy-map-center">Center on Ship</button>
-      <span id="galaxy-map-status" style="font:9px monospace;color:#8fa3cc">Click the small radar or press 2 to open this map.</span>
+      <span id="galaxy-map-status" style="font:9px monospace;color:#8fa3cc">Click the map to choose marker coordinates.</span>
     </div>
+    <div class="galaxy-waypoint-editor" aria-label="Waypoint editor">
+      <input id="galaxy-waypoint-name" type="text" maxlength="32" placeholder="Marker name" autocomplete="off"/>
+      <input id="galaxy-waypoint-x" type="number" step="1" placeholder="X coordinate"/>
+      <input id="galaxy-waypoint-y" type="number" step="1" placeholder="Y coordinate"/>
+      <button type="button" id="galaxy-waypoint-add">Add Marker</button>
+    </div>
+    <div id="galaxy-waypoint-list" class="galaxy-waypoint-list" aria-live="polite"></div>
     <canvas id="galaxy-map-canvas" width="1120" height="630"></canvas>
     <div class="galaxy-map-legend">
       <span style="--legend:#78ff8a">Your ship</span>
@@ -1378,6 +1398,7 @@ body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
       <span style="--legend:#ffdd44">Stations / owned zones</span>
       <span style="--legend:#ff5544">Raiders</span>
       <span style="--legend:#cc88ff">Special discoveries</span>
+      <span style="--legend:#ff9df5">Your markers</span>
     </div>
   </div>
 </div>
@@ -1681,13 +1702,40 @@ function bindMobileControlSettings(){
 
 let minimapHitRect={x:0,y:0,w:0,h:0};
 let galaxyMapRange=7000,galaxyMapCenterX=0,galaxyMapCenterY=0,galaxyMapBound=false;
+const GALAXY_WAYPOINT_STORAGE_KEY="spaceEco.waypoints.v1";
+const GALAXY_WAYPOINT_LIMIT=24;
+let galaxyWaypoints=loadGalaxyWaypoints(),editingGalaxyWaypointId=null;
+function cleanGalaxyWaypoint(raw,index=0){
+  const x=Number(raw?.x),y=Number(raw?.y);if(!Number.isFinite(x)||!Number.isFinite(y))return null;
+  return {id:String(raw?.id||`wp_${Date.now().toString(36)}_${index}`).replace(/[^a-zA-Z0-9_-]/g,"").slice(0,64),name:String(raw?.name||`Marker ${index+1}`).replace(/[<>]/g,"").trim().slice(0,32)||`Marker ${index+1}`,x:Math.round(x),y:Math.round(y),createdAt:Math.max(0,Number(raw?.createdAt)||Date.now())};
+}
+function loadGalaxyWaypoints(){try{const parsed=JSON.parse(localStorage.getItem(GALAXY_WAYPOINT_STORAGE_KEY)||"[]");return (Array.isArray(parsed)?parsed:[]).map(cleanGalaxyWaypoint).filter(Boolean).slice(0,GALAXY_WAYPOINT_LIMIT);}catch(_){return[];}}
+function saveGalaxyWaypoints(){try{localStorage.setItem(GALAXY_WAYPOINT_STORAGE_KEY,JSON.stringify(galaxyWaypoints.slice(0,GALAXY_WAYPOINT_LIMIT)));}catch(_){}renderGalaxyWaypointList();}
+function setGalaxyWaypointEditor(waypoint=null){
+  editingGalaxyWaypointId=waypoint?.id||null;
+  const name=document.getElementById("galaxy-waypoint-name"),x=document.getElementById("galaxy-waypoint-x"),y=document.getElementById("galaxy-waypoint-y"),button=document.getElementById("galaxy-waypoint-add");
+  if(name)name.value=waypoint?.name||"";if(x)x.value=String(Math.round(waypoint?.x??ship.x??0));if(y)y.value=String(Math.round(waypoint?.y??ship.y??0));if(button)button.textContent=waypoint?"Save Rename":"Add Marker";
+}
+function addOrUpdateGalaxyWaypoint(){
+  const nameEl=document.getElementById("galaxy-waypoint-name"),xEl=document.getElementById("galaxy-waypoint-x"),yEl=document.getElementById("galaxy-waypoint-y"),name=String(nameEl?.value||"").replace(/[<>]/g,"").trim().slice(0,32),x=Number(xEl?.value),y=Number(yEl?.value),status=document.getElementById("galaxy-map-status");
+  if(!name||!Number.isFinite(x)||!Number.isFinite(y)){if(status)status.textContent="Enter a marker name and valid X/Y coordinates.";return;}
+  if(editingGalaxyWaypointId){const wp=galaxyWaypoints.find(item=>item.id===editingGalaxyWaypointId);if(wp){wp.name=name;wp.x=Math.round(x);wp.y=Math.round(y);if(status)status.textContent=`Renamed marker to ${name}.`;}}
+  else{if(galaxyWaypoints.length>=GALAXY_WAYPOINT_LIMIT){if(status)status.textContent=`Marker limit reached (${GALAXY_WAYPOINT_LIMIT}). Delete one before adding another.`;return;}galaxyWaypoints.push({id:`wp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`,name,x:Math.round(x),y:Math.round(y),createdAt:Date.now()});if(status)status.textContent=`Added ${name} at ${Math.round(x)}, ${Math.round(y)}.`;}
+  saveGalaxyWaypoints();setGalaxyWaypointEditor();drawGalaxyMapOverlay();
+}
+function deleteGalaxyWaypoint(id){const wp=galaxyWaypoints.find(item=>item.id===id);galaxyWaypoints=galaxyWaypoints.filter(item=>item.id!==id);if(editingGalaxyWaypointId===id)setGalaxyWaypointEditor();saveGalaxyWaypoints();const status=document.getElementById("galaxy-map-status");if(status)status.textContent=wp?`Deleted ${wp.name}.`:"Marker deleted.";drawGalaxyMapOverlay();}
+function renderGalaxyWaypointList(){
+  const list=document.getElementById("galaxy-waypoint-list");if(!list)return;list.replaceChildren();
+  if(!galaxyWaypoints.length){const empty=document.createElement("div");empty.className="galaxy-waypoint-empty";empty.textContent="No markers yet. Click the map or enter coordinates above, then choose Add Marker.";list.appendChild(empty);return;}
+  for(const wp of galaxyWaypoints){const row=document.createElement("div");row.className="galaxy-waypoint-row";const info=document.createElement("div"),title=document.createElement("strong"),coords=document.createElement("small");title.textContent=wp.name;coords.textContent=`${wp.x}, ${wp.y} · ${Math.round(Math.hypot(wp.x-ship.x,wp.y-ship.y)).toLocaleString()} away`;info.append(title,coords);const center=document.createElement("button"),rename=document.createElement("button"),del=document.createElement("button");center.type=rename.type=del.type="button";center.textContent="Center";rename.textContent="Rename";del.textContent="Delete";del.className="danger";center.addEventListener("click",()=>{galaxyMapCenterX=wp.x;galaxyMapCenterY=wp.y;drawGalaxyMapOverlay();});rename.addEventListener("click",()=>{setGalaxyWaypointEditor(wp);const nameInput=document.getElementById("galaxy-waypoint-name");nameInput?.focus();nameInput?.select();});del.addEventListener("click",()=>deleteGalaxyWaypoint(wp.id));row.append(info,center,rename,del);list.appendChild(row);}
+}
 function pointInsideMinimap(x,y){const r=minimapHitRect;return mode===MODE.SPACE&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h;}
 function galaxyMapIsOpen(){return isShown(document.getElementById("galaxy-map-panel"));}
 function closeGalaxyMap(){hidePanel("galaxy-map-panel");clearMovementInput();}
 function openGalaxyMap(){
   const panel=document.getElementById("galaxy-map-panel");if(!panel)return;
   galaxyMapCenterX=Number.isFinite(ship.x)?ship.x:0;galaxyMapCenterY=Number.isFinite(ship.y)?ship.y:0;
-  panel.style.display="flex";clearMovementInput();bindGalaxyMapUI();drawGalaxyMapOverlay();
+  panel.style.display="flex";clearMovementInput();bindGalaxyMapUI();if(!editingGalaxyWaypointId)setGalaxyWaypointEditor();renderGalaxyWaypointList();drawGalaxyMapOverlay();
 }
 function toggleGalaxyMap(){if(galaxyMapIsOpen())closeGalaxyMap();else openGalaxyMap();}
 function bindGalaxyMapUI(){
@@ -1695,6 +1743,9 @@ function bindGalaxyMapUI(){
   document.getElementById("galaxy-map-close")?.addEventListener("click",closeGalaxyMap);
   document.getElementById("galaxy-map-panel")?.addEventListener("click",e=>{if(e.target?.id==="galaxy-map-panel")closeGalaxyMap();});
   document.getElementById("galaxy-map-center")?.addEventListener("click",()=>{galaxyMapCenterX=ship.x;galaxyMapCenterY=ship.y;drawGalaxyMapOverlay();});
+  document.getElementById("galaxy-waypoint-add")?.addEventListener("click",addOrUpdateGalaxyWaypoint);
+  for(const id of ["galaxy-waypoint-name","galaxy-waypoint-x","galaxy-waypoint-y"])document.getElementById(id)?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();addOrUpdateGalaxyWaypoint();}});
+  document.getElementById("galaxy-map-canvas")?.addEventListener("click",event=>{const c=event.currentTarget,rect=c.getBoundingClientRect(),px=(event.clientX-rect.left)/Math.max(1,rect.width),py=(event.clientY-rect.top)/Math.max(1,rect.height),wx=galaxyMapCenterX+(px-.5)*galaxyMapRange*2,wy=galaxyMapCenterY+(py-.5)*galaxyMapRange*2,x=document.getElementById("galaxy-waypoint-x"),y=document.getElementById("galaxy-waypoint-y"),name=document.getElementById("galaxy-waypoint-name"),status=document.getElementById("galaxy-map-status");if(x)x.value=String(Math.round(wx));if(y)y.value=String(Math.round(wy));if(status)status.textContent=`Selected ${Math.round(wx)}, ${Math.round(wy)}. Name it, then add the marker.`;name?.focus();});
   for(const btn of document.querySelectorAll("[data-map-range]"))btn.addEventListener("click",()=>{galaxyMapRange=Math.max(2000,Number(btn.dataset.mapRange)||7000);for(const b of document.querySelectorAll("[data-map-range]"))b.classList.toggle("active",b===btn);drawGalaxyMapOverlay();});
 }
 function collectKnownGalaxyObjects(){
@@ -1722,6 +1773,7 @@ function drawGalaxyMapOverlay(){
   for(const p of eventPirates||[]){const m=wm(p.x,p.y);if(!inside(m))continue;g.fillStyle="#ff5544";g.beginPath();g.arc(m.x,m.y,3,0,Math.PI*2);g.fill();}
   for(const r of eventShipRuins||[]){const m=wm(r.x,r.y);if(!inside(m))continue;g.strokeStyle="#78ff8a";g.strokeRect(m.x-4,m.y-4,8,8);}
   for(const p of otherPlayers.values()){const m=wm(p.x,p.y);if(!inside(m))continue;g.fillStyle=p.color||"#7be6ff";g.beginPath();g.arc(m.x,m.y,3,0,Math.PI*2);g.fill();}
+  for(const wp of galaxyWaypoints){const m=wm(wp.x,wp.y);if(!inside(m))continue;g.save();g.translate(m.x,m.y);g.rotate(Math.PI/4);g.fillStyle="#ff9df5";g.strokeStyle="#fff0ff";g.lineWidth=1.5;g.fillRect(-5,-5,10,10);g.strokeRect(-5,-5,10,10);g.restore();g.fillStyle="#ffd8fa";g.font="bold 10px monospace";g.textAlign="center";g.fillText(`${wp.name} · ${wp.x}, ${wp.y}`,m.x,Math.max(13,m.y-10));g.textAlign="left";}
   const me=wm(ship.x,ship.y);g.save();g.translate(me.x,me.y);g.rotate(ship.angle||0);g.fillStyle="#78ff8a";g.beginPath();g.moveTo(9,0);g.lineTo(-6,-5);g.lineTo(-3,0);g.lineTo(-6,5);g.closePath();g.fill();g.restore();
   g.fillStyle="#b8cbe8";g.font="11px monospace";g.fillText(`Center ${Math.round(cx)}, ${Math.round(cy)} · Range ±${range.toLocaleString()}`,10,18);document.getElementById("galaxy-map-coords").textContent=`${Math.round(ship.x)}, ${Math.round(ship.y)}`;
 }
@@ -3586,7 +3638,7 @@ function applyAuthoritativeNpcFleetsToVisibleStations(){
     const snapshot=authoritativeNpcFleetByStation.get(String(st?.id||""));
     if(!snapshot){if(st?._authoritativeNpcFleet&&now-Number(st._authoritativeNpcFleetAt||0)>AUTHORITATIVE_NPC_FLEET_STALE_MS)st._authoritativeNpcFleet=false;continue;}
     if(now-Number(snapshot.receivedAt||0)>AUTHORITATIVE_NPC_FLEET_STALE_MS){st._authoritativeNpcFleet=false;continue;}
-    st._authoritativeNpcFleet=true;st._authoritativeNpcFleetAt=snapshot.receivedAt;st.civTask=snapshot.task||st.civTask||"mine";
+    st._authoritativeNpcFleet=true;st._authoritativeNpcFleetAt=snapshot.receivedAt;st._authoritativeServerCombat=!!snapshot.serverCombat;st.civTask=snapshot.task||st.civTask||"mine";
     st._authoritativeCivTask=snapshot.task||"mine";
     const attackLead=(snapshot.ships||[]).find(ship=>ship?.target&&ship?.task==="attack")||null;
     st._authoritativeCivTarget=attackLead?.target||null;
@@ -3607,7 +3659,7 @@ function applyAuthoritativeNpcFleetsToVisibleStations(){
       // Applying the server's zone-centre waypoint every snapshot was making
       // an attacking fleet fly through every defender and pile onto the
       // Super Station without ever entering the combat branch.
-      const clientRaid=raw.task==="attack"||snapshot.task==="attack";
+      const clientRaid=(raw.task==="attack"||snapshot.task==="attack")&&!snapshot.serverCombat;
       const sx=Number(raw.x),sy=Number(raw.y),isNew=!Number.isFinite(Number(ts.x))||!Number.isFinite(Number(ts.y)),far=!isNew&&Math.hypot(ts.x-sx,ts.y-sy)>950;
       if(isNew||(!clientRaid&&far)){ts.x=Number.isFinite(sx)?sx:st.x;ts.y=Number.isFinite(sy)?sy:st.y;}
       ts.id=String(raw.id||ts.id||fleetId);ts.stationId=st.id;ts.homeSlot=Math.max(0,Math.floor(Number(raw.homeSlot)||Number(ts.homeSlot)||0));ts.civLogisticsKey=fleetId;
@@ -3627,6 +3679,14 @@ function updateAuthoritativeNpcFleetShip(ts,station,dt){
   if(!ts?.authoritativeNpc)return false;
   const now=authoritativeNpcFleetNow();
   if(now-Number(ts.authoritativeReceivedAt||0)>AUTHORITATIVE_NPC_FLEET_STALE_MS){ts.authoritativeNpc=false;if(station)station._authoritativeNpcFleet=false;return false;}
+  // Server-synced logistics must not suppress the ordinary NPC combat brain.
+  // A directly attacked ship or threatened station temporarily owns its local
+  // chase/firing path; fresh snapshots still provide its health and recovery
+  // baseline after the threat is gone.
+  const defensiveTarget=station?._authoritativeServerCombat?null:resolveNpcTradeShipCombatTarget(ts,station);
+  if(defensiveTarget&&dist(ts.x,ts.y,defensiveTarget.x,defensiveTarget.y)<=Math.max(1750,(ts.combatRange||320)*5)){
+    ts.authoritativeNpc=false;ts.state="combat";ts.stateTimer=999;ts.shootTimer=Math.min(Number(ts.shootTimer)||0,.2);return false;
+  }
   const targetX=Number(ts._serverX),targetY=Number(ts._serverY),blend=clamp(Math.max(.16,Number(dt)||0)*10,0,1);
   if(Number.isFinite(targetX)&&Number.isFinite(targetY)){if(Math.hypot(ts.x-targetX,ts.y-targetY)>500){ts.x=targetX;ts.y=targetY;}else{ts.x=lerp(ts.x,targetX,blend);ts.y=lerp(ts.y,targetY,blend);}}
   ts.vx=Number(ts._serverVx)||0;ts.vy=Number(ts._serverVy)||0;ts.angle=Number.isFinite(Number(ts._serverAngle))?Number(ts._serverAngle):ts.angle;
@@ -4207,6 +4267,11 @@ function applyCivilizationRaidDamage(ts,station,target){
     showFT(`TURRET -${Math.round(dmg)}`,target.obj.x,target.obj.y,"#ff5544",8);
     if(target.obj.hp<=0)destroyCivilizationTurret(target.obj,target.zone,"attacking ships");
   }
+}
+function reportPersistentCivilizationDamage(zoneId,stationId,entityType,entityId,damage){
+  zoneId=String(zoneId||"");entityId=String(entityId||"");
+  if(!zoneId||!entityId||!civilizationZonesById?.has(zoneId))return;
+  socket.emit("damageCivilizationEntity",{zoneId,stationId:stationId||null,entityType,entityId,damage:Math.max(0,Number(damage)||0)});
 }
 function npcRawTargetsCivilizationZone(raw,zoneId){
   if(!raw||!zoneId)return false;
@@ -6928,6 +6993,32 @@ socket.on("worldState",({self,others,pvpProjectiles:sp,npcFleetState})=>{
   if(npcFleetState)applyAuthoritativeNpcFleetSnapshot(npcFleetState);
 });
 
+socket.on("civilizationCombatShot",impact=>{
+  if(!impact)return;
+  spawnWarProjectile(Number(impact.fromX)||0,Number(impact.fromY)||0,Number(impact.toX)||0,Number(impact.toY)||0,impact.color||"#ffdd44",380);
+  if(impact.targetType==="ship"){
+    const stations=impact.targetStationId?visibleStations.filter(st=>String(st.id)===String(impact.targetStationId)):visibleStations;
+    for(const st of stations){const ts=(st.tradeShips||[]).find(candidate=>String(candidate.civLogisticsKey||candidate.id)===String(impact.targetId));if(ts){ts.hp=Math.max(0,Number(impact.hp)||0);ts.shield=Math.max(0,Number(impact.shield)||0);break;}}
+  }else if(impact.targetType==="station"){
+    const st=visibleStations.find(candidate=>String(candidate.id)===String(impact.targetId));
+    if(st){st.hp=Math.max(0,Number(impact.hp)||0);st.shield=Math.max(0,Number(impact.shield)||0);if(impact.destroyed)st.destroyed=true;}
+  }else if(impact.targetType==="turret"){
+    const zone=visibleCivZoneById(impact.targetZoneId),turret=(zone?.turrets||[]).find(candidate=>String(candidate.id)===String(impact.targetId));
+    if(turret){turret.hp=Math.max(0,Number(impact.hp)||0);turret.shield=Math.max(0,Number(impact.shield)||0);if(impact.destroyed)turret.destroyed=true;}
+  }
+});
+socket.on("civilizationEntityDamaged",impact=>{
+  if(!impact)return;
+  if(impact.entityType==="ship"){
+    const stations=impact.stationId?visibleStations.filter(st=>String(st.id)===String(impact.stationId)):visibleStations;
+    for(const st of stations){const ts=(st.tradeShips||[]).find(candidate=>String(candidate.civLogisticsKey||candidate.id)===String(impact.entityId));if(ts){ts.hp=Math.max(0,Number(impact.hp)||0);ts.shield=Math.max(0,Number(impact.shield)||0);break;}}
+  }else if(impact.entityType==="station"){
+    const st=visibleStations.find(candidate=>String(candidate.id)===String(impact.entityId));if(st){st.hp=Math.max(0,Number(impact.hp)||0);st.shield=Math.max(0,Number(impact.shield)||0);if(impact.destroyed)st.destroyed=true;}
+  }else if(impact.entityType==="turret"){
+    const zone=visibleCivZoneById(impact.zoneId),turret=(zone?.turrets||[]).find(candidate=>String(candidate.id)===String(impact.entityId));if(turret){turret.hp=Math.max(0,Number(impact.hp)||0);turret.shield=Math.max(0,Number(impact.shield)||0);if(impact.destroyed)turret.destroyed=true;}
+  }
+});
+
 socket.on("pvpProjectileSpawn",({projectile}={})=>{
   if(!projectile||!projectile.id||projectile.ownerId===player.id)return;
   if(pvpProjectiles.some(p=>p.id===projectile.id))return;
@@ -7439,6 +7530,7 @@ function updateSpace(dt){
           const ownCivTarget=stationBelongsToPlayerOwnedCivilization(st);
           if(!ownCivTarget)callOwnedTradeShipsToAssist({type:"npcTradeShip",stationId:st.id,shipId:ts.id,x:ts.x,y:ts.y},"enemy ship");
           ts.hp-=p.damage;
+          if(st.civilizationZoneId)reportPersistentCivilizationDamage(st.civilizationZoneId,st.id,"ship",ts.civLogisticsKey||ts.id,p.damage);
           if(ownCivTarget){
             startNpcShipSelfDefenseAgainstPlayer(ts,st);
             showFT("SELF DEF -"+Math.round(p.damage),ts.x,ts.y,"#ffcc44",9);
@@ -7474,6 +7566,7 @@ function updateSpace(dt){
           if(t.destroyed)continue;
           if(dist(p.x,p.y,t.x,t.y)<15){
             t.hp=Math.max(0,(t.hp||t.maxHp||260)-p.damage);
+            reportPersistentCivilizationDamage(z.id||z.zoneId,null,"turret",t.id,p.damage);
             if(z.isOwn){
               t.assistTarget=null;
               showFT("OWN TURRET -"+Math.round(p.damage),t.x,t.y-12,"#ffcc44",8);
@@ -7512,6 +7605,7 @@ function updateSpace(dt){
           const ownCivTarget=stationBelongsToPlayerOwnedCivilization(st);
           if(!ownCivTarget)callOwnedTradeShipsToAssist({type:"npcStation",stationId:st.id,x:st.x,y:st.y},"enemy station");
           const result=applyDamageToStation(st,p.damage,ownCivTarget?{suppressAggro:true}:{});
+          if(st.civilizationZoneId)reportPersistentCivilizationDamage(st.civilizationZoneId,st.id,"station",st.id,p.damage);
           if(!ownCivTarget){
             aggroNpcStation(st);
             if(st.civilizationZoneId)triggerNpcCivilizationZoneAggro(st.civilizationZoneId,"station attack");
@@ -7919,6 +8013,7 @@ function drawSpace(){
   ctx.globalAlpha=1;
 
   drawExtraSpaceEvents(camX,camY);
+  drawGalaxyWaypointGuidance(camX,camY);
   drawMinimap();
   drawInspectionPanel();
   drawEventRadarOverlay();
@@ -7933,6 +8028,17 @@ function drawSpace(){
 }
 
 /* ── Minimap with coords ── */
+function drawGalaxyWaypointGuidance(camX,camY){
+  if(mode!==MODE.SPACE||!galaxyWaypoints.length)return;
+  const margin=34,labelInset=18,centerX=canvas.width/2,centerY=canvas.height/2;
+  for(const wp of galaxyWaypoints){
+    const sx=wp.x-camX,sy=wp.y-camY,inside=sx>=margin&&sx<=canvas.width-margin&&sy>=margin&&sy<=canvas.height-margin,distance=Math.round(Math.hypot(wp.x-ship.x,wp.y-ship.y));
+    if(inside){ctx.save();ctx.translate(sx,sy);ctx.rotate(Math.PI/4);ctx.fillStyle="rgba(255,157,245,.82)";ctx.strokeStyle="#fff0ff";ctx.lineWidth=1.5;ctx.fillRect(-6,-6,12,12);ctx.strokeRect(-6,-6,12,12);ctx.restore();ctx.save();ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillStyle="#ffd8fa";ctx.fillText(`${wp.name} · ${wp.x}, ${wp.y} · ${distance.toLocaleString()}`,sx,sy-13);ctx.restore();continue;}
+    const dx=sx-centerX,dy=sy-centerY,angle=Math.atan2(dy,dx),cos=Math.cos(angle),sin=Math.sin(angle),halfW=centerX-margin,halfH=centerY-margin,scale=Math.min(Math.abs(halfW/(cos||.0001)),Math.abs(halfH/(sin||.0001))),ax=centerX+cos*scale,ay=centerY+sin*scale;
+    ctx.save();ctx.translate(ax,ay);ctx.rotate(angle);ctx.fillStyle="#ff9df5";ctx.strokeStyle="#3a1738";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(13,0);ctx.lineTo(-8,-7);ctx.lineTo(-4,0);ctx.lineTo(-8,7);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    const align=cos>.35?"right":cos<-.35?"left":"center",tx=ax-cos*labelInset,ty=clamp(ay-sin*labelInset,15,canvas.height-8);ctx.save();ctx.font="bold 8px monospace";ctx.textAlign=align;ctx.fillStyle="#ffd8fa";ctx.shadowColor="#05060a";ctx.shadowBlur=4;ctx.fillText(`${wp.name} · ${wp.x}, ${wp.y} · ${distance.toLocaleString()}`,tx,ty);ctx.restore();
+  }
+}
 function drawMinimap(){
   const mmW=155,mmH=112,mmX=canvas.width-mmW-7,mmY=7,mmRange=3200;minimapHitRect={x:mmX,y:mmY,w:mmW,h:mmH};
   ctx.fillStyle="rgba(4,7,18,0.87)";ctx.fillRect(mmX,mmY,mmW,mmH);ctx.strokeStyle="#1a3a5a";ctx.lineWidth=1;ctx.strokeRect(mmX,mmY,mmW,mmH);
@@ -7954,6 +8060,7 @@ function drawMinimap(){
   for(const ms of activeMercShips){const m=wm(ms.x,ms.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=ms.color||"#ffee88";ctx.beginPath();ctx.arc(m.x,m.y,1.8,0,Math.PI*2);ctx.fill();}
   for(const ost of ownedStationsList){const m=wm(ost.x,ost.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=ost.isOwn?"#ffcc44":"#aaaaaa";ctx.fillRect(m.x-2,m.y-2,4,4);}
   for(const os of ownedTradeShips.values()){const m=wm(os.x,os.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=os.isOwn?"#ffee88":"#bbbbbb";ctx.beginPath();ctx.arc(m.x,m.y,1.5,0,Math.PI*2);ctx.fill();}
+  for(const wp of galaxyWaypoints){const m=wm(wp.x,wp.y),inside=m.x>=mmX&&m.x<=mmX+mmW&&m.y>=mmY&&m.y<=mmY+mmH,x=clamp(m.x,mmX+4,mmX+mmW-4),y=clamp(m.y,mmY+4,mmY+mmH-4);ctx.save();ctx.translate(x,y);ctx.rotate(inside?Math.PI/4:Math.atan2(m.y-(mmY+mmH/2),m.x-(mmX+mmW/2)));ctx.fillStyle="#ff9df5";ctx.fillRect(-2.5,-2.5,5,5);ctx.restore();}
   for(const[,op]of otherPlayers){const m=wm(op.x,op.y);if(m.x<mmX||m.x>mmX+mmW||m.y<mmY||m.y>mmY+mmH)continue;ctx.fillStyle=op.color||"#7be6ff";ctx.beginPath();ctx.arc(m.x,m.y,2,0,Math.PI*2);ctx.fill();}
   const cx=mmX+mmW/2,cy=mmY+mmH/2;ctx.fillStyle="#78ff8a";ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#78ff8a";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(ship.angle)*7,cy+Math.sin(ship.angle)*7);ctx.stroke();
   // Coord display on minimap
@@ -8811,12 +8918,12 @@ function handleAttrClick(mx,my){
 
 
 let inventorySortMode="type";inventoryScrollDrag=null;
-function inventoryPanelRectBase(){const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;return {px,py,pw,ph,ss:32,sg:4,cols:INV_COLS,sx:px+10,sy:py+28};}
+function inventoryPanelRectBase(){const pw=400,ph=250,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;return {px,py,pw,ph,ss:32,sg:4,cols:INV_COLS,sx:px+10,sy:py+28};}
 function inventoryScrollbarRectBase(){const r=inventoryPanelRectBase();return {x:r.sx+r.cols*(r.ss+r.sg)+2,y:r.sy,w:7,h:INV_VISIBLE_ROWS*(r.ss+r.sg)-r.sg};}
 function compactInventory(){ensureClientInventorySlots();const counts={};for(const s of player.invSlots)if(s?.type&&s.count>0)counts[s.type]=(counts[s.type]||0)+s.count;const filled=[];for(const [type,total] of Object.entries(counts)){let rem=total;while(rem>0){filled.push({type,count:Math.min(MAX_STACK,rem)});rem-=Math.min(MAX_STACK,rem);}}player.invSlots=Array(player.maxSlots).fill(null).map((_,i)=>filled[i]||{type:null,count:0});selectedSlot=null;inventoryScrollRows=0;saveLocalGameStateSoon("inventory_compact");try{socket?.emit?.("clientLocalSaveSync",{snapshot:makeLocalGameSnapshot("inventory_compact")});}catch(_){ }showFT("Inventory compacted",ship.x,ship.y-22,"#7be6ff",10);}
 function sortInventory(mode="type"){ensureClientInventorySlots();compactInventory();const filled=player.invSlots.filter(s=>s?.type&&s.count>0);const rarity=k=>Number(itemDefFor(k)?.rarity)||1;const value=k=>price(k)||itemDefFor(k)?.base||1;filled.sort((a,b)=>{if(mode==="value")return value(b.type)-value(a.type)||String(a.type).localeCompare(String(b.type));if(mode==="rarity")return rarity(b.type)-rarity(a.type)||value(b.type)-value(a.type);if(mode==="name")return String(itemDefFor(a.type)?.name||a.type).localeCompare(String(itemDefFor(b.type)?.name||b.type));return String(a.type).localeCompare(String(b.type));});player.invSlots=Array(player.maxSlots).fill(null).map((_,i)=>filled[i]||{type:null,count:0});selectedSlot=null;inventorySortMode=mode;saveLocalGameStateSoon("inventory_sort");try{socket?.emit?.("clientLocalSaveSync",{snapshot:makeLocalGameSnapshot("inventory_sort")});}catch(_){ }showFT(`Inventory sorted: ${mode}`,ship.x,ship.y-22,"#78ff8a",10);}
-function drawInventoryManageButtons(px,py){const labels=[["COMPACT","compact"],["TYPE","type"],["VALUE","value"],["RARITY","rarity"],["NAME","name"]];for(let i=0;i<labels.length;i++){const [lab,mode]=labels[i],bx=px+10+i*45,by=py+174,bw=41,bh=17;ctx.fillStyle=(inventorySortMode===mode)?"#203a2a":"#101820";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=(inventorySortMode===mode)?"#78ff8a":"#2a4a6a";ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=(inventorySortMode===mode)?"#78ff8a":"#9fb0d0";ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(lab,bx+bw/2,by+11);ctx.textAlign="left";}}
-function handleInventoryManageClick(mx,my,px,py){const labels=[["compact","compact"],["type","type"],["value","value"],["rarity","rarity"],["name","name"]];for(let i=0;i<labels.length;i++){const mode=labels[i][1],bx=px+10+i*45,by=py+174,bw=41,bh=17;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){if(mode==="compact")compactInventory();else sortInventory(mode);return true;}}return false;}
+function drawInventoryManageButtons(px,py){const labels=[["COMPACT","compact"],["TYPE","type"],["VALUE","value"],["RARITY","rarity"],["NAME","name"]];for(let i=0;i<labels.length;i++){const [lab,mode]=labels[i],bx=px+10+i*45,by=py+204,bw=41,bh=17;ctx.fillStyle=(inventorySortMode===mode)?"#203a2a":"#101820";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=(inventorySortMode===mode)?"#78ff8a":"#2a4a6a";ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=(inventorySortMode===mode)?"#78ff8a":"#9fb0d0";ctx.font="bold 7px monospace";ctx.textAlign="center";ctx.fillText(lab,bx+bw/2,by+11);ctx.textAlign="left";}}
+function handleInventoryManageClick(mx,my,px,py){const labels=[["compact","compact"],["type","type"],["value","value"],["rarity","rarity"],["name","name"]];for(let i=0;i<labels.length;i++){const mode=labels[i][1],bx=px+10+i*45,by=py+204,bw=41,bh=17;if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){if(mode==="compact")compactInventory();else sortInventory(mode);return true;}}return false;}
 function startInventoryScrollDrag(mx,my){const r=inventoryScrollbarRectBase();if(maxInventoryScrollRows()<=0)return false;if(mx>=r.x-3&&mx<=r.x+r.w+5&&my>=r.y&&my<=r.y+r.h){inventoryScrollDrag={y:r.y,h:r.h};setInventoryScrollFromY(my);return true;}return false;}
 function setInventoryScrollFromY(my){if(!inventoryScrollDrag)return;const max=maxInventoryScrollRows();const t=clamp((my-inventoryScrollDrag.y)/Math.max(1,inventoryScrollDrag.h),0,1);inventoryScrollRows=clamp(Math.round(t*max),0,max);}
 function inventoryMappedCanvasPoint(mx,my){try{if(inventoryTab!=="modules"&&typeof largeCanvasMenuPoint==="function")return largeCanvasMenuPoint("inventory",mx,my);}catch(_){ }return {x:mx,y:my};}
@@ -9162,7 +9269,7 @@ function handleInventoryClick(mx,my){
     // then vanish, which was indistinguishable from a frozen UI to players.
     try{handleInventoryModuleLabTabClick(mx,my);}catch(error){console.error("Module Lab recovered",error);moduleUiPendingAction="";showFT("Module Lab recovered safely",ship.x,ship.y-18,"#ffcc44",9);showUiActionNotice("Module Lab stayed open after a safe recovery","#ffcc44");}return;
   }
-  const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
+  const pw=400,ph=250,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2,ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
   if(my>=py+7&&my<=py+24){const tx=px+pw-278;if(mx>=tx&&mx<=tx+58){setInventoryModuleTab?.("items");return;}if(mx>=tx+62&&mx<=tx+124){setInventoryModuleTab?.("modules");return;}if(mx>=tx+128&&mx<=tx+190){setInventoryModuleTab?.("craft");return;}if(mx>=tx+194&&mx<=tx+268){setInventoryModuleTab?.("fusion");return;}}
   if(handleInventoryManageClick(mx,my,px,py))return;
   if(startInventoryScrollDrag(mx,my))return;
@@ -9372,13 +9479,13 @@ function handleShipStatusClick(mx,my){
 
 function drawInventory(){
   if(!inventoryOpen)return;beginReadableUi();clampPanelScrolls();if(inventoryTab==="modules"){try{drawInventoryModuleLabTab();}catch(error){console.error("Module Lab draw failed; returning to Items",error);moduleUiPendingAction="";moduleLabOpen=false;moduleLabItemKey=null;inventoryTab="items";showUiActionNotice("Module Lab data refreshed — Items tab restored","#ffcc44");}return;}ctx.fillStyle="rgba(0,0,0,0.75)";ctx.fillRect(0,0,canvas.width,canvas.height);
-  const pw=400,ph=220,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#1a1f2e";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#4a5f8a";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
+  const pw=400,ph=250,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;ctx.fillStyle="#1a1f2e";ctx.fillRect(px,py,pw,ph);ctx.strokeStyle="#4a5f8a";ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
   drawUiFittedText("INVENTORY",px+10,py+17,95,"#fff",uiFont(12,true));drawUiFittedText(`Slots ${filledSlotCount()}/${player.maxSlots}`,px+110,py+17,120,"#9fb0ca",uiFont(9));inventoryModuleTabs({x:px,y:py,w:pw,h:ph});
   const ss=32,sg=4,cols=INV_COLS,sx=px+10,sy=py+28,start=inventoryScrollRows*cols,visible=cols*INV_VISIBLE_ROWS;
   for(let n=0;n<visible;n++){const i=start+n;if(i>=player.maxSlots)break;const col=n%cols,row=Math.floor(n/cols),bx=sx+col*(ss+sg),by=sy+row*(ss+sg),slot=player.invSlots[i],isSel=selectedSlot===i;ctx.fillStyle=isSel?"#1a2a3a":"#0f1419";ctx.fillRect(bx,by,ss,ss);ctx.strokeStyle=isSel?"#5a9aff":"#2a3a4a";ctx.lineWidth=isSel?2:1;ctx.strokeRect(bx,by,ss,ss);if(slot.type&&slot.count){drawItemIcon(ctx,slot.type,bx+4,by+4,ss-8);drawUiFittedText(slot.count,bx+ss-3,by+ss-3,20,"#fff",uiFont(8,true),"right");}}
   if(maxInventoryScrollRows()>0){const trackX=sx+cols*(ss+sg)+2,trackY=sy,trackH=INV_VISIBLE_ROWS*(ss+sg)-sg;ctx.fillStyle="#101820";ctx.fillRect(trackX,trackY,5,trackH);const knobH=Math.max(14,trackH*(INV_VISIBLE_ROWS/Math.ceil(player.maxSlots/cols)));const knobY=trackY+(trackH-knobH)*(inventoryScrollRows/maxInventoryScrollRows());ctx.fillStyle="#6a9abb";ctx.fillRect(trackX,knobY,5,knobH);}
   drawInventoryManageButtons(px,py);drawUiFittedText(`Showing ${start+1}–${Math.min(player.maxSlots,start+visible)} of ${player.maxSlots}`,px+10,py+ph-22,220,"#718499",uiFont(7));
-  const dx=px+250,dy=py+28,dw=140,dh=140;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);if(selectedSlot!==null&&player.invSlots[selectedSlot]?.type)drawInventoryDetail(player.invSlots[selectedSlot],dx,dy,dw,dh);else drawUiFittedText("Click an item to view",dx+dw/2,dy+dh/2,dw-20,"#617184",uiFont(8),"center");
+  const dx=px+250,dy=py+28,dw=140,dh=170;ctx.fillStyle="#0f1419";ctx.fillRect(dx,dy,dw,dh);ctx.strokeStyle="#2a3a4a";ctx.lineWidth=1;ctx.strokeRect(dx,dy,dw,dh);if(selectedSlot!==null&&player.invSlots[selectedSlot]?.type)drawInventoryDetail(player.invSlots[selectedSlot],dx,dy,dw,dh);else drawUiFittedText("Click an item to view",dx+dw/2,dy+dh/2,dw-20,"#617184",uiFont(8),"center");
   if(player.maxSlots<MAX_TOTAL_SLOTS){const bx=px+250,by=py+ph-35,bw=140,bh=24,canB=player.credits>=SLOT_COST;ctx.fillStyle=canB?"#2d4a3e":"#3a2a2a";ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=canB?"#4a8a6a":"#6a4a4a";ctx.strokeRect(bx,by,bw,bh);drawUiFittedText(`Buy Slot: ${SLOT_COST}cr`,bx+bw/2,by+16,bw-12,canB?"#7be6ff":"#8a7a7a",uiFont(8,true),"center");}
   drawUiFittedText("I close  ·  select a module, then MODULE LAB  ·  drag scrollbar / sort",px+10,py+ph-9,pw-20,"#718499",uiFont(7));
 }
@@ -9661,7 +9768,7 @@ function drawCharacterPanel(){
 
 /* v4.0.5 desktop canvas menu scale layer: doubles core canvas menus when room allows. */
 function largeCanvasMenuBase(kind){
-  if(kind==="inventory")return {w:400,h:220};
+  if(kind==="inventory")return {w:400,h:250};
   if(kind==="shop")return {w:520,h:292};
   if(kind==="attributes")return {w:430,h:268};
   if(kind==="character")return {w:620,h:390};
@@ -9983,12 +10090,21 @@ handleInventoryModuleLabTabClick=function(mx,my){
   }catch(error){console.error("Module Lab click recovered",error);showUiActionNotice("Module Lab recovered safely","#ffcc44");return true;}
 };
 const _drawInventoryDetail_v418=drawInventoryDetail;
+let inventoryDestroyPending=false;
+function inventoryDestroyButtonRects(dx,dy,dw,dh){const gap=5,y=dy+dh-23,w=Math.floor((dw-16-gap)/2);return {one:{x:dx+8,y,w,h:17},all:{x:dx+8+w+gap,y,w,h:17}};}
+function drawInventoryDestroyButtons(slot,dx,dy,dw,dh){
+  if(!slot?.type||!slot.count)return;const rects=inventoryDestroyButtonRects(dx,dy,dw,dh);
+  for(const [kind,label] of [["one","DESTROY ×1"],["all","DESTROY ALL"]]){const b=rects[kind];ctx.fillStyle=inventoryDestroyPending?"#24191d":"#32141b";ctx.fillRect(b.x,b.y,b.w,b.h);ctx.strokeStyle=inventoryDestroyPending?"#694b55":"#b74e62";ctx.strokeRect(b.x+.5,b.y+.5,b.w-1,b.h-1);drawUiFittedText(inventoryDestroyPending?"WAIT…":label,b.x+b.w/2,b.y+12,b.w-6,inventoryDestroyPending?"#9c8790":"#ff9baa",uiFont(6,true),"center");}
+}
 drawInventoryDetail=function(slot,dx,dy,dw,dh){
   ctx.save();
-  try{return _drawInventoryDetail_v418(slot,dx,dy,dw,dh);}
+  try{_drawInventoryDetail_v418(slot,dx,dy,dw,dh);}
   catch(error){console.warn("Inventory item detail unavailable",error);const fallback=itemDefFor(slot?.type)||{name:String(slot?.type||"Unknown item"),description:"Details are unavailable for this item."};drawUiFittedText(fallback.name,dx+8,dy+22,dw-16,"#ffdd44",uiFont(8,true));drawUiWrappedText(fallback.description||"Details are unavailable for this item.",dx+8,dy+42,dw-16,8,3,"#9fb0ca",uiFont(7));}
   finally{ctx.restore();}
+  drawInventoryDestroyButtons(slot,dx,dy,dw,dh);
 };
+socket.on("inventoryItemDestroyed",payload=>{inventoryDestroyPending=false;applyAuthoritativeInventory(payload||{});if(selectedSlot!==null&&!player.invSlots[selectedSlot]?.type)selectedSlot=null;showUiActionNotice(`Destroyed ${Math.max(1,Number(payload?.quantity)||1)} ${itemDefFor(payload?.itemKey)?.name||payload?.itemKey||"item"}${Number(payload?.quantity)>1?"s":""}`,"#ff9baa");});
+socket.on("inventoryDestroyDenied",({reason}={})=>{inventoryDestroyPending=false;showUiActionNotice(reason||"Item could not be destroyed","#ff7777");});
 for(const ev of ["attachmentEquipped","attachmentUnequipped","attachmentDenied","moduleUpgradeResult","moduleConvergenceResult","moduleUpgradeDenied","moduleCraftResult","moduleCraftDenied"]){socket.on(ev,()=>{moduleUiPendingAction="";});}
 
 initTradeDom();
@@ -10165,6 +10281,28 @@ drawInventoryFusionTab=function(){
   drawUiFittedText("INVENTORY",r.x+20,r.y+31,190,"#e7f2ff",uiFont(20,true));inventoryModuleTabs(r);drawUiFittedText("WEAPON FUSION",r.x+20,r.y+62,r.w-40,"#ffca73",uiFont(17,true));drawUiFittedText("Weapons and listed low-tier materials are consumed on both success and failure.",r.x+20,r.y+84,r.w-40,"#b9cadb",uiFont(10));
   const lx=r.x+18,ly=r.y+105,lw=284,rowH=76;ctx.fillStyle="#09111d";ctx.fillRect(lx,ly,lw,r.h-123);ctx.strokeStyle="#465c79";ctx.strokeRect(lx+1,ly+1,lw-2,r.h-125);entries.slice(0,4).forEach((e,i)=>{const y=ly+10+i*rowH,active=e.key===weaponFusionKey;ctx.fillStyle=active?"#3a3020":"#101a2a";ctx.fillRect(lx+10,y,lw-20,64);ctx.strokeStyle=active?"#ffca73":"#263e61";ctx.lineWidth=2;ctx.strokeRect(lx+11,y+1,lw-22,62);drawItemIcon(ctx,e.key,lx+19,y+8,48);drawUiFittedText(`${e.def.name} +${e.level}`,lx+78,y+27,lw-120,active?"#fff":"#d6e1ff",uiFont(13,true));drawUiFittedText(`${e.count} matching copies`,lx+78,y+48,lw-120,"#8be4ff",uiFont(10));inventoryFusionHitboxes.push({x:lx+10,y,w:lw-20,h:64,action:"select",entry:e});});
   const dx=lx+lw+22,dw=r.x+r.w-dx-18;if(selected){const cost=weaponFusionCostClient(selected,weaponFusionCopies),ready=selected.count>=weaponFusionCopies&&fusionCostReady(cost);drawItemIcon(ctx,selected.key,dx+12,ly+12,68);drawUiFittedText(`${selected.def.name} +${selected.level}`,dx+94,ly+33,dw-106,"#fff",uiFont(16,true));drawUiFittedText(`${selected.count} matching copies available`,dx+94,ly+56,dw-106,"#ffca73",uiFont(11));drawUiFittedText("SELECT FUSION COUNT",dx+12,ly+103,dw-24,"#ffca73",uiFont(12,true));for(let n=2;n<=10;n++){const col=(n-2)%3,row=Math.floor((n-2)/3),x=dx+12+col*126,y=ly+117+row*43,active=n===weaponFusionCopies,enabled=n<=selected.count;ctx.fillStyle=active?"#3a3010":"#15263a";ctx.fillRect(x,y,116,34);ctx.strokeStyle=active?"#ffdd44":enabled?"#6386ac":"#523740";ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,114,32);drawUiFittedText(`${n} · ${n*10}%`,x+58,y+23,106,enabled?"#d6e1ff":"#7a6670",uiFont(10,true),"center");inventoryFusionHitboxes.push({x,y,w:116,h:34,action:"copies",copies:n,enabled});}drawUiFittedText("FUSION MATERIALS",dx+12,ly+262,dw-24,"#ffca73",uiFont(12,true));drawLargeRecipeChips(cost,dx+12,ly+276,dw-24,"#c9e8ff");const fy=ly+324;ctx.fillStyle=ready?"#3a2810":"#2a1a20";ctx.fillRect(dx+12,fy,dw-24,38);ctx.strokeStyle=ready?"#ffca73":"#844654";ctx.lineWidth=2;ctx.strokeRect(dx+13,fy+1,dw-26,36);drawUiFittedText(`FUSE ${weaponFusionCopies} WEAPONS · ${weaponFusionCopies*10}% SUCCESS`,dx+dw/2,fy+25,dw-44,ready?"#ffdc92":"#ff9b9b",uiFont(12,true),"center");inventoryFusionHitboxes.push({x:dx+12,y:fy,w:dw-24,h:38,action:"fuse",entry:selected,enabled:ready});}else drawUiFittedText("Collect at least two matching weapons to start a fusion.",dx+12,ly+50,dw-24,"#9fb0ca",uiFont(12));ctx.restore();
+};
+
+/* v4.0.21 unified inventory navigation + permanent item disposal. */
+function inventoryMenuRectForTab(tab=inventoryTab){
+  if(tab==="modules")return inventoryModuleLabRect();
+  if(tab==="craft"){const w=Math.min(960,Math.max(650,canvas.width-42)),h=Math.min(570,Math.max(410,canvas.height-34));return{x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h};}
+  if(tab==="fusion"){const w=Math.min(900,Math.max(620,canvas.width-42)),h=Math.min(500,Math.max(350,canvas.height-34));return{x:Math.round((canvas.width-w)/2),y:Math.round((canvas.height-h)/2),w,h};}
+  const base=inventoryPanelRectBase();return{x:base.px,y:base.py,w:base.pw,h:base.ph};
+}
+function inventoryUnifiedTabRects(r){
+  const large=r.w>=650,gap=large?8:4,h=large?31:20,widths=large?[92,122,98,104]:[58,70,64,70],total=widths.reduce((n,w)=>n+w,0)+gap*3,x=r.x+r.w-total-(large?18:8),y=r.y+(large?10:5),tabs=["items","modules","craft","fusion"],labels=["ITEMS","MODULES","CRAFTING","FUSION"],out={};let bx=x;
+  tabs.forEach((tab,i)=>{out[tab]={tab,label:labels[i],x:bx,y,w:widths[i],h};bx+=widths[i]+gap;});return out;
+}
+inventoryModuleTabs=function(r){for(const entry of Object.values(inventoryUnifiedTabRects(r))){ctx.fillStyle=inventoryTab===entry.tab?"#2c3d58":"#101923";ctx.fillRect(entry.x,entry.y,entry.w,entry.h);ctx.strokeStyle=inventoryTab===entry.tab?"#d48cff":"#3d5f80";ctx.lineWidth=entry.h>22?2:1;ctx.strokeRect(entry.x+.5,entry.y+.5,entry.w-1,entry.h-1);drawUiFittedText(entry.label,entry.x+entry.w/2,entry.y+entry.h*.68,entry.w-8,inventoryTab===entry.tab?"#f3ceff":"#afd1eb",uiFont(entry.h>22?10:7,true),"center");}};
+const _drawInventoryModuleLabTab_v421=drawInventoryModuleLabTab;
+drawInventoryModuleLabTab=function(){_drawInventoryModuleLabTab_v421();if(inventoryTab==="modules")inventoryModuleTabs(inventoryModuleLabRect());};
+const _handleInventoryClick_v421=handleInventoryClick;
+handleInventoryClick=function(mx,my){
+  const tab=inventoryTab,r=inventoryMenuRectForTab(tab),point=tab==="items"?largeCanvasMenuPoint("inventory",mx,my):{x:mx,y:my};
+  for(const entry of Object.values(inventoryUnifiedTabRects(r)))if(point.x>=entry.x&&point.x<=entry.x+entry.w&&point.y>=entry.y&&point.y<=entry.y+entry.h){setInventoryModuleTab(entry.tab);return true;}
+  if(tab==="items"&&selectedSlot!==null&&player.invSlots[selectedSlot]?.type){const slot=player.invSlots[selectedSlot],dx=r.x+250,dy=r.y+28,rects=inventoryDestroyButtonRects(dx,dy,140,170);for(const [kind,b] of Object.entries(rects))if(point.x>=b.x&&point.x<=b.x+b.w&&point.y>=b.y&&point.y<=b.y+b.h){if(inventoryDestroyPending)return true;const itemKey=slot.type,quantity=kind==="all"?inventoryTotal(itemKey):1;if(quantity<=0)return true;inventoryDestroyPending=true;socket.emit("destroyInventoryItem",{itemKey,destroyAll:kind==="all",quantity});showUiActionNotice(kind==="all"?`Destroying every ${itemDefFor(itemKey)?.name||itemKey}…`:`Destroying one ${itemDefFor(itemKey)?.name||itemKey}…`,"#ff9baa");setTimeout(()=>{if(inventoryDestroyPending){inventoryDestroyPending=false;showUiActionNotice("Destroy request timed out — inventory was not changed locally","#ffcc44");}},3500);return true;}}
+  return _handleInventoryClick_v421(mx,my);
 };
 }; // end _socketScript.onload
 
