@@ -1,6 +1,7 @@
 /**
- * Space Eco — Multiplayer Server v2
- * Adds: scores · leaderboard · ship types · owned stations · coord tracking · server list
+ * Space Eco — Multiplayer Server v3 / v4.2.0 guidance + latency patch
+ * Adds: accurate RTT · backpressure-safe snapshots · split simulation/network ticks
+ *       spatial interest management · runtime diagnostics · configurable Railway tuning
  */
 
 const express = require("express");
@@ -9,6 +10,7 @@ const { Server } = require("socket.io");
 const path    = require("path");
 const crypto  = require("crypto");
 const fs      = require("fs");
+const { performance } = require("node:perf_hooks");
 
 const app    = express();
 const server = http.createServer(app);
@@ -19,6 +21,9 @@ const io     = new Server(server, {
   // before treating a healthy pilot as disconnected.
   pingTimeout: 30000,
   pingInterval: 15000,
+  maxHttpBufferSize: 256 * 1024,
+  httpCompression: true,
+  perMessageDeflate: String(process.env.SOCKET_COMPRESSION || "true").toLowerCase()!=="false" ? { threshold: 1024 } : false,
   connectionStateRecovery: {
     maxDisconnectionDuration: 60000,
     skipMiddlewares: true
@@ -38,12 +43,12 @@ app.use(express.json({limit:"32kb"}));
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get("/api/serverinfo", (_req, res) => {
-  res.json({ name:SERVER_NAME, playerCount:players.size, maxPlayers:MAX_PLAYERS, uptime:Math.floor((Date.now()-SERVER_START)/1000), leaderboard:buildLeaderboard(10) });
+  res.json({ name:SERVER_NAME, playerCount:players.size, maxPlayers:MAX_PLAYERS, uptime:Math.floor((Date.now()-SERVER_START)/1000), leaderboard:buildLeaderboard(10), performance:runtimeDiagnostics() });
 });
 
 // Railway health check + quick public diagnostics.
 app.get("/health", (_req, res) => {
-  res.json({ ok:true, name:SERVER_NAME, playerCount:players.size, uptime:Math.floor((Date.now()-SERVER_START)/1000) });
+  res.json({ ok:true, name:SERVER_NAME, playerCount:players.size, uptime:Math.floor((Date.now()-SERVER_START)/1000), performance:runtimeDiagnostics() });
 });
 app.get("/api/connection-info", (req, res) => {
   const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "https").split(",")[0].trim();
@@ -54,23 +59,36 @@ app.get("/api/connection-info", (req, res) => {
     socketPath:"/socket.io",
     playerCount:players.size,
     maxPlayers:MAX_PLAYERS,
-    serverName:SERVER_NAME
+    serverName:SERVER_NAME,
+    performance:runtimeDiagnostics()
   });
 });
 
 /* ── Constants ── */
 const SERVER_NAME  = process.env.SERVER_NAME || "Space Eco Galaxy #1";
 const SERVER_START = Date.now();
-const TICK_RATE    = 20;
+function boundedEnvNumber(name,fallback,min,max){const value=Number(process.env[name]);return Math.max(min,Math.min(max,Number.isFinite(value)?value:fallback));}
+const TICK_RATE    = boundedEnvNumber("SIM_TICK_RATE",20,10,30);
 const TICK_MS      = 1000 / TICK_RATE;
+const NETWORK_TICK_RATE = boundedEnvNumber("NETWORK_TICK_RATE",10,5,20);
+const NETWORK_TICK_MS = 1000 / NETWORK_TICK_RATE;
+const FLEET_SYNC_INTERVAL_MS = boundedEnvNumber("FLEET_SYNC_INTERVAL_MS",250,100,2000);
+const STATE_LIST_BROADCAST_INTERVAL_MS = boundedEnvNumber("STATE_LIST_BROADCAST_INTERVAL_MS",6000,2000,30000);
 const CHUNK_SIZE   = 900;
 const SPAWN_RADIUS = 600;
 const DEAD_ZONE    = 300;
-const BROADCAST_RANGE = CHUNK_SIZE * 3.5;
-const MAX_PLAYERS  = 200;
+const BROADCAST_RANGE = boundedEnvNumber("BROADCAST_RANGE",CHUNK_SIZE*3.5,CHUNK_SIZE,CHUNK_SIZE*8);
+const MAX_PLAYERS  = Math.floor(boundedEnvNumber("MAX_PLAYERS",200,10,500));
 const GALAXY_SEED  = "GALAXY-01";
 const WORLD_SAVE_PATH = path.resolve(process.env.SPACE_ECO_WORLD_SAVE_PATH || process.env.WORLD_SAVE_PATH || path.join(process.cwd(), "data", "space-eco-world.json"));
 const WORLD_SAVE_INTERVAL_MS = Math.max(5000, Math.min(300000, Number(process.env.SPACE_ECO_WORLD_SAVE_INTERVAL_MS) || 15000));
+
+let eventLoopLagMs=0,eventLoopLagPeakMs=0,lastWorldBroadcastMs=0,lastWorldPayloadRecipients=0;
+function latencySummary(){const values=[...players.values()].map(p=>Number(p.ping)||0).filter(v=>v>0&&v<10000).sort((a,b)=>a-b);if(!values.length)return{averageMs:0,p95Ms:0,samples:0};const averageMs=Math.round(values.reduce((a,b)=>a+b,0)/values.length),p95Ms=Math.round(values[Math.min(values.length-1,Math.floor(values.length*.95))]);return{averageMs,p95Ms,samples:values.length};}
+function transportSummary(){const out={websocket:0,polling:0,other:0};for(const socket of io.sockets.sockets.values()){const name=socket.conn?.transport?.name||"other";if(name==="websocket"||name==="polling")out[name]++;else out.other++;}return out;}
+function runtimeDiagnostics(){return{simulationHz:TICK_RATE,networkHz:NETWORK_TICK_RATE,broadcastRange:Math.round(BROADCAST_RANGE),eventLoopLagMs:Math.round(eventLoopLagMs),eventLoopLagPeakMs:Math.round(eventLoopLagPeakMs),lastWorldBroadcastMs:Number(lastWorldBroadcastMs.toFixed(2)),lastWorldPayloadRecipients,latency:latencySummary(),transports:transportSummary(),memoryMb:Math.round(process.memoryUsage().rss/1024/1024)};}
+let eventLoopProbeExpected=Date.now()+1000;
+const eventLoopProbe=setInterval(()=>{const now=Date.now(),sample=Math.max(0,now-eventLoopProbeExpected);eventLoopProbeExpected=now+1000;eventLoopLagMs=eventLoopLagMs?eventLoopLagMs*.82+sample*.18:sample;eventLoopLagPeakMs=Math.max(eventLoopLagPeakMs*.995,sample);},1000);eventLoopProbe.unref?.();
 
 
 /* ── Real-money credit packages ──
@@ -2907,28 +2925,38 @@ function tickPlayers(dt){
 }
 
 /* ── Broadcast ── */
-function snap(p){return{id:p.id,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,hp:p.hp,maxHp:p.maxHp,shield:p.shield,maxShield:p.maxShield,shieldRegenTimer:p.shieldRegenTimer||0,color:p.color,level:p.level,mode:p.mode,score:p.score||0,kills:p.kills||0,shipType:p.shipType||"scout",ping:p.ping||0,planetId:p.planetId,planetX:p.planetX||0,planetY:p.planetY||0,cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,weaponLevel:p.weaponLevel||1,equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})};}
+function netRound(value,precision=10){value=Number(value)||0;return Math.round(value*precision)/precision;}
+function snap(p){return{id:p.id,name:p.name,x:netRound(p.x),y:netRound(p.y),vx:netRound(p.vx),vy:netRound(p.vy),angle:netRound(p.angle,1000),hp:Math.round(p.hp),maxHp:Math.round(p.maxHp),shield:Math.round(p.shield),maxShield:Math.round(p.maxShield),shieldRegenTimer:netRound(p.shieldRegenTimer||0),color:p.color,level:p.level,mode:p.mode,score:p.score||0,kills:p.kills||0,shipType:p.shipType||"scout",ping:Math.round(p.ping||0),planetId:p.planetId,planetX:netRound(p.planetX||0),planetY:netRound(p.planetY||0),cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,weaponLevel:p.weaponLevel||1,equippedWeapon:p.equippedWeapon||"weapon_laser_mk1",equippedAttachments:normalizeAttachments(p.equippedAttachments||{}),equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})};}
 function serverListSnap(p){return{id:p.id,name:p.name,x:Math.round(p.x),y:Math.round(p.y),level:p.level,score:p.score||0,kills:p.kills||0,deaths:p.deaths||0,shipType:p.shipType||"scout",ping:p.ping||0,mode:p.mode,partyId:p.partyId||null,factionId:p.factionId||null,factionTag:factionTagFor(p.factionId)};}
 
+function spatialBucketKey(x,y,size=BROADCAST_RANGE){return `${Math.floor((Number(x)||0)/size)},${Math.floor((Number(y)||0)/size)}`;}
+function addSpatial(grid,x,y,value,size=BROADCAST_RANGE){const key=spatialBucketKey(x,y,size),bucket=grid.get(key);if(bucket)bucket.push(value);else grid.set(key,[value]);}
+function spatialCandidates(grid,x,y,range=BROADCAST_RANGE,size=BROADCAST_RANGE){const cx=Math.floor((Number(x)||0)/size),cy=Math.floor((Number(y)||0)/size),reach=Math.max(1,Math.ceil(range/size)),out=[];for(let gy=cy-reach;gy<=cy+reach;gy++)for(let gx=cx-reach;gx<=cx+reach;gx++){const bucket=grid.get(`${gx},${gy}`);if(bucket)out.push(...bucket);}return out;}
 function broadcastWorldState(){
-  const all=[ ...players.values()].map(snap);
-  const projs=pvpProjectiles.map(p=>({id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,ownerId:p.ownerId,weaponKey:p.weaponKey,color:p.color,size:p.size,mode:p.mode,life:p.life}));
+  const started=performance.now(),rangeSquared=BROADCAST_RANGE*BROADCAST_RANGE,playerGrid=new Map(),projectileGrid=new Map(),planetPlayersById=new Map(),planetProjectilesById=new Map();
+  for(const p of players.values()){const state=snap(p);addSpatial(playerGrid,state.x,state.y,state);if(p.mode==="planet"&&p.planetId){const row={id:p.id,name:p.name,x:netRound(p.planetX||0),y:netRound(p.planetY||0),vx:netRound(p.planetVx||0),vy:netRound(p.planetVy||0),hp:Math.round(p.hp),maxHp:Math.round(p.maxHp),color:p.color,level:p.level,cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,tool:p.planetTool||"mining",weaponLevel:p.weaponLevel||1,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})};const group=planetPlayersById.get(p.planetId);if(group)group.push(row);else planetPlayersById.set(p.planetId,[row]);}}
+  for(const p of pvpProjectiles){const state={id:p.id,x:netRound(p.x),y:netRound(p.y),vx:netRound(p.vx),vy:netRound(p.vy),ownerId:p.ownerId,weaponKey:p.weaponKey,color:p.color,size:p.size,mode:p.mode,life:netRound(p.life)};addSpatial(projectileGrid,state.x,state.y,state);}
+  for(const pr of planetProjectiles){const row={id:pr.id,ownerId:pr.ownerId,x:netRound(pr.x),y:netRound(pr.y),vx:netRound(pr.vx),vy:netRound(pr.vy)},group=planetProjectilesById.get(pr.planetId);if(group)group.push(row);else planetProjectilesById.set(pr.planetId,[row]);}
+  let recipients=0;
   for(const[sid,p]of players){
-    const nearby=all.filter(s=>s.id!==sid&&Math.hypot(s.x-p.x,s.y-p.y)<BROADCAST_RANGE);
-    const nearProj=projs.filter(pr=>Math.hypot(pr.x-p.x,pr.y-p.y)<BROADCAST_RANGE);
+    const targetSocket=io.sockets.sockets.get(sid);if(!targetSocket?.connected)continue;
+    const nearby=[];for(const s of spatialCandidates(playerGrid,p.x,p.y)){const dx=s.x-p.x,dy=s.y-p.y;if(s.id!==sid&&dx*dx+dy*dy<rangeSquared)nearby.push(s);}
+    const nearProj=[];for(const pr of spatialCandidates(projectileGrid,p.x,p.y)){const dx=pr.x-p.x,dy=pr.y-p.y;if(dx*dx+dy*dy<rangeSquared)nearProj.push(pr);}
     // Fleet state is an independent, server-authoritative snapshot rather
     // than a client-side prediction. Sending it on the normal world packet
     // gives joining clients an immediate baseline and keeps all viewers of a
     // civilization fleet on the same task/status/position timeline.
-    const now=Date.now(),sendFleet=!p._lastCivilizationFleetSyncAt||now-p._lastCivilizationFleetSyncAt>=100;
+    const now=Date.now(),sendFleet=!p._lastCivilizationFleetSyncAt||now-p._lastCivilizationFleetSyncAt>=FLEET_SYNC_INTERVAL_MS;
     if(sendFleet)p._lastCivilizationFleetSyncAt=now;
-    io.to(sid).emit("worldState",{self:snap(p),others:nearby,pvpProjectiles:nearProj,npcFleetState:sendFleet?civilizationFleetSnapshotForPlayer(p):null});
+    // Volatile world packets prevent a slow client from accumulating stale
+    // snapshots. The next packet always supersedes the one that was dropped.
+    targetSocket.volatile.emit("worldState",{self:snap(p),others:nearby,pvpProjectiles:nearProj,npcFleetState:sendFleet?civilizationFleetSnapshotForPlayer(p):null});recipients++;
     if(p.mode==="planet"&&p.planetId){
-      const pps=[...players.values()].filter(o=>o.id!==sid&&o.mode==="planet"&&o.planetId===p.planetId).map(o=>({id:o.id,name:o.name,x:o.planetX||0,y:o.planetY||0,vx:o.planetVx||0,vy:o.planetVy||0,hp:o.hp,maxHp:o.maxHp,color:o.color,level:o.level,cosmeticColor:o.cosmeticColor,suitColor:o.suitColor,tool:o.planetTool||"mining",weaponLevel:o.weaponLevel||1,equippedCosmetics:normalizeEquippedCosmetics(o.equippedCosmetics||{})}));
-      const pprs=planetProjectiles.filter(pr=>pr.planetId===p.planetId).map(pr=>({id:pr.id,ownerId:pr.ownerId,x:pr.x,y:pr.y,vx:pr.vx,vy:pr.vy}));
-      io.to(sid).emit("planetPlayersState",{planetId:p.planetId,players:pps,projectiles:pprs});
+      const pps=(planetPlayersById.get(p.planetId)||[]).filter(o=>o.id!==sid),pprs=planetProjectilesById.get(p.planetId)||[];
+      targetSocket.volatile.emit("planetPlayersState",{planetId:p.planetId,players:pps,projectiles:pprs});
     }
   }
+  lastWorldBroadcastMs=performance.now()-started;lastWorldPayloadRecipients=recipients;
 }
 
 function broadcastLeaderboard(){io.emit("leaderboard",buildLeaderboard(10));}
@@ -2972,7 +3000,7 @@ function broadcastOwnedStationsList(){
    not disappear when the process restarts or a new game build is deployed.
 */
 const WORLD_SAVE_VERSION=1;
-let worldCheckpointSaving=false;
+let worldCheckpointSaving=false,worldCheckpointPromise=Promise.resolve(false);
 function worldCheckpointSnapshot(reason="interval"){
   const detachOwner=record=>({...record,ownerId:null});
   return {
@@ -2986,18 +3014,21 @@ function worldCheckpointSnapshot(reason="interval"){
   };
 }
 function persistWorldCheckpoint(reason="interval"){
-  if(worldCheckpointSaving)return false;
+  if(worldCheckpointSaving)return worldCheckpointPromise;
   worldCheckpointSaving=true;
-  try{
-    fs.mkdirSync(path.dirname(WORLD_SAVE_PATH),{recursive:true});
-    const temporaryPath=`${WORLD_SAVE_PATH}.tmp`;
-    fs.writeFileSync(temporaryPath,JSON.stringify(worldCheckpointSnapshot(reason)),"utf8");
-    fs.renameSync(temporaryPath,WORLD_SAVE_PATH);
-    return true;
-  }catch(err){
-    console.error(`[world-save] Could not write ${WORLD_SAVE_PATH}:`,err?.message||err);
-    return false;
-  }finally{worldCheckpointSaving=false;}
+  worldCheckpointPromise=(async()=>{
+    try{
+      const temporaryPath=`${WORLD_SAVE_PATH}.tmp`,payload=JSON.stringify(worldCheckpointSnapshot(reason));
+      await fs.promises.mkdir(path.dirname(WORLD_SAVE_PATH),{recursive:true});
+      await fs.promises.writeFile(temporaryPath,payload,"utf8");
+      await fs.promises.rename(temporaryPath,WORLD_SAVE_PATH);
+      return true;
+    }catch(err){
+      console.error(`[world-save] Could not write ${WORLD_SAVE_PATH}:`,err?.message||err);
+      return false;
+    }finally{worldCheckpointSaving=false;}
+  })();
+  return worldCheckpointPromise;
 }
 function restoreWorldCheckpoint(){
   if(!fs.existsSync(WORLD_SAVE_PATH))return {loaded:false,reason:"not_found"};
@@ -3061,15 +3092,18 @@ setInterval(tickCivilizationTaxes,60000);
 setInterval(tickCivilizationLogistics,CIV_LOGISTICS_TICK_MS);
 
 /* ── Main tick ── */
-let lastTick=Date.now(),ecoTimer=0,lbTimer=0,slTimer=0,socialTimer=0;
-setInterval(()=>{
+let lastTick=Date.now(),economyStepTimer=0,ecoTimer=0,lbTimer=0,slTimer=0,socialTimer=0;
+const simulationTimer=setInterval(()=>{
   const now=Date.now(),dt=Math.min((now-lastTick)/1000,0.05);lastTick=now;
-  economy.tick();tickPlayers(dt);tickProjectiles(dt);tickPlanetProjectiles(dt);tickOwnedStationDefense(dt);tickPlayerStructures(dt);tickRespawnFailsafes();tickCivilizationFleetRuntime(dt);broadcastWorldState();
+  tickPlayers(dt);tickProjectiles(dt);tickPlanetProjectiles(dt);tickOwnedStationDefense(dt);tickPlayerStructures(dt);tickRespawnFailsafes();tickCivilizationFleetRuntime(dt);
+  economyStepTimer+=dt;if(economyStepTimer>=1){economy.tick();economyStepTimer%=1;}
   ecoTimer+=dt;if(ecoTimer>=5){io.emit("economyUpdate",economy.snapshot());ecoTimer=0;}
   lbTimer+=dt; if(lbTimer>=10){broadcastLeaderboard();lbTimer=0;}
-  slTimer+=dt; if(slTimer>=3){broadcastServerList();broadcastOwnedStationsList();broadcastCivilizationZonesList();slTimer=0;}
-  socialTimer+=dt; if(socialTimer>=2){for(const id of parties.keys())emitPartyState(id);for(const id of factions.keys())emitFactionState(id);socialTimer=0;}
+  slTimer+=dt; if(slTimer>=STATE_LIST_BROADCAST_INTERVAL_MS/1000){broadcastServerList();broadcastOwnedStationsList();broadcastCivilizationZonesList();slTimer=0;}
+  socialTimer+=dt; if(socialTimer>=3){for(const id of parties.keys())emitPartyState(id);for(const id of factions.keys())emitFactionState(id);socialTimer=0;}
 },TICK_MS);
+const networkBroadcastTimer=setInterval(broadcastWorldState,NETWORK_TICK_MS);
+simulationTimer.unref?.();networkBroadcastTimer.unref?.();
 
 
 /* ── Player-to-player trade sessions ── */
@@ -3350,8 +3384,9 @@ io.on("connection",socket=>{
 
   socket.on("input",({rotLeft,rotRight,thrust,brake,shootX,shootY})=>{
     const p=players.get(socket.id);if(!p)return;
+    const now=performance.now();if(p._lastInputPacketAt&&now-p._lastInputPacketAt<12)return;p._lastInputPacketAt=now;
     p.input.rotLeft=!!rotLeft;p.input.rotRight=!!rotRight;p.input.thrust=!!thrust;p.input.brake=!!brake;
-    if(shootX!==undefined){p.input.shootX=Number(shootX);p.input.shootY=Number(shootY);}
+    if(shootX!==undefined){const sx=Number(shootX),sy=Number(shootY);if(Number.isFinite(sx)&&Number.isFinite(sy)){p.input.shootX=sx;p.input.shootY=sy;}}
   });
 
   socket.on("ownedTradeShipAttackPlayer",({targetId,stationKey,shipId,damage,x,y})=>{
@@ -4533,10 +4568,14 @@ io.on("connection",socket=>{
   socket.on("clientPing",(payload={},ack)=>{
     if(typeof payload==="function"){ack=payload;payload={};}
     const p=players.get(socket.id);if(!p)return;
-    const now=Date.now();if(p.pingTs)p.ping=Math.min(999,now-p.pingTs);p.pingTs=now;
-    const pong={ok:true,serverNow:now,echo:Math.max(0,Math.floor(Number(payload?.seq)||0))};
-    socket.emit("serverPong",pong);
-    if(typeof ack==="function")ack(pong);
+    const now=Date.now(),reportedRtt=Number(payload?.lastRtt);p.pingTs=now;p.transport=socket.conn?.transport?.name||String(payload?.transport||"unknown");
+    // The old implementation stored time between 2.5-second heartbeats and
+    // clamped it to 999, so every healthy player appeared to have 999ms ping.
+    // The browser now measures the actual acknowledgement round trip and
+    // reports the previous sample; an EWMA keeps the server list readable.
+    if(Number.isFinite(reportedRtt)&&reportedRtt>=0&&reportedRtt<=10000)p.ping=Math.round(p.ping?Math.max(0,p.ping*.68+reportedRtt*.32):reportedRtt);
+    const pong={ok:true,serverNow:now,echo:Math.max(0,Math.floor(Number(payload?.seq)||0)),networkHz:NETWORK_TICK_RATE};
+    if(typeof ack==="function")ack(pong);else socket.emit("serverPong",pong);
   });
 
   socket.on("requestLeaderboard",()=>socket.emit("leaderboard",buildLeaderboard(10)));
@@ -4559,17 +4598,18 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
 restoreWorldCheckpoint();
 server.listen(PORT, HOST, () => {
-  console.log(`🚀 ${SERVER_NAME} listening on ${HOST}:${PORT} | ${TICK_RATE}Hz | Max:${MAX_PLAYERS}`);
+  console.log(`🚀 ${SERVER_NAME} listening on ${HOST}:${PORT} | simulation:${TICK_RATE}Hz network:${NETWORK_TICK_RATE}Hz | Max:${MAX_PLAYERS}`);
   console.log("🌍 Global lobby ready. Point every client at your Railway public URL, not localhost.");
   console.log(`💾 World checkpoint: ${WORLD_SAVE_PATH} (every ${Math.round(WORLD_SAVE_INTERVAL_MS/1000)}s)`);
 });
 
 let worldShutdownStarted=false;
-function shutdownWithWorldCheckpoint(signal){
+async function shutdownWithWorldCheckpoint(signal){
   if(worldShutdownStarted)return;worldShutdownStarted=true;
-  clearInterval(worldCheckpointTimer);persistWorldCheckpoint(signal.toLowerCase());
+  clearInterval(worldCheckpointTimer);clearInterval(simulationTimer);clearInterval(networkBroadcastTimer);clearInterval(eventLoopProbe);
+  const forcedExit=setTimeout(()=>process.exit(0),8000);forcedExit.unref?.();
+  await persistWorldCheckpoint(signal.toLowerCase());
   server.close(()=>process.exit(0));
-  const forcedExit=setTimeout(()=>process.exit(0),5000);forcedExit.unref?.();
 }
-process.once("SIGTERM",()=>shutdownWithWorldCheckpoint("SIGTERM"));
-process.once("SIGINT",()=>shutdownWithWorldCheckpoint("SIGINT"));
+process.once("SIGTERM",()=>{void shutdownWithWorldCheckpoint("SIGTERM");});
+process.once("SIGINT",()=>{void shutdownWithWorldCheckpoint("SIGINT");});
