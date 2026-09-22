@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Space Eco — Desktop Browser v4.0.22</title>
+<title>Space Eco — Unified Guidance Patch v4.2.0</title>
 <style>
 html,body{margin:0;height:100%;background:#05060a;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial;overflow:hidden}
 #wrap{display:flex;flex-direction:column;height:100%}
@@ -1120,6 +1120,77 @@ body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
 .galaxy-waypoint-empty{padding:9px;border:1px dashed #294e70;border-radius:7px;color:#718aa7;font:9px monospace;text-align:center}
 @media (max-width:720px){.galaxy-waypoint-editor{grid-template-columns:1fr 1fr}.galaxy-waypoint-editor input:first-child{grid-column:1/-1}.galaxy-waypoint-list{grid-template-columns:1fr}}
 
+/* ═══════════════════════════════════════════════════════════════
+   v4.2.0 UNIFIED GUIDANCE + COMMAND CENTER
+   One discoverable navigation surface, automatic story guidance,
+   keyboard-visible focus, scalable text, and a filterable wardrobe.
+═══════════════════════════════════════════════════════════════ */
+:root{--se-ui-scale:1}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:3px solid #ffdd44!important;outline-offset:2px!important}
+body[data-ui-scale="115"]{--se-ui-scale:1.15}
+body[data-ui-scale="130"]{--se-ui-scale:1.3}
+body.high-contrast .panel-box,body.high-contrast .master-menu-box,body.high-contrast #tutorial-tracker{background:#02050b!important;border-color:#fff!important;box-shadow:0 0 0 2px #000,0 0 0 4px #fff!important}
+body.high-contrast button{border-color:#fff!important}
+body[data-ui-scale="115"] .panel-box,body[data-ui-scale="115"] .master-menu-box,body[data-ui-scale="115"] #tutorial-tracker,
+body[data-ui-scale="130"] .panel-box,body[data-ui-scale="130"] .master-menu-box,body[data-ui-scale="130"] #tutorial-tracker{font-size:calc(16px * var(--se-ui-scale))}
+body[data-ui-scale="115"] .master-menu-card small,body[data-ui-scale="115"] #tutorial-tracker small{font-size:11px!important}
+body[data-ui-scale="130"] .master-menu-card small,body[data-ui-scale="130"] #tutorial-tracker small{font-size:12px!important}
+
+body.desktop-browser #master-menu-panel{padding:clamp(8px,2vh,22px)!important}
+body.desktop-browser .master-menu-box{
+  width:min(1220px,calc(100vw - 28px))!important;max-width:1220px!important;height:min(820px,90vh);max-height:90vh!important;
+  display:flex;flex-direction:column;overflow:hidden!important;padding:0!important;border-radius:22px!important;
+}
+.master-menu-head{margin:0!important;padding:16px 18px 13px!important;align-items:center!important;background:linear-gradient(90deg,rgba(18,41,72,.96),rgba(7,13,27,.96))}
+.master-menu-title{font-size:clamp(18px,2vw,24px)!important}.master-menu-sub{max-width:760px}
+.master-menu-tools{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:9px;align-items:center;padding:11px 15px;border-bottom:1px solid rgba(123,230,255,.18);background:rgba(4,9,19,.9)}
+.master-menu-search-wrap{position:relative}.master-menu-search-wrap:before{content:"⌕";position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#7be6ff;font-size:18px;pointer-events:none}
+#master-menu-search{width:100%;height:38px;box-sizing:border-box;padding:7px 38px;background:#071120;border:1px solid #315b7e;border-radius:11px;color:#effaff;font-size:13px;outline:none}
+#master-menu-search::placeholder{color:#6f86a5}#master-menu-search:focus{border-color:#ffdd44;box-shadow:0 0 15px rgba(255,221,68,.15)}
+#master-menu-search-clear{position:absolute;right:7px;top:6px;width:27px;height:27px;border:0;border-radius:8px;background:transparent;color:#8fa3cc;cursor:pointer}
+.master-menu-context{color:#9fb7d5;font:700 10px ui-monospace,SFMono-Regular,Menlo,monospace;text-align:right;white-space:nowrap}.master-menu-context b{color:#78ff8a}
+.master-menu-layout{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:0;flex:1}
+.master-menu-tabs{display:flex!important;flex-direction:column;flex-wrap:nowrap!important;gap:7px!important;margin:0!important;padding:13px!important;border-right:1px solid rgba(123,230,255,.18);background:rgba(5,11,24,.94);overflow:auto}
+.master-menu-tab{width:100%;min-height:41px;text-align:left;border-radius:10px!important;padding:8px 11px!important;font-size:11px!important;display:flex;justify-content:space-between;align-items:center}
+.master-menu-tab small{font-size:9px;opacity:.72}.master-menu-tab.active{box-shadow:inset 3px 0 #ffdd44,0 0 14px rgba(255,221,68,.10)!important}
+.master-menu-content{min-width:0;min-height:0;display:flex;flex-direction:column;padding:13px 15px 15px;background:radial-gradient(circle at 90% 0,rgba(123,230,255,.08),transparent 34%),rgba(4,8,17,.92)}
+.master-menu-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 10px;color:#dcecff}.master-menu-section-head strong{font-size:14px;color:#ffdd44}.master-menu-section-head span{font-size:10px;color:#8299b6}
+.master-menu-grid{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important;overflow:auto;padding:2px 4px 8px 2px;align-content:start}
+.master-menu-card{position:relative;min-height:92px!important;padding:12px!important}.master-menu-card:hover{transform:translateY(-2px)}
+.master-menu-card[data-context="unavailable"]{opacity:.48;filter:saturate(.65)}.master-menu-card[data-context="recommended"]:after{content:"RECOMMENDED";position:absolute;right:9px;bottom:8px;color:#78ff8a;font-size:7px;font-weight:1000;letter-spacing:.08em}
+.master-menu-card-icon{display:inline-grid;place-items:center;width:26px;height:26px;margin-right:7px;border:1px solid rgba(123,230,255,.24);border-radius:8px;background:rgba(123,230,255,.06);font-size:15px}
+.master-menu-card-title>span:first-child{display:flex;align-items:center}.master-menu-hotkey{display:none}.legacy-hotkeys-enabled .master-menu-hotkey{display:inline-block}
+.master-menu-footer{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 14px;border-top:1px solid rgba(123,230,255,.18);background:#050a15;color:#8197b4;font-size:9px}
+.master-menu-pref{border:1px solid #315b7e;border-radius:999px;background:#0d1a2e;color:#bdeeff;padding:6px 10px;font-size:9px;font-weight:900;cursor:pointer}.master-menu-pref[aria-pressed="true"]{border-color:#ffdd44;background:#29210c;color:#ffed8a}
+.master-menu-footer-note{margin-left:auto}.master-menu-footer-note b{color:#ffdd44}
+.command-center-back{float:left;margin:0 10px 8px 0;border:1px solid #3f7196;border-radius:999px;background:#0d2138;color:#cdefff;padding:6px 10px;font-size:9px;font-weight:1000;cursor:pointer}.command-center-back:hover{border-color:#ffdd44;color:#ffed8a}
+@media (max-width:760px){.master-menu-tools{grid-template-columns:1fr}.master-menu-context{text-align:left}.master-menu-layout{grid-template-columns:1fr}.master-menu-tabs{flex-direction:row!important;border-right:0;border-bottom:1px solid rgba(123,230,255,.18);overflow-x:auto}.master-menu-tab{width:auto;min-width:max-content}.master-menu-grid{grid-template-columns:1fr 1fr!important}.master-menu-footer-note{width:100%;margin-left:0}.master-menu-box{height:94vh!important}}
+@media (max-width:520px){.master-menu-grid{grid-template-columns:1fr!important}.master-menu-card{min-height:72px!important}}
+
+/* Replace the twenty-six-button desktop wall with one small launcher by default. */
+body.desktop-browser:not(.command-dock-expanded) #desktop-command-dock{display:none!important}
+body.desktop-browser:not(.command-dock-expanded) #desktop-command-dock-toggle{right:18px;bottom:18px}
+body.desktop-browser:not(.command-dock-expanded) #desktop-command-dock-toggle:before{content:"☰ ";color:#ffdd44}
+body.desktop-browser:not(.command-dock-expanded) #chat-wrap{bottom:58px!important}
+
+#tutorial-tracker{position:fixed;left:10px;top:50px;z-index:88;width:min(360px,calc(100vw - 20px));display:none;flex-direction:column;border:1px solid rgba(255,221,68,.78);border-radius:15px;background:linear-gradient(155deg,rgba(32,27,9,.96),rgba(7,16,31,.96) 54%,rgba(4,8,17,.96));box-shadow:0 0 24px rgba(255,221,68,.18),0 8px 30px rgba(0,0,0,.46);overflow:hidden;font-family:system-ui,Segoe UI,Arial;transition:width .18s ease,opacity .18s ease}
+#tutorial-tracker.tutorial-minimized{width:230px}.tutorial-minimized .tutorial-tracker-body{display:none}.tutorial-minimized .tutorial-tracker-head{border-bottom:0}
+.tutorial-tracker-head{display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid rgba(255,221,68,.2);background:rgba(255,221,68,.05)}
+.tutorial-signal{width:9px;height:9px;border-radius:50%;background:#78ff8a;box-shadow:0 0 12px #78ff8a;animation:tutorialPulse 1.4s ease-in-out infinite alternate}.tutorial-tracker-label{flex:1;font-size:9px;font-weight:1000;letter-spacing:.13em;color:#ffdd44}.tutorial-tracker-count{color:#8fa3cc;font:800 9px monospace}
+.tutorial-icon-btn{width:28px;height:26px;border:1px solid #375778;border-radius:7px;background:#0b1829;color:#bdeeff;font-weight:1000;cursor:pointer}
+.tutorial-tracker-body{padding:11px 12px 12px}.tutorial-chapter{color:#7be6ff;font:800 9px ui-monospace,SFMono-Regular,Menlo,monospace}.tutorial-title{margin:4px 0 5px;color:#fff5bd;font-size:15px;font-weight:1000}.tutorial-copy{margin:0 0 9px;color:#bdcce0;font-size:10px;line-height:1.42}.tutorial-goal{padding:8px 9px;border-left:3px solid #7be6ff;border-radius:5px;background:rgba(123,230,255,.07);color:#e6f7ff;font-size:10px;line-height:1.35}.tutorial-progress-row{display:flex;align-items:center;gap:8px;margin:10px 0 8px}.tutorial-progress-track{height:8px;flex:1;border:1px solid #405270;border-radius:999px;background:#060b14;overflow:hidden}.tutorial-progress-fill{height:100%;width:0;background:linear-gradient(90deg,#43d77a,#ffdd44);box-shadow:0 0 10px rgba(120,255,138,.4);transition:width .3s ease}.tutorial-progress-text{min-width:58px;text-align:right;color:#a9bad0;font:800 9px monospace}
+.tutorial-actions{display:flex;gap:7px}.tutorial-actions button{flex:1;border:1px solid #34709a;border-radius:8px;background:#10243d;color:#cdefff;padding:7px 8px;font-size:9px;font-weight:1000;cursor:pointer}.tutorial-actions button.primary{border-color:#ffdd44;background:#30270d;color:#ffed8a}
+#tutorial-toast{position:fixed;left:50%;top:56px;z-index:310;display:none;min-width:min(460px,calc(100vw - 28px));max-width:620px;transform:translateX(-50%);padding:13px 18px;border:2px solid #ffdd44;border-radius:14px;background:rgba(8,15,29,.98);box-shadow:0 0 34px rgba(255,221,68,.28);text-align:center;color:#eef8ff;font:800 12px system-ui;pointer-events:none}#tutorial-toast strong{display:block;margin-bottom:3px;color:#ffdd44;font-size:16px}
+#tutorial-intro-panel{z-index:285!important}.tutorial-intro-box{width:min(620px,calc(100vw - 28px))!important;min-width:0!important;text-align:center;background:radial-gradient(circle at 50% 0,rgba(255,221,68,.16),transparent 38%),linear-gradient(160deg,#101d35,#050912)!important}.tutorial-intro-mark{font-size:42px;filter:drop-shadow(0 0 14px rgba(255,221,68,.5))}.tutorial-intro-box h2{font-size:22px!important}.tutorial-intro-box p{color:#b8c9de;font-size:12px;line-height:1.55}.tutorial-intro-actions{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:15px}.tutorial-intro-actions button{min-width:150px;border:1px solid #3b7098;border-radius:999px;background:#102642;color:#d5f4ff;padding:10px 15px;font-size:11px;font-weight:1000;cursor:pointer}.tutorial-intro-actions button.primary{border-color:#ffdd44;background:linear-gradient(90deg,#8b7210,#4c3c07);color:#fff5b6}
+@keyframes tutorialPulse{from{opacity:.55;transform:scale(.82)}to{opacity:1;transform:scale(1.12)}}
+@media (max-width:700px){#tutorial-tracker{top:auto;bottom:152px;left:8px;width:calc(100vw - 16px)}#tutorial-tracker.tutorial-minimized{width:220px}.tutorial-copy{display:none}}
+@media (prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+.cosmetic-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) 150px 150px auto;gap:8px;align-items:center;margin:10px 0;padding:10px;border:1px solid rgba(123,230,255,.2);border-radius:12px;background:rgba(5,11,24,.72)}
+.cosmetic-toolbar input,.cosmetic-toolbar select{box-sizing:border-box;height:35px;min-width:0;border:1px solid #315b7e;border-radius:8px;background:#071120;color:#eaf7ff;padding:6px 9px;font-size:10px;outline:none}.cosmetic-toolbar button{height:35px;border:1px solid #507493;border-radius:8px;background:#12243a;color:#cfefff;font-size:9px;font-weight:900;cursor:pointer}
+.cosmetic-loadout{margin:8px 0;padding:10px;border:1px solid rgba(255,221,68,.28);border-radius:12px;background:linear-gradient(135deg,rgba(47,38,10,.42),rgba(7,13,25,.72))}.cosmetic-loadout-head{display:flex;justify-content:space-between;gap:10px;align-items:center;color:#ffdd44;font-size:11px;font-weight:1000}.cosmetic-loadout-slots{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.cosmetic-loadout-slots button{border:1px solid #315b7e;border-radius:999px;background:#0c192b;color:#cfefff;padding:5px 8px;font-size:8px;cursor:pointer}.cosmetic-loadout-slots button.active{border-color:#78ff8a;color:#a8ffb5}.cosmetic-result-summary{margin-left:auto;color:#8fa3cc;font:800 9px monospace}
+@media (max-width:820px){.cosmetic-toolbar{grid-template-columns:1fr 1fr}.cosmetic-toolbar input{grid-column:1/-1}}
+
 </style>
 </head>
 <body>
@@ -1246,10 +1317,14 @@ body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
       <button class="mobile-btn gold" data-mobile-action="credits" type="button" tabindex="-1">Credits<small>M</small></button>
       <button class="mobile-btn gold" data-mobile-action="cosmetics" type="button" tabindex="-1">Cosmetics + Coupons<small>New shop</small></button>
     </div>
-    <div class="mobile-menu-section">Progress + Server</div>
+    <div class="mobile-menu-section">Mission + Progress</div>
     <div class="mobile-menu-grid">
+      <button class="mobile-btn gold" data-mobile-action="story" type="button" tabindex="-1">Guided Eco Signal<small>Live tutorial</small></button>
+      <button class="mobile-btn" data-mobile-action="guidance" type="button" tabindex="-1">Pause / Resume Guide<small>Tracker control</small></button>
+      <button class="mobile-btn" data-mobile-action="map" type="button" tabindex="-1">Galaxy Map<small>Waypoints</small></button>
       <button class="mobile-btn" data-mobile-action="quests" type="button" tabindex="-1">Quest Log<small>V</small></button>
       <button class="mobile-btn" data-mobile-action="badges" type="button" tabindex="-1">Badges<small>Y</small></button>
+      <button class="mobile-btn" data-mobile-action="stats" type="button" tabindex="-1">Pilot Records<small>Stats</small></button>
       <button class="mobile-btn" data-mobile-action="leaderboard" type="button" tabindex="-1">Leaderboard<small>K</small></button>
       <button class="mobile-btn" data-mobile-action="players" type="button" tabindex="-1">Players<small>N</small></button>
     </div>
@@ -1326,18 +1401,75 @@ body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
 </div>
 <button id="desktop-command-dock-toggle" type="button" aria-expanded="true" title="Hide the hotkey dock">⌄ Hide Hotkeys</button>
 
-<!-- Universal master menu. 1 opens this on desktop/browser builds. L is land/takeoff. -->
-<div id="master-menu-panel" class="master-menu-panel" style="display:none" aria-label="Space Eco master menu">
+<!-- Unified command center. 1 opens this on desktop/browser builds. -->
+<div id="master-menu-panel" class="master-menu-panel" style="display:none" role="dialog" aria-modal="true" aria-labelledby="master-menu-title">
   <div class="master-menu-box">
     <div class="master-menu-head">
       <div>
-        <div class="master-menu-title">SPACE ECO MASTER MENU</div>
-        <div class="master-menu-sub">Press <b>1</b> to open/close. Pick a tab, then click any card to open that menu or trigger that command.</div>
+        <div id="master-menu-title" class="master-menu-title">SPACE ECO COMMAND CENTER</div>
+        <div class="master-menu-sub">One launch point for missions, pilot systems, fleet operations, markets, community, and settings. Press <b>1</b> anywhere to return here.</div>
       </div>
       <button id="master-menu-close" class="master-menu-close" type="button" aria-label="Close master menu">×</button>
     </div>
-    <div id="master-menu-tabs" class="master-menu-tabs" role="tablist"></div>
-    <div id="master-menu-grid" class="master-menu-grid"></div>
+    <div class="master-menu-tools">
+      <div class="master-menu-search-wrap">
+        <input id="master-menu-search" type="search" maxlength="50" autocomplete="off" placeholder="Search menus, actions, missions, or settings…" aria-label="Search the command center"/>
+        <button id="master-menu-search-clear" type="button" aria-label="Clear command center search">×</button>
+      </div>
+      <div id="master-menu-context" class="master-menu-context" aria-live="polite"></div>
+    </div>
+    <div class="master-menu-layout">
+      <nav id="master-menu-tabs" class="master-menu-tabs" role="tablist" aria-label="Command center sections"></nav>
+      <section class="master-menu-content" aria-live="polite">
+        <div class="master-menu-section-head"><strong id="master-menu-section-title">Mission + Play</strong><span id="master-menu-result-count"></span></div>
+        <div id="master-menu-grid" class="master-menu-grid"></div>
+      </section>
+    </div>
+    <div class="master-menu-footer">
+      <button id="master-menu-hotkeys-toggle" class="master-menu-pref" type="button" aria-pressed="false">Extra hotkeys: Off</button>
+      <button id="master-menu-dock-pref" class="master-menu-pref" type="button" aria-pressed="false">Quick dock: Hidden</button>
+      <button id="master-menu-scale-pref" class="master-menu-pref" type="button">Text size: 100%</button>
+      <button id="master-menu-contrast-pref" class="master-menu-pref" type="button" aria-pressed="false">High contrast: Off</button>
+      <span class="master-menu-footer-note"><b>Esc</b> closes · <b>1</b> returns here · movement controls remain available during play</span>
+    </div>
+  </div>
+</div>
+
+<!-- Always-visible, automatically updating guided-story tracker. -->
+<aside id="tutorial-tracker" aria-live="polite" aria-label="Current guided mission">
+  <div class="tutorial-tracker-head">
+    <span class="tutorial-signal" aria-hidden="true"></span>
+    <span class="tutorial-tracker-label">ECO SIGNAL GUIDANCE</span>
+    <span id="tutorial-tracker-count" class="tutorial-tracker-count">1 / 8</span>
+    <button id="tutorial-tracker-minimize" class="tutorial-icon-btn" type="button" aria-label="Minimize guided mission" aria-expanded="true">−</button>
+  </div>
+  <div class="tutorial-tracker-body">
+    <div id="tutorial-tracker-chapter" class="tutorial-chapter">CHAPTER 1</div>
+    <div id="tutorial-tracker-title" class="tutorial-title">A Signal in the Dark</div>
+    <p id="tutorial-tracker-copy" class="tutorial-copy"></p>
+    <div id="tutorial-tracker-goal" class="tutorial-goal"></div>
+    <div class="tutorial-progress-row">
+      <div class="tutorial-progress-track" role="progressbar" aria-label="Mission progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="tutorial-progress-fill" class="tutorial-progress-fill"></div></div>
+      <span id="tutorial-progress-text" class="tutorial-progress-text">0 / 60</span>
+    </div>
+    <div class="tutorial-actions">
+      <button id="tutorial-guide-button" class="primary" type="button">Guide Me</button>
+      <button id="tutorial-log-button" type="button">Full Mission Log</button>
+    </div>
+  </div>
+</aside>
+<div id="tutorial-toast" role="status" aria-live="assertive"></div>
+
+<div id="tutorial-intro-panel" class="overlay-panel" style="display:none" role="dialog" aria-modal="true" aria-labelledby="tutorial-intro-title">
+  <div class="panel-box tutorial-intro-box">
+    <div class="tutorial-intro-mark" aria-hidden="true">◈</div>
+    <h2 id="tutorial-intro-title">THE ECO SIGNAL HAS FOUND YOU</h2>
+    <p>Space Eco now guides the story directly on screen. Your active objective updates automatically as you explore, land, mine, trade, build, fight, and grow—there is no “Check Progress” button to babysit.</p>
+    <p>You can minimize the tracker at any time, reopen the full mission log from the Command Center, or pause guidance without losing progress.</p>
+    <div class="tutorial-intro-actions">
+      <button id="tutorial-intro-start" class="primary" type="button">Begin Guided Mission</button>
+      <button id="tutorial-intro-later" type="button">Not Now</button>
+    </div>
   </div>
 </div>
 
@@ -1429,7 +1561,7 @@ body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
   <div class="panel-box" style="min-width:680px;max-width:900px;max-height:88vh;overflow:auto">
     <span class="panel-close" onclick="document.getElementById('story-panel').style.display='none'">✕</span>
     <h2>📖 THE ECO SIGNAL — STORY LOG</h2>
-    <p style="font-size:11px;color:#8fa3cc;margin:0 0 10px">Story progress saves locally for guests and syncs to the linked Wix account when account persistence is available.</p>
+    <p style="font-size:11px;color:#8fa3cc;margin:0 0 10px">Objectives update automatically during play. Progress saves locally for guests and syncs to a linked Wix account when persistence is available.</p>
     <div id="story-panel-content"></div>
   </div>
 </div>
@@ -1497,14 +1629,26 @@ body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
 <div id="cosmetic-panel" class="overlay-panel" style="display:none">
   <div class="panel-box" style="min-width:680px;max-width:880px">
     <span class="panel-close" onclick="document.getElementById('cosmetic-panel').style.display='none'">✕</span>
-    <h2>✨ COSMETIC + COUPON SHOP — <span id="cosmetic-credit-current">300</span> cr owned</h2>
-    <p class="credit-note">Cosmetics are intentionally expensive prestige unlocks. They change visual styles only: player ship, NPC trade ships, station looks, planet palettes, bullets, enemy effects, particles, trails, engine plumes, shield auras, planetside suits, and mining beams.</p>
+    <h2>✨ COSMETIC WARDROBE + MARKET — <span id="cosmetic-credit-current">300</span> cr owned</h2>
+    <p class="credit-note">Browse by visual slot, search by name, filter owned or affordable styles, and manage the active loadout without digging through the entire catalog.</p>
     <div class="coupon-row">
       <input id="coupon-code-input" maxlength="40" placeholder="Enter Coupon Code" autocomplete="off"/>
       <button id="coupon-redeem-btn" type="button">Redeem Coupon</button>
     </div>
     <p id="coupon-status" class="cosmetic-status"></p>
+    <div class="cosmetic-toolbar" aria-label="Cosmetic filters">
+      <input id="cosmetic-search" type="search" maxlength="50" placeholder="Search cosmetic names, slots, and descriptions…" autocomplete="off"/>
+      <select id="cosmetic-ownership-filter" aria-label="Filter cosmetics by ownership">
+        <option value="all">All ownership</option><option value="owned">Owned</option><option value="unowned">Not owned</option><option value="affordable">Affordable now</option><option value="equipped">Equipped</option>
+      </select>
+      <select id="cosmetic-sort" aria-label="Sort cosmetics">
+        <option value="recommended">Recommended</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Name A–Z</option><option value="owned">Owned first</option>
+      </select>
+      <button id="cosmetic-clear-filters" type="button">Clear filters</button>
+    </div>
+    <div id="cosmetic-loadout" class="cosmetic-loadout"></div>
     <div id="cosmetic-type-tabs" class="cosmetic-type-tabs" aria-label="Cosmetic type tabs"></div>
+    <div id="cosmetic-result-summary" class="cosmetic-result-summary" aria-live="polite"></div>
     <div id="cosmetic-list" class="cosmetic-grid"></div>
   </div>
 </div>
@@ -1778,7 +1922,22 @@ function drawGalaxyMapOverlay(){
   g.fillStyle="#b8cbe8";g.font="11px monospace";g.fillText(`Center ${Math.round(cx)}, ${Math.round(cy)} · Range ±${range.toLocaleString()}`,10,18);document.getElementById("galaxy-map-coords").textContent=`${Math.round(ship.x)}, ${Math.round(ship.y)}`;
 }
 
-const BLOCKING_DOM_PANEL_IDS=["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","module-crafting-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
+const BLOCKING_DOM_PANEL_IDS=["master-menu-panel","tutorial-intro-panel","lb-panel","sl-panel","stats-panel","story-panel","module-crafting-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel","trade-panel-dom","social-panel"];
+const COMMAND_PREFS_KEY="spaceEco.commandCenterPrefs.v2";
+function loadCommandPrefs(){try{return{shortcutMenus:false,dockExpanded:false,uiScale:"100",highContrast:false,...JSON.parse(localStorage.getItem(COMMAND_PREFS_KEY)||"{}")};}catch(_){return{shortcutMenus:false,dockExpanded:false,uiScale:"100",highContrast:false};}}
+let commandPrefs=loadCommandPrefs(),legacyHotkeysEnabled=!!commandPrefs.shortcutMenus,lastShortcutNoticeAt=0;
+function saveCommandPrefs(){try{localStorage.setItem(COMMAND_PREFS_KEY,JSON.stringify(commandPrefs));}catch(_){}}
+function applyCommandPrefs(){
+  legacyHotkeysEnabled=!!commandPrefs.shortcutMenus;
+  document.body.classList.toggle("legacy-hotkeys-enabled",legacyHotkeysEnabled);
+  document.body.classList.toggle("command-dock-expanded",!!commandPrefs.dockExpanded);
+  document.body.classList.toggle("command-dock-minimized",!commandPrefs.dockExpanded);
+  document.body.classList.toggle("high-contrast",!!commandPrefs.highContrast);
+  document.body.dataset.uiScale=["100","115","130"].includes(String(commandPrefs.uiScale))?String(commandPrefs.uiScale):"100";
+  const dock=document.getElementById("desktop-command-dock"),dockToggle=document.getElementById("desktop-command-dock-toggle");
+  if(dock)dock.classList.toggle("dock-minimized",!commandPrefs.dockExpanded);
+  if(dockToggle){dockToggle.textContent=commandPrefs.dockExpanded?"⌄ Hide Quick Dock":"☰ Command Center";dockToggle.setAttribute("aria-expanded",String(!!commandPrefs.dockExpanded));}
+}
 function isShown(el){return !!el&&getComputedStyle(el).display!=="none"&&getComputedStyle(el).visibility!=="hidden";}
 function isTextControl(target){if(target&&target.closest&&target.closest("#mobile-controls,#mobile-menu-hub"))return false;const el=target&&target.closest&&target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']");return !!(el&&el.getClientRects().length>0);}
 function joinScreenOpen(){return isShown(document.getElementById("join-screen"));}
@@ -1791,9 +1950,10 @@ function clearLiveInput(){keys.clear();miningPointerHeld=false;clearMiningChainT
 function hidePanel(id){const el=document.getElementById(id);if(el)el.style.display="none";}
 function closeTopDomPanel(){
   if(isShown(document.getElementById("master-menu-panel"))){hidePanel("master-menu-panel");document.body.classList.remove("master-menu-open");return true;}
+  if(isShown(document.getElementById("tutorial-intro-panel"))){hidePanel("tutorial-intro-panel");return true;}
   if(isShown(document.getElementById("trade-panel-dom"))){closeTradePanel(true);return true;}
   if(isShown(document.getElementById("social-panel"))){socialOpen=false;hidePanel("social-panel");return true;}
-  for(const id of ["master-menu-panel","cosmetic-panel","credit-panel","build-panel","ship-panel","sl-panel","lb-panel","stats-panel","story-panel"]){if(isShown(document.getElementById(id))){hidePanel(id);return true;}}
+  for(const id of ["master-menu-panel","cosmetic-panel","credit-panel","build-panel","ship-panel","module-crafting-panel","galaxy-map-panel","sl-panel","lb-panel","stats-panel","story-panel"]){if(isShown(document.getElementById(id))){hidePanel(id);return true;}}
   return false;
 }
 function closeMatchingPanelHotkey(key){
@@ -1828,6 +1988,15 @@ window.addEventListener("keydown",e=>{
 
   // Trade invite hotkeys should not also open the player list on N.
   if(pendingTradeRequest&&(key==="y"||key==="n")){respondToTradeRequest(key==="y");e.preventDefault();return;}
+
+  // v4.2 keeps movement and contextual play keys immediate, while optional
+  // one-letter menu shortcuts live behind an explicit power-user preference.
+  const optionalMenuKeys=new Set(["i","o","p","c","v","y","]","2","3","4","k","n","h","z","b","m",".",";","f","j","u","r"]);
+  if(!legacyHotkeysEnabled&&optionalMenuKeys.has(key)){
+    e.preventDefault();
+    if(Date.now()-lastShortcutNoticeAt>1800){lastShortcutNoticeAt=Date.now();showUiActionNotice?.("Press 1 for the Command Center · shortcut menus can be enabled in its footer","#7be6ff");}
+    return;
+  }
 
   keys.add(key);
   if(e.code==="ShiftLeft"&&mode===MODE.SPACE&&!canvasPanelOpen()){
@@ -2065,7 +2234,7 @@ function resetMobileControlState(reason="reset"){
 
 function mobileToggleHub(force){if(!IS_MOBILE_TOUCH)return;const open=force===undefined?!document.body.classList.contains("mobile-menu-open"):!!force;document.body.classList.toggle("mobile-menu-open",open);clearMovementInput();}
 function mobileCloseAllPanels(){
-  mobileToggleHub(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","module-crafting-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);
+  mobileToggleHub(false);closeTopDomPanel();["master-menu-panel","tutorial-intro-panel","lb-panel","sl-panel","stats-panel","story-panel","module-crafting-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);
   if(socialOpen){socialOpen=false;hidePanel("social-panel");}
   try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }
   inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();
@@ -2102,8 +2271,12 @@ function mobileAction(action){
     case "build":mobileToggleHub(false);mobileBuildOrTile();break;
     case "credits":mobileToggleHub(false);hideCreditShopTip();toggleCreditShop();break;
     case "cosmetics":mobileToggleHub(false);toggleCosmeticShop();break;
+    case "story":mobileToggleHub(false);toggleStoryPanel();break;
+    case "guidance":mobileToggleHub(false);toggleTutorialGuidance();break;
+    case "map":mobileToggleHub(false);toggleGalaxyMap();break;
     case "quests":mobileToggleHub(false);toggleQuestLog();break;
     case "badges":mobileToggleHub(false);toggleBadgeLog();break;
+    case "stats":mobileToggleHub(false);toggleStatsPanel();break;
     case "leaderboard":mobileToggleHub(false);toggleLeaderboard();break;
     case "players":mobileToggleHub(false);toggleServerList();break;
     case "social":mobileToggleHub(false);toggleSocialPanel();break;
@@ -2126,7 +2299,8 @@ function desktopToggleInventory(){setInventoryOpenSafe(!inventoryOpen);shopOpen=
 function desktopToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;resetShopTransactions();}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
 function desktopBuildOrTile(){if(mode===MODE.PLANET){placeBuildTileAt(mouse.x||canvas.width/2,mouse.y||canvas.height/2);return;}if(mode===MODE.SPACE)toggleBuildPanel();}
 function desktopInteract(){if(mode===MODE.SPACE&&(nearStation||shopOpen)){desktopToggleShop();return;}keys.add("e");setTimeout(()=>keys.delete("e"),90);}
-function closeAllDesktopPanels(){showMasterMenu(false);closeTopDomPanel();["master-menu-panel","lb-panel","sl-panel","stats-panel","story-panel","module-crafting-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);if(socialOpen){socialOpen=false;hidePanel("social-panel");}try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();}
+function closeCommandCenterChildren(){["tutorial-intro-panel","lb-panel","sl-panel","stats-panel","story-panel","module-crafting-panel","galaxy-map-panel","ship-panel","build-panel","credit-panel","cosmetic-panel"].forEach(hidePanel);if(socialOpen){socialOpen=false;hidePanel("social-panel");}try{if(isShown(document.getElementById("trade-panel-dom")))closeTradePanel(true);}catch(_){ }inventoryOpen=false;shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);selectedSlot=null;shopSelectedSlot=null;clearMovementInput();}
+function closeAllDesktopPanels(){showMasterMenu(false);closeCommandCenterChildren();clearMovementInput();}
 function desktopAction(action){
   if(!joined&&action!=="close")return;
   switch(action){
@@ -2145,6 +2319,7 @@ function desktopAction(action){
     case "badges":toggleBadgeLog();break;
     case "stats":toggleStatsPanel();break;
     case "story":toggleStoryPanel();break;
+    case "guidance":toggleTutorialGuidance();break;
     case "leaderboard":toggleLeaderboard();break;
     case "players":toggleServerList();break;
     case "build":desktopBuildOrTile();break;
@@ -2159,63 +2334,111 @@ function desktopAction(action){
     case "tool":togglePlanetTool();break;
     case "gas":desktopUseGas();break;
     case "oxygen":desktopUseOxygen();break;
+    case "toggle-shortcuts":commandPrefs.shortcutMenus=!commandPrefs.shortcutMenus;saveCommandPrefs();applyCommandPrefs();break;
+    case "toggle-dock":commandPrefs.dockExpanded=!commandPrefs.dockExpanded;saveCommandPrefs();applyCommandPrefs();break;
+    case "cycle-scale":cycleCommandUiScale();break;
+    case "toggle-contrast":commandPrefs.highContrast=!commandPrefs.highContrast;saveCommandPrefs();applyCommandPrefs();break;
   }
 }
 
 const MASTER_MENU_TABS=[
-  {key:"all",label:"All"},{key:"core",label:"Core"},{key:"economy",label:"Economy"},{key:"progress",label:"Progress"},{key:"social",label:"Social"},{key:"survival",label:"Survival"}
+  {key:"play",label:"Mission + Play",icon:"◈"},
+  {key:"pilot",label:"Pilot",icon:"◎"},
+  {key:"fleet",label:"Fleet + Build",icon:"⬡"},
+  {key:"economy",label:"Markets",icon:"◇"},
+  {key:"community",label:"Community",icon:"◌"},
+  {key:"settings",label:"Settings + Access",icon:"⚙"}
 ];
 const MASTER_MENU_ENTRIES=[
-  {action:"map",cat:"core",label:"Galaxy Map",hotkey:"2",desc:"Open the expanded sector map and known discoveries."},
-  {action:"inventory",cat:"core",label:"Inventory",hotkey:"I",desc:"Open item slots, cargo, gear resources, and inventory details."},
-  {action:"shop",cat:"economy",label:"Station Shop",hotkey:"O",desc:"Open the nearby station buy/sell/quest/hire shop."},
-  {action:"credits",cat:"economy",label:"Credit Market",hotkey:"M",desc:"Open Wix-connected credit packs and purchase status.",style:"gold"},
-  {action:"cosmetics",cat:"economy",label:"Cosmetics + Coupons",hotkey:";",desc:"Open cosmetic shop, coupon code redemption, and owned visual styles.",style:"gold"},
-  {action:"ship-shop",cat:"economy",label:"Ship Market",hotkey:"H",desc:"Buy or switch ship frames from the showroom."},
-  {action:"character",cat:"core",label:"Character Bay",hotkey:"C",desc:"Open pilot upgrades, planetside gear, and character information."},
-  {action:"modules",cat:"survival",label:"Planetside Module Forge",hotkey:"4",desc:"Craft and upgrade suit modules with mined resources while landed."},
-  {action:"attributes",cat:"core",label:"Attributes",hotkey:"P",desc:"Spend pilot points and review stats."},
-  {action:"ship-status",cat:"core",label:"Ship Stats + Loadout",hotkey:"Z",desc:"View hull, shield, weapons, and attachment modules."},
-  {action:"quests",cat:"progress",label:"Quest Log",hotkey:"V",desc:"View active station and planetside quests."},
-  {action:"badges",cat:"progress",label:"Badges",hotkey:"Y",desc:"Open badges, achievements, and stat milestones."},
-  {action:"stats",cat:"progress",label:"Pilot Stats",hotkey:"]",desc:"View persistent combat, mining, trade, exploration, and record statistics."},
-  {action:"story",cat:"progress",label:"The Eco Signal Story",hotkey:"3",desc:"Follow the persistent Space Eco narrative and current chapter objectives."},
-  {action:"leaderboard",cat:"progress",label:"Leaderboard",hotkey:"K",desc:"Compare pilots by score, kills, deaths, and level."},
-  {action:"players",cat:"social",label:"Players Online",hotkey:"N",desc:"Show pilots currently in the server."},
-  {action:"social",cat:"social",label:"Party + Faction",hotkey:"F",desc:"Open party and faction command panel."},
-  {action:"party",cat:"social",label:"Invite Party",hotkey:"J",desc:"Invite the nearest player to your party."},
-  {action:"faction",cat:"social",label:"Invite Faction",hotkey:"U",desc:"Invite the nearest player to your faction."},
-  {action:"trade",cat:"social",label:"Player Trade",hotkey:"R",desc:"Send a trade request to the nearest pilot."},
-  {action:"chat",cat:"social",label:"Chat",hotkey:"T",desc:"Open the multiplayer chat input."},
-  {action:"build",cat:"core",label:"Build / Tile",hotkey:"B",desc:"Open station builder in space or place a tile planetside."},
-  {action:"land",cat:"core",label:"Land / Takeoff",hotkey:"L",desc:"Land on a nearby planet or return to your ship from planetside."},
-  {action:"tool",cat:"survival",label:"Planet Tool",hotkey:"Q",desc:"Toggle planetside mining/weapon tool."},
-  {action:"gas",cat:"survival",label:"Use Gas",hotkey:"G",desc:"Use gas canisters while in space."},
-  {action:"oxygen",cat:"survival",label:"Use O₂ Tank",hotkey:"X",desc:"Use an oxygen tank while planetside."},
-  {action:"interact",cat:"core",label:"Talk / Shop / Loot",hotkey:"E",desc:"Talk, loot, or open a nearby station shop contextually."},
-  {action:"close",cat:"core",label:"Close Panels",hotkey:"Esc",desc:"Close open menus and return to gameplay.",style:"red"}
+  {action:"story",cat:"play",icon:"◈",label:"Guided Eco Signal",hotkey:"3",desc:"View the live story path, completed chapters, and the active objective.",keywords:"tutorial onboarding story mission guide",recommended:true},
+  {action:"guidance",cat:"play",icon:"◎",label:"Pause / Resume Guidance",hotkey:"—",desc:"Show, minimize, or pause the on-screen mission tracker without losing progress.",keywords:"tutorial tracker prompt accessibility"},
+  {action:"map",cat:"play",icon:"⌖",label:"Galaxy Map",hotkey:"2",desc:"Explore known sectors, discoveries, and custom waypoint markers.",keywords:"navigation planets coordinates waypoint"},
+  {action:"quests",cat:"play",icon:"☷",label:"Quest Log",hotkey:"V",desc:"Review station and planetside contracts separately from the main story.",keywords:"objectives contracts missions"},
+  {action:"interact",cat:"play",icon:"E",label:"Context Action",hotkey:"E",desc:"Talk, loot, inspect, or open the nearby station based on your location.",keywords:"talk shop loot use"},
+  {action:"land",cat:"play",icon:"⇅",label:"Land / Takeoff",hotkey:"L",desc:"Land on the nearest world or return to orbit from your ship.",keywords:"planet launch orbit"},
+  {action:"tool",cat:"play",icon:"⌁",label:"Planet Tool",hotkey:"Q",desc:"Switch the active planetside mining or weapon tool.",keywords:"mine weapon survival"},
+
+  {action:"inventory",cat:"pilot",icon:"▦",label:"Inventory + Crafting",hotkey:"I",desc:"Manage cargo, gear, modules, field crafting, and fusion in one inventory.",keywords:"items cargo equipment fusion repair"},
+  {action:"character",cat:"pilot",icon:"♙",label:"Character Bay",hotkey:"C",desc:"Review planetside equipment and upgrade personal systems.",keywords:"suit weapon mining oxygen"},
+  {action:"attributes",cat:"pilot",icon:"＋",label:"Pilot Attributes",hotkey:"P",desc:"Spend attribute points and inspect permanent pilot bonuses.",keywords:"stats level upgrade points"},
+  {action:"stats",cat:"pilot",icon:"▥",label:"Pilot Records",hotkey:"]",desc:"See persistent combat, mining, trade, and exploration records.",keywords:"statistics progress records"},
+  {action:"badges",cat:"pilot",icon:"✦",label:"Badges + Achievements",hotkey:"Y",desc:"Review earned milestones, rewards, and locked achievements.",keywords:"awards milestones rewards"},
+  {action:"oxygen",cat:"pilot",icon:"O₂",label:"Use Oxygen Tank",hotkey:"X",desc:"Refill suit oxygen while exploring a planet.",keywords:"survival tank air"},
+  {action:"gas",cat:"pilot",icon:"G",label:"Use Ship Gas",hotkey:"G",desc:"Refill ship energy while travelling in space.",keywords:"fuel energy survival"},
+
+  {action:"ship-status",cat:"fleet",icon:"△",label:"Ship Status + Loadout",hotkey:"Z",desc:"Inspect hull, shield, weapons, abilities, and attachment modules.",keywords:"spaceship damage armor equipment"},
+  {action:"ship-shop",cat:"fleet",icon:"🚀",label:"Shipyard + Weapon Forge",hotkey:"H",desc:"Craft, buy, and switch ship frames and weapons.",keywords:"showroom craft ships weapons"},
+  {action:"build",cat:"fleet",icon:"⬢",label:"Build + Civilization",hotkey:"B",desc:"Place stations, structures, or planetside tiles contextually.",keywords:"station zone structure civilization tile"},
+  {action:"modules",cat:"fleet",icon:"🧩",label:"Planet Module Forge",hotkey:"4",desc:"Craft permanent suit modules while landed on a planet.",keywords:"craft module upgrade planet",availability:"planet"},
+
+  {action:"shop",cat:"economy",icon:"¤",label:"Nearby Station Market",hotkey:"O",desc:"Buy, sell, take quests, and hire help at the nearby station.",keywords:"trade buy sell hire",availability:"station"},
+  {action:"cosmetics",cat:"economy",icon:"✧",label:"Cosmetic Wardrobe",hotkey:";",desc:"Search, filter, purchase, equip, and reset visual styles.",keywords:"skins appearance coupon outfits",style:"gold"},
+  {action:"credits",cat:"economy",icon:"◇",label:"Credit Market",hotkey:"M",desc:"Open Wix-connected credit packages and purchase status.",keywords:"money purchase credits wix",style:"gold"},
+
+  {action:"players",cat:"community",icon:"◌",label:"Players Online",hotkey:"N",desc:"See current pilots, locations, modes, and measured round-trip latency.",keywords:"server ping people online"},
+  {action:"social",cat:"community",icon:"⚑",label:"Party + Faction Hub",hotkey:"F",desc:"Manage party membership, faction roles, ranks, and group quests.",keywords:"guild team clan"},
+  {action:"trade",cat:"community",icon:"⇄",label:"Trade With Nearby Pilot",hotkey:"R",desc:"Send a protected player-to-player trade request.",keywords:"exchange items credits player"},
+  {action:"chat",cat:"community",icon:"▣",label:"Open Chat",hotkey:"T",desc:"Focus the multiplayer chat input.",keywords:"message talk"},
+  {action:"leaderboard",cat:"community",icon:"🏆",label:"Leaderboard",hotkey:"K",desc:"Compare score, kills, deaths, ship, and level.",keywords:"ranking competition"},
+  {action:"party",cat:"community",icon:"＋",label:"Invite Nearby to Party",hotkey:"J",desc:"Invite the closest eligible pilot to a temporary party.",keywords:"team invite"},
+  {action:"faction",cat:"community",icon:"★",label:"Invite Nearby to Faction",hotkey:"U",desc:"Invite the closest eligible pilot to your faction.",keywords:"guild invite"},
+
+  {action:"toggle-shortcuts",cat:"settings",icon:"⌨",label:"Optional Menu Shortcuts",hotkey:"—",desc:"Enable or disable the one-letter shortcuts for opening individual menus.",keywords:"keyboard hotkeys controls accessibility",inline:true},
+  {action:"toggle-dock",cat:"settings",icon:"▤",label:"Desktop Quick Dock",hotkey:"—",desc:"Show or hide the large desktop action-button dock.",keywords:"buttons toolbar hud accessibility",inline:true},
+  {action:"cycle-scale",cat:"settings",icon:"Aa",label:"Interface Text Size",hotkey:"—",desc:"Cycle DOM menu text through 100%, 115%, and 130%.",keywords:"font large readability accessibility",inline:true},
+  {action:"toggle-contrast",cat:"settings",icon:"◐",label:"High Contrast",hotkey:"—",desc:"Increase borders and background contrast for menu readability.",keywords:"vision contrast accessibility",inline:true},
+  {action:"close",cat:"settings",icon:"×",label:"Close All Menus",hotkey:"Esc",desc:"Return immediately to unobstructed gameplay.",keywords:"exit resume game",style:"red"}
 ];
-let masterMenuTab="all";
+let masterMenuTab="play",masterMenuSearch="";
+function commandMenuAvailability(entry){
+  if(entry.availability==="planet"&&mode!==MODE.PLANET)return{state:"unavailable",note:"Land on a planet first"};
+  if(entry.availability==="station"&&!nearStation&&!shopOpen)return{state:"unavailable",note:"Move close to a station"};
+  if(entry.recommended)return{state:"recommended",note:"Active guidance"};
+  return{state:"available",note:""};
+}
+function commandContextText(){const place=mode===MODE.PLANET?`PLANET · ${activePlanet?.name||"SURFACE"}`:"SPACE";const online=socket?.connected?"ONLINE":"RECONNECTING",latency=clientLatencyMs?` · ${clientLatencyMs}ms RTT`:"";return `<b>${safeHtml(online)}</b>${latency} · ${safeHtml(place)} · LV ${Math.max(1,Number(player?.level)||1)} · ${Math.floor(Number(player?.credits)||0).toLocaleString()} CR`;}
+function commandPrefLabel(action){if(action==="toggle-shortcuts")return legacyHotkeysEnabled?"Enabled — select to disable":"Disabled — select to enable";if(action==="toggle-dock")return commandPrefs.dockExpanded?"Visible — select to hide":"Hidden — select to show";if(action==="cycle-scale")return `${commandPrefs.uiScale||"100"}% current size`;if(action==="toggle-contrast")return commandPrefs.highContrast?"Enabled — select to disable":"Disabled — select to enable";return"";}
 function renderMasterMenu(){
-  const tabs=document.getElementById("master-menu-tabs"),grid=document.getElementById("master-menu-grid");
+  const tabs=document.getElementById("master-menu-tabs"),grid=document.getElementById("master-menu-grid"),context=document.getElementById("master-menu-context"),title=document.getElementById("master-menu-section-title"),count=document.getElementById("master-menu-result-count");
   if(!tabs||!grid)return;
-  tabs.innerHTML=MASTER_MENU_TABS.map(t=>`<button class="master-menu-tab ${masterMenuTab===t.key?"active":""}" data-master-tab="${t.key}" type="button">${t.label}</button>`).join("");
-  for(const b of tabs.querySelectorAll("[data-master-tab]"))b.onclick=()=>{masterMenuTab=b.dataset.masterTab||"all";renderMasterMenu();};
-  const entries=MASTER_MENU_ENTRIES.filter(e=>masterMenuTab==="all"||e.cat===masterMenuTab);
-  grid.innerHTML=entries.length?entries.map(e=>`<button class="master-menu-card ${e.style||""}" data-master-action="${e.action}" type="button"><span class="master-menu-card-title"><span>${e.label}</span><span class="master-menu-hotkey">${e.hotkey}</span></span><small>${e.desc}</small></button>`).join(""):`<div class="master-menu-empty">No commands in this tab yet.</div>`;
-  for(const b of grid.querySelectorAll("[data-master-action]"))b.onclick=(ev)=>{ev.preventDefault();ev.stopPropagation();hidePanel("master-menu-panel");document.body.classList.remove("master-menu-open");desktopAction(b.dataset.masterAction);};
+  const q=masterMenuSearch.trim().toLowerCase();
+  tabs.innerHTML=MASTER_MENU_TABS.map(t=>{const total=MASTER_MENU_ENTRIES.filter(e=>e.cat===t.key).length;return `<button class="master-menu-tab ${!q&&masterMenuTab===t.key?"active":""}" data-master-tab="${t.key}" type="button" role="tab" aria-selected="${String(!q&&masterMenuTab===t.key)}"><span>${safeHtml(t.icon)} &nbsp;${safeHtml(t.label)}</span><small>${total}</small></button>`;}).join("");
+  for(const b of tabs.querySelectorAll("[data-master-tab]"))b.onclick=()=>{masterMenuTab=b.dataset.masterTab||"play";masterMenuSearch="";const input=document.getElementById("master-menu-search");if(input)input.value="";renderMasterMenu();};
+  let entries=MASTER_MENU_ENTRIES.filter(e=>q?`${e.label} ${e.desc} ${e.keywords||""} ${e.cat}`.toLowerCase().includes(q):e.cat===masterMenuTab);
+  if(context)context.innerHTML=commandContextText();
+  const tab=MASTER_MENU_TABS.find(t=>t.key===masterMenuTab);if(title)title.textContent=q?`Search: “${masterMenuSearch.trim()}”`:(tab?.label||"Command Center");if(count)count.textContent=`${entries.length} ${entries.length===1?"action":"actions"}`;
+  grid.innerHTML=entries.length?entries.map(e=>{const av=commandMenuAvailability(e),pref=commandPrefLabel(e.action);return `<button class="master-menu-card ${e.style||""}" data-master-action="${safeHtml(e.action)}" data-context="${av.state}" type="button" aria-label="${safeHtml(e.label)}${av.note?`. ${av.note}`:""}"><span class="master-menu-card-title"><span><span class="master-menu-card-icon" aria-hidden="true">${safeHtml(e.icon||"•")}</span>${safeHtml(e.label)}</span><span class="master-menu-hotkey">${safeHtml(e.hotkey||"")}</span></span><small>${safeHtml(pref||e.desc)}${av.note?`<br><b style="color:#ffcc66">${safeHtml(av.note)}</b>`:""}</small></button>`;}).join(""):`<div class="master-menu-empty">No matching actions. Try “inventory,” “mission,” “party,” “cosmetic,” or “accessibility.”</div>`;
+  for(const b of grid.querySelectorAll("[data-master-action]"))b.onclick=(ev)=>{ev.preventDefault();ev.stopPropagation();const action=b.dataset.masterAction,entry=MASTER_MENU_ENTRIES.find(e=>e.action===action);if(entry?.inline){desktopAction(action);renderMasterMenu();syncCommandPreferenceButtons();return;}hidePanel("master-menu-panel");document.body.classList.remove("master-menu-open");desktopAction(action);};
 }
 function showMasterMenu(force=true){
   const el=document.getElementById("master-menu-panel");if(!el)return;
   const open=force===undefined?!isShown(el):!!force;
-  if(open){renderMasterMenu();el.style.display="flex";document.body.classList.add("master-menu-open");clearMovementInput();}
+  if(open){closeCommandCenterChildren();renderMasterMenu();syncCommandPreferenceButtons();el.style.display="flex";document.body.classList.add("master-menu-open");clearMovementInput();setTimeout(()=>document.getElementById("master-menu-search")?.focus({preventScroll:true}),0);}
   else{el.style.display="none";document.body.classList.remove("master-menu-open");clearMovementInput();}
 }
 function toggleMasterMenu(){const el=document.getElementById("master-menu-panel");showMasterMenu(!(el&&isShown(el)));}
+function cycleCommandUiScale(){const values=["100","115","130"],index=values.indexOf(String(commandPrefs.uiScale||"100"));commandPrefs.uiScale=values[(index+1)%values.length];saveCommandPrefs();applyCommandPrefs();syncCommandPreferenceButtons();}
+function syncCommandPreferenceButtons(){
+  const hot=document.getElementById("master-menu-hotkeys-toggle"),dock=document.getElementById("master-menu-dock-pref"),scale=document.getElementById("master-menu-scale-pref"),contrast=document.getElementById("master-menu-contrast-pref");
+  if(hot){hot.textContent=`Extra hotkeys: ${legacyHotkeysEnabled?"On":"Off"}`;hot.setAttribute("aria-pressed",String(legacyHotkeysEnabled));}
+  if(dock){dock.textContent=`Quick dock: ${commandPrefs.dockExpanded?"Visible":"Hidden"}`;dock.setAttribute("aria-pressed",String(!!commandPrefs.dockExpanded));}
+  if(scale)scale.textContent=`Text size: ${commandPrefs.uiScale||"100"}%`;
+  if(contrast){contrast.textContent=`High contrast: ${commandPrefs.highContrast?"On":"Off"}`;contrast.setAttribute("aria-pressed",String(!!commandPrefs.highContrast));}
+}
+function installCommandCenterBackButtons(){
+  for(const panel of document.querySelectorAll(".overlay-panel:not(#master-menu-panel):not(#tutorial-intro-panel)")){const box=panel.querySelector(".panel-box");if(!box||box.querySelector(".command-center-back"))continue;const back=document.createElement("button");back.type="button";back.className="command-center-back";back.textContent="↶ Command Center";back.addEventListener("click",()=>showMasterMenu(true));box.prepend(back);}
+  for(const box of document.querySelectorAll("#social-panel .social-box,#trade-panel-dom .trade-box")){if(box.querySelector(".command-center-back"))continue;const back=document.createElement("button");back.type="button";back.className="command-center-back";back.textContent="↶ Command Center";back.addEventListener("click",()=>showMasterMenu(true));box.prepend(back);}
+}
 function bindMasterMenu(){
   document.getElementById("master-menu-close")?.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();showMasterMenu(false);});
   document.getElementById("master-menu-panel")?.addEventListener("click",e=>{if(e.target&&e.target.id==="master-menu-panel")showMasterMenu(false);});
-  renderMasterMenu();
+  const search=document.getElementById("master-menu-search");search?.addEventListener("input",()=>{masterMenuSearch=search.value||"";renderMasterMenu();});search?.addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();document.querySelector("#master-menu-grid [data-master-action]")?.focus();}});
+  document.getElementById("master-menu-search-clear")?.addEventListener("click",()=>{masterMenuSearch="";if(search)search.value="";renderMasterMenu();search?.focus();});
+  document.getElementById("master-menu-hotkeys-toggle")?.addEventListener("click",()=>{desktopAction("toggle-shortcuts");syncCommandPreferenceButtons();renderMasterMenu();});
+  document.getElementById("master-menu-dock-pref")?.addEventListener("click",()=>{desktopAction("toggle-dock");syncCommandPreferenceButtons();renderMasterMenu();});
+  document.getElementById("master-menu-scale-pref")?.addEventListener("click",()=>{cycleCommandUiScale();renderMasterMenu();});
+  document.getElementById("master-menu-contrast-pref")?.addEventListener("click",()=>{desktopAction("toggle-contrast");syncCommandPreferenceButtons();renderMasterMenu();});
+  installCommandCenterBackButtons();applyCommandPrefs();syncCommandPreferenceButtons();
 }
 function desktopToggleAttributes(){attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);}
 function desktopLandTakeoff(){mobileLandTakeoff();}
@@ -2229,24 +2452,16 @@ function bindDesktopCommandDock(){
   });
   const dock=document.getElementById("desktop-command-dock"),toggle=document.getElementById("desktop-command-dock-toggle");
   if(dock&&toggle){
-    const apply=minimized=>{
-      dock.classList.toggle("dock-minimized",!!minimized);
-      document.body.classList.toggle("command-dock-minimized",!!minimized);
-      toggle.textContent=minimized?"⌃ Show Hotkeys":"⌄ Hide Hotkeys";
-      toggle.title=minimized?"Show the hotkey dock":"Hide the hotkey dock";
-      toggle.setAttribute("aria-expanded",String(!minimized));
-      try{localStorage.setItem("spaceEco.desktopDockMinimized",minimized?"1":"0");}catch(_){}
-    };
-    let minimized=false;try{minimized=localStorage.getItem("spaceEco.desktopDockMinimized")==="1";}catch(_){}
-    apply(minimized);
-    toggle.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();apply(!dock.classList.contains("dock-minimized"));});
+    toggle.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(commandPrefs.dockExpanded){commandPrefs.dockExpanded=false;saveCommandPrefs();applyCommandPrefs();syncCommandPreferenceButtons();}else showMasterMenu(true);});
   }
+  applyCommandPrefs();
 }
 function syncDesktopPanelState(){
   if(IS_MOBILE_TOUCH)return;
   const panelOpen=canvasPanelOpen()||blockingDomPanelOpen()||isShown(document.getElementById("trade-panel-dom"));
   document.body.classList.toggle("panel-open",panelOpen);
 }
+bindMasterMenu();
 bindDesktopCommandDock();
 function bindMobileTouchControls(){
   if(!IS_MOBILE_TOUCH)return;
@@ -2678,26 +2893,60 @@ function renderStatsPanel(){const host=document.getElementById("stats-panel-cont
 function toggleStatsPanel(){const el=document.getElementById("stats-panel");if(!el)return;const open=!isShown(el);if(open){renderStatsPanel();el.style.display="flex";}else el.style.display="none";}
 
 const STORY_STORAGE_KEY="spaceEcoStoryProgressV1";
+const TUTORIAL_PREFS_KEY="spaceEcoTutorialGuidanceV2";
 const STORY_CHAPTERS=[
-  {title:"A Signal in the Dark",text:"A faint ecological beacon is repeating from beyond the trade lanes. Keep your ship active long enough to isolate its source.",goal:"Survive and explore for 60 seconds.",test:()=>Number(playerStats.timePlayedSeconds||0)>=60},
-  {title:"First Descent",text:"The signal resolves into mineral harmonics from a living world. Descend and establish visual contact with the surface.",goal:"Land on any planet.",test:()=>Number(playerStats.landings||0)>=1},
-  {title:"The Living Crust",text:"The planet is storing fragments of an ancient environmental archive inside its mineral layers.",goal:"Mine at least 8 resources.",test:()=>Number(playerStats.resourcesMined||0)>=8},
-  {title:"The Frontier Exchange",text:"The archive fragments require translation keys scattered through the galactic economy.",goal:"Complete at least 3 station buy or sell actions.",test:()=>Number(playerStats.tradeActions||0)>=3},
-  {title:"Foundations of Aequitas",text:"A permanent structure will stabilize the signal and give the expedition a foothold.",goal:"Build a storage facility or defense turret.",test:()=>Array.isArray(playerStructuresList)&&playerStructuresList.some(s=>s?.isOwn&&!s.destroyed)},
-  {title:"The Raider's Wake",text:"Raiders are following the same signal. Their recovered flight data points toward a hidden civilization corridor.",goal:"Destroy 3 NPC or raider ships.",test:()=>Number(playerStats.npcShipsDestroyed||0)>=3},
-  {title:"A Zone of Our Own",text:"The signal can only be amplified through a civilization network under your control.",goal:"Purchase a civilization zone.",test:()=>Number(playerStats.zonesPurchased||0)>=1||(Array.isArray(civilizationZonesList)&&civilizationZonesList.some(z=>z?.isOwn))},
-  {title:"The Eco Accord",text:"The archive reveals its final directive: build an economy that protects worlds instead of exhausting them.",goal:"Reach level 5 and collect 50 total resources.",test:()=>Number(player.level||1)>=5&&Number(playerStats.collectedResources||0)>=50}
+  {title:"A Signal in the Dark",text:"A faint ecological beacon is repeating beyond the trade lanes. Keep your ship active while its coordinates resolve.",goal:"Explore and remain active for 60 seconds.",hint:"Fly, inspect the event radar, or open the Galaxy Map while the receiver triangulates the signal.",action:"map",test:()=>Number(playerStats.timePlayedSeconds||0)>=60,progress:()=>({value:Math.min(60,Number(playerStats.timePlayedSeconds)||0),target:60,label:`${Math.min(60,Math.floor(Number(playerStats.timePlayedSeconds)||0))} / 60 sec`})},
+  {title:"First Descent",text:"The signal resolves into mineral harmonics from a living world. Descend and establish visual contact with its surface.",goal:"Land on any planet.",hint:"Approach a planet until the landing prompt appears, then use L or the contextual Land action.",action:"land",test:()=>Number(playerStats.landings||0)>=1,progress:()=>({value:Math.min(1,Number(playerStats.landings)||0),target:1,label:`${Math.min(1,Number(playerStats.landings)||0)} / 1 landing`})},
+  {title:"The Living Crust",text:"The world stores fragments of an ancient environmental archive inside its mineral layers.",goal:"Mine at least 8 resources.",hint:"While landed, select the mining tool and hold the pointer over mineable terrain until collection completes.",action:"mine",test:()=>Number(playerStats.resourcesMined||0)>=8,progress:()=>({value:Math.min(8,Number(playerStats.resourcesMined)||0),target:8,label:`${Math.min(8,Number(playerStats.resourcesMined)||0)} / 8 mined`})},
+  {title:"The Frontier Exchange",text:"The archive fragments require translation keys distributed through the galactic economy.",goal:"Complete 3 station buy or sell actions.",hint:"Return to orbit, move close to a station, and use its market. Each confirmed buy or sale advances this chapter.",action:"shop",test:()=>Number(playerStats.tradeActions||0)>=3,progress:()=>({value:Math.min(3,Number(playerStats.tradeActions)||0),target:3,label:`${Math.min(3,Number(playerStats.tradeActions)||0)} / 3 trades`})},
+  {title:"Foundations of Aequitas",text:"A permanent structure will stabilize the signal and give the expedition a foothold.",goal:"Build a storage facility or defense turret.",hint:"Open Fleet + Build in the Command Center while in space, then place a storage facility or defense turret.",action:"build",test:()=>Array.isArray(playerStructuresList)&&playerStructuresList.some(s=>s?.isOwn&&!s.destroyed),progress:()=>{const done=Array.isArray(playerStructuresList)&&playerStructuresList.some(s=>s?.isOwn&&!s.destroyed);return{value:done?1:0,target:1,label:done?"Structure online":"0 / 1 structure"};}},
+  {title:"The Raider's Wake",text:"Raiders are following the same signal. Their recovered flight data points toward a hidden civilization corridor.",goal:"Destroy 3 NPC or raider ships.",hint:"Use the event radar and Galaxy Map to locate hostile activity, then keep moving while firing to avoid return shots.",action:"combat",test:()=>Number(playerStats.npcShipsDestroyed||0)>=3,progress:()=>({value:Math.min(3,Number(playerStats.npcShipsDestroyed)||0),target:3,label:`${Math.min(3,Number(playerStats.npcShipsDestroyed)||0)} / 3 ships`})},
+  {title:"A Zone of Our Own",text:"The signal can only be amplified through a civilization network under your control.",goal:"Purchase a civilization zone.",hint:"Open Fleet + Build and review civilization-zone options. A zone costs 1,000,000 credits.",action:"zone",test:()=>Number(playerStats.zonesPurchased||0)>=1||(Array.isArray(civilizationZonesList)&&civilizationZonesList.some(z=>z?.isOwn)),progress:()=>{const done=Number(playerStats.zonesPurchased||0)>=1||(Array.isArray(civilizationZonesList)&&civilizationZonesList.some(z=>z?.isOwn));return{value:done?1:0,target:1,label:done?"Zone established":"0 / 1 zone"};}},
+  {title:"The Eco Accord",text:"The archive reveals its final directive: build an economy that protects worlds instead of exhausting them.",goal:"Reach level 5 and collect 50 total resources.",hint:"Mix mining, trade, quests, and combat. Your Pilot Records show both requirements at a glance.",action:"stats",test:()=>Number(player.level||1)>=5&&Number(playerStats.collectedResources||0)>=50,progress:()=>{const lv=Math.min(5,Number(player.level)||1),res=Math.min(50,Number(playerStats.collectedResources)||0);return{value:Math.min(lv/5,res/50)*100,target:100,label:`Lv ${lv}/5 · ${res}/50 resources`};}}
 ];
 function normalizeStoryProgress(raw){const max=STORY_CHAPTERS.length;const completed=Math.max(0,Math.min(max,Math.floor(Number(raw?.completed)||0)));return{completed,startedAt:Math.max(0,Math.floor(Number(raw?.startedAt)||Date.now())),updatedAt:Math.max(0,Math.floor(Number(raw?.updatedAt)||Date.now()))};}
 function loadStoryProgress(){try{return normalizeStoryProgress(JSON.parse(localStorage.getItem(STORY_STORAGE_KEY)||"{}"));}catch(_){return normalizeStoryProgress({});}}
-let storyProgress=loadStoryProgress(),storySyncTimer=0,storyEvalTimer=0;
+function loadTutorialPrefs(){try{return{guidance:true,minimized:false,introSeen:false,...JSON.parse(localStorage.getItem(TUTORIAL_PREFS_KEY)||"{}")};}catch(_){return{guidance:true,minimized:false,introSeen:false};}}
+let storyProgress=loadStoryProgress(),tutorialPrefs=loadTutorialPrefs(),storySyncTimer=0,storyEvalTimer=0,tutorialToastTimer=0,lastTutorialRenderKey="";
+function saveTutorialPrefs(){try{localStorage.setItem(TUTORIAL_PREFS_KEY,JSON.stringify(tutorialPrefs));}catch(_){}}
 function saveStoryProgressLocal(){storyProgress.updatedAt=Date.now();try{localStorage.setItem(STORY_STORAGE_KEY,JSON.stringify(storyProgress));}catch(_){}saveLocalGameStateSoon?.("story_progress");}
-function mergeStoryProgress(raw){const incoming=normalizeStoryProgress(raw||{});storyProgress=normalizeStoryProgress({completed:Math.max(storyProgress.completed||0,incoming.completed||0),startedAt:Math.min(storyProgress.startedAt||Date.now(),incoming.startedAt||Date.now()),updatedAt:Math.max(storyProgress.updatedAt||0,incoming.updatedAt||0)});saveStoryProgressLocal();return storyProgress;}
+function mergeStoryProgress(raw){const incoming=normalizeStoryProgress(raw||{});storyProgress=normalizeStoryProgress({completed:Math.max(storyProgress.completed||0,incoming.completed||0),startedAt:Math.min(storyProgress.startedAt||Date.now(),incoming.startedAt||Date.now()),updatedAt:Math.max(storyProgress.updatedAt||0,incoming.updatedAt||0)});saveStoryProgressLocal();renderTutorialTracker(true);return storyProgress;}
 function syncStoryProgressSoon(){clearTimeout(storySyncTimer);storySyncTimer=setTimeout(()=>{if(socket?.connected)socket.emit("storyProgressUpdate",{storyProgress:normalizeStoryProgress(storyProgress)});},350);}
-function evaluateStoryProgress(showNotice=false){let advanced=false;while(storyProgress.completed<STORY_CHAPTERS.length){const chapter=STORY_CHAPTERS[storyProgress.completed];let done=false;try{done=!!chapter.test();}catch(_){done=false;}if(!done)break;storyProgress.completed++;advanced=true;if(showNotice||storyProgress.completed>0){const title=chapter.title;showFT?.(`Story Complete: ${title}`,mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-42:ship.y-38,"#ffdd44",12);addChat?.("Story",`${title} completed.`,"#ffdd44");}}if(advanced){saveStoryProgressLocal();syncStoryProgressSoon();renderStoryPanel();}return advanced;}
+function storyChapterProgress(chapter){try{const p=chapter?.progress?.()||{value:0,target:1,label:"In progress"},target=Math.max(.0001,Number(p.target)||1),value=Math.max(0,Number(p.value)||0);return{value,target,pct:Math.max(0,Math.min(100,value/target*100)),label:String(p.label||`${Math.floor(value)} / ${Math.floor(target)}`)};}catch(_){return{value:0,target:1,pct:0,label:"In progress"};}}
+function showTutorialToast(title,message){const toast=document.getElementById("tutorial-toast");if(!toast)return;clearTimeout(tutorialToastTimer);toast.innerHTML=`<strong>${safeHtml(title)}</strong>${safeHtml(message||"")}`;toast.style.display="block";tutorialToastTimer=setTimeout(()=>{toast.style.display="none";},5200);}
+function evaluateStoryProgress(showNotice=false){let advanced=false;while(storyProgress.completed<STORY_CHAPTERS.length){const index=storyProgress.completed,chapter=STORY_CHAPTERS[index];let done=false;try{done=!!chapter.test();}catch(_){done=false;}if(!done)break;storyProgress.completed++;advanced=true;const next=STORY_CHAPTERS[storyProgress.completed];showFT?.(`Mission Complete: ${chapter.title}`,mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-42:ship.y-38,"#ffdd44",12);addChat?.("Eco Signal",`${chapter.title} completed.${next?` New objective: ${next.goal}`:" The Eco Accord is complete."}`,"#ffdd44");showTutorialToast(`CHAPTER ${index+1} COMPLETE`,next?`New signal: ${next.title} — ${next.goal}`:"The Eco Signal story is complete. Your accord is now part of the galaxy.");}
+  if(advanced){saveStoryProgressLocal();syncStoryProgressSoon();renderStoryPanel();renderTutorialTracker(true);}else if(showNotice){const chapter=STORY_CHAPTERS[storyProgress.completed];if(chapter)showTutorialToast(chapter.title,`${chapter.goal} ${storyChapterProgress(chapter).label}`);}
+  return advanced;
+}
 function storyGoalStatus(index){if(index<storyProgress.completed)return"COMPLETE";if(index===storyProgress.completed)return"ACTIVE";return"LOCKED";}
-function renderStoryPanel(){const host=document.getElementById("story-panel-content");if(!host)return;evaluateStoryProgress(false);host.innerHTML=STORY_CHAPTERS.map((c,i)=>{const status=storyGoalStatus(i),active=status==="ACTIVE",done=status==="COMPLETE";return `<div style="border:1px solid ${done?"#4a9a6a":active?"#b8942a":"#27364a"};background:${done?"#10261d":active?"#2a2410":"#0c1119"};border-radius:6px;padding:10px;margin-bottom:8px;opacity:${status==="LOCKED"?.62:1}"><div style="display:flex;justify-content:space-between;gap:12px"><b style="color:${done?"#78ff8a":active?"#ffdd44":"#6f8098"}">Chapter ${i+1}: ${safeHtml(c.title)}</b><span style="font-size:9px;color:${done?"#78ff8a":active?"#ffdd44":"#6f8098"}">${status}</span></div><p style="font-size:10px;color:#aebfd2;line-height:1.45;margin:7px 0">${safeHtml(c.text)}</p><div style="font-size:10px;color:#7be6ff"><b>Objective:</b> ${safeHtml(c.goal)}</div></div>`;}).join("")+`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span style="font-size:10px;color:#8fa3cc">Progress: ${storyProgress.completed}/${STORY_CHAPTERS.length} chapters</span><button class="trade-btn ready" onclick="evaluateStoryProgress(true);renderStoryPanel()">Check Progress</button></div>`;}
-function toggleStoryPanel(){const el=document.getElementById("story-panel");if(!el)return;const open=!isShown(el);if(open){renderStoryPanel();el.style.display="flex";}else el.style.display="none";}
+function renderStoryPanel(){const host=document.getElementById("story-panel-content");if(!host)return;host.innerHTML=STORY_CHAPTERS.map((c,i)=>{const status=storyGoalStatus(i),active=status==="ACTIVE",done=status==="COMPLETE",p=active?storyChapterProgress(c):null;return `<div style="border:1px solid ${done?"#4a9a6a":active?"#b8942a":"#27364a"};background:${done?"#10261d":active?"#2a2410":"#0c1119"};border-radius:9px;padding:11px;margin-bottom:8px;opacity:${status==="LOCKED"?.62:1}"><div style="display:flex;justify-content:space-between;gap:12px"><b style="color:${done?"#78ff8a":active?"#ffdd44":"#6f8098"}">Chapter ${i+1}: ${safeHtml(c.title)}</b><span style="font-size:9px;color:${done?"#78ff8a":active?"#ffdd44":"#6f8098"}">${status}</span></div><p style="font-size:10px;color:#aebfd2;line-height:1.45;margin:7px 0">${safeHtml(c.text)}</p><div style="font-size:10px;color:#7be6ff"><b>Objective:</b> ${safeHtml(c.goal)}</div>${active?`<div style="height:7px;margin:9px 0 5px;border:1px solid #3b4f68;border-radius:999px;background:#060b14;overflow:hidden"><div style="height:100%;width:${p.pct.toFixed(1)}%;background:linear-gradient(90deg,#43d77a,#ffdd44)"></div></div><div style="font-size:9px;color:#d8e5f5">${safeHtml(p.label)} · <b>Hint:</b> ${safeHtml(c.hint)}</div>`:""}</div>`;}).join("")+`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px"><span style="font-size:10px;color:#8fa3cc">${storyProgress.completed}/${STORY_CHAPTERS.length} chapters complete · progress updates automatically</span><button id="story-guidance-toggle" class="trade-btn ready" type="button">${tutorialPrefs.guidance?"Pause On-Screen Guidance":"Resume On-Screen Guidance"}</button></div>`;document.getElementById("story-guidance-toggle")?.addEventListener("click",()=>{toggleTutorialGuidance();renderStoryPanel();});}
+function toggleStoryPanel(){const el=document.getElementById("story-panel");if(!el)return;const open=!isShown(el);if(open){evaluateStoryProgress(false);renderStoryPanel();el.style.display="flex";}else el.style.display="none";}
+function renderTutorialTracker(force=false){
+  const tracker=document.getElementById("tutorial-tracker");if(!tracker)return;if(!joined||!tutorialPrefs.guidance){tracker.style.display="none";return;}
+  tracker.style.display="flex";tracker.classList.toggle("tutorial-minimized",!!tutorialPrefs.minimized);const minBtn=document.getElementById("tutorial-tracker-minimize");if(minBtn){minBtn.textContent=tutorialPrefs.minimized?"+":"−";minBtn.setAttribute("aria-expanded",String(!tutorialPrefs.minimized));minBtn.setAttribute("aria-label",tutorialPrefs.minimized?"Expand guided mission":"Minimize guided mission");}
+  const complete=storyProgress.completed>=STORY_CHAPTERS.length,index=complete?STORY_CHAPTERS.length-1:storyProgress.completed,chapter=STORY_CHAPTERS[index],p=complete?{pct:100,label:"8 / 8 chapters"}:storyChapterProgress(chapter),renderKey=`${storyProgress.completed}|${Math.floor(p.pct)}|${tutorialPrefs.minimized}|${tutorialPrefs.guidance}`;if(!force&&renderKey===lastTutorialRenderKey)return;lastTutorialRenderKey=renderKey;
+  const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};set("tutorial-tracker-count",complete?"COMPLETE":`${index+1} / ${STORY_CHAPTERS.length}`);set("tutorial-tracker-chapter",complete?"ECO ACCORD COMPLETE":`CHAPTER ${index+1} · ACTIVE SIGNAL`);set("tutorial-tracker-title",complete?"The Signal Endures":chapter.title);set("tutorial-tracker-copy",complete?"You completed the guided Eco Signal arc. The tracker remains available as a record of the journey.":chapter.text);set("tutorial-tracker-goal",complete?"All guided chapters complete. Continue building your civilization and protecting the galaxy.":chapter.goal);set("tutorial-progress-text",p.label);
+  const fill=document.getElementById("tutorial-progress-fill"),track=fill?.parentElement;if(fill)fill.style.width=`${p.pct}%`;if(track)track.setAttribute("aria-valuenow",String(Math.round(p.pct)));const guide=document.getElementById("tutorial-guide-button");if(guide)guide.textContent=complete?"View Records":"Guide Me";
+}
+function showTutorialTracker(force=true){tutorialPrefs.guidance=!!force;tutorialPrefs.minimized=false;saveTutorialPrefs();renderTutorialTracker(true);}
+function toggleTutorialGuidance(){tutorialPrefs.guidance=!tutorialPrefs.guidance;if(tutorialPrefs.guidance)tutorialPrefs.minimized=false;saveTutorialPrefs();renderTutorialTracker(true);showUiActionNotice?.(tutorialPrefs.guidance?"Eco Signal guidance resumed":"Guidance paused — mission progress still updates","#7be6ff");}
+function tutorialGuidanceAction(){
+  if(storyProgress.completed>=STORY_CHAPTERS.length){toggleStatsPanel();return;}const chapter=STORY_CHAPTERS[storyProgress.completed];showUiActionNotice?.(chapter.hint,"#ffdd44");
+  if(chapter.action==="map"||chapter.action==="land"||chapter.action==="combat")openGalaxyMap();
+  else if(chapter.action==="mine"){if(mode===MODE.PLANET){planetTool="mining";showFT("Mining tool ready",astronaut.x,astronaut.y-28,"#ffdd44",10);}else openGalaxyMap();}
+  else if(chapter.action==="shop"){if(nearStation||shopOpen)desktopToggleShop();}
+  else if(chapter.action==="build"||chapter.action==="zone")desktopBuildOrTile();
+  else if(chapter.action==="stats")toggleStatsPanel();
+}
+function tutorialMaybeIntro(force=false){if(!joined)return;if(!force&&(tutorialPrefs.introSeen||storyProgress.completed>0)){renderTutorialTracker(true);return;}const panel=document.getElementById("tutorial-intro-panel");if(panel)panel.style.display="flex";}
+function bindTutorialUI(){
+  document.getElementById("tutorial-tracker-minimize")?.addEventListener("click",()=>{tutorialPrefs.minimized=!tutorialPrefs.minimized;saveTutorialPrefs();renderTutorialTracker(true);});
+  document.getElementById("tutorial-guide-button")?.addEventListener("click",tutorialGuidanceAction);document.getElementById("tutorial-log-button")?.addEventListener("click",()=>{hidePanel("tutorial-intro-panel");toggleStoryPanel();});
+  document.getElementById("tutorial-intro-start")?.addEventListener("click",()=>{tutorialPrefs.introSeen=true;tutorialPrefs.guidance=true;tutorialPrefs.minimized=false;saveTutorialPrefs();hidePanel("tutorial-intro-panel");renderTutorialTracker(true);showTutorialToast("GUIDANCE ONLINE",STORY_CHAPTERS[storyProgress.completed]?.goal||"The Eco Signal awaits.");});
+  document.getElementById("tutorial-intro-later")?.addEventListener("click",()=>{tutorialPrefs.introSeen=true;tutorialPrefs.guidance=false;saveTutorialPrefs();hidePanel("tutorial-intro-panel");renderTutorialTracker(true);showUiActionNotice?.("Guidance paused · resume it from the Command Center","#7be6ff");});
+}
+function updateTutorialSystem(now=performance.now()){if(!joined)return;if(now-storyEvalTimer>=650){storyEvalTimer=now;evaluateStoryProgress(false);renderTutorialTracker(false);}}
+bindTutorialUI();
 window.addEventListener("beforeunload",()=>{saveStoryProgressLocal();});
 
 window.addEventListener("beforeunload",savePlayerStats);
@@ -3351,7 +3600,7 @@ function drawPlanetVisual(p,px,py){
 }
 function cosmeticPreviewHtml(def){
  const color=safeColor(def.color||"#7be6ff"),accent=safeColor(def.accent||def.color||"#ffdd44");
- if(def.spritePath&&["ship","npcship","enemy","station","planet","turret"].includes(def.slot))return `<div class="cosmetic-preview" style="color:${color}"><img class="sprite-preview" src="${safeHtml(def.spritePath)}" alt=""/></div>`;
+ if(def.spritePath&&["ship","npcship","enemy","station","planet","turret"].includes(def.slot))return `<div class="cosmetic-preview" style="color:${color}"><img class="sprite-preview" src="${safeHtml(def.spritePath)}" alt="${safeHtml(def.name||"Cosmetic preview")}" loading="lazy"/></div>`;
  if(def.slot==="ship"||def.slot==="npcship"){const pts="96,29 48,10 55,25 18,18 38,29 18,40 55,33 48,48";return `<div class="cosmetic-preview"><svg width="118" height="58"><polygon points="${pts}" fill="${color}" stroke="${accent}" stroke-width="3"/></svg></div>`;}
  if(def.slot==="bullet")return `<div class="cosmetic-preview"><div class="preview-stage"><span class="preview-bullet-dot" style="background:${color}"></span><span class="preview-bullet-dot" style="background:${accent}"></span></div></div>`;
  if(def.slot==="station"||def.slot==="planet")return `<div class="cosmetic-preview" style="background:linear-gradient(135deg,${color},${accent})"></div>`;
@@ -3364,37 +3613,41 @@ function localRedeemCoupon(code,source="local"){code=String(code||"").trim().toU
 function equipCosmetic(slot,key){slot=String(slot||COSMETIC_DEFS[key]?.slot||"");const ok=localEquipCosmetic(slot,key||null);if(!ok)return;pendingCosmeticEquipKey=key||null;if(socket?.connected&&(!key||!COSMETIC_DEFS[key]?.spritePath||serverSupportsSpriteCosmetics)){socket.emit("equipCosmetic",{slot,key:key||null});}else if(key&&COSMETIC_DEFS[key]?.spritePath){const st=document.getElementById("coupon-status");if(st)st.textContent="Sprite cosmetic equipped locally. Deploy the included server.js to sync it galaxy-wide.";}}
 function buyCosmetic(key){key=String(key||"");const def=COSMETIC_DEFS[key];if(!def)return;pendingCosmeticPurchaseKey=key;if(def.spritePath&&!serverSupportsSpriteCosmetics){localBuyCosmetic(key,"sprite_compat");pendingCosmeticPurchaseKey=null;const st=document.getElementById("coupon-status");if(st)st.textContent="Sprite cosmetic purchased and equipped locally. Deploy the included server.js for multiplayer persistence/sync.";return;}if(cosmeticBackendSupported&&socket?.connected){socket.emit("buyCosmetic",{key});setTimeout(()=>{if(pendingCosmeticPurchaseKey===key&&!cosmeticInventory[key]){localBuyCosmetic(key,"purchase_timeout");pendingCosmeticPurchaseKey=null;}},1400);}else{localBuyCosmetic(key);pendingCosmeticPurchaseKey=null;}}
 function redeemCoupon(){const input=document.getElementById("coupon-code-input"),status=document.getElementById("coupon-status");const code=String(input?.value||"").trim().toUpperCase();if(!code){if(status)status.textContent="Enter a coupon code first.";return;}if(redeemedCoupons[code]&&!CLIENT_COUPON_DEFS[code]?.reusable){if(status)status.textContent="Coupon already redeemed on this pilot.";return;}if(status)status.textContent=cosmeticBackendSupported&&socket?.connected?"Checking coupon…":"Redeeming local coupon…";pendingCouponCode=code;clearTimeout(pendingCouponTimer);if(cosmeticBackendSupported&&socket?.connected){socket.emit("redeemCoupon",{code});pendingCouponTimer=setTimeout(()=>{if(pendingCouponCode===code)localRedeemCoupon(code,"timeout");pendingCouponCode=null;},1400);}else{localRedeemCoupon(code,"offline");pendingCouponCode=null;}}
-let selectedCosmeticType="all";
 const COSMETIC_TYPE_LABELS={all:"All",ship:"Player Ships",npcship:"NPC Ships",station:"Stations",planet:"Planets",turret:"Turrets",bullet:"Bullets",particle:"Particles",trail:"Trails",enemy:"Enemies",engine:"Engines",shield:"Shields",suit:"Suits",laser:"Mining Beams"};
-function cosmeticTypeOrder(){return ["all","ship","npcship","station","planet","turret","bullet","particle","trail","enemy","engine","shield","suit","laser"];}
+const COSMETIC_GROUPS={all:{label:"All Styles",slots:null},ships:{label:"Ships + Enemies",slots:["ship","npcship","enemy"]},world:{label:"World + Structures",slots:["station","planet","turret"]},effects:{label:"Weapons + Effects",slots:["bullet","particle","trail","engine","shield","laser"]},pilot:{label:"Pilot Suits",slots:["suit"]}};
+let selectedCosmeticType="all",cosmeticSearchText="",cosmeticOwnershipFilter="all",cosmeticSortMode="recommended";
 function renderCosmeticTabs(defs){
   const tabs=document.getElementById("cosmetic-type-tabs");if(!tabs)return;
-  const counts={all:defs.length};for(const d of defs)counts[d.slot]=(counts[d.slot]||0)+1;
-  tabs.innerHTML=cosmeticTypeOrder().filter(t=>t==="all"||counts[t]).map(t=>`<button class="cosmetic-type-tab ${selectedCosmeticType===t?"active":""}" data-cos-type="${safeHtml(t)}" type="button">${safeHtml(COSMETIC_TYPE_LABELS[t]||t)}<span class="cosmetic-type-count">${counts[t]||0}</span></button>`).join("");
+  tabs.innerHTML=Object.entries(COSMETIC_GROUPS).map(([key,group])=>{const count=key==="all"?defs.length:defs.filter(d=>group.slots.includes(d.slot)).length;return `<button class="cosmetic-type-tab ${selectedCosmeticType===key?"active":""}" data-cos-type="${safeHtml(key)}" type="button" aria-pressed="${String(selectedCosmeticType===key)}">${safeHtml(group.label)}<span class="cosmetic-type-count">${count}</span></button>`;}).join("");
   for(const b of tabs.querySelectorAll("[data-cos-type]"))b.onclick=()=>{selectedCosmeticType=b.dataset.cosType||"all";renderCosmeticShop();};
 }
+function cosmeticIsEquipped(def){if(!def)return false;if(def.slot==="planet"){const type=planetTypeForCosmetic(def);return planetTypeCosmetics[type]===def.key;}if(def.slot==="station")return STATION_VISUAL_TIERS.some(t=>stationTierCosmetics[t]===def.key);return equippedCosmetics[def.slot]===def.key;}
+function renderCosmeticLoadout(){const host=document.getElementById("cosmetic-loadout");if(!host)return;const slots=COSMETIC_SLOTS.filter(slot=>slot!=="station"&&slot!=="planet").map(slot=>{const key=equippedCosmetics[slot],def=key?COSMETIC_DEFS[key]:null;return `<button class="${key?"active":""}" data-cos-clear-active="${safeHtml(slot)}" ${key?"":"disabled"} title="${key?"Click to reset this slot":"This slot is using its default"}">${safeHtml(COSMETIC_TYPE_LABELS[slot]||slot)} · ${safeHtml(def?.name||"Default")}</button>`;}).join("");host.innerHTML=`<div class="cosmetic-loadout-head"><span>ACTIVE VISUAL LOADOUT</span><span class="cosmetic-slot">Click an active slot to reset it</span></div><div class="cosmetic-loadout-slots">${slots}</div><details style="margin-top:9px"><summary style="cursor:pointer;color:#9fd9ff;font-size:9px;font-weight:900">Advanced world assignments</summary><div class="cosmetic-title" style="margin-top:10px"><span>STATION TIERS</span><span class="cosmetic-slot">1–6 Stars</span></div><div class="cosmetic-actions">${stationTierAssignmentSummary()}</div><div class="cosmetic-title" style="margin-top:10px"><span>RESOURCE-WORLD TYPES</span><span class="cosmetic-slot">Per planet family</span></div><div class="cosmetic-actions">${planetTypeAssignmentSummary()}</div></details>`;}
 function renderCosmeticShop(){
-  const cur=document.getElementById("cosmetic-credit-current"),list=document.getElementById("cosmetic-list");if(cur)cur.textContent=(player.credits||0).toLocaleString();if(!list)return;
+  const cur=document.getElementById("cosmetic-credit-current"),list=document.getElementById("cosmetic-list"),summary=document.getElementById("cosmetic-result-summary");if(cur)cur.textContent=(player.credits||0).toLocaleString();if(!list)return;
   const order=["ship","npcship","station","planet","turret","bullet","particle","trail","enemy","engine","shield","suit","laser"];
-  const defs=Object.values(COSMETIC_DEFS).sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)||a.price-b.price);if(!COSMETIC_TYPE_LABELS[selectedCosmeticType])selectedCosmeticType="all";renderCosmeticTabs(defs);
-  const activeSummary=COSMETIC_SLOTS.filter(slot=>slot!=="station"&&slot!=="planet").map(slot=>{const key=equippedCosmetics[slot],def=key?COSMETIC_DEFS[key]:null;return `<button class="${key?"":"warn"}" data-cos-clear-active="${safeHtml(slot)}" ${key?"":"disabled"}>${safeHtml(COSMETIC_TYPE_LABELS[slot]||slot)}: ${safeHtml(def?.name||"Default")}</button>`;}).join("");
-  const filtered=selectedCosmeticType==="all"?defs:defs.filter(d=>d.slot===selectedCosmeticType);
-  const header=`<div class="cosmetic-card" style="grid-column:1/-1"><div class="cosmetic-title"><span>ACTIVE COSMETIC SLOTS</span><span class="cosmetic-slot">Reset Defaults</span></div><div class="cosmetic-desc">Station designs are assigned separately to all six station levels. Civilization zones broadcast their owner’s assigned station-tier designs and NPC ship cosmetic to every connected client.</div><div class="cosmetic-actions">${activeSummary}</div><div class="cosmetic-title" style="margin-top:10px"><span>STATION TIER ASSIGNMENTS</span><span class="cosmetic-slot">1–6 Stars</span></div><div class="cosmetic-actions">${stationTierAssignmentSummary()}</div><div class="cosmetic-title" style="margin-top:10px"><span>PLANET RESOURCE-TYPE ASSIGNMENTS</span><span class="cosmetic-slot">One per world type</span></div><div class="cosmetic-actions">${planetTypeAssignmentSummary()}</div></div>`;
-  list.innerHTML=header+(filtered.map(def=>{const owned=!!cosmeticInventory[def.key],planetType=def.slot==="planet"?planetTypeForCosmetic(def):null,equipped=def.slot==="planet"?planetTypeCosmetics[planetType]===def.key:equippedCosmetics[def.slot]===def.key,can=(player.credits||0)>=def.price,slotActive=def.slot==="planet"?!!planetTypeCosmetics[planetType]:!!equippedCosmetics[def.slot];let mapping="";if(def.slot==="planet"){mapping=`<div class="resource-map-note"><b>Resource planet:</b> ${safeHtml(def.resourcePlanetLabel||PLANET_VISUAL_LABELS[planetType]||planetType)}<br><b>Resources:</b> ${safeHtml((def.resourceKeys||[]).map(k=>RES[k]?.name||k).join(", "))}<br><b>Assignment:</b> ${equipped?"Equipped for this resource-world type":(planetTypeCosmetics[planetType]?safeHtml(COSMETIC_DEFS[planetTypeCosmetics[planetType]]?.name||"Another cosmetic is equipped"):"Default planet design")}</div>`;}if(def.slot==="station"){const tier=STATION_VISUAL_TIERS.find(t=>stationTierCosmetics[t]===def.key)||"outpost";mapping=`<select class="station-tier-select" data-station-tier-select="${safeHtml(def.key)}">${STATION_VISUAL_TIERS.map(t=>`<option value="${t}" ${tier===t?"selected":""}>${safeHtml(STATION_VISUAL_LABELS[t])}</option>`).join("")}</select>`;}let actions;if(def.slot==="station"){actions=owned?`<button data-station-assign="${safeHtml(def.key)}">Assign to Tier</button><button class="warn" data-station-unassign="${safeHtml(def.key)}">Clear Selected Tier</button>`:`<button data-station-buy="${safeHtml(def.key)}" ${can?"":"disabled"}>Buy + Assign</button>`;}else if(def.slot==="planet"){actions=owned?`<button data-planet-assign="${safeHtml(def.key)}" ${equipped?"disabled":""}>${equipped?`Equipped for ${safeHtml(PLANET_VISUAL_LABELS[planetType]||planetType)}`:`Equip for ${safeHtml(PLANET_VISUAL_LABELS[planetType]||planetType)}`}</button><button class="warn" data-planet-unassign="${safeHtml(planetType)}" ${slotActive?"":"disabled"}>Clear ${safeHtml(PLANET_VISUAL_LABELS[planetType]||planetType)}</button>`:`<button data-planet-buy="${safeHtml(def.key)}" ${can?"":"disabled"}>Buy + Equip for ${safeHtml(PLANET_VISUAL_LABELS[planetType]||planetType)}</button>`;}else actions=owned?`<button data-cos-equip="${safeHtml(def.key)}" ${equipped?"disabled":""}>${equipped?"Equipped":"Equip"}</button><button class="warn" data-cos-clear="${safeHtml(def.slot)}" ${slotActive?"":"disabled"}>Clear Slot</button>`:`<button data-cos-buy="${safeHtml(def.key)}" ${can?"":"disabled"}>Buy</button>`;return `<div class="cosmetic-card ${owned?"owned":""} ${equipped?"equipped":""}">${cosmeticPreviewHtml(def)}<div class="cosmetic-title"><span>${safeHtml(def.name)}</span><span class="cosmetic-slot">${safeHtml(COSMETIC_TYPE_LABELS[def.slot]||def.slot)}</span></div><div class="cosmetic-desc">${safeHtml(def.description||"Visual cosmetic.")}</div>${mapping}<div class="cosmetic-price">${owned?"Owned":Number(def.price||0).toLocaleString()+" credits"}</div><div class="cosmetic-actions">${actions}</div></div>`;}).join("")||`<div class="cosmetic-card"><div class="cosmetic-desc">No cosmetics found for this type.</div></div>`);
-  for(const b of list.querySelectorAll("[data-cos-buy]"))b.onclick=()=>buyCosmetic(b.dataset.cosBuy);
-  for(const b of list.querySelectorAll("[data-cos-equip]"))b.onclick=()=>equipCosmetic(COSMETIC_DEFS[b.dataset.cosEquip]?.slot,b.dataset.cosEquip);
-  for(const b of list.querySelectorAll("[data-cos-clear]"))b.onclick=()=>equipCosmetic(b.dataset.cosClear,null);
-  for(const b of list.querySelectorAll("[data-cos-clear-active]"))b.onclick=()=>equipCosmetic(b.dataset.cosClearActive,null);
-  for(const b of list.querySelectorAll("[data-planet-type-clear]"))b.onclick=()=>assignPlanetTypeCosmetic(null,b.dataset.planetTypeClear);
-  for(const b of list.querySelectorAll("[data-planet-buy]"))b.onclick=()=>{const key=b.dataset.planetBuy;buyPlanetCosmeticForType(key,planetTypeForCosmetic(COSMETIC_DEFS[key]));};
-  for(const b of list.querySelectorAll("[data-planet-assign]"))b.onclick=()=>{const key=b.dataset.planetAssign;assignPlanetTypeCosmetic(key,planetTypeForCosmetic(COSMETIC_DEFS[key]));};
-  for(const b of list.querySelectorAll("[data-planet-unassign]"))b.onclick=()=>assignPlanetTypeCosmetic(null,b.dataset.planetUnassign);
-  for(const b of list.querySelectorAll("[data-station-tier-clear]"))b.onclick=()=>assignStationTierCosmetic(null,b.dataset.stationTierClear);
-  for(const b of list.querySelectorAll("[data-station-buy]"))b.onclick=()=>{const key=b.dataset.stationBuy,sel=list.querySelector(`[data-station-tier-select="${key}"]`);buyStationCosmeticForTier(key,sel?.value||"outpost");};
-  for(const b of list.querySelectorAll("[data-station-assign]"))b.onclick=()=>{const key=b.dataset.stationAssign,sel=list.querySelector(`[data-station-tier-select="${key}"]`);assignStationTierCosmetic(key,sel?.value||"outpost");};
-  for(const b of list.querySelectorAll("[data-station-unassign]"))b.onclick=()=>{const key=b.dataset.stationUnassign,sel=list.querySelector(`[data-station-tier-select="${key}"]`);assignStationTierCosmetic(null,sel?.value||"outpost");};
+  const defs=Object.values(COSMETIC_DEFS).sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)||a.price-b.price);if(!COSMETIC_GROUPS[selectedCosmeticType])selectedCosmeticType="all";renderCosmeticTabs(defs);renderCosmeticLoadout();
+  const group=COSMETIC_GROUPS[selectedCosmeticType],q=cosmeticSearchText.trim().toLowerCase();let filtered=defs.filter(def=>(!group.slots||group.slots.includes(def.slot))&&(!q||`${def.name} ${def.description||""} ${def.slot} ${COSMETIC_TYPE_LABELS[def.slot]||""}`.toLowerCase().includes(q)));
+  filtered=filtered.filter(def=>{const owned=!!cosmeticInventory[def.key],equipped=cosmeticIsEquipped(def),affordable=(player.credits||0)>=Number(def.price||0);if(cosmeticOwnershipFilter==="owned")return owned;if(cosmeticOwnershipFilter==="unowned")return!owned;if(cosmeticOwnershipFilter==="affordable")return!owned&&affordable;if(cosmeticOwnershipFilter==="equipped")return equipped;return true;});
+  const compare={"price-low":(a,b)=>a.price-b.price,"price-high":(a,b)=>b.price-a.price,name:(a,b)=>String(a.name).localeCompare(String(b.name)),owned:(a,b)=>Number(!!cosmeticInventory[b.key])-Number(!!cosmeticInventory[a.key])||a.price-b.price,recommended:(a,b)=>Number(cosmeticIsEquipped(b))-Number(cosmeticIsEquipped(a))||Number(!!cosmeticInventory[b.key])-Number(!!cosmeticInventory[a.key])||a.price-b.price}[cosmeticSortMode];filtered.sort(compare||((a,b)=>a.price-b.price));if(summary)summary.textContent=`Showing ${filtered.length} of ${defs.length} styles · ${Object.keys(cosmeticInventory||{}).filter(k=>cosmeticInventory[k]).length} owned`;
+  list.innerHTML=(filtered.map(def=>{const owned=!!cosmeticInventory[def.key],planetType=def.slot==="planet"?planetTypeForCosmetic(def):null,equipped=cosmeticIsEquipped(def),can=(player.credits||0)>=def.price,slotActive=def.slot==="planet"?!!planetTypeCosmetics[planetType]:!!equippedCosmetics[def.slot];let mapping="";if(def.slot==="planet"){mapping=`<div class="resource-map-note"><b>Resource planet:</b> ${safeHtml(def.resourcePlanetLabel||PLANET_VISUAL_LABELS[planetType]||planetType)}<br><b>Resources:</b> ${safeHtml((def.resourceKeys||[]).map(k=>RES[k]?.name||k).join(", "))}<br><b>Assignment:</b> ${equipped?"Equipped for this resource-world type":(planetTypeCosmetics[planetType]?safeHtml(COSMETIC_DEFS[planetTypeCosmetics[planetType]]?.name||"Another cosmetic is equipped"):"Default planet design")}</div>`;}if(def.slot==="station"){const tier=STATION_VISUAL_TIERS.find(t=>stationTierCosmetics[t]===def.key)||"outpost";mapping=`<select class="station-tier-select" data-station-tier-select="${safeHtml(def.key)}" aria-label="Station tier for ${safeHtml(def.name)}">${STATION_VISUAL_TIERS.map(t=>`<option value="${t}" ${tier===t?"selected":""}>${safeHtml(STATION_VISUAL_LABELS[t])}</option>`).join("")}</select>`;}let actions;if(def.slot==="station"){actions=owned?`<button data-station-assign="${safeHtml(def.key)}">Assign to Tier</button><button class="warn" data-station-unassign="${safeHtml(def.key)}">Clear Selected Tier</button>`:`<button data-station-buy="${safeHtml(def.key)}" ${can?"":"disabled"}>Buy + Assign</button>`;}else if(def.slot==="planet"){actions=owned?`<button data-planet-assign="${safeHtml(def.key)}" ${equipped?"disabled":""}>${equipped?`Equipped for ${safeHtml(PLANET_VISUAL_LABELS[planetType]||planetType)}`:`Equip for ${safeHtml(PLANET_VISUAL_LABELS[planetType]||planetType)}`}</button><button class="warn" data-planet-unassign="${safeHtml(planetType)}" ${slotActive?"":"disabled"}>Clear ${safeHtml(PLANET_VISUAL_LABELS[planetType]||planetType)}</button>`:`<button data-planet-buy="${safeHtml(def.key)}" ${can?"":"disabled"}>Buy + Equip for ${safeHtml(PLANET_VISUAL_LABELS[planetType]||planetType)}</button>`;}else actions=owned?`<button data-cos-equip="${safeHtml(def.key)}" ${equipped?"disabled":""}>${equipped?"Equipped":"Equip"}</button><button class="warn" data-cos-clear="${safeHtml(def.slot)}" ${slotActive?"":"disabled"}>Clear Slot</button>`:`<button data-cos-buy="${safeHtml(def.key)}" ${can?"":"disabled"}>Buy</button>`;return `<div class="cosmetic-card ${owned?"owned":""} ${equipped?"equipped":""}" data-cosmetic-name="${safeHtml(def.name)}">${cosmeticPreviewHtml(def)}<div class="cosmetic-title"><span>${safeHtml(def.name)}</span><span class="cosmetic-slot">${safeHtml(COSMETIC_TYPE_LABELS[def.slot]||def.slot)}</span></div><div class="cosmetic-desc">${safeHtml(def.description||"Visual cosmetic.")}</div>${mapping}<div class="cosmetic-price">${owned?"Owned":Number(def.price||0).toLocaleString()+" credits"}</div><div class="cosmetic-actions">${actions}</div></div>`;}).join("")||`<div class="cosmetic-card" style="grid-column:1/-1"><div class="cosmetic-desc">No cosmetics match these filters. Clear the filters or choose another visual group.</div></div>`);
+  const root=document.getElementById("cosmetic-panel")||list;
+  for(const b of root.querySelectorAll("[data-cos-buy]"))b.onclick=()=>buyCosmetic(b.dataset.cosBuy);
+  for(const b of root.querySelectorAll("[data-cos-equip]"))b.onclick=()=>equipCosmetic(COSMETIC_DEFS[b.dataset.cosEquip]?.slot,b.dataset.cosEquip);
+  for(const b of root.querySelectorAll("[data-cos-clear]"))b.onclick=()=>equipCosmetic(b.dataset.cosClear,null);
+  for(const b of root.querySelectorAll("[data-cos-clear-active]"))b.onclick=()=>equipCosmetic(b.dataset.cosClearActive,null);
+  for(const b of root.querySelectorAll("[data-planet-type-clear]"))b.onclick=()=>assignPlanetTypeCosmetic(null,b.dataset.planetTypeClear);
+  for(const b of root.querySelectorAll("[data-planet-buy]"))b.onclick=()=>{const key=b.dataset.planetBuy;buyPlanetCosmeticForType(key,planetTypeForCosmetic(COSMETIC_DEFS[key]));};
+  for(const b of root.querySelectorAll("[data-planet-assign]"))b.onclick=()=>{const key=b.dataset.planetAssign;assignPlanetTypeCosmetic(key,planetTypeForCosmetic(COSMETIC_DEFS[key]));};
+  for(const b of root.querySelectorAll("[data-planet-unassign]"))b.onclick=()=>assignPlanetTypeCosmetic(null,b.dataset.planetUnassign);
+  for(const b of root.querySelectorAll("[data-station-tier-clear]"))b.onclick=()=>assignStationTierCosmetic(null,b.dataset.stationTierClear);
+  for(const b of root.querySelectorAll("[data-station-buy]"))b.onclick=()=>{const key=b.dataset.stationBuy,sel=root.querySelector(`[data-station-tier-select="${key}"]`);buyStationCosmeticForTier(key,sel?.value||"outpost");};
+  for(const b of root.querySelectorAll("[data-station-assign]"))b.onclick=()=>{const key=b.dataset.stationAssign,sel=root.querySelector(`[data-station-tier-select="${key}"]`);assignStationTierCosmetic(key,sel?.value||"outpost");};
+  for(const b of root.querySelectorAll("[data-station-unassign]"))b.onclick=()=>{const key=b.dataset.stationUnassign,sel=root.querySelector(`[data-station-tier-select="${key}"]`);assignStationTierCosmetic(null,sel?.value||"outpost");};
 }
-function toggleCosmeticShop(){const el=document.getElementById("cosmetic-panel");if(!el)return;el.style.display=isShown(el)?"none":"flex";if(isShown(el))renderCosmeticShop();}
+function bindCosmeticFilters(){const search=document.getElementById("cosmetic-search"),ownership=document.getElementById("cosmetic-ownership-filter"),sort=document.getElementById("cosmetic-sort"),clear=document.getElementById("cosmetic-clear-filters");search?.addEventListener("input",()=>{cosmeticSearchText=search.value||"";renderCosmeticShop();});ownership?.addEventListener("change",()=>{cosmeticOwnershipFilter=ownership.value||"all";renderCosmeticShop();});sort?.addEventListener("change",()=>{cosmeticSortMode=sort.value||"recommended";renderCosmeticShop();});clear?.addEventListener("click",()=>{selectedCosmeticType="all";cosmeticSearchText="";cosmeticOwnershipFilter="all";cosmeticSortMode="recommended";if(search)search.value="";if(ownership)ownership.value="all";if(sort)sort.value="recommended";renderCosmeticShop();});}
+bindCosmeticFilters();
+function toggleCosmeticShop(){const el=document.getElementById("cosmetic-panel");if(!el)return;el.style.display=isShown(el)?"none":"flex";if(isShown(el)){renderCosmeticShop();setTimeout(()=>document.getElementById("cosmetic-search")?.focus({preventScroll:true}),0);}}
 
 const CHARACTER_UPGRADES={
   weapon:{label:"Planet Weapon",key:"weaponLevel",baseCost:750},
@@ -6902,7 +7155,7 @@ let launchedOnce=false;
 let lastJoinPayload=null;
 let gameLoopStarted=false;
 let pingTimer=null;
-let lastServerPongAt=Date.now(),connectionRecovering=false,connectionLostAt=0,lastConnectionRecoveryAttemptAt=0,connectionHeartbeatSeq=0;
+let lastServerPongAt=Date.now(),connectionRecovering=false,connectionLostAt=0,lastConnectionRecoveryAttemptAt=0,connectionHeartbeatSeq=0,clientLatencyMs=0,clientJitterMs=0;
 const CLIENT_RESUME_TOKEN_KEY="spaceEcoTransientResumeToken_v1";
 const joinStatusEl=document.getElementById("join-status"),joinScreen=document.getElementById("join-screen"),gameWrap=document.getElementById("wrap");
 
@@ -6919,8 +7172,8 @@ function clientResumeToken(){
 }
 function connectionHealthPulse(){
   if(!socket.connected)return;
-  const now=Date.now(),seq=++connectionHeartbeatSeq;
-  socket.emit("clientPing",{seq,clientNow:now},pong=>{if(pong?.ok)lastServerPongAt=Date.now();});
+  const now=Date.now(),sentAt=performance.now(),seq=++connectionHeartbeatSeq;
+  socket.emit("clientPing",{seq,clientNow:now,lastRtt:clientLatencyMs,transport:socket.io?.engine?.transport?.name||"unknown"},pong=>{if(!pong?.ok)return;const sample=Math.max(0,Math.min(5000,performance.now()-sentAt)),previous=clientLatencyMs;clientLatencyMs=Math.round(previous?previous*.68+sample*.32:sample);clientJitterMs=Math.round(clientJitterMs*.7+Math.abs(sample-(previous||sample))*.3);lastServerPongAt=Date.now();});
   // A connected transport with no confirmed server heartbeat is treated as a
   // stalled connection. Reconnect once rather than leaving the pilot in a
   // silently dead session.
@@ -7000,7 +7253,7 @@ socket.on("welcome",({id,x,y,color,galaxySeed:seed,prices,playerCount,shipTypes,
   joinScreen.style.display="none";gameWrap.style.display="flex";
   document.getElementById("chat-wrap").style.display="block";pcEl.style.display="block";
   pcEl.textContent=`👥 ${playerCount}`;
-  socket.emit("requestCivilizationZones");syncStoryProgressSoon();maybeLinkWixAccount();updateChunks();updateHud();scheduleCreditShopTip();
+  socket.emit("requestCivilizationZones");syncStoryProgressSoon();maybeLinkWixAccount();updateChunks();updateHud();scheduleCreditShopTip();applyCommandPrefs();renderTutorialTracker(true);setTimeout(()=>tutorialMaybeIntro(false),900);
   // Start one heartbeat loop and one animation loop only, even after reconnect/rejoin.
   ensureConnectionHealthLoop();
   if(!gameLoopStarted){gameLoopStarted=true;requestAnimationFrame(tick);}
@@ -7387,7 +7640,7 @@ socket.on("serverList",({name,players:plist,uptime})=>{
   const m=Math.floor(uptime/60),s=uptime%60;document.getElementById("sl-uptime").textContent=`${m}m ${s}s`;
   const tbody=document.getElementById("sl-body");if(!tbody)return;
   tbody.innerHTML="";
-  for(const p of plist){const tr=document.createElement("tr");if(p.id===player.id)tr.className="own-row";tr.innerHTML=`<td>${p.name}</td><td>${SHIP_TYPES[p.shipType]?.name||p.shipType}</td><td style="color:#7be6ff;font-family:monospace">(${p.x}, ${p.y})</td><td style="color:#ffd15c">${p.score}</td><td>${p.kills}/${p.deaths}</td><td>${p.level}</td><td>${p.ping}ms</td><td>${p.mode}</td>`;tbody.appendChild(tr);}
+  for(const p of plist){const tr=document.createElement("tr");if(p.id===player.id)tr.className="own-row";const ping=Math.max(0,Math.round(Number(p.ping)||0)),pingColor=!ping?"#8fa3cc":ping<=80?"#78ff8a":ping<=200?"#ffdd44":"#ff7766",pingLabel=ping?`${ping}ms`:"measuring…";tr.innerHTML=`<td>${p.name}</td><td>${SHIP_TYPES[p.shipType]?.name||p.shipType}</td><td style="color:#7be6ff;font-family:monospace">(${p.x}, ${p.y})</td><td style="color:#ffd15c">${p.score}</td><td>${p.kills}/${p.deaths}</td><td>${p.level}</td><td style="color:${pingColor};font-weight:800" title="Measured round-trip time">${pingLabel}</td><td>${p.mode}</td>`;tbody.appendChild(tr);}
 });
 
 socket.on("chat",({from,message,color})=>{addChat(from,message,color||"#d6e1ff");});
@@ -7403,17 +7656,18 @@ function doJoin(){
 }
 
 /* ── Input sender ── */
-let shootCooldownTimer=0;
+let shootCooldownTimer=0,lastInputSentAt=0,lastInputSignature="";
+function emitInputState(payload,signature,reliable=false){const now=performance.now(),changed=signature!==lastInputSignature,minimumGap=changed?0:(reliable?42:90);if(!changed&&now-lastInputSentAt<250&&!reliable)return false;if(now-lastInputSentAt<minimumGap)return false;(reliable||changed?socket:socket.volatile).emit("input",payload);lastInputSentAt=now;lastInputSignature=signature;return true;}
 function sendInput(){
   if(!joined||mode!==MODE.SPACE)return;
   if(domInputLocked()){
     clearLiveInput();
-    socket.emit("input",{rotLeft:false,rotRight:false,thrust:false,brake:false,shootX:undefined,shootY:undefined});
+    emitInputState({rotLeft:false,rotRight:false,thrust:false,brake:false},"0000",false);
     return;
   }
   if(canvasPanelOpen()){
     clearMovementInput();
-    socket.emit("input",{rotLeft:false,rotRight:false,thrust:false,brake:false,shootX:undefined,shootY:undefined});
+    emitInputState({rotLeft:false,rotRight:false,thrust:false,brake:false},"0000",false);
     return;
   }
   const camX=ship.x-canvas.width/2,camY=ship.y-canvas.height/2;
@@ -7427,8 +7681,9 @@ function sendInput(){
     shootX=mouse.x+camX;shootY=mouse.y+camY;
   }
   const stormThrottle=activeSpaceEffects.nebulaStorm>0 && Math.floor(performance.now()/220)%5===0;
-  socket.emit("input",{rotLeft:keys.has("a"),rotRight:keys.has("d"),thrust:keys.has("w")&&!stormThrottle,brake:keys.has("s"),shootX,shootY});
-  mouse.clicked=false;
+  const payload={rotLeft:keys.has("a"),rotRight:keys.has("d"),thrust:keys.has("w")&&!stormThrottle,brake:keys.has("s")};if(shootX!==undefined){payload.shootX=shootX;payload.shootY=shootY;}
+  const signature=`${Number(payload.rotLeft)}${Number(payload.rotRight)}${Number(payload.thrust)}${Number(payload.brake)}`;
+  if(emitInputState(payload,signature,shootX!==undefined))mouse.clicked=false;
 }
 
 /* ══════════════════════════════════════
@@ -10222,7 +10477,7 @@ function tick(now){
     uiItemTooltip=null;
     resizeGameCanvasToDisplay();syncMobileTouchUI();syncDesktopPanelState();
     if(!(shopOpen&&nearStation?.isCivSuperStation&&civSuperPanelTab!=="commands"))civHideNumberInputs();
-    const dt=Math.min(0.033,Math.max(0,(now-last)/1000));last=now;sanitizeWorldRenderState();updatePersistentStats(dt);updatePlanetLoadingRecovery(now);sendInput();
+    const dt=Math.min(0.033,Math.max(0,(now-last)/1000));last=now;sanitizeWorldRenderState();updatePersistentStats(dt);updateTutorialSystem(now);updatePlanetLoadingRecovery(now);sendInput();
     if(gameOver){maintainRespawnFlow(now);drawSpace();}
     else if(mode===MODE.SPACE){if(!planetLoading&&(activePlanet||planetMap)){activeRuin=null;activePlanet=null;planetMap=null;}updateSpace(dt);sanitizeWorldRenderState();drawSpace();if(characterOpen)drawCharacterPanel();}
     else{updatePlanet(dt);if(mode===MODE.SPACE){activePlanet=null;planetMap=null;invalidatePlanetTileRenderCache();planetPlayers.clear();updateSpace(dt);sanitizeWorldRenderState();drawSpace();if(characterOpen)drawCharacterPanel();}else drawPlanet();}
