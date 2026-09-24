@@ -1,5 +1,5 @@
 /**
- * Space Eco — Multiplayer Server v3 / v4.2.0 guidance + latency patch
+ * Space Eco — Multiplayer Server v3 / v4.3.0 complete tutorial + split-vitals patch
  * Adds: accurate RTT · backpressure-safe snapshots · split simulation/network ticks
  *       spatial interest management · runtime diagnostics · configurable Railway tuning
  */
@@ -1444,7 +1444,7 @@ const STATION_VISUAL_TIERS=["outpost","standard","advanced","capital","super","w
 function normalizeStationTierCosmetics(raw){const out={};for(const tier of STATION_VISUAL_TIERS)out[tier]=null;if(raw&&typeof raw==="object")for(const tier of STATION_VISUAL_TIERS){const key=String(raw[tier]||"");if(key&&COSMETIC_DEFS[key]?.slot==="station")out[tier]=key;}return out;}
 function syncOwnedZoneCosmeticsForPlayer(p){if(!p)return false;let changed=false;for(const zone of civilizationZones.values()){if(zone.ownerId===p.id||(p.memberId&&zone.ownerMemberId===p.memberId)){zone.stationTierCosmetics={};zone.npcshipCosmeticKey=null;zone.turretCosmeticKey=null;changed=true;}}return changed;}
 
-function normalizeStoryProgress(raw){const completed=Math.max(0,Math.min(8,Math.floor(Number(raw?.completed)||0)));return{completed,startedAt:Math.max(0,Math.floor(Number(raw?.startedAt)||Date.now())),updatedAt:Math.max(0,Math.floor(Number(raw?.updatedAt)||Date.now()))};}
+function normalizeStoryProgress(raw){const completed=Math.max(0,Math.min(21,Math.floor(Number(raw?.completed)||0)));return{completed,startedAt:Math.max(0,Math.floor(Number(raw?.startedAt)||Date.now())),updatedAt:Math.max(0,Math.floor(Number(raw?.updatedAt)||Date.now()))};}
 function normalizeRedeemedCoupons(raw){
   const out={};
   if(raw&&typeof raw==="object")for(const [k,v] of Object.entries(raw)){const code=String(k||"").trim().toUpperCase();if(code&&v===true)out[code]=true;}
@@ -1473,10 +1473,12 @@ function normalizePlanetModules(raw){const out=defaultPlanetModules();if(raw&&ty
 function planetModuleLevel(p,key){return Math.max(0,Math.min(PLANET_MODULE_MAX_LEVEL,Math.floor(Number(p?.planetModules?.[key])||0)));}
 function planetModuleRecipe(key,currentLevel){const def=PLANET_MODULE_DEFS[key];currentLevel=Math.max(0,Math.floor(Number(currentLevel)||0));if(!def||currentLevel>=PLANET_MODULE_MAX_LEVEL)return null;const target=currentLevel+1,growth=Math.pow(1.48,currentLevel),recipe={credits:Math.round(def.baseCredits*Math.pow(1.58,currentLevel))};for(const[type,base]of Object.entries(def.materials||{}))recipe[type]=Math.max(1,Math.ceil(base*growth));for(const gate of def.advanced||[])if(target>=gate.level)recipe[gate.type]=(recipe[gate.type]||0)+Math.max(1,Math.ceil(gate.qty*Math.pow(1.38,target-gate.level)));return recipe;}
 function planetModuleEffects(p){const l=k=>planetModuleLevel(p,k);return{oxygenMaxBonus:l("life_support")*25,oxygenDrainMult:Math.pow(.95,l("life_support")),suitHpBonus:l("suit_plating")*18,damageReduction:Math.min(.35,l("suit_plating")*.03),miningSpeedMult:Math.pow(.93,l("mining_array")),miningPowerBonus:l("mining_array")*4,jetpackMaxBonus:l("jetpack_capacitor")*16,weaponDamageMult:1+l("weapon_amplifier")*.09,weaponCooldownMult:Math.max(.70,1-l("weapon_amplifier")*.025),pickupRangeBonus:l("resource_magnet")*10};}
-function refreshPlanetSuitStats(p){if(!p)return;const desired=p.mode==="planet"?planetModuleEffects(p).suitHpBonus:0,current=Math.max(0,Number(p._planetSuitBonus)||0),baseMax=Math.max(1,(Number(p.maxHp)||100)-current);p.maxHp=baseMax+desired;if(desired>current)p.hp=Math.min(p.maxHp,(Number(p.hp)||baseMax)+(desired-current));else p.hp=Math.min(p.maxHp,Number(p.hp)||p.maxHp);p._planetSuitBonus=desired;}
+function refreshPlanetSuitStats(p){if(!p)return;const fx=planetModuleEffects(p),oldMax=Math.max(1,Number(p.planetMaxHp)||100);p.planetMaxHp=100+fx.suitHpBonus;p.planetMaxShield=40+planetModuleLevel(p,"suit_plating")*6;if(!Number.isFinite(Number(p.planetHp)))p.planetHp=p.planetMaxHp;if(!Number.isFinite(Number(p.planetShield)))p.planetShield=p.planetMaxShield;if(p.planetMaxHp>oldMax)p.planetHp=Math.min(p.planetMaxHp,p.planetHp+(p.planetMaxHp-oldMax));else p.planetHp=Math.min(p.planetMaxHp,p.planetHp);p.planetShield=Math.min(p.planetMaxShield,p.planetShield);}
 function planetDamageAfterModules(p,raw){return Math.max(1,Number(raw||0)*(1-planetModuleEffects(p).damageReduction));}
+function applyPlanetDamage(p,raw){if(!p)return{damage:0,killed:false};let dmg=planetDamageAfterModules(p,raw);refreshPlanetSuitStats(p);const absorbed=Math.min(p.planetShield,dmg);p.planetShield-=absorbed;dmg-=absorbed;p.planetHp=Math.max(0,p.planetHp-dmg);p.planetShieldRegenTimer=3;return{damage:absorbed+dmg,killed:p.planetHp<=0};}
+function refillPlanetVitals(p){refreshPlanetSuitStats(p);p.planetHp=p.planetMaxHp;p.planetShield=p.planetMaxShield;p.planetShieldRegenTimer=0;}
 function publicPlanetModuleDefs(){const out={};for(const[k,d]of Object.entries(PLANET_MODULE_DEFS))out[k]={key:k,name:d.name,color:d.color,description:d.description};return out;}
-function sendPlanetModuleState(socket,p){socket.emit("planetModuleState",{planetModules:normalizePlanetModules(p.planetModules||{}),moduleDefs:publicPlanetModuleDefs(),hp:p.hp,maxHp:p.maxHp});}
+function sendPlanetModuleState(socket,p){refreshPlanetSuitStats(p);socket.emit("planetModuleState",{planetModules:normalizePlanetModules(p.planetModules||{}),moduleDefs:publicPlanetModuleDefs(),hp:p.planetHp,maxHp:p.planetMaxHp,shield:p.planetShield,maxShield:p.planetMaxShield});}
 
 /* ── Player state ── */
 const players = new Map();
@@ -1553,6 +1555,7 @@ function defaultPlayer(id, name, x, y) {
     id, name:sanitizeName(name), x, y,
     vx:0, vy:0, angle:0,
     hp:100, maxHp:100, shield:60, maxShield:60,
+    planetHp:100,planetMaxHp:100,planetShield:40,planetMaxShield:40,planetShieldRegenTimer:0,
     level:1, xp:0, attrPoints:0,
     credits:300, maxSlots:24, invSlots:emptySlots(24), color:randomShipColor(), shipType:"scout",
     input:{ rotLeft:false, rotRight:false, thrust:false, brake:false, shootX:null, shootY:null },
@@ -1581,7 +1584,7 @@ function characterUpgradeCost(player,kind){
   return Math.floor(base*Math.pow(1.65,Math.max(0,(levels[kind]||1)-1)));
 }
 function planetWeaponDamage(player){return (12+((player.weaponLevel||1)-1)*5)*planetModuleEffects(player).weaponDamageMult;}
-function sendCharacterState(socket,p){socket.emit("characterState",{cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,weaponLevel:p.weaponLevel||1,miningLevel:p.miningLevel||1,oxygenLevel:p.oxygenLevel||1,credits:p.credits,planetModules:normalizePlanetModules(p.planetModules||{}),hp:p.hp,maxHp:p.maxHp});}
+function sendCharacterState(socket,p){refreshPlanetSuitStats(p);socket.emit("characterState",{cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,weaponLevel:p.weaponLevel||1,miningLevel:p.miningLevel||1,oxygenLevel:p.oxygenLevel||1,credits:p.credits,planetModules:normalizePlanetModules(p.planetModules||{}),hp:p.planetHp,maxHp:p.planetMaxHp,shield:p.planetShield,maxShield:p.planetMaxShield,shipHp:p.hp,shipMaxHp:p.maxHp,shipShield:p.shield,shipMaxShield:p.maxShield});}
 
 /* ── Score ── */
 function addScore(player, amount, reason) {
@@ -2805,8 +2808,8 @@ function killPlayerOnPlanet(victim, killer, killerName){
   setTimeout(()=>{
     const rp=players.get(victim.id);if(!rp)return;
     if(rp.planetId)io.sockets.sockets.get(rp.id)?.leave(`planet:${rp.planetId}`);
-    const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;refreshPlanetSuitStats(rp);rp.x=sp.x;rp.y=sp.y;rp.hp=rp.maxHp;rp.shield=rp.maxShield;rp.energy=100;rp.planetX=0;rp.planetY=0;
-    io.to(rp.id).emit("respawn",{x:rp.x,y:rp.y});
+    const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;rp.x=sp.x;rp.y=sp.y;refillPlanetVitals(rp);rp.energy=100;rp.planetX=0;rp.planetY=0;
+    io.to(rp.id).emit("respawn",{x:rp.x,y:rp.y,planetVitals:{hp:rp.planetHp,maxHp:rp.planetMaxHp,shield:rp.planetShield,maxShield:rp.planetMaxShield}});
   },3000);
   broadcastLeaderboard();
 }
@@ -2818,17 +2821,17 @@ function tickPlanetProjectiles(dt){
     const map=planetMaps.get(pr.planetId);
     if(map){const tx=Math.floor(pr.x/16),ty=Math.floor(pr.y/16);if(tx<0||ty<0||tx>=map.W||ty>=map.H){planetProjectiles.splice(i,1);continue;}if(map.tiles[ty*map.W+tx]){planetProjectiles.splice(i,1);continue;}}
     for(const [,target] of players){
-      if(target.id===pr.ownerId||target.mode!=="planet"||target.planetId!==pr.planetId||target.hp<=0)continue;
+      if(target.id===pr.ownerId||target.mode!=="planet"||target.planetId!==pr.planetId||target.planetHp<=0)continue;
       if(areAllied(players.get(pr.ownerId),target))continue;
       const d=Math.hypot((target.planetX||0)-pr.x,((target.planetY||0)-8)-pr.y);
       if(d<PLANET_PROJ_HIT_RADIUS){
         const owner=players.get(pr.ownerId);
-        const armor=1+((target.attrs.armor-1)*0.08),dmg=planetDamageAfterModules(target,pr.damage/armor);
-        target.hp=Math.max(0,target.hp-dmg);target.lastPlanetAttacker=pr.ownerId;
-        io.to(pr.ownerId).emit("planetAttackConfirm",{targetId:target.id,damage:Math.round(dmg),hp:target.hp});
-        io.to(target.id).emit("planetHit",{damage:Math.round(dmg),hp:target.hp,attackerName:pr.ownerName});
+        const armor=1+((target.attrs.armor-1)*0.08),hit=applyPlanetDamage(target,pr.damage/armor),dmg=hit.damage;
+        target.lastPlanetAttacker=pr.ownerId;
+        io.to(pr.ownerId).emit("planetAttackConfirm",{targetId:target.id,damage:Math.round(dmg),hp:target.planetHp,shield:target.planetShield});
+        io.to(target.id).emit("planetHit",{damage:Math.round(dmg),hp:target.planetHp,maxHp:target.planetMaxHp,shield:target.planetShield,maxShield:target.planetMaxShield,attackerName:pr.ownerName});
         planetProjectiles.splice(i,1);
-        if(target.hp<=0)killPlayerOnPlanet(target,owner,pr.ownerName);
+        if(hit.killed)killPlayerOnPlanet(target,owner,pr.ownerName);
         break;
       }
     }
@@ -2890,6 +2893,7 @@ const ROT_SPEED=2.25, BASE_THRUST=104, BASE_MAX_VELOCITY=165, ENERGY_DRAIN=1.8, 
 
 function tickPlayers(dt){
   for(const[,p]of players){
+    if(p.mode==="planet"){refreshPlanetSuitStats(p);p.planetShieldRegenTimer=Math.max(0,(Number(p.planetShieldRegenTimer)||0)-dt);if(p.planetShieldRegenTimer<=0&&p.planetShield<p.planetMaxShield)p.planetShield=Math.min(p.planetMaxShield,p.planetShield+4*dt);}
     if(p.mode!=="space")continue;
     const ship=SHIP_TYPES[p.shipType]||SHIP_TYPES.scout;
     const fx=applyShipStats(p,false);
@@ -2934,7 +2938,7 @@ function addSpatial(grid,x,y,value,size=BROADCAST_RANGE){const key=spatialBucket
 function spatialCandidates(grid,x,y,range=BROADCAST_RANGE,size=BROADCAST_RANGE){const cx=Math.floor((Number(x)||0)/size),cy=Math.floor((Number(y)||0)/size),reach=Math.max(1,Math.ceil(range/size)),out=[];for(let gy=cy-reach;gy<=cy+reach;gy++)for(let gx=cx-reach;gx<=cx+reach;gx++){const bucket=grid.get(`${gx},${gy}`);if(bucket)out.push(...bucket);}return out;}
 function broadcastWorldState(){
   const started=performance.now(),rangeSquared=BROADCAST_RANGE*BROADCAST_RANGE,playerGrid=new Map(),projectileGrid=new Map(),planetPlayersById=new Map(),planetProjectilesById=new Map();
-  for(const p of players.values()){const state=snap(p);addSpatial(playerGrid,state.x,state.y,state);if(p.mode==="planet"&&p.planetId){const row={id:p.id,name:p.name,x:netRound(p.planetX||0),y:netRound(p.planetY||0),vx:netRound(p.planetVx||0),vy:netRound(p.planetVy||0),hp:Math.round(p.hp),maxHp:Math.round(p.maxHp),color:p.color,level:p.level,cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,tool:p.planetTool||"mining",weaponLevel:p.weaponLevel||1,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})};const group=planetPlayersById.get(p.planetId);if(group)group.push(row);else planetPlayersById.set(p.planetId,[row]);}}
+  for(const p of players.values()){const state=snap(p);addSpatial(playerGrid,state.x,state.y,state);if(p.mode==="planet"&&p.planetId){const row={id:p.id,name:p.name,x:netRound(p.planetX||0),y:netRound(p.planetY||0),vx:netRound(p.planetVx||0),vy:netRound(p.planetVy||0),hp:Math.round(p.planetHp),maxHp:Math.round(p.planetMaxHp),shield:Math.round(p.planetShield),maxShield:Math.round(p.planetMaxShield),color:p.color,level:p.level,cosmeticColor:p.cosmeticColor,suitColor:p.suitColor,tool:p.planetTool||"mining",weaponLevel:p.weaponLevel||1,equippedCosmetics:normalizeEquippedCosmetics(p.equippedCosmetics||{})};const group=planetPlayersById.get(p.planetId);if(group)group.push(row);else planetPlayersById.set(p.planetId,[row]);}}
   for(const p of pvpProjectiles){const state={id:p.id,x:netRound(p.x),y:netRound(p.y),vx:netRound(p.vx),vy:netRound(p.vy),ownerId:p.ownerId,weaponKey:p.weaponKey,color:p.color,size:p.size,mode:p.mode,life:netRound(p.life)};addSpatial(projectileGrid,state.x,state.y,state);}
   for(const pr of planetProjectiles){const row={id:pr.id,ownerId:pr.ownerId,x:netRound(pr.x),y:netRound(pr.y),vx:netRound(pr.vx),vy:netRound(pr.vy)},group=planetProjectilesById.get(pr.planetId);if(group)group.push(row);else planetProjectilesById.set(pr.planetId,[row]);}
   let recipients=0;
@@ -3648,7 +3652,7 @@ io.on("connection",socket=>{
       const map=getPlanetMap(safePlanet);
       if(!map||!map.planet||!map.W||!map.H||!map.tiles)throw new Error("Planet map generation returned incomplete data.");
       if(p.planetId)socket.leave(`planet:${p.planetId}`);
-      p.mode="planet";p.planetId=map.planet.id;p.currentPlanetInfo=map.planet;p.activePlanetMine=null;refreshPlanetSuitStats(p);socket.join(`planet:${map.planet.id}`);sendPlanetModuleState(socket,p);
+      p.mode="planet";p.planetId=map.planet.id;p.currentPlanetInfo=map.planet;p.activePlanetMine=null;refillPlanetVitals(p);socket.join(`planet:${map.planet.id}`);sendPlanetModuleState(socket,p);
       socket.emit("planetMapState",{requestId:requestId||null,planetId:map.planet.id,W:map.W,H:map.H,tiles:Array.from(map.tiles),hp:Array.from(map.hp),heights:map.heights});
     }catch(error){
       console.error("Planet map request failed",{socketId:socket.id,planetId:safePlanet?.id||planet?.id,error});
@@ -3748,22 +3752,22 @@ io.on("connection",socket=>{
     if(areAllied(p,t)){socket.emit("planetAttackDenied",{reason:"Friendly fire disabled."});return;}
     const d=Math.hypot((p.planetX||0)-(t.planetX||0),(p.planetY||0)-(t.planetY||0));
     if(d>85){socket.emit("planetAttackDenied",{reason:"Target out of range."});return;}
-    const raw=planetWeaponDamage(p), armor=1+((t.attrs.armor-1)*0.08), dmg=planetDamageAfterModules(t,raw/armor);
-    t.hp=Math.max(0,t.hp-dmg);t.lastPlanetAttacker=p.id;
-    socket.emit("planetAttackConfirm",{targetId:t.id,damage:Math.round(dmg),hp:t.hp});
-    io.to(t.id).emit("planetHit",{damage:Math.round(dmg),hp:t.hp,attackerName:p.name});
-    if(t.hp<=0){
+    const raw=planetWeaponDamage(p), armor=1+((t.attrs.armor-1)*0.08), hit=applyPlanetDamage(t,raw/armor),dmg=hit.damage;
+    t.lastPlanetAttacker=p.id;
+    socket.emit("planetAttackConfirm",{targetId:t.id,damage:Math.round(dmg),hp:t.planetHp,shield:t.planetShield});
+    io.to(t.id).emit("planetHit",{damage:Math.round(dmg),hp:t.planetHp,maxHp:t.planetMaxHp,shield:t.planetShield,maxShield:t.planetMaxShield,attackerName:p.name});
+    if(hit.killed){
       t.deaths=(t.deaths||0)+1;p.kills=(p.kills||0)+1;p.credits+=75;addScore(p,250,"Planet PvP");
       io.to(p.id).emit("creditUpdate",{credits:p.credits});
       io.to(t.id).emit("youDied",{killedBy:p.name});
       io.emit("playerKilled",{victimId:t.id,victimName:t.name,killerId:p.id,killerName:p.name});
-      setTimeout(()=>{const rp=players.get(t.id);if(!rp)return;if(rp.planetId)io.sockets.sockets.get(t.id)?.leave(`planet:${rp.planetId}`);const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;refreshPlanetSuitStats(rp);rp.x=sp.x;rp.y=sp.y;rp.hp=rp.maxHp;rp.shield=rp.maxShield;rp.energy=100;rp.planetX=0;rp.planetY=0;io.to(t.id).emit("respawn",{x:rp.x,y:rp.y});},3000);
+      setTimeout(()=>{const rp=players.get(t.id);if(!rp)return;if(rp.planetId)io.sockets.sockets.get(t.id)?.leave(`planet:${rp.planetId}`);const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;rp.x=sp.x;rp.y=sp.y;refillPlanetVitals(rp);rp.energy=100;rp.planetX=0;rp.planetY=0;io.to(t.id).emit("respawn",{x:rp.x,y:rp.y,planetVitals:{hp:rp.planetHp,maxHp:rp.planetMaxHp,shield:rp.planetShield,maxShield:rp.planetMaxShield}});},3000);
       broadcastLeaderboard();
     }
   });
 
   socket.on("planetFireProjectile",({planetId,x,y,targetX,targetY})=>{
-    const p=players.get(socket.id);if(!p||p.mode!=="planet"||p.planetId!==planetId||p.hp<=0)return;
+    const p=players.get(socket.id);if(!p||p.mode!=="planet"||p.planetId!==planetId||p.planetHp<=0)return;
     const now=Date.now();if((p.planetShootAt||0)>now){socket.emit("planetAttackDenied",{reason:"Weapon cooling down."});return;}
     x=Number(x);y=Number(y);targetX=Number(targetX);targetY=Number(targetY);
     if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(targetX)||!Number.isFinite(targetY))return;
@@ -3782,7 +3786,7 @@ io.on("connection",socket=>{
     p.planetModules=normalizePlanetModules(p.planetModules||{});const current=p.planetModules[moduleKey]||0;if(current>=PLANET_MODULE_MAX_LEVEL){socket.emit("planetModuleDenied",{requestId,reason:"That module is already maximum level."});return;}
     const recipe=planetModuleRecipe(moduleKey,current),check=canCraftRecipe(p,recipe);if(!check.ok){socket.emit("planetModuleDenied",{requestId,reason:check.reason.replace(/([a-z0-9_]+)/i,m=>SERVER_RESOURCE_PUBLIC_DEFS[m]?.name||m)});return;}
     consumeCraftRecipe(p,recipe);p.planetModules[moduleKey]=current+1;refreshPlanetSuitStats(p);
-    socket.emit("planetModuleCrafted",{requestId,moduleKey,level:p.planetModules[moduleKey],planetModules:normalizePlanetModules(p.planetModules),credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,hp:p.hp,maxHp:p.maxHp,recipe});
+    socket.emit("planetModuleCrafted",{requestId,moduleKey,level:p.planetModules[moduleKey],planetModules:normalizePlanetModules(p.planetModules),credits:p.credits,invSlots:p.invSlots,maxSlots:p.maxSlots,hp:p.planetHp,maxHp:p.planetMaxHp,shield:p.planetShield,maxShield:p.planetMaxShield,recipe});
     sendPlanetModuleState(socket,p);syncAndPersist(p,"craft_planet_module");
   });
 
@@ -3945,27 +3949,25 @@ io.on("connection",socket=>{
 
   socket.on("oxygenDamage",({damage})=>{
     const p=players.get(socket.id);if(!p||p.mode!=="planet")return;
-    const dmg=planetDamageAfterModules(p,Math.max(1,Math.min(30,Number(damage)||7)));
-    p.hp=Math.max(0,p.hp-dmg);
-    socket.emit("oxygenDamageUpdate",{hp:p.hp,damage:Math.round(dmg)});
-    if(p.hp<=0){
+    const hit=applyPlanetDamage(p,Math.max(1,Math.min(30,Number(damage)||7))),dmg=hit.damage;
+    socket.emit("oxygenDamageUpdate",{hp:p.planetHp,maxHp:p.planetMaxHp,shield:p.planetShield,maxShield:p.planetMaxShield,damage:Math.round(dmg)});
+    if(hit.killed){
       p.deaths=(p.deaths||0)+1;
       socket.emit("youDied",{killedBy:"Oxygen Depletion"});
-      setTimeout(()=>{const rp=players.get(socket.id);if(!rp)return;const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;refreshPlanetSuitStats(rp);rp.x=sp.x;rp.y=sp.y;rp.hp=rp.maxHp;rp.shield=rp.maxShield;rp.energy=100;socket.emit("respawn",{x:rp.x,y:rp.y});},3000);
+      setTimeout(()=>{const rp=players.get(socket.id);if(!rp)return;const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;rp.x=sp.x;rp.y=sp.y;refillPlanetVitals(rp);rp.energy=100;socket.emit("respawn",{x:rp.x,y:rp.y,planetVitals:{hp:rp.planetHp,maxHp:rp.planetMaxHp,shield:rp.planetShield,maxShield:rp.planetMaxShield}});},3000);
     }
   });
 
   socket.on("planetNpcDamage",({damage,source})=>{
     const p=players.get(socket.id);if(!p||p.mode!=="planet")return;
-    const dmg=planetDamageAfterModules(p,Math.max(1,Math.min(30,Number(damage)||7)));
-    p.hp=Math.max(0,p.hp-dmg);
+    const hit=applyPlanetDamage(p,Math.max(1,Math.min(30,Number(damage)||7))),dmg=hit.damage;
     const attackerName=safeText(source||"Planet NPC",40);
-    socket.emit("planetHit",{damage:dmg,hp:p.hp,attackerName});
-    if(p.hp<=0){
+    socket.emit("planetHit",{damage:dmg,hp:p.planetHp,maxHp:p.planetMaxHp,shield:p.planetShield,maxShield:p.planetMaxShield,attackerName});
+    if(hit.killed){
       p.deaths=(p.deaths||0)+1;
       socket.emit("youDied",{killedBy:attackerName});
       io.emit("playerKilled",{victimId:p.id,victimName:p.name,killerId:null,killerName:attackerName});
-      setTimeout(()=>{const rp=players.get(socket.id);if(!rp)return;const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;refreshPlanetSuitStats(rp);rp.x=sp.x;rp.y=sp.y;rp.hp=rp.maxHp;rp.shield=rp.maxShield;rp.energy=100;socket.emit("respawn",{x:rp.x,y:rp.y});},3000);
+      setTimeout(()=>{const rp=players.get(socket.id);if(!rp)return;const sp=computeSpawnPoint();rp.mode="space";rp.planetId=null;rp.x=sp.x;rp.y=sp.y;refillPlanetVitals(rp);rp.energy=100;socket.emit("respawn",{x:rp.x,y:rp.y,planetVitals:{hp:rp.planetHp,maxHp:rp.planetMaxHp,shield:rp.planetShield,maxShield:rp.planetMaxShield}});},3000);
       broadcastLeaderboard();
     }
   });
