@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Space Eco — Unified Guidance Patch v4.2.0</title>
+<title>Space Eco — Complete Expedition Tutorial Patch v4.3.0</title>
 <style>
 html,body{margin:0;height:100%;background:#05060a;color:#d6e1ff;font-family:system-ui,Segoe UI,Arial;overflow:hidden}
 #wrap{display:flex;flex-direction:column;height:100%}
@@ -1127,14 +1127,12 @@ body.desktop-browser.command-dock-minimized #chat-wrap{bottom:58px!important}
 ═══════════════════════════════════════════════════════════════ */
 :root{--se-ui-scale:1}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:3px solid #ffdd44!important;outline-offset:2px!important}
-body[data-ui-scale="115"]{--se-ui-scale:1.15}
-body[data-ui-scale="130"]{--se-ui-scale:1.3}
+body[data-ui-scale="125"]{--se-ui-scale:1.25}body[data-ui-scale="150"]{--se-ui-scale:1.5}body[data-ui-scale="175"]{--se-ui-scale:1.75}
+body[data-ui-scale="200"]{--se-ui-scale:2}body[data-ui-scale="225"]{--se-ui-scale:2.25}body[data-ui-scale="250"]{--se-ui-scale:2.5}
 body.high-contrast .panel-box,body.high-contrast .master-menu-box,body.high-contrast #tutorial-tracker{background:#02050b!important;border-color:#fff!important;box-shadow:0 0 0 2px #000,0 0 0 4px #fff!important}
 body.high-contrast button{border-color:#fff!important}
-body[data-ui-scale="115"] .panel-box,body[data-ui-scale="115"] .master-menu-box,body[data-ui-scale="115"] #tutorial-tracker,
-body[data-ui-scale="130"] .panel-box,body[data-ui-scale="130"] .master-menu-box,body[data-ui-scale="130"] #tutorial-tracker{font-size:calc(16px * var(--se-ui-scale))}
-body[data-ui-scale="115"] .master-menu-card small,body[data-ui-scale="115"] #tutorial-tracker small{font-size:11px!important}
-body[data-ui-scale="130"] .master-menu-card small,body[data-ui-scale="130"] #tutorial-tracker small{font-size:12px!important}
+body:not([data-ui-scale="100"]) .panel-box,body:not([data-ui-scale="100"]) .master-menu-box,body:not([data-ui-scale="100"]) .trade-box,body:not([data-ui-scale="100"]) .social-box,body:not([data-ui-scale="100"]) #tutorial-tracker{font-size:calc(16px * var(--se-ui-scale));zoom:var(--se-ui-scale)}
+body:not([data-ui-scale="100"]) .master-menu-box{width:min(1220px,calc((100vw - 28px)/var(--se-ui-scale)))!important;height:min(820px,calc(90vh/var(--se-ui-scale)))!important}
 
 body.desktop-browser #master-menu-panel{padding:clamp(8px,2vh,22px)!important}
 body.desktop-browser .master-menu-box{
@@ -1185,6 +1183,10 @@ body.desktop-browser:not(.command-dock-expanded) #chat-wrap{bottom:58px!importan
 @keyframes tutorialPulse{from{opacity:.55;transform:scale(.82)}to{opacity:1;transform:scale(1.12)}}
 @media (max-width:700px){#tutorial-tracker{top:auto;bottom:152px;left:8px;width:calc(100vw - 16px)}#tutorial-tracker.tutorial-minimized{width:220px}.tutorial-copy{display:none}}
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+#command-center-callout{position:fixed;right:18px;bottom:18px;z-index:360;min-width:230px;padding:13px 18px;border:3px solid #ffdd44;border-radius:15px;background:linear-gradient(135deg,#3b3009,#091426);color:#fff5a8;font:1000 17px system-ui;letter-spacing:.04em;box-shadow:0 0 28px rgba(255,221,68,.46),0 8px 26px #000;cursor:pointer;animation:commandPulse 1.25s ease-in-out infinite alternate}#command-center-callout small{display:block;margin-top:2px;color:#c8e9ff;font:800 10px system-ui;letter-spacing:.08em}body.master-menu-open #command-center-callout{display:none}@keyframes commandPulse{from{transform:scale(.97)}to{transform:scale(1.04)}}
+#foreground-event-feed{position:fixed;z-index:9999;left:50%;top:72px;transform:translateX(-50%);width:min(540px,calc(100vw - 24px));display:flex;flex-direction:column;gap:8px;pointer-events:none}.foreground-event{display:flex;align-items:center;gap:10px;margin:auto;padding:10px 14px;border:2px solid var(--notice-color,#7be6ff);border-radius:12px;background:rgba(4,10,20,.97);box-shadow:0 7px 24px rgba(0,0,0,.68);color:#f4fbff;font:900 12px system-ui;animation:noticeIn .18s ease-out}.foreground-event .notice-icon{font-size:21px}.foreground-event.leaving{opacity:0;transform:translateY(-8px);transition:.24s}@keyframes noticeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+#tutorial-highlight{display:none;position:fixed;z-index:9980;border:4px solid #ffdd44;border-radius:14px;box-shadow:0 0 0 5px rgba(255,221,68,.18),0 0 30px #ffdd44;pointer-events:none;animation:tutorialPulse 1s ease-in-out infinite alternate}#tutorial-highlight:after{content:attr(data-label);position:absolute;left:0;bottom:calc(100% + 7px);padding:6px 9px;border-radius:7px;background:#ffdd44;color:#171200;font:1000 10px system-ui;white-space:nowrap}
 
 .cosmetic-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) 150px 150px auto;gap:8px;align-items:center;margin:10px 0;padding:10px;border:1px solid rgba(123,230,255,.2);border-radius:12px;background:rgba(5,11,24,.72)}
 .cosmetic-toolbar input,.cosmetic-toolbar select{box-sizing:border-box;height:35px;min-width:0;border:1px solid #315b7e;border-radius:8px;background:#071120;color:#eaf7ff;padding:6px 9px;font-size:10px;outline:none}.cosmetic-toolbar button{height:35px;border:1px solid #507493;border-radius:8px;background:#12243a;color:#cfefff;font-size:9px;font-weight:900;cursor:pointer}
@@ -1370,27 +1372,11 @@ body.desktop-browser:not(.command-dock-expanded) #chat-wrap{bottom:58px!importan
 </div>
 <div id="mobile-orientation-note">Rotate your phone sideways for the cleanest Space Eco controls.</div>
 
-<!-- Desktop browser universal command dock: expanded so every major menu/action is reachable by mouse. -->
+<!-- Current always-active desktop hotkeys. Every other menu remains in Command Center. -->
 <div id="desktop-command-dock" aria-label="Desktop command dock">
-  <button class="desktop-command-btn master" data-desktop-action="master" type="button">Master<small>1</small></button>
-  <button class="desktop-command-btn" data-desktop-action="map" type="button">Map<small>2</small></button>
+  <button class="desktop-command-btn master" data-desktop-action="master" type="button">Command Center<small>1</small></button>
   <button class="desktop-command-btn" data-desktop-action="inventory" type="button">Inventory<small>I</small></button>
-  <button class="desktop-command-btn" data-desktop-action="shop" type="button">Shop<small>O</small></button>
-  <button class="desktop-command-btn gold" data-desktop-action="credits" type="button">Credits<small>M</small></button>
-  <button class="desktop-command-btn gold" data-desktop-action="cosmetics" type="button">Cosmetics<small>;</small></button>
-  <button class="desktop-command-btn" data-desktop-action="ship-shop" type="button">Ships<small>H</small></button>
-  <button class="desktop-command-btn" data-desktop-action="character" type="button">Character<small>C</small></button>
-  <button class="desktop-command-btn" data-desktop-action="attributes" type="button">Attributes<small>P</small></button>
-  <button class="desktop-command-btn" data-desktop-action="quests" type="button">Quests<small>V</small></button>
-  <button class="desktop-command-btn" data-desktop-action="badges" type="button">Badges<small>Y</small></button>
-  <button class="desktop-command-btn" data-desktop-action="leaderboard" type="button">Board<small>K</small></button>
-  <button class="desktop-command-btn" data-desktop-action="players" type="button">Players<small>N</small></button>
-  <button class="desktop-command-btn" data-desktop-action="social" type="button">Social<small>F</small></button>
-  <button class="desktop-command-btn" data-desktop-action="party" type="button">Party<small>J</small></button>
-  <button class="desktop-command-btn" data-desktop-action="faction" type="button">Faction<small>U</small></button>
-  <button class="desktop-command-btn" data-desktop-action="trade" type="button">Trade<small>R</small></button>
-  <button class="desktop-command-btn" data-desktop-action="build" type="button">Build<small>B</small></button>
-  <button class="desktop-command-btn" data-desktop-action="ship-status" type="button">Ship Stats<small>Z</small></button>
+  <button class="desktop-command-btn" data-desktop-action="shop" type="button">Station Menu<small>O</small></button>
   <button class="desktop-command-btn" data-desktop-action="land" type="button">Land/Launch<small>L</small></button>
   <button class="desktop-command-btn" data-desktop-action="tool" type="button">Tool<small>Q</small></button>
   <button class="desktop-command-btn" data-desktop-action="gas" type="button">Gas<small>G</small></button>
@@ -1400,6 +1386,9 @@ body.desktop-browser:not(.command-dock-expanded) #chat-wrap{bottom:58px!importan
   <button class="desktop-command-btn red" data-desktop-action="close" type="button">Close<small>Esc</small></button>
 </div>
 <button id="desktop-command-dock-toggle" type="button" aria-expanded="true" title="Hide the hotkey dock">⌄ Hide Hotkeys</button>
+<button id="command-center-callout" type="button" aria-label="Open Command Center with key 1">PRESS 1 · COMMAND CENTER<small>ALL MENUS · SETTINGS · GUIDANCE</small></button>
+<div id="foreground-event-feed" role="status" aria-live="polite" aria-atomic="false"></div>
+<div id="tutorial-highlight" data-label="NEXT STEP"></div>
 
 <!-- Unified command center. 1 opens this on desktop/browser builds. -->
 <div id="master-menu-panel" class="master-menu-panel" style="display:none" role="dialog" aria-modal="true" aria-labelledby="master-menu-title">
@@ -1933,7 +1922,7 @@ function applyCommandPrefs(){
   document.body.classList.toggle("command-dock-expanded",!!commandPrefs.dockExpanded);
   document.body.classList.toggle("command-dock-minimized",!commandPrefs.dockExpanded);
   document.body.classList.toggle("high-contrast",!!commandPrefs.highContrast);
-  document.body.dataset.uiScale=["100","115","130"].includes(String(commandPrefs.uiScale))?String(commandPrefs.uiScale):"100";
+  document.body.dataset.uiScale=["100","125","150","175","200","225","250"].includes(String(commandPrefs.uiScale))?String(commandPrefs.uiScale):"100";
   const dock=document.getElementById("desktop-command-dock"),dockToggle=document.getElementById("desktop-command-dock-toggle");
   if(dock)dock.classList.toggle("dock-minimized",!commandPrefs.dockExpanded);
   if(dockToggle){dockToggle.textContent=commandPrefs.dockExpanded?"⌄ Hide Quick Dock":"☰ Command Center";dockToggle.setAttribute("aria-expanded",String(!!commandPrefs.dockExpanded));}
@@ -1991,7 +1980,7 @@ window.addEventListener("keydown",e=>{
 
   // v4.2 keeps movement and contextual play keys immediate, while optional
   // one-letter menu shortcuts live behind an explicit power-user preference.
-  const optionalMenuKeys=new Set(["i","o","p","c","v","y","]","2","3","4","k","n","h","z","b","m",".",";","f","j","u","r"]);
+  const optionalMenuKeys=new Set(["p","c","v","y","]","2","3","4","k","n","h","z","b","m",".",";","f","j","u","r"]);
   if(!legacyHotkeysEnabled&&optionalMenuKeys.has(key)){
     e.preventDefault();
     if(Date.now()-lastShortcutNoticeAt>1800){lastShortcutNoticeAt=Date.now();showUiActionNotice?.("Press 1 for the Command Center · shortcut menus can be enabled in its footer","#7be6ff");}
@@ -2003,6 +1992,8 @@ window.addEventListener("keydown",e=>{
     e.preventDefault();useEquippedAbility();return;
   }
   if([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(key))e.preventDefault();
+  if(key==="i"){desktopToggleInventory();e.preventDefault();return;}
+  if(key==="o"){desktopToggleShop();e.preventDefault();return;}
   if(key==="t"){openChat();e.preventDefault();return;}
   if(key==="v"){toggleQuestLog();e.preventDefault();return;}
   if(key==="y"){toggleBadgeLog();e.preventDefault();return;}
@@ -2250,7 +2241,7 @@ function mobileScrollPanel(delta){
 function mobileToggleInventory(){setInventoryOpenSafe(!inventoryOpen);shopOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);}
 function mobileToggleAttributes(){attrOpen=!attrOpen;shopOpen=false;inventoryOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);}
 function mobileToggleShop(){if(mode!==MODE.SPACE){showFT("Station shops are in space",astronaut.x,astronaut.y-24,"#ffcc44",9);return;}if(nearStation||shopOpen){shopOpen=!shopOpen;inventoryOpen=false;attrOpen=false;characterOpen=false;questLogOpen=false;badgeLogOpen=false;setShipStatusOpen(false);clampPanelScrolls();if(!shopOpen){shopSelectedSlot=null;shopSellQty=1;shopBuyItem=null;shopBuyQty=1;shopInventoryScrollRows=0;resetShopTransactions();}}else showFT("Move closer to a station",ship.x,ship.y-18,"#ffcc44",9);}
-function mobileLandTakeoff(){if(mode===MODE.SPACE){statsInc("landings",1);landOnNearestPlanet();return;}if(mode===MODE.PLANET){if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<42){statsInc("takeoffs",1);leavePlanet();}else showFT("Move closer to your ship",astronaut.x,astronaut.y-25,"#ffcc44",8);}}
+function mobileLandTakeoff(){if(mode===MODE.SPACE){landOnNearestPlanet();return;}if(mode===MODE.PLANET){if(dist(astronaut.x,astronaut.y,landedShip.x,landedShip.y)<42)leavePlanet();else showUiActionNotice("Move closer to your landed ship","#ffcc44");}}
 function mobileInteract(){if(mode===MODE.SPACE&&(nearStation||shopOpen)){mobileToggleShop();return;}keys.add("e");setTimeout(()=>keys.delete("e"),90);}
 function mobileBuildOrTile(){if(mode===MODE.PLANET){placeBuildTileAt(mouse.x||canvas.width/2,mouse.y||canvas.height/2);return;}if(mode===MODE.SPACE)toggleBuildPanel();}
 function mobileUseOxygen(){if(mode===MODE.PLANET){statsInc("oxygenUsed",1);useOxygenTank();}else showFT("Oxygen tanks are used on planets",ship.x,ship.y-18,"#7be6ff",9);}
@@ -2385,7 +2376,7 @@ const MASTER_MENU_ENTRIES=[
 
   {action:"toggle-shortcuts",cat:"settings",icon:"⌨",label:"Optional Menu Shortcuts",hotkey:"—",desc:"Enable or disable the one-letter shortcuts for opening individual menus.",keywords:"keyboard hotkeys controls accessibility",inline:true},
   {action:"toggle-dock",cat:"settings",icon:"▤",label:"Desktop Quick Dock",hotkey:"—",desc:"Show or hide the large desktop action-button dock.",keywords:"buttons toolbar hud accessibility",inline:true},
-  {action:"cycle-scale",cat:"settings",icon:"Aa",label:"Interface Text Size",hotkey:"—",desc:"Cycle DOM menu text through 100%, 115%, and 130%.",keywords:"font large readability accessibility",inline:true},
+  {action:"cycle-scale",cat:"settings",icon:"Aa",label:"Menu & Text Scale",hotkey:"—",desc:"Cycle every menu and its text from 100% up to 250%.",keywords:"font large readability accessibility 250",inline:true},
   {action:"toggle-contrast",cat:"settings",icon:"◐",label:"High Contrast",hotkey:"—",desc:"Increase borders and background contrast for menu readability.",keywords:"vision contrast accessibility",inline:true},
   {action:"close",cat:"settings",icon:"×",label:"Close All Menus",hotkey:"Esc",desc:"Return immediately to unobstructed gameplay.",keywords:"exit resume game",style:"red"}
 ];
@@ -2417,7 +2408,7 @@ function showMasterMenu(force=true){
   else{el.style.display="none";document.body.classList.remove("master-menu-open");clearMovementInput();}
 }
 function toggleMasterMenu(){const el=document.getElementById("master-menu-panel");showMasterMenu(!(el&&isShown(el)));}
-function cycleCommandUiScale(){const values=["100","115","130"],index=values.indexOf(String(commandPrefs.uiScale||"100"));commandPrefs.uiScale=values[(index+1)%values.length];saveCommandPrefs();applyCommandPrefs();syncCommandPreferenceButtons();}
+function cycleCommandUiScale(){const values=["100","125","150","175","200","225","250"],index=values.indexOf(String(commandPrefs.uiScale||"100"));commandPrefs.uiScale=values[(index+1)%values.length];saveCommandPrefs();applyCommandPrefs();syncCommandPreferenceButtons();showForegroundNotice(`Menu scale: ${commandPrefs.uiScale}%`,{icon:"Aa",color:"#7be6ff"});}
 function syncCommandPreferenceButtons(){
   const hot=document.getElementById("master-menu-hotkeys-toggle"),dock=document.getElementById("master-menu-dock-pref"),scale=document.getElementById("master-menu-scale-pref"),contrast=document.getElementById("master-menu-contrast-pref");
   if(hot){hot.textContent=`Extra hotkeys: ${legacyHotkeysEnabled?"On":"Off"}`;hot.setAttribute("aria-pressed",String(legacyHotkeysEnabled));}
@@ -2430,6 +2421,7 @@ function installCommandCenterBackButtons(){
   for(const box of document.querySelectorAll("#social-panel .social-box,#trade-panel-dom .trade-box")){if(box.querySelector(".command-center-back"))continue;const back=document.createElement("button");back.type="button";back.className="command-center-back";back.textContent="↶ Command Center";back.addEventListener("click",()=>showMasterMenu(true));box.prepend(back);}
 }
 function bindMasterMenu(){
+  document.getElementById("command-center-callout")?.addEventListener("click",()=>showMasterMenu(true));
   document.getElementById("master-menu-close")?.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();showMasterMenu(false);});
   document.getElementById("master-menu-panel")?.addEventListener("click",e=>{if(e.target&&e.target.id==="master-menu-panel")showMasterMenu(false);});
   const search=document.getElementById("master-menu-search");search?.addEventListener("input",()=>{masterMenuSearch=search.value||"";renderMasterMenu();});search?.addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();document.querySelector("#master-menu-grid [data-master-action]")?.focus();}});
@@ -2894,15 +2886,32 @@ function toggleStatsPanel(){const el=document.getElementById("stats-panel");if(!
 
 const STORY_STORAGE_KEY="spaceEcoStoryProgressV1";
 const TUTORIAL_PREFS_KEY="spaceEcoTutorialGuidanceV2";
+const TUTORIAL_MILESTONES_KEY="spaceEcoTutorialMilestonesV3";
+let tutorialMilestones=(()=>{try{return JSON.parse(localStorage.getItem(TUTORIAL_MILESTONES_KEY)||"{}")||{};}catch(_){return{};}})();
+function tutorialMark(key,amount=1){tutorialMilestones[key]=Math.max(Number(tutorialMilestones[key])||0,amount);try{localStorage.setItem(TUTORIAL_MILESTONES_KEY,JSON.stringify(tutorialMilestones));}catch(_){}evaluateStoryProgress?.(false);}
+const milestoneProgress=(key,label)=>()=>({value:tutorialMilestones[key]?1:0,target:1,label:tutorialMilestones[key]?label:"Not yet complete"});
 const STORY_CHAPTERS=[
   {title:"A Signal in the Dark",text:"A faint ecological beacon is repeating beyond the trade lanes. Keep your ship active while its coordinates resolve.",goal:"Explore and remain active for 60 seconds.",hint:"Fly, inspect the event radar, or open the Galaxy Map while the receiver triangulates the signal.",action:"map",test:()=>Number(playerStats.timePlayedSeconds||0)>=60,progress:()=>({value:Math.min(60,Number(playerStats.timePlayedSeconds)||0),target:60,label:`${Math.min(60,Math.floor(Number(playerStats.timePlayedSeconds)||0))} / 60 sec`})},
-  {title:"First Descent",text:"The signal resolves into mineral harmonics from a living world. Descend and establish visual contact with its surface.",goal:"Land on any planet.",hint:"Approach a planet until the landing prompt appears, then use L or the contextual Land action.",action:"land",test:()=>Number(playerStats.landings||0)>=1,progress:()=>({value:Math.min(1,Number(playerStats.landings)||0),target:1,label:`${Math.min(1,Number(playerStats.landings)||0)} / 1 landing`})},
+  {title:"First Descent",text:"The signal resolves into mineral harmonics from a living world. Descend and establish visual contact with its surface.",goal:"Land on any planet.",hint:"Approach a planet until the landing prompt appears, then use L or the contextual Land action.",action:"land",highlight:"#command-center-callout",test:()=>mode===MODE.PLANET||!!tutorialMilestones.landed||Number(playerStats.landings||0)>=1,progress:()=>({value:(mode===MODE.PLANET||tutorialMilestones.landed||Number(playerStats.landings||0)>=1)?1:0,target:1,label:(mode===MODE.PLANET||tutorialMilestones.landed)?"Planetfall confirmed":"0 / 1 landing"})},
   {title:"The Living Crust",text:"The world stores fragments of an ancient environmental archive inside its mineral layers.",goal:"Mine at least 8 resources.",hint:"While landed, select the mining tool and hold the pointer over mineable terrain until collection completes.",action:"mine",test:()=>Number(playerStats.resourcesMined||0)>=8,progress:()=>({value:Math.min(8,Number(playerStats.resourcesMined)||0),target:8,label:`${Math.min(8,Number(playerStats.resourcesMined)||0)} / 8 mined`})},
   {title:"The Frontier Exchange",text:"The archive fragments require translation keys distributed through the galactic economy.",goal:"Complete 3 station buy or sell actions.",hint:"Return to orbit, move close to a station, and use its market. Each confirmed buy or sale advances this chapter.",action:"shop",test:()=>Number(playerStats.tradeActions||0)>=3,progress:()=>({value:Math.min(3,Number(playerStats.tradeActions)||0),target:3,label:`${Math.min(3,Number(playerStats.tradeActions)||0)} / 3 trades`})},
   {title:"Foundations of Aequitas",text:"A permanent structure will stabilize the signal and give the expedition a foothold.",goal:"Build a storage facility or defense turret.",hint:"Open Fleet + Build in the Command Center while in space, then place a storage facility or defense turret.",action:"build",test:()=>Array.isArray(playerStructuresList)&&playerStructuresList.some(s=>s?.isOwn&&!s.destroyed),progress:()=>{const done=Array.isArray(playerStructuresList)&&playerStructuresList.some(s=>s?.isOwn&&!s.destroyed);return{value:done?1:0,target:1,label:done?"Structure online":"0 / 1 structure"};}},
   {title:"The Raider's Wake",text:"Raiders are following the same signal. Their recovered flight data points toward a hidden civilization corridor.",goal:"Destroy 3 NPC or raider ships.",hint:"Use the event radar and Galaxy Map to locate hostile activity, then keep moving while firing to avoid return shots.",action:"combat",test:()=>Number(playerStats.npcShipsDestroyed||0)>=3,progress:()=>({value:Math.min(3,Number(playerStats.npcShipsDestroyed)||0),target:3,label:`${Math.min(3,Number(playerStats.npcShipsDestroyed)||0)} / 3 ships`})},
   {title:"A Zone of Our Own",text:"The signal can only be amplified through a civilization network under your control.",goal:"Purchase a civilization zone.",hint:"Open Fleet + Build and review civilization-zone options. A zone costs 1,000,000 credits.",action:"zone",test:()=>Number(playerStats.zonesPurchased||0)>=1||(Array.isArray(civilizationZonesList)&&civilizationZonesList.some(z=>z?.isOwn)),progress:()=>{const done=Number(playerStats.zonesPurchased||0)>=1||(Array.isArray(civilizationZonesList)&&civilizationZonesList.some(z=>z?.isOwn));return{value:done?1:0,target:1,label:done?"Zone established":"0 / 1 zone"};}},
-  {title:"The Eco Accord",text:"The archive reveals its final directive: build an economy that protects worlds instead of exhausting them.",goal:"Reach level 5 and collect 50 total resources.",hint:"Mix mining, trade, quests, and combat. Your Pilot Records show both requirements at a glance.",action:"stats",test:()=>Number(player.level||1)>=5&&Number(playerStats.collectedResources||0)>=50,progress:()=>{const lv=Math.min(5,Number(player.level)||1),res=Math.min(50,Number(playerStats.collectedResources)||0);return{value:Math.min(lv/5,res/50)*100,target:100,label:`Lv ${lv}/5 · ${res}/50 resources`};}}
+  {title:"The Eco Accord",text:"The archive reveals its first directive: build an economy that protects worlds instead of exhausting them.",goal:"Reach level 5 and collect 50 total resources.",hint:"Mix mining, trade, quests, and combat. Your Pilot Records show both requirements at a glance.",action:"stats",test:()=>Number(player.level||1)>=5&&Number(playerStats.collectedResources||0)>=50,progress:()=>{const lv=Math.min(5,Number(player.level)||1),res=Math.min(50,Number(playerStats.collectedResources)||0);return{value:Math.min(lv/5,res/50)*100,target:100,label:`Lv ${lv}/5 · ${res}/50 resources`};}},
+  {title:"Modulewright",text:"Tune a ship module so the expedition can survive harsher routes.",goal:"Craft or upgrade a ship module.",hint:"Open Inventory (I), choose Modules, then craft or upgrade an available module.",action:"modules",test:()=>!!tutorialMilestones.module,progress:milestoneProgress("module","Module completed")},
+  {title:"Convergence Theory",text:"Duplicate modules can be converged into a more specialized system.",goal:"Attempt one module convergence.",hint:"Inventory → Modules → select matching copies → Converge.",action:"modules",test:()=>!!tutorialMilestones.convergence,progress:milestoneProgress("convergence","Convergence attempted")},
+  {title:"Forged in Starlight",text:"The signal requires a weapon carrying two harmonized cores.",goal:"Complete one weapon-fusion attempt.",hint:"Open Inventory (I), select the Fusion tab, choose eligible weapons, and fuse them.",action:"fusion",test:()=>!!tutorialMilestones.fusion,progress:milestoneProgress("fusion","Fusion attempted")},
+  {title:"Adaptive Response",text:"Craft an active ability and bind it to the ship's emergency channel.",goal:"Craft and equip an ability.",hint:"Inventory → Crafting → Abilities. Craft one, then equip it.",action:"ability",test:()=>!!tutorialMilestones.abilityEquipped,progress:milestoneProgress("abilityEquipped","Ability equipped")},
+  {title:"Power at Hand",text:"An equipped ability is only useful when deployed under pressure.",goal:"Activate your equipped ability.",hint:"In space, press Left Shift to activate the equipped ability.",action:"ability-use",test:()=>!!tutorialMilestones.abilityUsed,progress:milestoneProgress("abilityUsed","Ability activated")},
+  {title:"Surface Engineering",text:"Improve your independent planetside suit systems.",goal:"Craft one planetside module.",hint:"Land, then open Command Center → Planet Operations → Surface Modules.",action:"planet-module",test:()=>!!tutorialMilestones.planetModule,progress:milestoneProgress("planetModule","Surface module crafted")},
+  {title:"Emergency Protocol",text:"A repair kit closes the loop between exploration and survival.",goal:"Craft and use a repair item.",hint:"Inventory → Crafting → Repair Items; craft one and use it after taking damage.",action:"repair",test:()=>!!tutorialMilestones.repairUsed,progress:milestoneProgress("repairUsed","Repair applied")},
+  {title:"Pilot to Pilot",text:"The Accord grows through direct exchange, not stations alone.",goal:"Complete a protected player trade.",hint:"Approach another pilot and use Command Center → Community → Trade.",action:"trade",test:()=>!!tutorialMilestones.playerTrade,progress:milestoneProgress("playerTrade","Player trade complete")},
+  {title:"Contract Ecology",text:"Local contracts reveal how each region balances risk and reward.",goal:"Complete and claim a station quest.",hint:"Dock near a station, open its quest board, finish an objective, then claim the reward.",action:"quest",test:()=>!!tutorialMilestones.quest,progress:milestoneProgress("quest","Quest reward claimed")},
+  {title:"Crewed Horizon",text:"A living network needs specialists aboard the expedition.",goal:"Hire one crew member or mercenary.",hint:"Visit a supporting station service and complete a hire.",action:"hire",test:()=>!!tutorialMilestones.hire,progress:milestoneProgress("hire","Crew hired")},
+  {title:"Shipwright's Proof",text:"Build a new hull from resources gathered across the route.",goal:"Craft a ship or weapon.",hint:"Use the appropriate crafting screen and complete either recipe.",action:"craft",test:()=>!!tutorialMilestones.majorCraft,progress:milestoneProgress("majorCraft","Major craft completed")},
+  {title:"Identity in Orbit",text:"The Accord's fleets need a recognizable visual signal.",goal:"Buy and equip a cosmetic.",hint:"Command Center → Progression → Cosmetics; use search and filters to find a style.",action:"cosmetics",test:()=>!!tutorialMilestones.cosmetic,progress:milestoneProgress("cosmetic","Cosmetic equipped")},
+  {title:"The Living Network",text:"Complete the civilization loop by placing a station inside your zone.",goal:"Build a civilization station.",hint:"Command Center → Fleet + Build → Civilization, select your owned zone, and build a station.",action:"zone",test:()=>!!tutorialMilestones.civStation||Number(playerStats.civilizationStationsBuilt||0)>=1,progress:()=>({value:(tutorialMilestones.civStation||Number(playerStats.civilizationStationsBuilt||0)>=1)?1:0,target:1,label:(tutorialMilestones.civStation?"Civilization station online":"0 / 1 station")})}
 ];
 function normalizeStoryProgress(raw){const max=STORY_CHAPTERS.length;const completed=Math.max(0,Math.min(max,Math.floor(Number(raw?.completed)||0)));return{completed,startedAt:Math.max(0,Math.floor(Number(raw?.startedAt)||Date.now())),updatedAt:Math.max(0,Math.floor(Number(raw?.updatedAt)||Date.now()))};}
 function loadStoryProgress(){try{return normalizeStoryProgress(JSON.parse(localStorage.getItem(STORY_STORAGE_KEY)||"{}"));}catch(_){return normalizeStoryProgress({});}}
@@ -2924,7 +2933,7 @@ function toggleStoryPanel(){const el=document.getElementById("story-panel");if(!
 function renderTutorialTracker(force=false){
   const tracker=document.getElementById("tutorial-tracker");if(!tracker)return;if(!joined||!tutorialPrefs.guidance){tracker.style.display="none";return;}
   tracker.style.display="flex";tracker.classList.toggle("tutorial-minimized",!!tutorialPrefs.minimized);const minBtn=document.getElementById("tutorial-tracker-minimize");if(minBtn){minBtn.textContent=tutorialPrefs.minimized?"+":"−";minBtn.setAttribute("aria-expanded",String(!tutorialPrefs.minimized));minBtn.setAttribute("aria-label",tutorialPrefs.minimized?"Expand guided mission":"Minimize guided mission");}
-  const complete=storyProgress.completed>=STORY_CHAPTERS.length,index=complete?STORY_CHAPTERS.length-1:storyProgress.completed,chapter=STORY_CHAPTERS[index],p=complete?{pct:100,label:"8 / 8 chapters"}:storyChapterProgress(chapter),renderKey=`${storyProgress.completed}|${Math.floor(p.pct)}|${tutorialPrefs.minimized}|${tutorialPrefs.guidance}`;if(!force&&renderKey===lastTutorialRenderKey)return;lastTutorialRenderKey=renderKey;
+  const complete=storyProgress.completed>=STORY_CHAPTERS.length,index=complete?STORY_CHAPTERS.length-1:storyProgress.completed,chapter=STORY_CHAPTERS[index],p=complete?{pct:100,label:`${STORY_CHAPTERS.length} / ${STORY_CHAPTERS.length} chapters`}:storyChapterProgress(chapter),renderKey=`${storyProgress.completed}|${Math.floor(p.pct)}|${tutorialPrefs.minimized}|${tutorialPrefs.guidance}`;if(!force&&renderKey===lastTutorialRenderKey)return;lastTutorialRenderKey=renderKey;
   const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};set("tutorial-tracker-count",complete?"COMPLETE":`${index+1} / ${STORY_CHAPTERS.length}`);set("tutorial-tracker-chapter",complete?"ECO ACCORD COMPLETE":`CHAPTER ${index+1} · ACTIVE SIGNAL`);set("tutorial-tracker-title",complete?"The Signal Endures":chapter.title);set("tutorial-tracker-copy",complete?"You completed the guided Eco Signal arc. The tracker remains available as a record of the journey.":chapter.text);set("tutorial-tracker-goal",complete?"All guided chapters complete. Continue building your civilization and protecting the galaxy.":chapter.goal);set("tutorial-progress-text",p.label);
   const fill=document.getElementById("tutorial-progress-fill"),track=fill?.parentElement;if(fill)fill.style.width=`${p.pct}%`;if(track)track.setAttribute("aria-valuenow",String(Math.round(p.pct)));const guide=document.getElementById("tutorial-guide-button");if(guide)guide.textContent=complete?"View Records":"Guide Me";
 }
@@ -2937,7 +2946,13 @@ function tutorialGuidanceAction(){
   else if(chapter.action==="shop"){if(nearStation||shopOpen)desktopToggleShop();}
   else if(chapter.action==="build"||chapter.action==="zone")desktopBuildOrTile();
   else if(chapter.action==="stats")toggleStatsPanel();
+  else if(["modules","fusion","ability","repair","craft"].includes(chapter.action)){desktopToggleInventory();inventoryTab=chapter.action==="fusion"?"fusion":chapter.action==="modules"?"modules":"craft";}
+  else if(chapter.action==="planet-module")toggleModuleCrafting(true);
+  else if(chapter.action==="cosmetics")toggleCosmeticShop();
+  else if(["trade","quest","hire"].includes(chapter.action))showMasterMenu(true);
+  updateTutorialHighlight();
 }
+function updateTutorialHighlight(){const box=document.getElementById("tutorial-highlight");if(!box)return;if(!tutorialPrefs.guidance||storyProgress.completed>=STORY_CHAPTERS.length){box.style.display="none";return;}const chapter=STORY_CHAPTERS[storyProgress.completed],target=document.querySelector(chapter?.highlight||"#tutorial-guide-button");if(!target||!isShown(target)){box.style.display="none";return;}const r=target.getBoundingClientRect();box.style.cssText+=`;display:block;left:${Math.max(4,r.left-7)}px;top:${Math.max(4,r.top-7)}px;width:${r.width+10}px;height:${r.height+10}px`;box.dataset.label=`NEXT: ${chapter.title}`;}
 function tutorialMaybeIntro(force=false){if(!joined)return;if(!force&&(tutorialPrefs.introSeen||storyProgress.completed>0)){renderTutorialTracker(true);return;}const panel=document.getElementById("tutorial-intro-panel");if(panel)panel.style.display="flex";}
 function bindTutorialUI(){
   document.getElementById("tutorial-tracker-minimize")?.addEventListener("click",()=>{tutorialPrefs.minimized=!tutorialPrefs.minimized;saveTutorialPrefs();renderTutorialTracker(true);});
@@ -2945,7 +2960,7 @@ function bindTutorialUI(){
   document.getElementById("tutorial-intro-start")?.addEventListener("click",()=>{tutorialPrefs.introSeen=true;tutorialPrefs.guidance=true;tutorialPrefs.minimized=false;saveTutorialPrefs();hidePanel("tutorial-intro-panel");renderTutorialTracker(true);showTutorialToast("GUIDANCE ONLINE",STORY_CHAPTERS[storyProgress.completed]?.goal||"The Eco Signal awaits.");});
   document.getElementById("tutorial-intro-later")?.addEventListener("click",()=>{tutorialPrefs.introSeen=true;tutorialPrefs.guidance=false;saveTutorialPrefs();hidePanel("tutorial-intro-panel");renderTutorialTracker(true);showUiActionNotice?.("Guidance paused · resume it from the Command Center","#7be6ff");});
 }
-function updateTutorialSystem(now=performance.now()){if(!joined)return;if(now-storyEvalTimer>=650){storyEvalTimer=now;evaluateStoryProgress(false);renderTutorialTracker(false);}}
+function updateTutorialSystem(now=performance.now()){if(!joined)return;if(now-storyEvalTimer>=650){storyEvalTimer=now;evaluateStoryProgress(false);renderTutorialTracker(false);updateTutorialHighlight();}}
 bindTutorialUI();
 window.addEventListener("beforeunload",()=>{saveStoryProgressLocal();});
 
@@ -3675,6 +3690,7 @@ const ship={
   get gasEfficiency(){return 1/(Math.max(0.3,1+((player.attrs.gasEfficiency-1)*0.15))*attachmentEffects().gasEfficiencyMult);},
   get shieldRegenRate(){return 3*(1+((player.attrs.shieldRegen-1)*0.4))*this.def.shieldRegenMult*attachmentEffects().shieldRegenMult*(clientAbilityKind()==="defense"?2.25:1);}
 };
+const planetVitals={hp:100,maxHp:100,shield:40,maxShield:40,shieldRegenTimer:0};
 const energy=ship.energy;
 const oxygen={current:100,max:100,drainRate:2.2};
 const jetpack={current:100,max:100,drainRate:46,rechargeRate:18,groundRechargeMult:1.9,airRechargeMult:0.45,thrust:360,active:false};
@@ -6069,9 +6085,10 @@ function updateHud(){
   scoreEl.textContent=player.score||0;
   lvlEl.textContent=player.level;
   xpBar.style.width=Math.min(100,(player.xp/player.xpToNext)*100)+"%";
-  const hpPct=clamp((ship.hp/ship.maxHp)*100,0,100);
+  const activeVitals=mode===MODE.PLANET?planetVitals:ship;
+  const hpPct=clamp((activeVitals.hp/activeVitals.maxHp)*100,0,100);
   hpBar.style.width=hpPct+"%";hpBar.style.background=hpPct>50?"linear-gradient(90deg,#ff4422,#ff7755)":hpPct>25?"linear-gradient(90deg,#ff8800,#ffbb44)":"linear-gradient(90deg,#ff1100,#ff3300)";
-  shBar.style.width=clamp((ship.shield/ship.maxShield)*100,0,100)+"%";
+  shBar.style.width=clamp((activeVitals.shield/Math.max(1,activeVitals.maxShield))*100,0,100)+"%";
   const ePct=clamp((energy.current/energy.max)*100,0,100);
   eBar.style.width=ePct+"%";eBar.style.background=ePct>50?"linear-gradient(90deg,#3aff6a,#78ff8a)":ePct>25?"linear-gradient(90deg,#ffaa00,#ffdd55)":"linear-gradient(90deg,#ff3322,#ff6644)";
   eText.textContent=Math.ceil(ePct)+"%";
@@ -6119,6 +6136,12 @@ function buyInventorySlot(){
 
 /* ── Floating text ── */
 function showFT(text,x,y,color="#fff",size=11){floatingTexts.push({text,x,y,color,size,life:1.8,vy:-25});}
+const foregroundNoticeQueue=[];let foregroundNoticeBusy=false;
+function showForegroundNotice(text,{icon="✦",color="#7be6ff",duration=2600}={}){
+  foregroundNoticeQueue.push({text:String(text||"Action complete"),icon,color,duration});
+  if(!foregroundNoticeBusy)dequeueForegroundNotice();
+}
+function dequeueForegroundNotice(){const item=foregroundNoticeQueue.shift(),host=document.getElementById("foreground-event-feed");if(!item||!host){foregroundNoticeBusy=false;return;}foregroundNoticeBusy=true;const el=document.createElement("div");el.className="foreground-event";el.style.setProperty("--notice-color",item.color);el.innerHTML=`<span class="notice-icon">${safeHtml(item.icon)}</span><span>${safeHtml(item.text)}</span>`;host.appendChild(el);setTimeout(()=>{el.classList.add("leaving");setTimeout(()=>{el.remove();foregroundNoticeBusy=false;dequeueForegroundNotice();},260);},item.duration);}
 // Canvas menus do not have native :active feedback. Keep a tiny transient
 // marker at the clicked button so every canvas action acknowledges the press.
 let uiButtonPressPulse=null,uiActionNotice=null;
@@ -6126,7 +6149,7 @@ function pulseUiButton(mx,my,label=""){
   uiButtonPressPulse={x:mx,y:my,until:performance.now()+180};
   if(label)uiActionNotice={text:label,color:"#8be4ff",until:performance.now()+750};
 }
-function showUiActionNotice(text,color="#8be4ff",duration=1100){uiActionNotice={text:String(text||"Action complete"),color,until:performance.now()+duration};}
+function showUiActionNotice(text,color="#8be4ff",duration=1100){uiActionNotice={text:String(text||"Action complete"),color,until:performance.now()+duration};showForegroundNotice(text,{icon:/denied|missing|cannot|unavailable|failed|need /i.test(String(text))?"⚠":"✓",color,duration:Math.max(2100,duration)});}
 function drawUiActionFeedback(){
   const now=performance.now();
   if(uiButtonPressPulse&&now<uiButtonPressPulse.until){const p=uiButtonPressPulse,t=clamp((p.until-now)/180,0,1),r=9+(1-t)*13;ctx.save();ctx.globalAlpha=.72*t;ctx.strokeStyle="#8be4ff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.stroke();ctx.restore();}
@@ -7207,6 +7230,11 @@ socket.on("connect",()=>{
   if(launchedOnce && lastJoinPayload && !joined){emitJoinPayload("reconnect");}
   else setJoinStatus("Connected to global Space Eco server. Enter your name and launch.","#78ff8a");
 });
+socket.onAny((event,payload)=>{
+  const map={moduleUpgradeResult:"module",moduleCrafted:"module",moduleConvergenceResult:"convergence",weaponFusionResult:"fusion",abilityEquipped:"abilityEquipped",abilityUsed:"abilityUsed",planetModuleCrafted:"planetModule",repairItemUsed:"repairUsed",tradeComplete:"playerTrade",stationQuestRewardConfirm:"quest",hireConfirm:"hire",craftShipConfirm:"majorCraft",craftWeaponConfirm:"majorCraft",civilizationStationBuilt:"civStation"};
+  if(map[event])tutorialMark(map[event]);
+  if(event==="cosmeticState"&&(payload?.reason==="bought"||payload?.reason==="equipped"))tutorialMark("cosmetic");
+});
 socket.on("disconnect",(reason)=>{
   const wasLive=joined||launchedOnce;joined=false;resetShopTransactions();connectionRecovering=wasLive;connectionLostAt=Date.now();
   if(launchedOnce){
@@ -7421,11 +7449,11 @@ socket.on("spaceLootPickupConfirm",({claimId,resourceType,quantity,credits,invSl
   const rec=pendingSpaceLootClaims.get(claimId);
   if(rec){const idx=spaceDrops.indexOf(rec.drop);if(idx>=0)spaceDrops.splice(idx,1);pendingSpaceLootClaims.delete(claimId);}
   if(typeof credits==="number")player.credits=credits;if(typeof maxSlots==="number")player.maxSlots=maxSlots;if(Array.isArray(invSlots))player.invSlots=invSlots;
-  ensureClientInventorySlots();clampPanelScrolls();showFT(`PICKUP +${quantity||1} ${RES[resourceType]?.name||resourceType}`,ship.x+6,ship.y-34,"#78ff8a",10);updateHud();
+  ensureClientInventorySlots();clampPanelScrolls();const pickupLabel=`+${quantity||1} ${RES[resourceType]?.name||resourceType}`;showFT(`PICKUP ${pickupLabel}`,ship.x+6,ship.y-34,"#78ff8a",10);showForegroundNotice(pickupLabel,{icon:itemGlyphFor(resourceType),color:"#78ff8a",duration:2200});updateHud();
 });
 socket.on("spaceLootPickupDenied",({claimId,reason})=>{
   const rec=pendingSpaceLootClaims.get(claimId);if(rec?.drop)rec.drop.pickupPending=false;pendingSpaceLootClaims.delete(claimId);
-  if(reason)showFT(`PICKUP FAILED · ${reason}`,ship.x+6,ship.y-34,"#ff5544",9);
+  if(reason){showFT(`PICKUP FAILED · ${reason}`,ship.x+6,ship.y-34,"#ff5544",9);showForegroundNotice(reason,{icon:"⚠",color:"#ff7777"});}
 });
 socket.on("inventorySlotDenied",({reason})=>showFT(reason||"Slot purchase denied",canvas.width/2,canvas.height/2,"#ff5544",10));
 socket.on("inventorySlotConfirm",({credits,maxSlots})=>{player.credits=credits;player.maxSlots=maxSlots;ensureClientInventorySlots();clampPanelScrolls();updateHud();showFT("Inventory slot unlocked",canvas.width/2,canvas.height/2,"#78ff8a",10);});
@@ -7525,10 +7553,10 @@ socket.on("planetPlayersState",({planetId,players:pps,projectiles})=>{
   }
   for(const id of [...planetProjectiles.keys()])if(!pSeen.has(id))planetProjectiles.delete(id);
 });
-socket.on("planetHit",({damage,hp,attackerName})=>{ship.hp=hp;showFT(`-${Math.round(damage)} ${attackerName||"hit"}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)enterGameOver("hit-zero");});
+socket.on("planetHit",({damage,hp,maxHp,shield,maxShield,attackerName})=>{if(typeof hp==="number")planetVitals.hp=hp;if(typeof maxHp==="number")planetVitals.maxHp=maxHp;if(typeof shield==="number")planetVitals.shield=shield;if(typeof maxShield==="number")planetVitals.maxShield=maxShield;showFT(`-${Math.round(damage)} ${attackerName||"hit"}`,astronaut.x,astronaut.y-28,"#ff5544",10);updateHud();if(planetVitals.hp<=0)enterGameOver("hit-zero");});
 socket.on("planetAttackConfirm",({targetId,damage,hp})=>{const pp=planetPlayers.get(targetId);if(pp){pp.hp=hp;showFT(`-${Math.round(damage)}`,pp.renderX||pp.x,pp.renderY||pp.y-24,"#ffff44",9);}});
 socket.on("planetAttackDenied",({reason})=>showFT(reason||"Attack missed",astronaut.x,astronaut.y-24,"#ffcc44",8));
-socket.on("characterState",({cosmeticColor,suitColor,weaponLevel,miningLevel,oxygenLevel,credits,planetModules,hp,maxHp})=>{if(cosmeticColor)character.cosmeticColor=cosmeticColor;if(suitColor)character.suitColor=suitColor;if(weaponLevel)character.weaponLevel=weaponLevel;if(miningLevel)character.miningLevel=miningLevel;if(oxygenLevel)character.oxygenLevel=oxygenLevel;if(typeof credits==="number")player.credits=credits;if(planetModules)player.planetModules=normalizePlanetModules(planetModules);if(typeof hp==="number")ship.hp=hp;if(typeof maxHp==="number")ship.maxHp=maxHp;applyPlanetModuleEffects();updateHud();});
+socket.on("characterState",({cosmeticColor,suitColor,weaponLevel,miningLevel,oxygenLevel,credits,planetModules,hp,maxHp,shield,maxShield,shipHp,shipMaxHp,shipShield,shipMaxShield})=>{if(cosmeticColor)character.cosmeticColor=cosmeticColor;if(suitColor)character.suitColor=suitColor;if(weaponLevel)character.weaponLevel=weaponLevel;if(miningLevel)character.miningLevel=miningLevel;if(oxygenLevel)character.oxygenLevel=oxygenLevel;if(typeof credits==="number")player.credits=credits;if(planetModules)player.planetModules=normalizePlanetModules(planetModules);for(const[k,v]of Object.entries({hp,maxHp,shield,maxShield}))if(typeof v==="number")planetVitals[k]=v;for(const[k,v]of Object.entries({hp:shipHp,maxHp:shipMaxHp,shield:shipShield,maxShield:shipMaxShield}))if(typeof v==="number")ship[k]=v;applyPlanetModuleEffects();updateHud();});
 socket.on("characterUpgradeConfirm",({kind,level,credits})=>{const u=CHARACTER_UPGRADES[kind];if(u)character[u.key]=level;if(typeof credits==="number")player.credits=credits;applyOxygenLevel();showFT(`${u?.label||kind} Lv${level}`,canvas.width/2,canvas.height/2-30,"#7be6ff",11);updateHud();});
 socket.on("characterUpgradeDenied",({reason})=>showFT(reason||"Upgrade denied",canvas.width/2,canvas.height/2-20,"#ff5544",10));
 socket.on("tradeRequest",({fromId,fromName,mode})=>{pendingTradeRequest={fromId,fromName,mode,expires:Date.now()+25000};tradeStatus=`${fromName} wants to trade.`;addChat("Trade",`${tradeStatus} Use the yellow banner or press Y/N.`,"#ffdd44");showTradeRequestBanner();showFT("TRADE REQUEST!",mode===MODE.PLANET?astronaut.x:ship.x,mode===MODE.PLANET?astronaut.y-40:ship.y-24,"#ffdd44",13);});
@@ -7562,10 +7590,10 @@ socket.on("factionDenied",({reason})=>{addChat("Faction",reason||"Faction action
 socket.on("factionLeft",({reason})=>{factionState=null;renderSocialPanel();addChat("Faction",reason||"Left faction.","#ff8844");});
 socket.on("factionQuestCompleted",({rewardPlayerXp,rewardFactionXp,rewardCredits})=>{addChat("Faction",`Quest complete! +${rewardPlayerXp||0} player XP, +${rewardFactionXp||0} faction XP${rewardCredits?`, +${rewardCredits}cr`:""}.`,"#78ff8a");});
 
-socket.on("oxygenDamageUpdate",({hp,damage})=>{ship.hp=hp;showFT(`O2 DAMAGE -${Math.round(damage)}`,astronaut.x,astronaut.y-28,"#ff5544",10);if(hp<=0)enterGameOver("hit-zero");});
+socket.on("oxygenDamageUpdate",({hp,maxHp,shield,maxShield,damage})=>{if(typeof hp==="number")planetVitals.hp=hp;if(typeof maxHp==="number")planetVitals.maxHp=maxHp;if(typeof shield==="number")planetVitals.shield=shield;if(typeof maxShield==="number")planetVitals.maxShield=maxShield;showFT(`O2 DAMAGE -${Math.round(damage)}`,astronaut.x,astronaut.y-28,"#ff5544",10);updateHud();if(planetVitals.hp<=0)enterGameOver("hit-zero");});
 
-socket.on("planetModuleState",({planetModules,moduleDefs,hp,maxHp}={})=>{if(moduleDefs&&typeof moduleDefs==="object")for(const[k,v]of Object.entries(moduleDefs))if(PLANET_MODULE_DEFS[k])PLANET_MODULE_DEFS[k]={...PLANET_MODULE_DEFS[k],...v,key:k};if(planetModules)player.planetModules=normalizePlanetModules(planetModules);if(typeof hp==="number")ship.hp=hp;if(typeof maxHp==="number")ship.maxHp=maxHp;applyPlanetModuleEffects();saveLocalGameStateSoon("planet_module_sync");if(isShown(document.getElementById("module-crafting-panel")))renderModuleCrafting();});
-socket.on("planetModuleCrafted",({moduleKey,planetModules,credits,invSlots,maxSlots,hp,maxHp}={})=>{planetModuleCraftPending=false;if(planetModules)player.planetModules=normalizePlanetModules(planetModules);if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}if(typeof hp==="number")ship.hp=hp;if(typeof maxHp==="number")ship.maxHp=maxHp;applyPlanetModuleEffects();const d=PLANET_MODULE_DEFS[moduleKey];showFT(`${d?.name||"Module"} Lv${planetModuleLevel(moduleKey)}`,astronaut.x,astronaut.y-34,d?.color||"#78ff8a",11);saveLocalGameStateSoon("craft_planet_module");renderModuleCrafting();updateHud();});
+socket.on("planetModuleState",({planetModules,moduleDefs,hp,maxHp,shield,maxShield}={})=>{if(moduleDefs&&typeof moduleDefs==="object")for(const[k,v]of Object.entries(moduleDefs))if(PLANET_MODULE_DEFS[k])PLANET_MODULE_DEFS[k]={...PLANET_MODULE_DEFS[k],...v,key:k};if(planetModules)player.planetModules=normalizePlanetModules(planetModules);for(const[k,v]of Object.entries({hp,maxHp,shield,maxShield}))if(typeof v==="number")planetVitals[k]=v;applyPlanetModuleEffects();saveLocalGameStateSoon("planet_module_sync");updateHud();if(isShown(document.getElementById("module-crafting-panel")))renderModuleCrafting();});
+socket.on("planetModuleCrafted",({moduleKey,planetModules,credits,invSlots,maxSlots,hp,maxHp,shield,maxShield}={})=>{planetModuleCraftPending=false;if(planetModules)player.planetModules=normalizePlanetModules(planetModules);if(typeof credits==="number")player.credits=credits;if(Array.isArray(invSlots)){player.invSlots=invSlots;player.maxSlots=maxSlots||player.maxSlots;ensureClientInventorySlots();}for(const[k,v]of Object.entries({hp,maxHp,shield,maxShield}))if(typeof v==="number")planetVitals[k]=v;applyPlanetModuleEffects();const d=PLANET_MODULE_DEFS[moduleKey];showFT(`${d?.name||"Module"} Lv${planetModuleLevel(moduleKey)}`,astronaut.x,astronaut.y-34,d?.color||"#78ff8a",11);showUiActionNotice(`${d?.name||"Surface module"} crafted`,d?.color||"#78ff8a");saveLocalGameStateSoon("craft_planet_module");renderModuleCrafting();updateHud();});
 socket.on("planetModuleDenied",({reason}={})=>{planetModuleCraftPending=false;showFT(reason||"Module crafting denied",mode===MODE.PLANET?astronaut.x:ship.x,(mode===MODE.PLANET?astronaut.y:ship.y)-28,"#ff5544",9);renderModuleCrafting();});
 
 socket.on("shipBuyConfirm",({shipTypeKey,credits,hp,maxHp,shield,maxShield,equippedAttachments})=>{
@@ -7997,6 +8025,7 @@ function enterPlanetWithLoadedMap(){
   drops.length=0;
   initPlanetNPCs(activePlanet);
   socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});
+  statsInc("landings",1);tutorialMark("landed");
   showFT("Planetfall",astronaut.x,astronaut.y-25,"#7be6ff",11);
 }
 
@@ -8017,7 +8046,7 @@ function enterShipRuin(ruin){
   activeRuin=ruin;activePlanet={id:ruin.id,seed:ruin.seed,type:"ship_ruin",special:true,x:ruin.x,y:ruin.y,radius:42,pal:{sky:"#05060a",a:"#7be6ff",b:"#2f3744"},resList:["iron","copper","hull_plate","engine_core"]};
   planetMap=genRuinMap(ruin);mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;oxygenAutoUsePending=false;oxygenAutoUseCooldown=0;oxygenNoTankFlashTimer=0;oxygenNoTankWarnCooldown=0;planetPlayers.clear();
   astronaut.x=14*16;astronaut.y=(planetMap.H-5)*16-8;astronaut.vx=0;astronaut.vy=0;landedShip.x=8*16;landedShip.y=(planetMap.H-4)*16-4;drops.length=0;planetTool="weapon";
-  socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});showFT("Boarded derelict",astronaut.x,astronaut.y-25,"#78ff8a",12);
+  socket.emit("modeChange",{mode:"planet",planetId:activePlanet.id,x:ship.x,y:ship.y});statsInc("landings",1);tutorialMark("landed");showFT("Boarded derelict",astronaut.x,astronaut.y-25,"#78ff8a",12);
   awardBadge("first_boarding","Boarding Party","Board your first derelict ship ruin.");
 }
 function updateRuinContents(dt){
@@ -8077,7 +8106,7 @@ function landOnNearestPlanet(){
     activePlanet=makeAsteroidPlanetLike(nearestAst.f);planetMap=genAsteroidMap(nearestAst.f);mode=MODE.PLANET;planetLoading=false;applyOxygenLevel();oxygen.current=oxygen.max;oxygenDamageTimer=0;oxygenAutoUsePending=false;oxygenAutoUseCooldown=0;oxygenNoTankFlashTimer=0;oxygenNoTankWarnCooldown=0;planetPlayers.clear();
     const col=findLandingColumn();astronaut.x=col*16+8;astronaut.y=surfaceYAtColumn(col)*16-8;astronaut.vx=0;astronaut.vy=0;placeLandedShipNear(col);drops.length=0;planetTool="mining";activeRuin=null;initPlanetNPCs(activePlanet);
     socket.emit("requestPlanetMap",{planet:{id:activePlanet.id,seed:activePlanet.seed,type:"asteroid",isAsteroid:true,resList:activePlanet.resList,x:activePlanet.x,y:activePlanet.y,radius:activePlanet.radius}});
-    addChat("Landing",`🪨 Entered crystal asteroid ${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)}.`,"#b9f3ff");showFT("Crystal asteroid landing",astronaut.x,astronaut.y-25,"#7be6ff",10);return;
+    statsInc("landings",1);tutorialMark("landed");addChat("Landing",`🪨 Entered crystal asteroid ${Math.round(activePlanet.x)}, ${Math.round(activePlanet.y)}.`,"#b9f3ff");showFT("Crystal asteroid landing",astronaut.x,astronaut.y-25,"#7be6ff",10);return;
   }
   const nearest=visiblePlanets.map(p=>({p,d:dist(ship.x,ship.y,p.x,p.y)})).sort((a,b)=>a.d-b.d)[0];
   if(!nearest||nearest.d>=nearest.p.radius+60)return;
@@ -8086,6 +8115,7 @@ function landOnNearestPlanet(){
   showFT("Loading planet map...",ship.x,ship.y-18,"#7be6ff",10);
 }
 function leavePlanet(){
+  statsInc("takeoffs",1);
   if(activePlanet){ship.x=activePlanet.x+(activePlanet.radius+70);ship.y=activePlanet.y;}ship.vx*=0.2;ship.vy*=0.2;
   mode=MODE.SPACE;oxygen.current=oxygen.max;jetpack.current=jetpack.max;jetpack.active=false;planetLoading=false;planetLoadStartedAt=0;planetLoadLastRequestAt=0;planetLoadAttempts=0;planetLoadFallbackUsed=false;activeRuin=null;ruinChests=[];ruinBaddies=[];ruinSurvivors=[];activePlanet=null;planetMap=null;invalidatePlanetTileRenderCache();planetPlayers.clear();planetProjectiles.clear();drops.length=0;planetEnemies.length=0;planetLocalProjectiles.length=0;planetEnemyProjectiles.length=0;planetQuestTrader=null;
   socket.emit("modeChange",{mode:"space",x:ship.x,y:ship.y});
